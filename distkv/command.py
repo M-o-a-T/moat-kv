@@ -1,5 +1,6 @@
 # command line interface
 
+import sys
 import trio_click as click
 from pprint import pprint
 
@@ -14,6 +15,17 @@ import trio_click as click
 import logging
 logger = logging.getLogger(__name__)
 
+class _NotGiven:
+    pass
+_NotGiven = _NotGiven()
+
+def cmd():
+    try:
+        main(standalone_mode=False)
+    except BaseException as exc:
+        raise
+        print(exc)
+        sys.exit(1)
 
 @click.group()
 @click.option("-v","--verbose", count=True, help="Enable debugging. Use twice for more verbosity.")
@@ -71,31 +83,38 @@ async def client(ctx,host,port):
 
 
 @client.command()
-@click.option("-d", "--depth", default=0, help="Length of change list to return. Default: None")
+@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-v", "--verbose", is_flag=True, help="Print the complete result. Default: just the value")
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def get(ctx, path, depth, yaml, verbose, recursive):
+async def get(ctx, path, chain, yaml, verbose, recursive):
     """Read a DistKV value"""
     obj = ctx.obj
+    if verbose and yaml:
+        raise click.UsageError("'verbose' and 'yaml' are mutually exclusive")
     if recursive:
-        res = await obj.client.request(action="get_tree", path=path, iter=True, depth=depth)
+        if verbose:
+            raise click.UsageError("'verbose' does not yet work in recursive mode")
+        res = await obj.client.request(action="get_tree", path=path, iter=True, nchain=chain)
         pl = len(path)
         y = []
         async for r in res:
             d = r.get('depth',0)
-            path = path[:pl+d] + r.get('path',[])
+            path = path[:pl+d] + r.get('path',())
             if yaml:
-                y.append({'path': path, 'value': r.value})
+                yr = {'path': path, 'value': r.value}
+                if 'chain' in r:
+                    yr['chain'] = r.chain
+                y.append(yr)
             else:
                 print("%s: %s" % (' '.join(path), repr(r.value)))
         if yaml:
             import yaml
             print(yaml.safe_dump(y))
         return
-    res = await obj.client.request(action="get_value", path=path, iter=False, depth=depth)
+    res = await obj.client.request(action="get_value", path=path, iter=False, nchain=chain)
     if not verbose:
         res = res.value
     if yaml:
@@ -108,20 +127,36 @@ async def get(ctx, path, depth, yaml, verbose, recursive):
 @client.command()
 @click.option("-v", "--value", help="Value to set. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
+@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
+@click.option("-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'")
+@click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def set(ctx, path, value, eval):
+async def set(ctx, path, value, eval, chain, prev, last):
     """Set a DistKV value"""
     obj = ctx.obj
     if eval:
         value = __builtins__['eval'](value)
-    res = await obj.client.request(action="set_value", value=value, path=path, iter=False)
+    args = {}
+    if prev is not _NotGiven:
+        import pdb;pdb.set_trace()
+        if eval:
+            prev = __builtins__['eval'](prev)
+        args['prev'] = prev
+    if last:
+        if last[1] == '-':
+            args['chain'] = None
+        else:
+            args['chain'] = {'node': last[0], 'tick': int(last[1])}
+
+    res = await obj.client.request(action="set_value", value=value, path=path, iter=False, nchain=chain, **args)
 
 
 @client.command()
 @click.argument("path", nargs=-1)
+@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.pass_context
-async def delete(ctx, path):
+async def delete(ctx, path, chain):
     obj = ctx.obj
     res = await obj.client.request(action="del_value", path=path)
 

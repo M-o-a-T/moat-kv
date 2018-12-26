@@ -49,17 +49,16 @@ class StreamReply:
         self.seq = seq
         self.q = anyio.create_queue(10000)
 
-    async def set(self, value):
-        err = value.get('error', None)
-        if err is not None:
-            await self.q.put(outcome.Error(ServerError(err)))
+    async def set(self, res):
+        if 'error' in res:
+            await self.q.put(outcome.Error(ServerError(res.error)))
             return
-        state = value.get('state', None)
+        state = res.get('state', None)
         if state == 'end':
             await self.q.put(None)
             self.q = None
             return
-        await self.q.put(outcome.Value(value.result))
+        await self.q.put(outcome.Value(res))
         return self
 
     def __aiter__(self):
@@ -98,11 +97,10 @@ class _SingleReply:
             await self.q.set(res)
             return res
         else:
-            err = res.get('error', None)
-            if err is not None:
-                await self.q.set_error(ServerError(err))
+            if 'error' in res:
+                await self.q.set_error(ServerError(res.error))
             else:
-                await self.q.set(res.result)
+                await self.q.set(res)
 
     def get(self):
         return self.q.get()

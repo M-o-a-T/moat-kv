@@ -45,7 +45,7 @@ setup(
     ],
     entry_points='''
     [console_scripts]
-    distkv = distkv.command:main
+    distkv = distkv.command:cmd
     '''
 
 )

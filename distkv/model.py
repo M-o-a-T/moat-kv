@@ -25,19 +25,23 @@ class Node:
     name: str = None
     tick: int = None
 
-    def __new__(cls, name, tick):
+    def __new__(cls, name, tick=0):
         self = _nodes.get(name, None)
         if self is None:
             self = object.__new__(cls)
             self.name = name
+            self.tick = tick
             _nodes[name] = self
         elif self.tick < tick:
-            raise RuntimeError("Node %s has %d but sees %d" % (name, self.tick,tick))
-        self.tick = tick
+            self.tick = tick
         return self
 
-    def __init__(self, name, tick):
+    def __init__(self, name, tick=0):
         return
+
+    def __repr__(self):
+        return "<%s: %s @%s>" % (self.__class__.__name__, self.name, self.tick)
+
 
 class NodeEvent:
     """Represents any event originating at a node.
@@ -104,13 +108,23 @@ class NodeEvent:
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
         
-    def serialize(self, depth=0) -> dict:
-        if not depth:
+    def serialize(self, nchain=0) -> dict:
+        if not nchain:
             return None
+        nchain -= 1
         res = {'node': self.node.name, 'tick': self.tick}
-        if depth and self.prev:
-            res['prev'] = self.prev.serialize(depth)
+        if nchain:
+            res['prev'] = self.prev.serialize(nchain) if self.prev else None
         return res
+
+    @classmethod
+    def unserialize(cls, msg):
+        if msg is None:
+            return None
+        self = cls(node=Node(msg['node']), tick=msg['tick'])
+        if 'prev' in msg:
+            self.prev = cls.unserialize(msg['prev'])
+        return self
 
     def attach(self, prev: NodeEvent=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
@@ -139,7 +153,7 @@ class Entry:
     _path: List[str] = None
     _root: Root = None
     _data: bytes = None
-    changes: NodeEvent = None
+    chain: NodeEvent = None
 
     updaters = None
 
@@ -230,8 +244,8 @@ class Entry:
     def __repr__(self):
         try:
             res = "<%s:%s" % (self.__class__.__name__, self.path)
-            if self.changes is not None:
-                res += "@%s" % (repr(self.changes),)
+            if self.chain is not None:
+                res += "@%s" % (repr(self.chain),)
             if self.data is not None:
                 res += " =%s" % (repr(self.data),)
             res += ">"
@@ -248,20 +262,20 @@ class Entry:
         """
         evt = UpdateEvent(event, self, self._data, data)
         self._data = data
-        self.changes = evt.event.attach(self.changes)
+        self.chain = evt.event.attach(self.chain)
         await self.updated(self)
 
-    def serialize(self, chop_path=0, depth=2):
+    def serialize(self, chop_path=0, nchain=2):
         """Serialize this entry for msgpack.
 
         Args:
           ``chop_path``: If <0, do not return the entry's path.
                          Otherwise, do, but remove the first N entries.
-          ``depth``: how many change events to include.
+          ``nchain``: how many change events to include.
         """
         res = {'value': self._data}
-        if self.changes is not None and depth > 0:
-            res['changed'] = self.changes.serialize(depth=depth-1)
+        if self.chain is not None and nchain > 0:
+            res['chain'] = self.chain.serialize(nchain=nchain-1)
         if chop_path >= 0:
             path = self.path
             if chop_path > 0:

@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
+class ClientError(ValueError):
+    """report error to the client but don't dump a stack trace"""
+    pass
+
 class _LATER:
     pass
 
@@ -40,34 +44,43 @@ class ServerClient:
         self._client_nr = _client_nr
         logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
     
-    async def _task(self, proc, seq, args):
+    async def _task(self, proc, seq, args, kwargs):
         async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             try:
                 await self.send({'seq':seq, 'state':'start'})
-                await proc(seq, *args)
+                await proc(seq, *args, **kwargs)
             finally:
                 del self.tasks[seq]
                 await self.send({'seq':seq, 'state':'end'})
 
-    async def task(self, proc, seq, *args):
-        await self.tg.spawn(self._task, proc, seq, args)
+    async def task(self, proc, seq, *args, **kwargs):
+        await self.tg.spawn(self._task, proc, seq, args, kwargs)
         return _LATER
 
-    async def _get_values(self, seq, entry):
+    async def _get_values(self, seq, entry, nchain=0, depth=None, cdepth=0):
         if entry.data is not None:  # TODO: send if recently deleted
-            await self.send_result(seq, entry.serialize(chop_path=self._chop_path))
+            res = entry.serialize(chop_path=self._chop_path, nchain=nchain)
+            if depth is not None:
+                p = res['path'][depth+cdepth:]
+                if len(p):
+                    res['path'] = p
+                else:
+                    del res['path']
+                res['depth'] = cdepth
+                cdepth +=len(p)
+            await self.send_result(seq, res)
         for v in list(entry.values()):
-            await self._get_values(seq, v)
+            await self._get_values(seq, v, nchain=nchain, depth=depth, cdepth=cdepth)
 
     async def process(self, msg):
         if self.seq >= msg.seq:
-            raise ValueError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
+            raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
         self.seq = msg.seq
         try:
             fn = getattr(self, 'cmd_' + str(msg.action))
         except AttributeError:
-            raise ValueError("Command not recognized: " + repr(msg.action))
+            raise ClientError("Command not recognized: " + repr(msg.action))
         else:
             return await fn(msg)
         
@@ -87,37 +100,54 @@ class ServerClient:
         except KeyError:
             entry = None
         else:
-            entry = entry.serialize(chop_path=-1, depth=msg.get('depth', 0))
+            entry = entry.serialize(chop_path=-1, nchain=msg.get('nchain', 0))
         return entry
 
     async def cmd_set_value(self, msg):
         """Set a node's value.
         """
         entry = self.root.follow(*msg.path)
-        if entry.data != msg.value:
-            await entry.set_data(self.server.event, msg.value)
-        return entry.changes.serialize(depth=1)
+        send_prev = True
+        if 'prev' in msg:
+            if entry.data != msg.prev:
+                raise ClientError("Data is %s" % (repr(entry.data),))
+            send_prev = False
+        if 'chain' in msg:
+            if msg.chain is None and entry.chain is not None:
+                raise ClientError("This entry already exists")
+            if msg.chain is not None and entry.chain is None:
+                raise ClientError("This entry is new")
+            if entry.chain is not None and entry.chain != msg.chain:
+                raise ClientError("Chain is %s" % (repr(entry.chain),))
+            send_prev = False
+        res = {'changed': entry.data != msg.value}
+        if send_prev:
+            res['prev'] = entry.data
+
+        await entry.set_data(self.server.event, msg.value)
+
+        nchain = msg.get('nchain', 1)
+        if nchain > 0:
+            res['chain'] = entry.chain.serialize(nchain=nchain)
+        return res
 
     async def cmd_delete_value(self, msg):
         """Delete a node's value.
         Sub-nodes are not affected.
         """
-        try:
-            entry = self.root.follow(*msg.path)
-        except KeyError:
-            return False
-        if entry.data is not None:
-            await entry.set_data(self.server.event, None)
-        return entry.changes.serialize(depth=2)
+        if 'value' in msg:
+            raise ClientError("A deleted entry can't have a value")
+        msg.value = None
+        return await self.cmd_set_value(msg)
 
     async def cmd_get_tree(self, msg):
         try:
             entry = self.root.follow(*msg.path, create=False)
         except KeyError:
-            return None
+            return {'value':None}
         if not len(entry):
             return entry.serialize(chop_path=self._chop_path)
-        return await self.task(self._get_values, msg.seq, entry)
+        return await self.task(self._get_values, msg.seq, entry, nchain=msg.get('nchain',0), depth=len(msg.path))
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
@@ -144,7 +174,8 @@ class ServerClient:
         return self.stream.send_all(_packer(msg))
 
     def send_result(self, seq, res):
-        return self.send({'seq': seq, 'result': res})
+        res['seq'] = seq
+        return self.send(res)
 
     async def run(self):
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
@@ -156,13 +187,16 @@ class ServerClient:
 
             while True:
                 for msg in unpacker:
-                    seq = -1
+                    seq = 0
                     try:
                         logger.debug("IN %d: %s", self._client_nr, msg)
+                        if 'chain' in msg and not isinstance(msg.chain, int):
+                            msg.chain = NodeEvent.unserialize(msg.chain)
                         seq = msg.seq
                         res = await self.process(msg)
                     except Exception as exc:
-                        logger.exception("Client error on %s", repr(msg))
+                        if not isinstance(exc, ClientError):
+                            logger.exception("Client error on %s", repr(msg))
                         if seq > 0:
                             await self.send({'error': str(exc), 'seq': seq})
                         else:
@@ -173,7 +207,10 @@ class ServerClient:
                             try:
                                 await self.send_result(seq, res)
                             except Exception as exc:
-                                await self.send({'error': "Uncodeable", 'result': repr(res), 'seq': seq})
+                                try:
+                                    await self.send({'error': "Uncodeable", 'result': repr(res), 'seq': seq})
+                                except Exception as exc:
+                                    await self.send({'error': "Uncodeable", 'result': None, 'seq': seq})
 
                 try:
                     buf = await self.stream.receive_some(4096)

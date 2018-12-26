@@ -29,6 +29,16 @@ action
 The action which the server is requested to perform. Valid actions are
 described below.
 
+nchain
+------
+
+This field tells the DistKV server how many change entries to return.
+The default is zero. If you want to update a value, retrieve the
+original with ``nchain`` set to one. Synchronization between DistKV servers
+requires the number of possible partitions plus one, in order to protect
+against spurious conflict reports.
+
+
 Replies
 =======
 
@@ -43,18 +53,19 @@ The sequence number of the request which caused this reply.
 Server messages which don't include a sequence number are errors and
 will close the connection.
 
+The server will either send exactly one reply with any given sequence number,
+or a multi-reply sequence which starets with a ``state=start`` message.
+
 error
 -----
 
 This field contains a human-readable error message. A request has failed if
 this field is present.
 
-res
----
+value
+-----
 
-The result of the request, assuming it fits in one message. The server will
-not send more replies with this sequence number unless it has first sent
-a ``state=start`` message.
+The value of the DistKV entry, assuming one was requested.
 
 state
 -----
@@ -64,6 +75,18 @@ May be ``start`` or ``end``
 
 * ``end`` indicates that a multi-value result has finished. No more
   messages with this sequence number will be sent.
+
+The ``start`` message will contain neither an error nor a value.
+
+chain
+-----
+
+The change chain resulting from, or retrieved by, a command.
+
+Change chains track which server last modified a value, so that replayed
+updates can be ignored and conflicting updates can be recognized. A chain
+never contains any one DistKV server more than once.
+
 
 Actions
 =======
@@ -93,7 +116,7 @@ message.
 get_value
 ---------
 
-Retrieve a single value. The ``path`` to that value needs to be sent as a list.
+Retrieve a single value. The ``path`` to the value needs to be sent as a list.
 
 If the value does not exist or has been deleted, you'll get ``None`` back.
 
@@ -102,14 +125,18 @@ set_value
 
 Set a single value. The ``path`` to that ``value`` needs to be sent as a list.
 
-This action returns the node's new change chain (possibly truncated).
+If you are updating a known value, you should send a ``chain`` entry
+to help ensure that no other node has changed it unexpectedly. (Of course,
+due to the distributed nature of DistKV, this may happen anyway.) You can
+also use ``prev`` to send an expected old value, but you really shouldn't.
+
+This action returns the node's new change ``chain``. If you did not send a
+``chain`` field, the previous value is returned in ``prev``.
 
 delete_value
 ------------
 
-Remove a single value. Currently this is the same as setting it to ``None``.
-
-This action returns the node's new change chain (possibly truncated).
+Remove a single value. This is the same as setting it to ``None``.
 
 get_tree
 --------
@@ -148,4 +175,12 @@ Tasks started before this action are not affected.
 
 This action returns the new root node's value.
 
+monitor
+-------
 
+Stream changes to this node. The replies look like those from ``get_tree``.
+
+The recommended way to use this is to open a monitor 
+
+Examples
+========

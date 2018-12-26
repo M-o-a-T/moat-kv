@@ -40,3 +40,7 @@ class attrdict(dict):
     def __delattr__(self,a):
         del self[a]
 
+import yaml
+from yaml.representer import SafeRepresenter
+SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
+
