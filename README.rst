@@ -1,11 +1,30 @@
+======
 DistKV
 ======
 
 Welcome to `DistKV <https://github.com/smurfix/distkv>`__!
 
-A distributed no-master key-value store
+DistKV is a distributed no-master key-value store
 
-License: Your choice of MIT or Apache License 2.0
+DistKV is a master-less distributed key-value storage system. It
+circumvents the CAP theorem by assuming that keys are usually only changed
+by one node. It is resistant to partitioning and intended to be always-on;
+while it might delay – but will not lose – any updates.
 
-COOKIECUTTER-TRIO-TODO: finish filling in your README!
-Must be valid ReST; also used as the PyPI description.
+DistKV does not support data partitioning. Every node stores the whole
+data set and can instantly deliver mostly-uptodate data.
+
+DistKV does not have a disk-based storage backend; periodic snapshots and
+event logs are used to restore a system, if necessary.
+
+API
+===
+
+DistKV offers an efficient msgpack-based interface to access data and to
+change settings. For compatibility, a front-end that mimics etcd2 is also
+available.
+
+Status
+======
+
+All of the above is still wishful thinking.

@@ -43,4 +43,9 @@ setup(
         # For the full list of options, see:
         #   https://pypi.org/classifiers/
     ],
+    entry_points='''
+    [console_scripts]
+    distkv = distkv.command:main
+    '''
+
 )
