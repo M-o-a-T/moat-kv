@@ -46,7 +46,6 @@ class StreamReply:
 
     def __init__(self, conn, seq):
         self._conn = conn
-        self._command = command
         self.seq = seq
         self.q = anyio.create_queue(10000)
 
@@ -60,7 +59,7 @@ class StreamReply:
             await self.q.put(None)
             self.q = None
             return
-        await self.q.put(outcome.Value(res.result))
+        await self.q.put(outcome.Value(value.result))
         return self
 
     def __aiter__(self):

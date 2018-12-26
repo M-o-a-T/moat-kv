@@ -74,11 +74,27 @@ async def client(ctx,host,port):
 @click.option("-d", "--depth", default=0, help="Length of change list to return. Default: None")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-v", "--verbose", is_flag=True, help="Print the complete result. Default: just the value")
+@click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def get(ctx, path, depth, yaml, verbose):
+async def get(ctx, path, depth, yaml, verbose, recursive):
     """Read a DistKV value"""
     obj = ctx.obj
+    if recursive:
+        res = await obj.client.request(action="get_tree", path=path, iter=True, depth=depth)
+        pl = len(path)
+        y = []
+        async for r in res:
+            d = r.get('depth',0)
+            path = path[:pl+d] + r.get('path',[])
+            if yaml:
+                y.append({'path': path, 'value': r.value})
+            else:
+                print("%s: %s" % (' '.join(path), repr(r.value)))
+        if yaml:
+            import yaml
+            print(yaml.safe_dump(y))
+        return
     res = await obj.client.request(action="get_value", path=path, iter=False, depth=depth)
     if not verbose:
         res = res.value
@@ -108,4 +124,5 @@ async def set(ctx, path, value, eval):
 async def delete(ctx, path):
     obj = ctx.obj
     res = await obj.client.request(action="del_value", path=path)
+
 

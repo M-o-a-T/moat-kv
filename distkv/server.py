@@ -1,6 +1,7 @@
 # Local server
 
 import anyio
+from anyio.exceptions import ClosedResourceError
 import msgpack
 from aioserf import serf_client
 
@@ -40,21 +41,21 @@ class ServerClient:
         logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
     
     async def _task(self, proc, seq, args):
-        with anyio.open_cancel_scope() as s:
+        async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             try:
-                await self.send({'seq':seq, state:'start'})
+                await self.send({'seq':seq, 'state':'start'})
+                await proc(seq, *args)
             finally:
                 del self.tasks[seq]
-                await self.send({'seq':seq, state:'end'})
+                await self.send({'seq':seq, 'state':'end'})
 
     async def task(self, proc, seq, *args):
-        j = await self.server.spawn(self._task, proc, seq, args)
-        await self.tg.start(self._task, proc, seq, *args)
+        await self.tg.spawn(self._task, proc, seq, args)
         return _LATER
 
     async def _get_values(self, seq, entry):
-        if entry.value is not None:  # TODO: send if recently deleted
+        if entry.data is not None:  # TODO: send if recently deleted
             await self.send_result(seq, entry.serialize(chop_path=self._chop_path))
         for v in list(entry.values()):
             await self._get_values(seq, v)
@@ -176,8 +177,8 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive_some(4096)
-                except ClosedResourceError:
-                    return  # closed by us
+                except (ConnectionResetError, ClosedResourceError):
+                    return  # closed/reset/whatever
                 if len(buf) == 0:  # Connection was closed.
                     return # done
                 unpacker.feed(buf)
@@ -207,6 +208,8 @@ class Server:
     async def serve(self, cfg={}):
         async with serf_client(**cfg.serf) as serf:
             self.serf = serf
+            self.spawn = serf.spawn
+
             await serf.spawn(self.monitor)
             cfg_s = cfg.server
             if 'host' in cfg_s:
