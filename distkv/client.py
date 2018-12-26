@@ -189,7 +189,9 @@ class Client:
         await self._socket.send_all(_packer(params))
         res = await res.get()
         if iter is True and not isinstance(res, StreamReply):
-            res = (res,)
+            async def send_one(res):
+                yield res
+            res = send_one(res)
         elif iter is False and isinstance(res, StreamReply):
             rr = None
             async for r in res:
