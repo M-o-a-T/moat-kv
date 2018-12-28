@@ -2,13 +2,16 @@
 DistKV's client protocol
 ========================
 
-DistKV's native client protocol is based on MsgPack.
+DistKV's native client protocol is based on MsgPack. The client sends
+requests; the server sends one or more responses. You may (and indeed
+should) run concurrent requests on the same connection.
 
 Strings must be UTF-8, as per MsgPack specification.
 
 Requests and replies are mappings.
 
-The server initially sends a greeting, using sequence number zero.
+The server initially sends a greeting, using sequence number zero. It will
+not send any other unsolicited message.
 
 Requests
 ========
@@ -20,7 +23,8 @@ fields it doesn't understand.
 seq
 ---
 
-Every client message must contain a strictly increasing positive sequence
+Every client request must contain a strictly increasing positive sequence
+number. All replies associated with a request carry the same sequence
 number.
 
 action
@@ -175,12 +179,75 @@ Tasks started before this action are not affected.
 
 This action returns the new root node's value.
 
-monitor
--------
+watch
+-----
 
 Stream changes to this node. The replies look like those from ``get_tree``.
 
-The recommended way to use this is to open a monitor 
+The recommended way to use this is to first open a monitor and then fill in
+unknown values via ``get_values``. This way you won't lose any changes.
 
 Examples
 ========
+
+You can turn on message debugging with 'distkv -vvv'.
+
+Get and set a value
+-------------------
+
+If the value is not set::
+
+    Send {'path': ('test',), 'nchain': 3, 'action': 'get_tree', 'seq': 1}
+    Recv {'value': None, 'seq': 1}
+
+Setting an initial value::
+
+    Send {'value': 1234, 'path': ('test',), 'nchain': 2, 'chain': None, 'action': 'set_value', 'seq': 2}
+    Recv {'changed': True, 'chain': {'node': 'test1', 'tick': 2, 'prev': None}, 'seq': 2}
+
+Trying the same thing again will result in an error::
+
+    Send {'value': 1234, 'path': ('test',), 'nchain': 2, 'chain': None, 'action': 'set_value', 'seq': 3}
+    Recv {'error': 'This entry already exists', 'seq': 3}
+
+To fix that, use the chain value you got when setting or retrieving the
+previous value::
+
+    Send {'value': 123, 'path': ('test',), 'nchain': 2, 'chain': {'node': 'test1', 'tick': 2}, 'action': 'set_value', 'seq': 4}
+    Recv {'changed': True, 'chain': {'node': 'test1', 'tick': 3, 'prev': None}, 'seq': 4}
+
+Sending no precondition would also work
+
+After you set multiple values::
+
+    Send {'value': 123, 'path': ('test', 'foo'), 'nchain': 0, 'action': 'set_value', 'seq': 5}
+    Recv {'changed': True, 'prev': None, 'seq': 5}
+    Send {'value': 12, 'path': ('test', 'foo', 'bap'), 'nchain': 0, 'action': 'set_value', 'seq': 6}
+    Recv {'changed': True, 'prev': None, 'seq': 6}
+    Send {'value': 1, 'path': ('test', 'foo', 'bar', 'baz'), 'nchain': 0, 'action': 'set_value', 'seq': 7}
+    Recv {'changed': True, 'prev': None, 'seq': 7}
+    Send {'value': 1234, 'path': ('test',), 'nchain': 0, 'action': 'set_value', 'seq': 8}
+    Recv {'changed': True, 'prev': 123, 'seq': 8}
+
+you can retrieve the whole subtree::
+
+    Send {'path': ('test',), 'nchain': 0, 'action': 'get_tree', 'seq': 1}
+    Recv {'seq': 1, 'state': 'start'}
+    Recv {'value': 1234, 'depth': 0, 'seq': 1}
+    Recv {'value': 123, 'path': ('foo',), 'depth': 0, 'seq': 1}
+    Recv {'value': 12, 'path': ('bap',), 'depth': 1, 'seq': 1}
+    Recv {'value': 1, 'path': ('bar', 'baz'), 'depth': 1, 'seq': 1}
+    Recv {'seq': 1, 'state': 'end'}
+
+Retrieving this tree with ``distkv client get -ryd ':val' test`` would print::
+
+    test:
+      :val: 1
+      foo:
+        :val: 1
+        bap: {':val': 12}
+        bar:
+          :val: 1
+          baz: {':val': 1}
+
+
