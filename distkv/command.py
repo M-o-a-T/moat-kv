@@ -85,11 +85,12 @@ async def client(ctx,host,port):
 @client.command()
 @click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option("-d", "--as-dict", default=None, help="YAML: structure as dictionary. The argument is the key to use for values.")
 @click.option("-v", "--verbose", is_flag=True, help="Print the complete result. Default: just the value")
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def get(ctx, path, chain, yaml, verbose, recursive):
+async def get(ctx, path, chain, yaml, verbose, recursive, as_dict):
     """Read a DistKV value"""
     obj = ctx.obj
     if verbose and yaml:
@@ -99,20 +100,28 @@ async def get(ctx, path, chain, yaml, verbose, recursive):
             raise click.UsageError("'verbose' does not yet work in recursive mode")
         res = await obj.client.request(action="get_tree", path=path, iter=True, nchain=chain)
         pl = len(path)
-        y = []
+        y = {} if as_dict is not None else []
         async for r in res:
             d = r.get('depth',0)
             path = path[:pl+d] + r.get('path',())
             if yaml:
-                yr = {'path': path, 'value': r.value}
-                if 'chain' in r:
-                    yr['chain'] = r.chain
-                y.append(yr)
+                if as_dict is not None:
+                    yy = y
+                    for p in path:
+                        yy = yy.setdefault(p,{})
+                        yy[as_dict] = r.value
+                else:
+                    yr = {'path': path, 'value': r.value}
+                    if 'chain' in r:
+                        yr['chain'] = r.chain
+                    y.append(yr)
             else:
                 print("%s: %s" % (' '.join(path), repr(r.value)))
         if yaml:
             import yaml
             print(yaml.safe_dump(y))
+        else:
+            pprint(y)
         return
     res = await obj.client.request(action="get_value", path=path, iter=False, nchain=chain)
     if not verbose:
@@ -160,4 +169,25 @@ async def delete(ctx, path, chain):
     obj = ctx.obj
     res = await obj.client.request(action="del_value", path=path)
 
+
+@client.command()
+@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.argument("path", nargs=-1)
+@click.pass_context
+async def watch(ctx, path, chain, yaml):
+    """Watch a DistKV subtree"""
+    if yaml:
+        import yaml
+    obj = ctx.obj
+    res = await obj.client.request(action="watch", path=path, iter=True, nchain=chain)
+    pl = len(path)
+    async for r in res:
+        d = r.get('depth',0)
+        r['path'] = path = path[:pl+d] + r.get('path',())
+        del r['seq']
+        if yaml:
+            print(yaml.safe_dump(r))
+        else:
+            pprint(r)
 

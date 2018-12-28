@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import weakref
-import attr
+import anyio
 
 from typing import Optional, List
 
@@ -135,15 +135,28 @@ class NodeEvent:
         return self
 
 
-@attr.s
 class UpdateEvent:
     """Represents an event which updates something.
     """
-    event: NodeEvent = attr.ib()
-    entry: Entry = attr.ib()
-    new_value: bytes = attr.ib()
-    old_value: bytes = attr.ib()
+    def __init__(self, event: NodeEvent, entry: Entry, new_value, old_value):
+        self.event = event
+        self.entry = entry
+        self.new_value = new_value
+        self.old_value = old_value
 
+    def __repr__(self):
+        if self.entry.chain == self.event:
+            res = ""
+        else:
+            res = repr(self.event)+": "
+        return "<%s:%s%s: %s→%s>" % (self.__class__.__name__, res, repr(self.entry), repr(self.old_value),"" if self.new_value == entry.data else repr(self.new_value))
+
+    def serialize(self, nchain=2):
+        res = self.event.serialize(nchain=nchain)
+        res['path'] = self.entry.path
+        res['old_value'] = self.old_value
+        res['new_value'] = self.new_value
+        return res
 
 class Entry:
     """This class represents one key/value pair
@@ -155,12 +168,12 @@ class Entry:
     _data: bytes = None
     chain: NodeEvent = None
 
-    updaters = None
+    monitors = None
 
     def __init__(self, name: Str, parent: Entry):
         self.name = name
         self._sub = {}
-        self.updaters = set()
+        self.monitors = set()
 
         if parent is not None:
             parent._add_subnode(self)
@@ -260,10 +273,10 @@ class Entry:
     async def set_data(self, event: NodeEvent, data: bytes):
         """This entry is updated by that event.
         """
-        evt = UpdateEvent(event, self, self._data, data)
+        evt = UpdateEvent(event, self, data, self._data)
         self._data = data
         self.chain = evt.event.attach(self.chain)
-        await self.updated(self)
+        await self.updated(evt)
 
     def serialize(self, chop_path=0, nchain=2):
         """Serialize this entry for msgpack.
@@ -288,16 +301,24 @@ class Entry:
 
     async def updated(self, event: UpdateEvent):
         node = self
+        import pdb;pdb.set_trace()
         while True:
             bad = set()
-            for q in node.updaters:
-                try:
-                    q.send_nowait(event)
-                except trio.WouldBlock:
+            for q in node.monitors:
+                if q._distkv__free > 1:
+                    q._distkv__free -= 1
+                    await q.put(event)
+                else:
                     bad.add(q)
             for q in bad:
-                node.updaters.remove(q)
-                await q.aclose()
+                try:
+                    if q._distkv__free > 0:
+                        await q.put(None)
+                    node.monitors.remove(q)
+                except KeyError:
+                    pass
+                else:
+                    await q.aclose()
             node = node.parent
             if node is None:
                 break
@@ -329,30 +350,35 @@ class Watcher:
     """
 
     root: Entry = None
-    read_q = None
-    write_q = None
+    q = None
+    q_len = 100
 
     def __init__(self, root: Entry):
         self.root = root
 
     async def __aenter__(self):
-        if self.read_q is not None:
+        if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
-        self.write_q, self.read_q = trio.open_memory_channel()
-        self.updaters.add(self.write_q)
-        return self.read_q
+        self.q = anyio.create_queue(self.q_len)
+        self.q._distkv__free = self.q_len
+        self.root.monitors.add(self.q)
+        return self
 
     async def __aexit__(self, *tb):
-        self.updaters.remove(self.write_q)
-        self.read_q = self.write_q = None
+        self.root.monitors.remove(self.q)
+        self.q = None
 
     def __aiter__(self):
-        if self.read_q is None:
+        if self.q is None:
             raise RuntimeError("You need to enclose this with 'async with'")
         return self
 
     async def __anext__(self):
-        if self.read_q is None:
-            raise RuntimeError("You need to enclose this with 'async with'")
-        return await self.read_q.receive()
+        if self.q is None:
+            raise RuntimeError("Aborted. Queue filled?")
+        res = await self.q.get()
+        if res is None:
+            raise RuntimeError("Aborted. Queue filled?")
+        self.q._distkv__free += 1
+        return res
 

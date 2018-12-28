@@ -5,7 +5,7 @@ from anyio.exceptions import ClosedResourceError
 import msgpack
 from aioserf import serf_client
 
-from .model import Entry, NodeEvent, Node
+from .model import Entry, NodeEvent, Node, Watcher
 from .util import attrdict
 from . import _version_tuple
 
@@ -72,6 +72,29 @@ class ServerClient:
             await self.send_result(seq, res)
         for v in list(entry.values()):
             await self._get_values(seq, v, nchain=nchain, depth=depth, cdepth=cdepth)
+
+    async def _watch(self, seq, entry, nchain=0, depth=None):
+        async with Watcher(entry) as watcher:
+            cdepth = 0
+            async for msg in watcher:
+                res = msg.entry.serialize(chop_path=self._chop_path, nchain=nchain)
+                if depth is not None:
+                    p = res['path'][depth:]
+                    nn=0
+                    for n in range(len(p)):
+                        nn = n
+                        if n >= cdepth:
+                            break
+                        if p[n] != path[depth+n]:
+                            break
+                    res['depth'] = nn
+                    p = p[nn:]
+                    cdepth +=len(p)
+                    if len(p):
+                        res['path'] = p
+                    else:
+                        del res['path']
+                await self.send_result(seq, res)
 
     async def process(self, msg):
         if self.seq >= msg.seq:
@@ -148,6 +171,10 @@ class ServerClient:
         if not len(entry):
             return entry.serialize(chop_path=self._chop_path)
         return await self.task(self._get_values, msg.seq, entry, nchain=msg.get('nchain',0), depth=len(msg.path))
+
+    async def cmd_watch(self, msg):
+        entry = self.root.follow(*msg.path, create=True)
+        return await self.task(self._watch, msg.seq, entry, nchain=msg.get('nchain',0), depth=len(msg.path))
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
@@ -237,10 +264,18 @@ class Server:
         self.node.tick += 1
         return NodeEvent(self.node)
 
+    async def watcher(self):
+        async with Watcher(self.root) as watcher:
+            async for msg in watcher:
+                p = msg.serialize(nchain=9)
+                p = _packer(p)
+                await self.serf.event('distkv.update', p, coalesce=False)
+
     async def monitor(self):
-        async with self.serf.stream('user:distkv.*') as stream:
+        async with self.serf.stream('user:distkv.update') as stream:
             async for resp in stream:
-                print(resp)
+                msg = msgpack.unpackb(resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False)
+                print("UPDATE:",resp, msg)
 
     async def serve(self, cfg={}):
         async with serf_client(**cfg.serf) as serf:
@@ -248,6 +283,7 @@ class Server:
             self.spawn = serf.spawn
 
             await serf.spawn(self.monitor)
+            await serf.spawn(self.watcher)
             cfg_s = cfg.server
             if 'host' in cfg_s:
                 cfg_s = cfg_s.copy()
