@@ -139,9 +139,10 @@ async def get(ctx, path, chain, yaml, verbose, recursive, as_dict):
 @click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.option("-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
+@click.option("-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def set(ctx, path, value, eval, chain, prev, last):
+async def set(ctx, path, value, eval, chain, prev, last, yaml):
     """Set a DistKV value"""
     obj = ctx.obj
     if eval:
@@ -158,6 +159,11 @@ async def set(ctx, path, value, eval, chain, prev, last):
             args['chain'] = {'node': last[0], 'tick': int(last[1])}
 
     res = await obj.client.request(action="set_value", value=value, path=path, iter=False, nchain=chain, **args)
+    if yaml:
+        import yaml
+        print(yaml.safe_dump(res))
+    elif chain:
+        pprint(res)
 
 
 @client.command()
