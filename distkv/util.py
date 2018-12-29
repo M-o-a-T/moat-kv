@@ -114,7 +114,7 @@ class PathLongener:
         p = res.pop('path', ())
         d = res.pop('depth', None)
         if d is not None:
-            p = self.path[self.depth+d:] + p
+            p = self.path[:self.depth+d] + p
         self.path = p
         res['path'] = p
 
