@@ -4,7 +4,7 @@ import sys
 import trio_click as click
 from pprint import pprint
 
-from .util import attrdict, combine_dict
+from .util import attrdict, combine_dict, PathLongener
 from .client import open_client
 from .default import CFG, PORT
 from .server import Server
@@ -85,7 +85,7 @@ async def client(ctx,host,port):
 @client.command()
 @click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
-@click.option("-d", "--as-dict", default=None, help="YAML: structure as dictionary. The argument is the key to use for values.")
+@click.option("-d", "--as-dict", default=None, help="YAML: structure as dictionary. The argument is the key to use for values. Default: return as list")
 @click.option("-v", "--verbose", is_flag=True, help="Print the complete result. Default: just the value")
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
@@ -96,32 +96,32 @@ async def get(ctx, path, chain, yaml, verbose, recursive, as_dict):
     if verbose and yaml:
         raise click.UsageError("'verbose' and 'yaml' are mutually exclusive")
     if recursive:
-        if verbose:
-            raise click.UsageError("'verbose' does not yet work in recursive mode")
+        if verbose and yaml:
+            raise click.UsageError("'verbose' does not work in recursive YAML mode")
         res = await obj.client.request(action="get_tree", path=path, iter=True, nchain=chain)
-        pl = len(path)
+        pl = PathLongener(path)
         y = {} if as_dict is not None else []
         async for r in res:
-            d = r.get('depth',0)
-            path = path[:pl+d] + r.get('path',())
+            pl(r)
             if yaml:
                 if as_dict is not None:
                     yy = y
-                    for p in path:
+                    for p in r.path:
                         yy = yy.setdefault(p,{})
                         yy[as_dict] = r.value
                 else:
-                    yr = {'path': path, 'value': r.value}
+                    yr = {'path': r.path, 'value': r.value}
                     if 'chain' in r:
                         yr['chain'] = r.chain
                     y.append(yr)
             else:
-                print("%s: %s" % (' '.join(path), repr(r.value)))
+                if verbose:
+                    pprint(r)
+                else:
+                    print("%s: %s" % (' '.join(r.path), repr(r.value)))
         if yaml:
             import yaml
             print(yaml.safe_dump(y))
-        else:
-            pprint(y)
         return
     res = await obj.client.request(action="get_value", path=path, iter=False, nchain=chain)
     if not verbose:
@@ -181,10 +181,9 @@ async def watch(ctx, path, chain, yaml):
         import yaml
     obj = ctx.obj
     res = await obj.client.request(action="watch", path=path, iter=True, nchain=chain)
-    pl = len(path)
+    pl = PathLongener(path)
     async for r in res:
-        d = r.get('depth',0)
-        r['path'] = path = path[:pl+d] + r.get('path',())
+        pl(r)
         del r['seq']
         if yaml:
             print(yaml.safe_dump(r))

@@ -68,22 +68,35 @@ class NodeEvent:
         return 1+len(self.prev)
 
     def __repr__(self):
-        return "<%s:%s %d>" % (self.__class__.__name__, self.node, len(self))
+        return "<%s:%s @%d %d>" % (self.__class__.__name__, self.node, self.tick, len(self))
 
     def __eq__(self, other):
+        if other is None:
+            return False
         return self.node == other.node and self.tick == other.tick
 
     def __lt__(self, other):
+        if other is None:
+            return False
         if self == other:
             return False
         while self.node != other.node:
             other = other.prev
             if other is None:
                 return False
-            return self.tick < other.tick
+        return self.tick <= other.tick
 
     def __gt__(self, other):
-        return other < self
+        if other is None:
+            return True
+        if self == other:
+            return False
+        while self.node != other.node:
+            self = self.prev
+            if self is None:
+                return False
+        return self.tick >= other.tick
+
 
     def __lte__(self, other):
         return self.__eq__(other) or self.__lt__(other)
@@ -108,13 +121,14 @@ class NodeEvent:
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
         
-    def serialize(self, nchain=0) -> dict:
+    def serialize(self, nchain=100) -> dict:
         if not nchain:
-            return None
-        nchain -= 1
+            raise RuntimeError("A chopped NodeEvent must not be set at all")
         res = {'node': self.node.name, 'tick': self.tick}
-        if nchain:
-            res['prev'] = self.prev.serialize(nchain) if self.prev else None
+        if self.prev is None:
+            res['prev'] = None
+        elif nchain > 1:
+            res['prev'] = self.prev.serialize(nchain-1)
         return res
 
     @classmethod
@@ -134,29 +148,52 @@ class NodeEvent:
             self = NodeEvent(node=self.node, tick=self.tick, prev=prev)
         return self
 
+class _NotGiven:
+    pass
 
 class UpdateEvent:
     """Represents an event which updates something.
     """
-    def __init__(self, event: NodeEvent, entry: Entry, new_value, old_value):
+    def __init__(self, event: NodeEvent, entry: Entry, new_value, old_value=_NotGiven):
         self.event = event
         self.entry = entry
         self.new_value = new_value
-        self.old_value = old_value
+        if old_value is not _NotGiven:
+            self.old_value = old_value
 
     def __repr__(self):
         if self.entry.chain == self.event:
             res = ""
         else:
             res = repr(self.event)+": "
-        return "<%s:%s%s: %s→%s>" % (self.__class__.__name__, res, repr(self.entry), repr(self.old_value),"" if self.new_value == entry.data else repr(self.new_value))
+        return "<%s:%s%s: %s→%s>" % (
+                self.__class__.__name__,
+                res,
+                repr(self.entry),
+                '-' if not hasattr(self,'old_value') else '' if self.new_value == self.entry.data else repr(self.old_value),
+                '' if self.new_value == self.entry.data else repr(self.old_value),
+            )
 
-    def serialize(self, nchain=2):
+    def serialize(self, nchain=2, with_old=False):
         res = self.event.serialize(nchain=nchain)
         res['path'] = self.entry.path
-        res['old_value'] = self.old_value
-        res['new_value'] = self.new_value
+        if with_old:
+            res['old_value'] = self.old_value
+            res['new_value'] = self.new_value
+        else:
+            res['value'] = self.new_value
         return res
+
+    @classmethod
+    def unserialize(cls, root, msg):
+        event = NodeEvent.unserialize(msg)
+        entry = root.follow(*msg.path, create=True)
+        if 'value' in msg:
+            value = msg['value']
+        else:
+            value = msg['new_value']
+
+        return UpdateEvent(event, entry, value)
 
 class Entry:
     """This class represents one key/value pair
@@ -186,6 +223,8 @@ class Entry:
         return hash(self.name)
 
     def __eq__(self, other):
+        if other is None:
+            return False
         if isinstance(other, Entry):
             other = other.name
         return self.name == other
@@ -273,9 +312,28 @@ class Entry:
     async def set_data(self, event: NodeEvent, data: bytes):
         """This entry is updated by that event.
         """
+        event = event.attach(self.chain)
         evt = UpdateEvent(event, self, data, self._data)
-        self._data = data
-        self.chain = evt.event.attach(self.chain)
+        await self.apply(evt)
+
+    async def apply(self, evt:UpdateEvent):
+        if evt.event == self.chain:
+            assert self._data == evt.new_value, ("has:",self._data, "but should have:",evt.new_value)
+            return
+        if not (self.chain < evt.event):
+            logger.warn("*** inconsistency TODO ***")
+            logger.warn("Node: %s", self)
+            logger.warn("Current: %s", self.chain)
+            logger.warn("New: %s", evt.event)
+            return
+
+        if not hasattr(evt, 'old_value'):
+            evt.old_value = self._data
+        if hasattr(evt, 'new_value'):
+            self._data = evt.new_value
+        else:
+            self._data = evt.value
+        self.chain = evt.event
         await self.updated(evt)
 
     def serialize(self, chop_path=0, nchain=2):
@@ -288,7 +346,7 @@ class Entry:
         """
         res = {'value': self._data}
         if self.chain is not None and nchain > 0:
-            res['chain'] = self.chain.serialize(nchain=nchain-1)
+            res['chain'] = self.chain.serialize(nchain=nchain)
         if chop_path >= 0:
             path = self.path
             if chop_path > 0:
@@ -301,10 +359,9 @@ class Entry:
 
     async def updated(self, event: UpdateEvent):
         node = self
-        import pdb;pdb.set_trace()
         while True:
             bad = set()
-            for q in node.monitors:
+            for q in list(node.monitors):
                 if q._distkv__free > 1:
                     q._distkv__free -= 1
                     await q.put(event)
