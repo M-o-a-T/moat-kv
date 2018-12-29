@@ -174,9 +174,9 @@ class UpdateEvent:
                 '' if self.new_value == self.entry.data else repr(self.old_value),
             )
 
-    def serialize(self, nchain=2, with_old=False):
+    def serialize(self, chop_path=0, nchain=2, with_old=False):
         res = self.event.serialize(nchain=nchain)
-        res['path'] = self.entry.path
+        res['path'] = self.entry.path[chop_path:]
         if with_old:
             res['old_value'] = self.old_value
             res['new_value'] = self.new_value
