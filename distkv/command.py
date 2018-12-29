@@ -148,7 +148,6 @@ async def set(ctx, path, value, eval, chain, prev, last):
         value = __builtins__['eval'](value)
     args = {}
     if prev is not _NotGiven:
-        import pdb;pdb.set_trace()
         if eval:
             prev = __builtins__['eval'](prev)
         args['prev'] = prev
