@@ -321,6 +321,8 @@ class Entry:
         if evt.event == self.chain:
             assert self._data == evt.new_value, ("has:",self._data, "but should have:",evt.new_value)
             return
+        if self.chain > evt.event: # already superseded
+            return
         if not (self.chain < evt.event):
             logger.warn("*** inconsistency TODO ***")
             logger.warn("Node: %s", self)
