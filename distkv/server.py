@@ -134,6 +134,19 @@ class ServerClient:
             res['chain'] = entry.chain.serialize(nchain=nchain)
         return res
 
+    async def cmd_update(self, msg):
+        """
+        Apply a stored update.
+
+        You usually do this via a server command.
+        """
+        msg = UpdateEvent.unserialize(self.root, msg)
+        res = await msg.entry.apply(msg)
+        if res is None:
+            return False
+        else:
+            return res.serialize(chop_path=self._chop_path)
+
     async def cmd_delete_value(self, msg):
         """Delete a node's value.
         Sub-nodes are not affected.
