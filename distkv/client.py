@@ -64,6 +64,10 @@ class StreamReply:
         await self.q.put(outcome.Value(res))
         return self
 
+    def __iter__(self):
+        raise RuntimeError("You need to use 'async for …'")
+    __next__ = __iter__
+
     def __aiter__(self):
         return self
 
