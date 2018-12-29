@@ -5,7 +5,7 @@ import trio_click as click
 from pprint import pprint
 
 from .util import attrdict, combine_dict, PathLongener
-from .client import open_client
+from .client import open_client, StreamReply
 from .default import CFG, PORT
 from .server import Server
 from .model import Entry
@@ -164,10 +164,18 @@ async def set(ctx, path, value, eval, chain, prev, last):
 @client.command()
 @click.argument("path", nargs=-1)
 @click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
+@click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.pass_context
-async def delete(ctx, path, chain):
+async def delete(ctx, path, chain, recursive):
     obj = ctx.obj
-    res = await obj.client.request(action="del_value", path=path)
+    res = await obj.client.request(action="delete_tree" if recursive else "delete_value", path=path, nchain=chain)
+    if isinstance(res, StreamReply):
+        pl = PathLongener(path)
+        async for r in res:
+            pl(r)
+            pprint(r)
+    else:
+        pprint(res)
 
 
 @client.command()

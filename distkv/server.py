@@ -183,6 +183,12 @@ class ServerClient:
         """Delete a node's value.
         Sub-nodes are cleared (after their parent).
         """
+        seq = msg.seq
+        nchain = msg.get('nchain', 0)
+        if nchain:
+            await self.send({'seq':seq, 'state':'start'})
+        ps = PathShortener(msg.path)
+
         try:
             entry = self.root.follow(*msg.path)
         except KeyError:
@@ -192,14 +198,22 @@ class ServerClient:
             res = 0
             if entry.data is not None:
                 async with self.server.next_event() as event:
-                    await entry.set_data(evt, event, None)
+                    evt = await entry.set_data(event, None)
+                    if nchain:
+                        r = evt.serialize(chop_path=self._chop_path, nchain=nchain, with_old=True)
+                        r['seq'] = seq
+                        del r['new_value']  # always None
+                        ps(r)
+                        await self.send(r)
                 res += 1
             for v in entry.values():
                 res += await _del(v)
             return res
         res = await _del(entry)
-        res = {'changed': res}
-        return res
+        if nchain:
+            await self.send({'seq':seq, 'state':'end'})
+        else:
+            return {'changed': res}
 
     async def cmd_stop(self, msg):
         try:

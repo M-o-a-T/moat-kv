@@ -315,6 +315,7 @@ class Entry:
         event = event.attach(self.chain)
         evt = UpdateEvent(event, self, data, self._data)
         await self.apply(evt)
+        return evt
 
     async def apply(self, evt:UpdateEvent):
         if evt.event == self.chain:
