@@ -58,6 +58,9 @@ class StreamReply:
             await self.q.put(None)
             self.q = None
             return
+        elif state is not None:
+            logger.warning("Unknown state: %s", repr(state))
+        del res['seq']
         await self.q.put(outcome.Value(res))
         return self
 
