@@ -4,8 +4,6 @@ DistKV
 
 Welcome to `DistKV <https://github.com/smurfix/distkv>`__!
 
-DistKV is a distributed no-master key-value store
-
 DistKV is a master-less distributed key-value storage system. It
 circumvents the CAP theorem by assuming that keys are usually only changed
 by one node. It is resistant to partitioning and intended to be always-on;
@@ -21,10 +19,12 @@ API
 ===
 
 DistKV offers an efficient msgpack-based interface to access data and to
-change settings. For compatibility, a front-end that mimics etcd2 is also
+change settings. For compatibility, a front-end that mimics etcd2 is
 available.
 
 Status
 ======
 
-All of the above is still wishful thinking.
+Some of the above is still wishful thinking.
+
+DistKV has rich accessors and can distribute data, but not yet recover.

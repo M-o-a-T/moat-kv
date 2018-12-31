@@ -15,33 +15,29 @@ setup(
     license="MIT -or- Apache License 2.0",
     packages=find_packages(),
     install_requires=[
-        "trio",
+        "trio_click",
+        "anyio",
     ],
     keywords=[
-        # COOKIECUTTER-TRIO-TODO: add some keywords
-        # "async", "io", "networking", ...
+        "async", "key-values", "distributed",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     classifiers=[
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Information Technology",
         "License :: OSI Approved :: MIT License",
         "License :: OSI Approved :: Apache Software License",
+        "Framework :: AsyncIO",
         "Framework :: Trio",
-        # COOKIECUTTER-TRIO-TODO: Remove any of these classifiers that don't
-        # apply:
         "Operating System :: POSIX :: Linux",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
-        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: Implementation :: CPython",
-        "Programming Language :: Python :: Implementation :: PyPy",
-        # COOKIECUTTER-TRIO-TODO: Consider adding trove classifiers for:
-        #
-        # - Development Status
-        # - Intended Audience
-        # - Topic
-        #
-        # For the full list of options, see:
-        #   https://pypi.org/classifiers/
+        "Topic :: Database",
+        "Topic :: Home Automation",
+        "Topic :: System :: Distributed Computing",
     ],
     entry_points='''
     [console_scripts]
