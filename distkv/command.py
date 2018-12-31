@@ -50,10 +50,11 @@ async def main(ctx, verbose, quiet, cfg):
 @main.command()
 @click.option("-h","--host", default=None, help="Address to bind to. Default: %s" % (CFG.server.host))
 @click.option("-p","--port", type=int, default=None, help="Port to bind to. Default: %d" % (CFG.server.port,))
-@click.option("-l","--load", type=click.File('rb'), default=None, help="Event log to load. Default: %d" % (CFG.server.port,))
+@click.option("-l","--load", type=click.File('rb'), default=None, help="Event log to preload.")
+@click.option("-s","--save", type=click.Path('wb'), default=None, help="Event log to write.")
 @click.argument("name", nargs=1)
 @click.pass_context
-async def run(ctx, name, host, port, load):
+async def run(ctx, name, host, port, load, save):
     obj = ctx.obj
     print("Start run.")
     if host is None:
@@ -62,9 +63,14 @@ async def run(ctx, name, host, port, load):
         port = obj.cfg.server.port
 
     obj.root = Entry("ROOT", None)
-    if load:
-        await process_events(obj.root, load)
     s = Server(name, obj.root, host, port)
+    if load is None:
+        load = obj.cfg['state']
+        await s.load(load)
+    if save is not None:
+        if save == '':
+            save = None
+        obj.cfg['state'] = save
     await s.serve(obj.cfg)
 
 
@@ -203,3 +209,23 @@ async def watch(ctx, path, chain, yaml):
         else:
             pprint(r)
 
+@client.command()
+@click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
+@click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
+@click.option("-i", "--infile", type=click.File('rb'), help="Print as YAML. Default: Python.")
+@click.argument("path", nargs=-1)
+@click.pass_context
+async def update(ctx, path, infile, loca, force):
+    """Send a list of updates to a DistKV subtree"""
+    if local and force:
+        raise click.UsageError("'local' and 'force' are mutually exclusive")
+
+    obj = ctx.obj
+    ps = PathShortener()
+    async with MsgReader() as reader:
+        with obj.client.stream(action="update", path=path, iter=False, force=force, local=local) as sender:
+            async for r in res:
+                ps(r)
+                await sender(r)
+
+    print(sender.result)

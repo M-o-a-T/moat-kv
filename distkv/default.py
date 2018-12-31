@@ -15,4 +15,5 @@ CFG = attrdict(
             host="localhost",
             port=7373,
             ),
+        state=None, # path to load/save system state
     )

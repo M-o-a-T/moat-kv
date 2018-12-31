@@ -7,7 +7,7 @@ import msgpack
 from aioserf import serf_client
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener
+from .util import attrdict, PathShortener, PathLongener
 from . import _version_tuple
 
 import logging
@@ -37,6 +37,26 @@ def _multi_response(fn):
             await self.send({'seq':seq, 'state':'end'})
     return wrapper
 
+def _stream(fn):
+    """A simple wrapper that calls the original function with each message"""
+    async def wrapper(self, msg):
+        seq = msg.seq
+        q = self.inqueue[seq]
+        path = msg.get('path', None)
+        longer = PathLongener(path) if path is not None else lambda x:x
+        n=0
+        while True:
+            msg = await q.get()
+            if msg.get('state','') == 'end':
+                await self.send({'seq':seq, 'count':n})
+                del self.inqueue[seq]
+                return
+            longer(msg)
+            res = await fn(self, msg)
+            if isinstance(res, int):
+                n += res
+    return wrapper
+
 class ServerClient:
     """Represent one listening client"""
     _nursery = None
@@ -54,7 +74,7 @@ class ServerClient:
         self._client_nr = _client_nr
         logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
     
-    async def process(self, msg):
+    async def process(self, msg, stream=False):
         """
         Process an incoming message.
         """
@@ -66,7 +86,7 @@ class ServerClient:
                     msg.chain = NodeEvent.unserialize(msg.chain)
 
                 try:
-                    fn = getattr(self, 'cmd_' + str(msg.action))
+                    fn = getattr(self, ('scmd_' if stream else 'cmd_') + str(msg.action))
                 except AttributeError:
                     raise ClientError("Command not recognized: " + repr(msg.action))
                 else:
@@ -133,6 +153,16 @@ class ServerClient:
         if nchain > 0:
             res['chain'] = entry.chain.serialize(nchain=nchain)
         return res
+
+    @_stream
+    async def scmd_update(self, msg):
+        """
+        Apply a stored update.
+
+        This streams the input.
+        """
+        msg = UpdateEvent.unserialize(self.root, msg)
+        await msg.entry.apply(msg)
 
     async def cmd_update(self, msg):
         """
@@ -258,10 +288,18 @@ class ServerClient:
                     try:
                         logger.debug("IN %d: %s", self._client_nr, msg)
                         seq = msg.seq
-                        if self.seq >= seq:
-                            raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
-                        self.seq = seq
-                        await self.tg.spawn(self.process, msg)
+                        q = self.inqueue.get(seq, None)
+                        if q is not None:
+                            await q.put(msg)
+                        elif msg.get('state','') == 'start':
+                            q = anyio.create_queue(100)
+                            self.inqueue[seq] = q
+                            await self.tg.spawn(self.process, q, True)
+                        else:
+                            if self.seq >= seq:
+                                raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
+                            self.seq = seq
+                            await self.tg.spawn(self.process, msg)
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             logger.exception("Client error on %s", repr(msg))

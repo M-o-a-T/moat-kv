@@ -38,6 +38,21 @@ async def open_client(host, port, init_timeout=5):
         async with  client._connected(tg, init_timeout=init_timeout) as client:
             yield client
 
+class _StreamRequest:
+    """
+    This class represents the core of a multi-message reply.
+    """
+    result = None
+
+    def __init__(self, client, seq):
+        self.client = client
+        self.seq = seq
+
+    async def __call__(self, **params):
+        params['seq'] = self.seq
+        logger.debug("Send %s", params)
+        await self._socket.send_all(_packer(params))
+
 class StreamReply:
     """
     This class represents a multi-message reply.
@@ -169,11 +184,14 @@ class Client:
                     for m in hdl.values():
                         await m.cancel()
 
-    async def request(self, action, iter=None, **params):
+    async def request(self, action, iter=None, seq=None, **params):
         """Send a request. Wait for a reply.
 
         Args:
-          ``action``: what to do
+          ``action``: what to do. If ``seq`` is set, this is the stream's
+                      state, which should be ``None`` or ``'end'``.
+          ``seq``: Sequence number to use. Only when terminating a
+                   multi-message request.
           ``params``: whatever other data the action needs
           ``iter``: A flag how to treat multi-line replies.
                     ``True``: always return an iterator
@@ -182,10 +200,15 @@ class Client:
                     Default: ``None``: return a StreamReply if multi-line
                                        otherwise return directly
         """
-        self._seq += 1
-        seq = self._seq
+        if seq is None:
+            act = "action"
+            self._seq += 1
+            seq = self._seq
+        else:
+            act = "state"
 
-        params['action'] = action
+        if action is not None:
+            params[act] = action
         params['seq'] = seq
         res = _SingleReply(self, seq)
         self._handlers[seq] = res
@@ -205,6 +228,50 @@ class Client:
             if rr is None:
                 raise NoData(action)
         return res
+
+
+    @asynccontextmanager
+    async def stream(self, action, iter=None, **params):
+        """Send a multi-message request. Wait for a reply at the end.
+
+        Args:
+          ``action``: what to do
+          ``params``: whatever other data the action needs
+          ``iter``: A flag how to treat multi-line replies.
+                    ``True``: always return an iterator
+                    ``False``: Never return an iterator, raise an error
+                               if no or more than on reply arrives
+                    Default: ``None``: return a StreamReply if multi-line
+                                       otherwise return directly
+
+        This is a context manager. Use it like this::
+
+            async with client.strem("update", path="private storage".split()) as sender:
+                with MsgReader("/tmp/msgs.pack") as f:
+                    for msg in f:
+                        await sender(msg)
+            print(sender.result)
+            # any server-side exception will be raised
+
+        """
+        self._seq += 1
+        seq = self._seq
+
+        params['action'] = action
+        params['seq'] = seq
+        params['state'] = 'start'
+
+        logger.debug("Send %s", params)
+        await self._socket.send_all(_packer(params))
+
+        res = _StreamRequest(self, seq)
+        try:
+            yield res
+        except BaseException as exc:
+            await self.request("error", seq=seq, error=str(exc))
+            raise
+        else:
+            res.result = await self.request("end", seq=seq, iter=iter)
 
 
     @asynccontextmanager
