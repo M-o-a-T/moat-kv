@@ -38,7 +38,11 @@ async def test_01_basic(autojump_clock):
         c = await st.client()
         assert (await c.request("get_value", path=())).value == 123
 
+        r = await run("client","-p",s.port,"set","-v","hello","foo")
+
         r = await run("client","-p",s.port,"get")
         assert r.stdout == "123\n"
 
+        r = await run("client","-p",s.port,"get", "foo")
+        assert r.stdout == "'hello'\n"
 
