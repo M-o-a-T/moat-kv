@@ -1,0 +1,256 @@
+========================
+DistKV's server protocol
+========================
+
+DistKV instances broadcast messages via `Serf <http://serf.io>`.
+The payload is encoded with `msgpack
+<https://github.com/msgpack/msgpack/blob/master/spec.md>` (Serf does not
+pass arbitrary payload objects) and sent as ``user`` events with a name of
+``distkv.XXX`` ("XXX" being the action's type). The ``coalesce`` flag must
+always be ``False``.
+
+All strings are required to be UTF-8 encoded.
+
+++++++++++
+Data types
+++++++++++
+
+ticks
+-----
+
+All tick values are 63-bit unsigned integers. As this space requires 20 mio
+years to wrap around, assuming ten messages per millisecond (which is way
+above the capacity of a typical Serf network), this protocol does not
+specify what shall happen if this value overflows.
+
+Ranges
+------
+
+Tick ranges are used to signal known (or missing) messages. They are
+transmitted as sorted lists which contain either single elements or
+``[begin,end)`` pairs (that is, the ``begin`` value is part of the interval
+but ``end`` is not).
+
+Path
+----
+
+Every entry is associated with a path, i.e. a list of names leading to it.
+Names may be UTF-8 strings, byte strings, or numbers. The empty UTF-8 and
+byte strings are considered equivalent, any other values are not.
+
+++++++++++++
+Common items
+++++++++++++
+
+node
+----
+
+The node which is responsible for this message. For ``update`` events this
+is the node which originated the change; for all other events, it's the
+sending node.
+
+tick
+----
+
+This node's current tick. The tick is incremented every time a value is changed by that node.
+
+prev
+----
+
+A dict with ``node,tick,prev`` entries, which describes the node which
+originated the change that is is based on.
+
+If this value is ``None``, the entry has been created at that time. If it
+is missing, further chain members have been elided.
+
+In the client protocol, the ``node``, ``tick`` and ``prev`` members are
+stored in a ``chain`` element; otherwise the semantics are the same.
+
+A chain will not contain any node more than once. When a value is changed
+again, that node's ``tick`` is incremented, its entry is added or moved
+to the head of the chain.
+
+tock
+----
+
+This is a global message counter. Each server has one; it is incremented
+every time its node counter is incremented or a Serf message is sent.
+A server must not send a message with a smaller (or equal) ``tock`` value
+than any it has received, or previously sent. Since Serf does ot guarantee
+order of delivery, receiving a message with a smaller ``tock`` than the
+preceding one is not an error.
+
++++++++++++++
+Message types
++++++++++++++
+
+update
+++++++
+
+This message updates an entry.
+
+Each server remembers the change chain's per-node ``tick`` values so that
+it can verify that all messages from other servers have been received.
+
+path
+----
+
+The list of path elements leading to the entry to be updated.
+
+value
+-----
+
+The value to set. ``Null`` means the same as deleting the entry.
+
+info
+++++
+
+This message contains generic information. It is sent whenever required.
+
+known
+-----
+
+This element contains a map of (node ⇒ ranges of tick values) which the
+sending server has seen. This includes existing events as well as events
+that no longer exist; this happens when a node re-updates an entry.
+
+This message's change chain refers to the ``ping`` it replies to.
+
+ticks
+-----
+
+This element contains a map of (node ⇒ last_tick_seen), sent to verify that 
+
+missing
+-------
+
+A map of (node ⇒ ranges of tick values) which the sending node has not
+seen. Any node that sees this request will re-send change messages in that
+range.
+
+ping
+++++
+
+A periodic "I am alive" message. This message's change chain shows which
+node was pinged previously.
+
+++++++++++++++++++++++
+Timing and concurrency
+++++++++++++++++++++++
+
+Ping sequence
+-------------
+
+Every ``clock`` seconds each node starts thinking about sending a ``ping``
+sometime during the next ``clock`` seconds. The node that's last in the
+chain (assuming that the chain has maximum length) does this quite early,
+while the node that transmitted the previous ``ping`` does this at the end
+of the interval. Nodes not in the current chain do this immediately, with
+some low probability (one to 10 times the number of known nodes) so that
+the chain varies. If no ``ping`` has arrived after another ``clock/2``
+seconds, each node sends a ping sometime during the next ``clock/2``
+seconds. Thus, at least one ``ping`` must be seen every ``3*clock``
+seconds.
+
+Ping messages can collide. If so, the message with the higher ``tock``
+value wins. If they match, the node with the higher ``tick`` value wins. If
+they match too, the node with the alphabetically-lower name wins. The
+winning message becomes the basis for the next cycle.
+
+This protocol assumes that the ``prev`` chains of any colliding ticks are
+identical. If they are not, there was at least one network split that is
+now healed. In this case, the nodes mentioned in the messages' chains send
+``info`` messages containing ``ticks`` for all nodes they know. The
+non-topmost nodes will delay this message by ``clock/ping.length``
+(times their position in the chain) seconds and not send their message if
+they see a previous node's message first. Resolution of which chain is the
+"real" one shall proceed as above.
+
+``clock`` is configurable (``ping.clock``); the default is ``5``. It must be at
+least twice the time Serf requires to delivers a message to each node.
+
+The length of the ping chain is likewise configurable (``ping.length``).
+It should be larger than the number of possible network partitions; the
+default is 4.
+
+Startup
+-------
+
+When starting up, a node sends a ``ping`` query with an empty ``prev``
+chain, every ``3*clock`` seconds. The initial ``tick`` value shall be zero;
+the first message shall be delayed by a random interval between ``clock/2``
+and ``clock`` seconds.
+
+Reception of an initial ``ping`` does trigger an ``info`` message, but does not
+affect the regular ``ping`` interval, on nodes that already participate in
+the protocol. A new node, however, may assume that the ``ping`` message it
+sees is authoritative (unless the "new"  ``ping`` is followed by one with a
+non-empty chain). In case of multiple nodes joining a new network, the last
+``ping`` seen shall be the next entry in the chain. 
+
+The new node is required to contact a node in the (non-empty) ping chain it
+attaches to, in order to download its current set of entries, before
+answering client queries. If a new node does already know a (possibly
+outdated) set of messages and there is no authoritative chain, it shall
+broadcast them in a series of ``update`` messages.
+
+The first node that initials a new network shall send an ``update`` event
+for the root node (with any value, including ``null`` – this is application
+specific). It is of course immediately able to answer client queries and
+shall be preferred to any other zero-tick nodes, when other new nodes
+connect.
+
+A chain is not authoritative if it only contains nodes with a non-zero
+``tick`` value. Nodes with zero ticks shall not send a ``ping`` when the
+first half of the chain does not contain a non-zero-tick node (unless the
+second half doesn't contain any such nodes either).
+
+Event recovery
+--------------
+
+After a network split is healed, there can be any number of update events
+that the "other side" doesn't know about. These need to be redistributed.
+
+Step zero: a ``ping`` message with an incompatible chain arrives.
+
+First step: Send an ``info`` message with a ``ticks`` element, so that any
+node that has been restarted knows which tick value they are supposed to
+continue with.
+
+Second step (after half a clock tick): Send a message with ``missing`` elements
+that describe which events you do not yet know about.
+
+Third step: Nodes retransmit missing events, followed by a ``known``
+message that lists ticks which no longer correspond to an event.
+
+After completing this sequence, every node should have a node list which
+marks no event as missing. For error recovery, a node may randomly
+(i.e. at most one such request every ``3*clock`` interval) retransmit its
+``missing`` list, assuming there is one.
+
+This protocol assumes that new nodes connect to an existing non-split
+network. If new nodes first form their own little club before being
+reconnected to the "real" network (or a branch of it), this would force a
+long list of events to be retransmitted. Therefore, nodes with zero ticks
+are to be passive. They shall open a client connection to any on-chain node
+and download its state. If a node has received a non-zero tick in a
+``known`` message, it may participate only after it has received a complete
+download, and may allow client connections only if its list of missing
+events is empty.
+
+All of these steps are to be performed by the first nodes in the pre-joined
+chains. If these messages are not seen after ``clock/2`` seconds (counting
+from reception of the ``ping``, ``ticks`` or ``missing`` element that
+occured in the previous step), the second node is required to send them;
+the third node will take over after an additional
+``clock/4`` interval, and so on. Of course, only messages originating from
+hosts on the correct chain shall suppress a node's transmission.
+
+++++++++++++++
+Message graphs
+++++++++++++++
+
+Yes, I need to visualize (and test) all of this.
+
+TODO.
+

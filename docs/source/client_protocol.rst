@@ -91,6 +91,13 @@ Change chains track which server last modified a value, so that replayed
 updates can be ignored and conflicting updates can be recognized. A chain
 never contains any one DistKV server more than once.
 
+See the server protocol for a detailed description.
+
+tock
+----
+
+An always-increasing integer that's (supposed to be) shared within the
+whole DistKV system.
 
 Actions
 =======
@@ -124,6 +131,11 @@ Retrieve a single value. The ``path`` to the value needs to be sent as a list.
 
 If the value does not exist or has been deleted, you'll get ``None`` back.
 
+Alternately, you can set ``node`` and ``tick``, which returns the entry
+that has been set by this event (if the event is still available). The
+entry will contain the current value even if the event has set a previous
+value.
+
 set_value
 ---------
 
@@ -141,6 +153,36 @@ delete_value
 ------------
 
 Remove a single value. This is the same as setting it to ``None``.
+
+get_state
+---------
+
+Retrieve the current system state. The following ``bool`` attributes can be
+set to specify what is returned. The reply is stored in an attribute of the
+same name.
+
+* nodes
+
+A dict of node ⇒ tick.
+
+* known
+
+A dict of node ⇒ ranges of ticks known. This contains current data as well
+as events that have been superseded.
+
+* current
+
+A dict of node ⇒ ranges of ticks corresponding to the current state of
+nodes. This is expensive to calculate. It is a superset of `'known``.
+
+* missing
+
+A dict of node ⇒ ranges of ticks not available locally. This is the inverse
+of ``known``.
+
+* remote_missing
+
+A dict of node ⇒ ranges of ticks reported to be missing at some other node.
 
 get_tree
 --------

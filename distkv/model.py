@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import weakref
 import anyio
+from range_set import RangeSet
 
-from typing import Optional, List
+from typing import Optional, List, Any
+
+from .util import attrdict
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -24,6 +27,9 @@ class Node:
     """
     name: str = None
     tick: int = None
+    _known: RangeSet = None # I have these as valid data
+    _reported: RangeSet = None # somebody else reported these missing data for this node
+    entries: dict = None
 
     def __new__(cls, name, tick=0):
         self = _nodes.get(name, None)
@@ -31,6 +37,9 @@ class Node:
             self = object.__new__(cls)
             self.name = name
             self.tick = tick
+            self._known = RangeSet()
+            self._reported = RangeSet()
+            self.entries = {}
             _nodes[name] = self
         elif self.tick < tick:
             self.tick = tick
@@ -39,9 +48,71 @@ class Node:
     def __init__(self, name, tick=0):
         return
 
+    def __getitem__(self, item):
+        return self.entries[item]
+
+    def __contains__(self, item):
+        return item in self.entries
+
     def __repr__(self):
         return "<%s: %s @%s>" % (self.__class__.__name__, self.name, self.tick)
 
+    def seen(self, tick, entry=None, local=False):
+        """An event with this tick is in the entry's chain.
+
+        Args:
+          ``tick``: The event affecting the given entry.
+          ``entry``: The entry affected by this event.
+          ``local``: The message was not broadcast, thus do not assume that
+                     other nodes saw this.
+
+        """
+        self._known.add(tick)
+        if not local:
+            self._reported.discard(tick)
+        if entry is not None:
+            self.entries[tick] = entry
+
+    def supersede(self, tick):
+        """The event with this tick is no longer in the referred entry's chain.
+        This happens when an entry is updated.
+        
+        Args:
+          ``tick``: The event that once affected the given entry.
+        """
+        self.entries.pop(tick, None)
+
+    def reported_known(self, range, local=False):
+        """Some node said that these entries may have been superseded.
+        
+        Args:
+          ``range``: The RangeSet thus marked.
+          ``local``: The message was not broadcast, thus do not assume that
+                     other nodes saw this.
+        """
+        self._known += range
+        if not local:
+            self._reported -= range
+
+    def reported_missing(self, range):
+        self._reported += range
+
+    @property
+    def local_known(self):
+        """Values I have seen"""
+        return self._known
+
+    @property
+    def local_missing(self):
+        """Values I have not seen"""
+        r = RangeSet(((1,self.tick),))
+        r -= self._known
+        return r
+
+    @property
+    def remote_missing(self):
+        """Values from this node which somebody else has not seen"""
+        return self._reported
 
 class NodeEvent:
     """Represents any event originating at a node.
@@ -57,6 +128,7 @@ class NodeEvent:
         if tick is None:
             tick = node.tick
         self.tick = tick
+        node.seen(tick)
         self.prev = None
         if prev is not None:
             assert prev.filter(self.node) is prev
@@ -104,6 +176,18 @@ class NodeEvent:
     def __gte__(self, other):
         return self.__eq__(other) or self.__gt__(other)
 
+    def __contains__(self, node):
+        return self.find(node) is not None
+
+    def find(self, node):
+        """Return the position of a node in the node chain."""
+        res = 0
+        while self is not None:
+            if self.node == node:
+                return res
+            res += 1
+            self = self.prev
+        return None
 
     def filter(self, node):
         """Return an event chain without the given node.
@@ -111,31 +195,34 @@ class NodeEvent:
         If the node is not in the chain, the result is not a copy.
         """
         if self.node == node:
-            if self.prev is None:
-                return None
-            return self.prev.filter(node)
+            return self.prev
+            # Invariant: a node can only be in the chain once
+            # Thus we can stop filtering after we encounter it.
         if self.prev is None:
             return self
         prev = self.prev.filter(node)
         if prev is self.prev:
+            # No change, so return unmodified
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
         
     def serialize(self, nchain=100) -> dict:
         if not nchain:
             raise RuntimeError("A chopped NodeEvent must not be set at all")
-        res = {'node': self.node.name, 'tick': self.tick}
+        res = attrdict(node= self.node.name, tick= self.tick)
         if self.prev is None:
-            res['prev'] = None
+            res.prev = None
         elif nchain > 1:
-            res['prev'] = self.prev.serialize(nchain-1)
+            res.prev = self.prev.serialize(nchain-1)
         return res
 
     @classmethod
     def unserialize(cls, msg):
         if msg is None:
             return None
-        self = cls(node=Node(msg['node']), tick=msg['tick'])
+        tick = msg['tick']
+        node=Node(msg['node'], tick=tick)
+        self = cls(node=Node(msg['node']), tick=tick)
         if 'prev' in msg:
             self.prev = cls.unserialize(msg['prev'])
         return self
@@ -176,12 +263,12 @@ class UpdateEvent:
 
     def serialize(self, chop_path=0, nchain=2, with_old=False):
         res = self.event.serialize(nchain=nchain)
-        res['path'] = self.entry.path[chop_path:]
+        res.path = self.entry.path[chop_path:]
         if with_old:
-            res['old_value'] = self.old_value
-            res['new_value'] = self.new_value
+            res.old_value = self.old_value
+            res.new_value = self.new_value
         else:
-            res['value'] = self.new_value
+            res.value = self.new_value
         return res
 
     @classmethod
@@ -189,9 +276,9 @@ class UpdateEvent:
         event = NodeEvent.unserialize(msg)
         entry = root.follow(*msg.path, create=True)
         if 'value' in msg:
-            value = msg['value']
+            value = msg.value
         else:
-            value = msg['new_value']
+            value = msg.new_value
 
         return UpdateEvent(event, entry, value)
 
@@ -309,15 +396,26 @@ class Entry:
     def data(self):
         return self._data
 
-    async def set_data(self, event: NodeEvent, data: bytes):
+    async def set_data(self, event: NodeEvent, data: Any, local: bool = False):
         """This entry is updated by that event.
+
+        Args:
+          ``event``: The :cls:`NodeEvent` to base the update on.
+          ``local``: Flag whether the event should be forwarded to watchers.
+
+        Returns:
+          The :cls:`UpdateEvent` that has been generated and applied.
         """
         event = event.attach(self.chain)
         evt = UpdateEvent(event, self, data, self._data)
-        await self.apply(evt)
+        await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt:UpdateEvent):
+    async def apply(self, evt:UpdateEvent, local: bool = False):
+        """Apply this :cls`UpdateEvent` to me.
+        
+        Also, forward to watchers (unless ``local`` is set).
+        """
         if evt.event == self.chain:
             assert self._data == evt.new_value, ("has:",self._data, "but should have:",evt.new_value)
             return
@@ -337,6 +435,11 @@ class Entry:
         else:
             self._data = evt.value
         self.chain = evt.event
+
+        c = self.chain
+        while c is not None:
+            c.node.seen(c.tick, self)
+            c = c.prev
         await self.updated(evt)
 
     def serialize(self, chop_path=0, nchain=2):
@@ -347,20 +450,18 @@ class Entry:
                          Otherwise, do, but remove the first N entries.
           ``nchain``: how many change events to include.
         """
-        res = {'value': self._data}
+        res = attrdict(value=self._data)
         if self.chain is not None and nchain > 0:
-            res['chain'] = self.chain.serialize(nchain=nchain)
+            res.chain = self.chain.serialize(nchain=nchain)
         if chop_path >= 0:
             path = self.path
             if chop_path > 0:
                 path = path[chop_path:]
-            res['path'] = path
+            res.path = path
         return res
 
-    async def __anext__(self):
-        return await self.read_q.receive()
-
     async def updated(self, event: UpdateEvent):
+        """Send an event to this node (and all its parents)'s watchers."""
         node = self
         while True:
             bad = set()

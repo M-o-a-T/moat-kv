@@ -17,6 +17,7 @@ setup(
     install_requires=[
         "trio_click",
         "anyio",
+        "range_set >= 0.2",
     ],
     keywords=[
         "async", "key-values", "distributed",

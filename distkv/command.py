@@ -48,24 +48,41 @@ async def main(ctx, verbose, quiet, cfg):
         ctx.obj.cfg = CFG
 
 @main.command()
+@click.argument("args", nargs=-1)
+async def pdb(args):
+    import pdb;pdb.set_trace()
+    if not args:
+        return
+    return await main.main(args)
+
+@main.command()
 @click.option("-h","--host", default=None, help="Address to bind to. Default: %s" % (CFG.server.host))
 @click.option("-p","--port", type=int, default=None, help="Port to bind to. Default: %d" % (CFG.server.port,))
 @click.option("-l","--load", type=click.File('rb'), default=None, help="Event log to preload.")
-@click.option("-s","--save", type=click.Path('wb'), default=None, help="Event log to write.")
+@click.option("-s","--save", type=click.Path('wb'), default=None, help="Event log to write to.")
+@click.option("-i","--init", default=None, help="Initial value to set the root to. Use only when setting up a cluster for the first time!")
+@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
 @click.pass_context
-async def run(ctx, name, host, port, load, save):
+async def run(ctx, name, host, port, load, save, init, eval):
     obj = ctx.obj
     print("Start run.")
-    if host is None:
-        host = obj.cfg.server.host
-    if port is None:
-        port = obj.cfg.server.port
+    if host is not None:
+        obj.cfg.server.host = host
+    if port is not None:
+        obj.cfg.server.port = port
+
+    kw = {}
+    if eval:
+        kw['init'] = __builtins__['eval'](init)
+    elif init == '-':
+        kw['init'] = None
+    elif init is not None:
+        kw['init'] = init
 
     obj.root = Entry("ROOT", None)
-    s = Server(name, obj.root, host, port)
+    s = Server(name, root=obj.root, cfg=obj.cfg, **kw)
     if load is None:
-        load = obj.cfg['state']
         await s.load(load)
     if save is not None:
         if save == '':

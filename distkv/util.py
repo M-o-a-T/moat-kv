@@ -98,7 +98,7 @@ class PathShortener:
 
     def __call__(self, res):
         if res.path[:self.depth] != self.prefix:
-            raise RuntimeError("Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
+            raise RuntimeError("Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix)))
 
         p = res['path'][self.depth:]
         cdepth = min(len(p), len(self.path))
@@ -195,27 +195,18 @@ class MsgWriter:
 
     def __exit__(self, *tb):
         if self.buf:
-            self.fd.write(self.buf)
+            self.fd.write(b''.join(self.buf))
         self.fd.close()
 
     def __call__(self, msg):
-        buf = self.buf + packer(msg)
-        if len(buf) >= self.buflen:
-            pos = int(len(buf/self.buflen))
+        msg = packer(msg)
+        self.buf.append(msg)
+        self.curlen += len(msg)
+        if self.curlen >= self.buflen:
+            buf = b''.join(self.buf)
+            pos = self.buflen * int(self.curlen/self.buflen)
             self.fd.write(buf[:pos])
             buf = buf[pos:]
-        self.buf = buf
-
-        while True:
-            try:
-                msg = next(self.unpacker)
-            except StopIteration:
-                pass
-            else:
-                return msg
-            
-            d = self.fd.read(4096)
-            if d == b"":
-                raise StopIteration
-            unpacker.feed(d)
+            self.buf = [buf]
+            self.curlen = len(buf)
 
