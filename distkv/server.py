@@ -157,7 +157,7 @@ class ServerClient:
             res['prev'] = entry.data
 
         async with self.server.next_event() as event:
-            await entry.set_data(event, msg.value)
+            await entry.set_data(event, msg.value, dropped=self.server._dropper)
 
         nchain = msg.get('nchain', 1)
         if nchain > 0:
@@ -172,16 +172,16 @@ class ServerClient:
         This streams the input.
         """
         msg = UpdateEvent.unserialize(self.root, msg)
-        await msg.entry.apply(msg)
+        await msg.entry.apply(msg, dropped=self._dropper)
 
     async def cmd_update(self, msg):
         """
         Apply a stored update.
 
-        You usually do this via a server command.
+        You usually do this via a stream command.
         """
         msg = UpdateEvent.unserialize(self.root, msg)
-        res = await msg.entry.apply(msg)
+        res = await msg.entry.apply(msg, dropped=self._dropper)
         if res is None:
             return False
         else:
@@ -256,7 +256,7 @@ class ServerClient:
             res = 0
             if entry.data is not None:
                 async with self.server.next_event() as event:
-                    evt = await entry.set_data(event, None)
+                    evt = await entry.set_data(event, None, dropped=self.server._dropper)
                     if nchain:
                         r = evt.serialize(chop_path=self._chop_path, nchain=nchain, with_old=True)
                         r['seq'] = seq
@@ -372,6 +372,25 @@ class Server:
         """An attribute that generates a random fraction in ``[0,1)``."""
         return self._random.random()
 
+    def _dropper(self, evt, old_evt=_NotGiven):
+        """Drop either one event, or any event that is in ``old_evt`` but not in
+        ``evt``."""
+        if old_evt is None:
+            return
+        if old_evt is _NotGiven:
+            evt.node.supersede(evt.tick)
+            return
+
+        nt = {}
+        while evt is not None:
+            nt[evt.node] = evt.ticks
+            evt = evt.get('prev', None)
+        while old_evt is not None:
+            if nt.get(old_evt.node, 0) != old_evt.tick:
+                old_evt.node.supersede(old_evt.tick)
+            old_evt = old_evt.get('prev', None)
+
+
     async def _send_event(self, action, msg, coalesce=False):
         msg['tock'] = self.tock
         if 'node' not in msg:
@@ -432,7 +451,7 @@ class Server:
     async def user_update(self, msg):
         """Process an update."""
         msg = UpdateEvent.unserialize(self.root, msg)
-        await msg.entry.apply(msg)
+        await msg.entry.apply(msg, dropped=self._dropper)
 
     async def user_info(self, msg):
         """Process info broadcasts.
@@ -658,7 +677,7 @@ class Server:
                         async for r in res:
                             r = UpdateEvent.deserialize(r)
                             p = self.root.follow(*r.path, create=True)
-                            await p.apply(r)
+                            await p.apply(r, dropped=self._dropper)
 
                         self.server.tock_seen(res.tock)
                         await self._check_ticked()
@@ -775,7 +794,7 @@ class Server:
         for m in MsgReader(stream=stream):
             if 'value' in m:
                 m = UpdateEvent.deserialize(m)
-                await m.entry.apply(m, local=local)
+                await m.entry.apply(m, local=local, dropped=self._dropper)
             elif 'nodes' in m or 'known' in m:
                 await self._process_info(m)
             else:

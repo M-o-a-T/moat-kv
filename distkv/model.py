@@ -189,18 +189,20 @@ class NodeEvent:
             self = self.prev
         return None
 
-    def filter(self, node):
+    def filter(self, node, dropped=None):
         """Return an event chain without the given node.
 
         If the node is not in the chain, the result is not a copy.
         """
         if self.node == node:
+            if dropped is not None:
+                dropped(self)
             return self.prev
             # Invariant: a node can only be in the chain once
             # Thus we can stop filtering after we encounter it.
         if self.prev is None:
             return self
-        prev = self.prev.filter(node)
+        prev = self.prev.filter(node, dropped=dropped)
         if prev is self.prev:
             # No change, so return unmodified
             return self
@@ -227,10 +229,10 @@ class NodeEvent:
             self.prev = cls.unserialize(msg['prev'])
         return self
 
-    def attach(self, prev: NodeEvent=None):
+    def attach(self, prev: NodeEvent=None, dropped=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
-            prev = prev.filter(self.node)
+            prev = prev.filter(self.node, dropped=dropped)
         if self.prev is not None or prev is not None:
             self = NodeEvent(node=self.node, tick=self.tick, prev=prev)
         return self
@@ -396,7 +398,7 @@ class Entry:
     def data(self):
         return self._data
 
-    async def set_data(self, event: NodeEvent, data: Any, local: bool = False):
+    async def set_data(self, event: NodeEvent, data: Any, local: bool = False, dropped=None):
         """This entry is updated by that event.
 
         Args:
@@ -406,12 +408,12 @@ class Entry:
         Returns:
           The :cls:`UpdateEvent` that has been generated and applied.
         """
-        event = event.attach(self.chain)
+        event = event.attach(self.chain, dropped=dropped)
         evt = UpdateEvent(event, self, data, self._data)
         await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt:UpdateEvent, local: bool = False):
+    async def apply(self, evt:UpdateEvent, local: bool = False, dropped=None):
         """Apply this :cls`UpdateEvent` to me.
         
         Also, forward to watchers (unless ``local`` is set).
@@ -434,6 +436,8 @@ class Entry:
             self._data = evt.new_value
         else:
             self._data = evt.value
+        if dropped is not None:
+            dropped(evt.event, self.chain)
         self.chain = evt.event
 
         c = self.chain

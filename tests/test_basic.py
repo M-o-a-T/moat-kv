@@ -69,4 +69,9 @@ async def test_01_basic(autojump_clock):
         # does not yet exist
         with pytest.raises(ServerError):
             await c.request("get_value", node="test_0", tick=8)
+        # has been superseded
+        with pytest.raises(ServerError):
+            await c.request("get_value", node="test_0", tick=1)
+        # works
+        assert (await c.request("get_value", node="test_0", tick=4)).value == 1234
 
