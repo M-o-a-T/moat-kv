@@ -15,6 +15,49 @@ All strings are required to be UTF-8 encoded.
 Data types
 ++++++++++
 
+Chains
+------
+
+A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
+
+* ``node`` is the name of DistKV node that effected a change
+  
+* ``tick`` is a node-specific counter which increments by one when any
+  entry on that node is changed.
+
+Chains are governed by three rules:
+
+* The latest change is at the front of the chain.
+
+* Any node may only appear on the chain once, with the ``tick`` of the
+  latest change by that node. If a node changes an entry again, the old
+  entry is removed before the new entry is prepended.
+
+* Their length is bounded. If a new entry causes the chain to grow too
+  long, the oldest entry is removed.
+
+If an entry is removed from the chain, its ``node, tick`` value is stored
+in a per-node ``known`` list.
+
+Chains are typically represented by ``(node,tick,prev)`` maps, where
+``prev`` is either ``Null`` (the chain ends here), nonexistent (the chain
+was truncated here), or another chain triple (the previous change on a
+different node).
+
+Ticks increment sequentially so that every node can verify that it
+knows all of every other node's changes.
+
+The chain concept is based on `vector clocks <https://queue.acm.org/detail.cfm?id=2917756>`.
+Nodes are sorted so that causality may be established more easily (no need
+to compare the whole vectors) and vector length may be bounded without
+sacrificing reliability.
+
+The default chain length should be two larger than the maximum of
+
+* the number of partitions a DistKV system might break up into
+  
+* the number of hosts within one partition that might change any single value
+
 ticks
 -----
 
@@ -221,12 +264,12 @@ Second step (after half a clock tick): Send a message with ``missing`` elements
 that describe which events you do not yet know about.
 
 Third step: Nodes retransmit missing events, followed by a ``known``
-message that lists ticks which no longer correspond to an event.
+message that lists ticks which no longer appear on an event's chain.
 
 After completing this sequence, every node should have a node list which
 marks no event as missing. For error recovery, a node may randomly
-(i.e. at most one such request every ``3*clock`` interval) retransmit its
-``missing`` list, assuming there is one.
+(at most one such request every ``10*clock`` interval) retransmit its
+local ``missing`` list, assuming there is one.
 
 This protocol assumes that new nodes connect to an existing non-split
 network. If new nodes first form their own little club before being
@@ -241,10 +284,10 @@ events is empty.
 All of these steps are to be performed by the first nodes in the pre-joined
 chains. If these messages are not seen after ``clock/2`` seconds (counting
 from reception of the ``ping``, ``ticks`` or ``missing`` element that
-occured in the previous step), the second node is required to send them;
-the third node will take over after an additional
-``clock/4`` interval, and so on. Of course, only messages originating from
-hosts on the correct chain shall suppress a node's transmission.
+occured in the previous step), the second node in the chain is required to
+send them; the third node will take over after an additional ``clock/4``
+interval, and so on. Of course, only messages originating from hosts on the
+correct chain shall suppress a node's transmission.
 
 ++++++++++++++
 Message graphs

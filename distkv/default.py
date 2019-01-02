@@ -10,7 +10,6 @@ CFG = attrdict(
         server=attrdict(
             host="localhost",
             port=PORT,
-            domain=None, # domain in which to look up nodes
             ),
         serf=attrdict(
             host="localhost",
@@ -19,6 +18,8 @@ CFG = attrdict(
         state=None, # path to load/save system state
 
         root="distkv", # serf user event prefix
+        domain=None, # domain in which to look up nodes
+
         change=attrdict(
             length=5,
             ),

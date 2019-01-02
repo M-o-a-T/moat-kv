@@ -80,8 +80,7 @@ async def run(ctx, name, host, port, load, save, init, eval):
     elif init is not None:
         kw['init'] = init
 
-    obj.root = Entry("ROOT", None)
-    s = Server(name, root=obj.root, cfg=obj.cfg, **kw)
+    s = Server(name, cfg=obj.cfg, **kw)
     if load is None:
         await s.load(load)
     if save is not None:

@@ -1,3 +1,5 @@
+from anyio import aopen, open_cancel_scope
+
 def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.
@@ -37,7 +39,7 @@ class attrdict(dict):
         try:
             return self[a]
         except KeyError:
-            raise AttributeError(a)
+            raise AttributeError(a) from None
     def __setattr__(self,a,b):
         if a.startswith("_"):
             super(attrdict,self).__setattr__(a,b)
@@ -133,8 +135,8 @@ class MsgReader:
     
     Usage::
 
-        with MsgReader("/tmp/msgs.pack") as f:
-            for msg in f:
+        async with MsgReader("/tmp/msgs.pack") as f:
+            async for msg in f:
                 process(msg)
     """
 
@@ -146,19 +148,19 @@ class MsgReader:
         self.fd = stream
         self.unpack = stream_unpacker()
 
-    def __enter__(self):
+    async def __aenter__(self):
         if self.fd is None:
-            self.fd = open(self.fn,"rb")
+            self.fd = aopen(self.fn,"rb")
         return self
 
-    def __exit__(self, *tb):
+    async def __aexit__(self, *tb):
         if self.fn is not None:
-            self.fd.close()
+            await self.fd.close()
 
-    def __iter__(self):
+    def __aiter__(self):
         return self
 
-    def __next__(self):
+    async def __anext__(self):
         while True:
             try:
                 msg = next(self.unpacker)
@@ -167,7 +169,7 @@ class MsgReader:
             else:
                 return msg
             
-            d = self.fd.read(4096)
+            d = await self.fd.read(4096)
             if d == b"":
                 raise StopIteration
             unpacker.feed(d)
@@ -177,8 +179,8 @@ class MsgWriter:
     
     Usage::
 
-        with MsgWriter("/tmp/msgs.pack") as f:
-            for msg in some_source_of_messages():
+        async with MsgWriter("/tmp/msgs.pack") as f:
+            for msg in some_source_of_messages():  # or "async for"
                 f(msg)
     """
 
@@ -189,23 +191,24 @@ class MsgWriter:
         self.buflen = buflen
         self.curlen = 0
 
-    def __enter__(self):
-        self.fd = open(fn,"rb")
+    async def __aenter__(self):
+        self.fd = await aopen(fn,"rb")
         return self
 
-    def __exit__(self, *tb):
-        if self.buf:
-            self.fd.write(b''.join(self.buf))
-        self.fd.close()
+    async def __aexit__(self, *tb):
+        with open_cancel_scope(shield=True):
+            if self.buf:
+                await self.fd.write(b''.join(self.buf))
+            await self.fd.close()
 
-    def __call__(self, msg):
+    async def __call__(self, msg):
         msg = packer(msg)
         self.buf.append(msg)
         self.curlen += len(msg)
         if self.curlen >= self.buflen:
             buf = b''.join(self.buf)
             pos = self.buflen * int(self.curlen/self.buflen)
-            self.fd.write(buf[:pos])
+            await self.fd.write(buf[:pos])
             buf = buf[pos:]
             self.buf = [buf]
             self.curlen = len(buf)

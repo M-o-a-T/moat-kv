@@ -18,6 +18,7 @@ setup(
         "trio_click",
         "anyio",
         "range_set >= 0.2",
+        "attrs",
     ],
     keywords=[
         "async", "key-values", "distributed",

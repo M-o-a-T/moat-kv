@@ -9,6 +9,7 @@ import msgpack
 import aioserf
 from typing import Any
 from random import Random
+import time
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener
@@ -72,6 +73,7 @@ class ServerClient:
         self.stream = stream
         self.seq = 0
         self.tasks = {}
+        self.inqueue = {}
         self._chop_path = 0
 
         global _client_nr
@@ -121,7 +123,7 @@ class ServerClient:
     async def cmd_get_value(self, msg):
         """Get a node's value.
         """
-        if 'path' not in msg:
+        if 'node' in msg and 'path' not in msg:
             n = Node(msg.node)
             return n[msg.item].serialize(chop_path=self._chop_path, nchain=msg.get('nchain', 0))
 
@@ -316,7 +318,7 @@ class ServerClient:
                             await self.tg.spawn(self.process, msg)
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
-                            logger.exception("Client error on %s", repr(msg))
+                            logger.exception("ERR %d: Client error on %s", self._client_nr, repr(msg))
                         await self.send({'error': str(exc)})
 
                 try:
@@ -332,7 +334,9 @@ class Server:
     serf = None
     _ready = None
 
-    def __init__(self, name: str, root: Entry, cfg: dict, init: Any = _NotGiven):
+    def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
+        if root is None:
+            root = Entry("ROOT", None)
         self.root = root
         self.cfg = cfg
         self.node = Node(name, 1)
@@ -426,12 +430,12 @@ class Server:
                     nd[n.name] = lk.__getstate__()
         return res
 
-    async def cmd_update(self, msg):
+    async def user_update(self, msg):
         """Process an update."""
         msg = UpdateEvent.unserialize(self.root, msg)
         await msg.entry.apply(msg)
 
-    async def cmd_info(self, msg):
+    async def user_info(self, msg):
         """Process info broadcasts.
         
         These are mainly used in the split recovery protocol."""
@@ -464,7 +468,7 @@ class Server:
                 r = RangeSet().__setstate__(r)
                 n.reported_known(r)
 
-    async def cmd_ping(self, msg):
+    async def user_ping(self, msg):
         """Process ping broadcasts.
 
         Just queue them for the ``pinger`` task to handle.
@@ -498,12 +502,14 @@ class Server:
         """Send a ping message and note when to send the next one,
         assuming that no intervening ping arrives.
         """
+        if self._tock > 1000:
+            raise RuntimeError("This test has gone on too long")
 
         self.last_ping_evt = msg = NodeEvent(self.node).attach(self.ping_chain)
         self.last_ping = msg = msg.serialize()
         await self._send_event('ping', msg)
 
-        t = time()
+        t = time.time()
         self.next_ping = t + self._time_to_next_ping() * self.cfg.ping.clock
 
     def _time_to_next_ping(self):
@@ -567,11 +573,12 @@ class Server:
 
         while True:
             msg = None
-            t = time()
-            async with anyio.move_on_after(self.next_ping - t):
+            t = max(self.next_ping - time.time(), 0)
+            logger.debug("S %s: wait %s", self.node.name, t)
+            async with anyio.move_on_after(t):
                 msg = await self.ping_q.get()
             if msg is None:
-                self._send_ping()
+                await self._send_ping()
                 continue
 
             # Handle incoming ping
@@ -584,7 +591,7 @@ class Server:
                 # valid "next" ping
                 self.last_ping = msg
                 self.last_ping_evt = event
-                self.next_ping = time() + clock * self._time_to_next_ping()
+                self.next_ping = time.time() + clock * self._time_to_next_ping()
                 continue
 
             saved_ping = self.last_ping_evt
@@ -605,8 +612,8 @@ class Server:
                 # If we get here, the other ping is "better".
                 self.last_ping = msg
                 self.last_ping_evt = event
-                t = time()
-                self.next_ping = time() + clock * self._time_to_next_ping()
+                t = time.time()
+                self.next_ping = time.time() + clock * self._time_to_next_ping()
                 break
 
             if self.last_ping.prev == event.prev:
@@ -655,7 +662,7 @@ class Server:
                             await p.apply(r)
 
                         self.server.tock_seen(res.tock)
-                        await self.check_ticked()
+                        await self._check_ticked()
                     return
                 except Exception as exc:
                     logger.exception("Unable to connect to %s" % (node,))
@@ -675,7 +682,7 @@ class Server:
             r = RangeSet.__setstate__(k)
             nn.reported_missing(r)
 
-    async def check_ticked():
+    async def _check_ticked(self):
         if self._ready is None:
             return
         if self.node.tick > 0:
@@ -785,28 +792,40 @@ class Server:
                 async for msg in updates:
                     mw(msg.serialize())
         
-    async def serve(self, ready: Event = None):
+    @property
+    async def is_ready(self):
+        """Await this to determine if/when the server is operational."""
+        await self._ready.wait()
+
+    @property
+    async def is_serving(self):
+        """Await this to determine if/when the server is serving clients."""
+        await self._ready2.wait()
+
+    async def serve(self, setup_done: Event = None):
         """Task that opens a Serf connection and actually runs the server.
         
         Args:
-          ``ready``: optional event that's set when the server is up.
+          ``setup_done``: optional event that's set when the server is initially set up.
         """
-        if ready is None:
-            ready = anyio.create_event()
-        self._ready = ready
-
         async with aioserf.serf_client(**self.cfg.serf) as serf:
+            self._ready = anyio.create_event()
+            self._ready2 = anyio.create_event()
             self.serf = serf
             self.spawn = serf.spawn
             self.ping_q = anyio.create_queue(self.cfg.ping.length+2)
             self.ping_chain = None
             self.last_sent_ping = None
             self.sane_ping = None # "our" branch when a network split is healed
-            self._recover1_event = None
-
+            self._recover_event1 = None
+            self._recover_event2 = None
             self.recover_task = None
-            delay = anyio.Event()
-            delay2 = anyio.Event()
+
+            delay = anyio.create_event()
+            delay2 = anyio.create_event()
+
+            if setup_done is not None:
+                await setup_done.set()
 
             if self.cfg.state is not None:
                 await serf.spawn(self.save, self.cfg.state)
@@ -825,17 +844,19 @@ class Server:
             await delay2.wait()
 
             await delay.set()
-            self._check_ticked()  # when _init is set
+            await self._check_ticked()  # when _init is set
 
             cfg_s = self.cfg.server.copy()
-            cfg_s.pop('host', None)
-            cfg_s['port'] = self.port
+            cfg_s.pop('host', 'localhost')
 
             await self._ready.wait()
-            logger.notice("Ready. Accepting clients.")
+            logger.info("Ready. Accepting clients.")
+            if cfg_s.get('port',_NotGiven) is None:
+                del cfg_s['port']
             async with await anyio.create_tcp_server(**cfg_s) as server:
-                if self.port is None:
-                    self.port = server.port()
+                self.port = server.port
+                logger.debug("S %s: Serving on port %d", self.node.name, self.port)
+                await self._ready2.set()
                 async for client in server.accept_connections():
                     await serf.spawn(self._connect, client)
 
