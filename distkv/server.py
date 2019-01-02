@@ -98,8 +98,7 @@ class ServerClient:
                     raise ClientError("Command not recognized: " + repr(msg.action))
                 else:
                     res = await fn(msg)
-                    if res is not None:
-                        await self.send_result(seq, res)
+                    if res is not None: await self.send_result(seq, res)
 
             except BrokenPipeError as exc:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
@@ -125,7 +124,7 @@ class ServerClient:
         """
         if 'node' in msg and 'path' not in msg:
             n = Node(msg.node)
-            return n[msg.item].serialize(chop_path=self._chop_path, nchain=msg.get('nchain', 0))
+            return n[msg.tick].serialize(chop_path=self._chop_path, nchain=msg.get('nchain', 0))
 
         try:
             entry = self.root.follow(*msg.path, create=False)
@@ -219,7 +218,7 @@ class ServerClient:
 
         await _get_values(entry)
 
-    async def cmd_get_state(self, msg):
+    def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
         return self.server.get_state(**msg)
 
@@ -339,7 +338,7 @@ class Server:
             root = Entry("ROOT", None)
         self.root = root
         self.cfg = cfg
-        self.node = Node(name, 1)
+        self.node = Node(name, 0)
         self._tock = 0
         self._init = init
 
