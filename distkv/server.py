@@ -919,12 +919,15 @@ class Server:
                 del cfg_s['port']
             async with await anyio.create_tcp_server(**cfg_s) as server:
                 self.port = server.port
-                logger.debug("S %s: Serving on port %d", self.node.name, self.port)
+                logger.debug("S %s: opened port %s", self.node.name, self.port)
                 await self._ready2.set()
                 async for client in server.accept_connections():
                     await serf.spawn(self._connect, client)
 
     async def _connect(self, stream):
         c = ServerClient(server=self, stream=stream)
-        await c.run()
+        try:
+            await c.run()
+        finally:
+            await stream.close()
 
