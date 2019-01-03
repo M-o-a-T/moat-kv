@@ -42,6 +42,50 @@ async def test_01_basic(autojump_clock):
         c = await st.client()
         assert (await c.request("get_value", path=())).value == 123
 
+        r = await c.request("set_value", path=("foo"), value="hello", nchain=3)
+        r = await c.request("set_value", path=("foo","bar"), value="baz", nchain=3)
+        r = await c.request("get_value", path=())
+        assert r.value == 123
+
+        r = await c.request("get_value", path=("foo"))
+        assert r.value == "hello"
+
+        r = await c.request("get_value", path=("foo","bar"))
+        assert r.value == "baz"
+
+        r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
+        del r['tock']
+        assert r == {'nodes': {'test_0': 3}, 'known': {'test_0': ((1, 4),)}, 'missing': {}, 'remote_missing': {}, 'seq': 7}
+
+        assert (await c.request("get_value", node="test_0", tick=1)).value == 123
+        assert (await c.request("get_value", node="test_0", tick=2)).value == "hello"
+        assert (await c.request("get_value", node="test_0", tick=3)).value == "baz"
+
+        r = await c.request("set_value", path=(), value=1234, nchain=3)
+        assert r.prev==123
+        assert r.chain.tick == 4
+
+        # does not yet exist
+        with pytest.raises(ServerError):
+            await c.request("get_value", node="test_0", tick=8)
+        # has been superseded
+        with pytest.raises(ServerError):
+            await c.request("get_value", node="test_0", tick=1)
+        # works
+        assert (await c.request("get_value", node="test_0", tick=4)).value == 1234
+
+        r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
+        del r['tock']
+        del r['seq']
+        assert r == {'nodes': {'test_0': 4}, 'known': {'test_0': ((1, 5),)}, 'missing': {}, 'remote_missing': {}}
+
+@pytest.mark.trio
+async def test_02_cmd(autojump_clock):
+    async with stdtest(args={'init':123}) as st:
+        s, = st.s
+        c = await st.client()
+        assert (await c.request("get_value", path=())).value == 123
+
         r = await run("client","-p",s.port,"set","-v","hello","foo")
         r = await run("client","-p",s.port,"set","-ev","'baz'","foo","bar")
 
@@ -103,12 +147,13 @@ async def test_03_three(autojump_clock):
         # This waits for test_0 to be fully up and running.
         c = await st.client(0)
 
-        # At this point ci shall be fully integrated, and test_1 shall know this.
+        # At this point ci shall be fully integrated, and test_1 shall know this (mostly).
         r = await ci.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
         del r['tock']
         del r['seq']
         assert \
-                r == {'nodes': {'test_0': 0, 'test_1': 1}, 'known': {'test_1': (1,)}, 'missing': {}, 'remote_missing': {}} 
+                r == {'nodes': {'test_0': 0, 'test_1': 1}, 'known': {'test_1': (1,)}, 'missing': {}, 'remote_missing': {}} or \
+                r == {'nodes': {'test_0': None, 'test_1': 1}, 'known': {'test_1': (1,)}, 'missing': {}, 'remote_missing': {}} 
 
         assert (await c.request("get_value", path=())).value == 125
 
