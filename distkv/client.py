@@ -285,7 +285,9 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
         
+        logger.debug("Conn %s %s",self.host,self.port)
         async with await anyio.connect_tcp(self.host, self.port) as sock:
+            logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg
                 self._socket = sock
