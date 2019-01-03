@@ -114,7 +114,7 @@ class ServerClient:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
-                if not isinstance(exc, ClientError):
+                if not isinstance(exc, (KeyError,ClientError)):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
                 await self.send({'error': str(exc), 'seq': seq, 'tock':self.server.tock})
 

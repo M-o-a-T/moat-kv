@@ -1,5 +1,7 @@
 from anyio import aopen, open_cancel_scope
 
+import logging
+
 def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.
@@ -212,4 +214,8 @@ class MsgWriter:
             buf = buf[pos:]
             self.buf = [buf]
             self.curlen = len(buf)
+
+class TimeOnlyFormatter(logging.Formatter):
+    default_time_format = "%H:%M:%S"
+    default_msec_format = "%s.%03d"
 
