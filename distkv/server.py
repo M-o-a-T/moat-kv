@@ -10,10 +10,11 @@ import aioserf
 from typing import Any
 from random import Random
 import time
+from range_set import RangeSet
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener
-from .client import open_client
+from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
 import logging
@@ -30,17 +31,26 @@ class _NotGiven:
 
 _client_nr = 0
 
+def max_n(a,b):
+    if a is None:
+        return b
+    elif b is None:
+        return a
+    elif a < b:
+        return b
+    else:
+        return a
 
 def _multi_response(fn):
     async def wrapper(self, msg):
         seq = msg.seq
-        await self.send({'seq':seq, 'state':'start'})
+        await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
         try:
             await fn(self, msg)
         except BaseException as exc:
             raise # handled in the caller
         else:
-            await self.send({'seq':seq, 'state':'end'})
+            await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
     return wrapper
 
 def _stream(fn):
@@ -54,7 +64,7 @@ def _stream(fn):
         while True:
             msg = await q.get()
             if msg.get('state','') == 'end':
-                await self.send({'seq':seq, 'count':n})
+                await self.send({'seq':seq, 'count':n, 'tock':self.server.tock})
                 del self.inqueue[seq]
                 return
             longer(msg)
@@ -90,7 +100,7 @@ class ServerClient:
             self.tasks[seq] = s
             try:
                 if 'chain' in msg:
-                    msg.chain = NodeEvent.unserialize(msg.chain)
+                    msg.chain = NodeEvent.deserialize(msg.chain)
 
                 try:
                     fn = getattr(self, ('scmd_' if stream else 'cmd_') + str(msg.action))
@@ -106,7 +116,7 @@ class ServerClient:
             except Exception as exc:
                 if not isinstance(exc, ClientError):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
-                await self.send({'error': str(exc), 'seq': seq})
+                await self.send({'error': str(exc), 'seq': seq, 'tock':self.server.tock})
 
             finally:
                 del self.tasks[seq]
@@ -123,7 +133,7 @@ class ServerClient:
         """Get a node's value.
         """
         if 'node' in msg and 'path' not in msg:
-            n = Node(msg.node)
+            n = Node(msg.node, cache=self.server._nodes, create=False)
             return n[msg.tick].serialize(chop_path=self._chop_path, nchain=msg.get('nchain', 0))
 
         try:
@@ -171,7 +181,7 @@ class ServerClient:
 
         This streams the input.
         """
-        msg = UpdateEvent.unserialize(self.root, msg)
+        msg = UpdateEvent.deserialize(self.root, msg)
         await msg.entry.apply(msg, dropped=self._dropper)
 
     async def cmd_update(self, msg):
@@ -180,7 +190,7 @@ class ServerClient:
 
         You usually do this via a stream command.
         """
-        msg = UpdateEvent.unserialize(self.root, msg)
+        msg = UpdateEvent.deserialize(self.root, msg)
         res = await msg.entry.apply(msg, dropped=self._dropper)
         if res is None:
             return False
@@ -244,7 +254,7 @@ class ServerClient:
         seq = msg.seq
         nchain = msg.get('nchain', 0)
         if nchain:
-            await self.send({'seq':seq, 'state':'start'})
+            await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
         ps = PathShortener(msg.path)
 
         try:
@@ -269,7 +279,7 @@ class ServerClient:
             return res
         res = await _del(entry)
         if nchain:
-            await self.send({'seq':seq, 'state':'end'})
+            await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
         else:
             return {'changed': res}
 
@@ -296,7 +306,8 @@ class ServerClient:
         async with anyio.create_task_group() as tg:
             self.tg = tg
             await self.send({'seq': 0, 'version': _version_tuple,
-                'node':self.server.node.name, 'local':self.server.node.tick})
+                'node':self.server.node.name, 'local':self.server.node.tick,
+                'tock':self.server.tock})
 
             while True:
                 for msg in unpacker:
@@ -318,7 +329,7 @@ class ServerClient:
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             logger.exception("ERR %d: Client error on %s", self._client_nr, repr(msg))
-                        await self.send({'error': str(exc)})
+                        await self.send({'error': str(exc), 'tock':self.server.tock})
 
                 try:
                     buf = await self.stream.receive_some(4096)
@@ -332,17 +343,18 @@ class ServerClient:
 class Server:
     serf = None
     _ready = None
+    fetch_running = False
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
         if root is None:
             root = Entry("ROOT", None)
         self.root = root
         self.cfg = cfg
-        self.node = Node(name, 0)
+        self._nodes = {}
+        self.node = Node(name, None, cache=self._nodes)
         self._tock = 0
         self._init = init
 
-        self._nodes = {self.node.name: self.node}
         self._evt_lock = anyio.create_lock()
         self._random = Random()
 
@@ -383,12 +395,12 @@ class Server:
 
         nt = {}
         while evt is not None:
-            nt[evt.node] = evt.ticks
-            evt = evt.get('prev', None)
+            nt[evt.node.name] = evt.tick
+            evt = evt.prev
         while old_evt is not None:
-            if nt.get(old_evt.node, 0) != old_evt.tick:
+            if nt.get(old_evt.node.name, 0) != old_evt.tick:
                 old_evt.node.supersede(old_evt.tick)
-            old_evt = old_evt.get('prev', None)
+            old_evt = old_evt.prev
 
 
     async def _send_event(self, action, msg, coalesce=False):
@@ -406,7 +418,7 @@ class Server:
             async for msg in watcher:
                 if msg.event.node != self.node:
                     continue
-                if self.node.tick == 0:
+                if self.node.tick is None:
                     continue
                 p = msg.serialize(nchain=self.cfg.change.length)
                 await self._send_event('update', p)
@@ -437,6 +449,8 @@ class Server:
         if missing:
             nd = res.missing = {}
             for n in self._nodes.values():
+                if not n.tick:
+                    continue
                 lk = n.local_missing
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
@@ -450,7 +464,7 @@ class Server:
 
     async def user_update(self, msg):
         """Process an update."""
-        msg = UpdateEvent.unserialize(self.root, msg)
+        msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes)
         await msg.entry.apply(msg, dropped=self._dropper)
 
     async def user_info(self, msg):
@@ -461,8 +475,8 @@ class Server:
         ticks = msg.get('ticks', None)
         if ticks is not None:
             for n,t in ticks.items():
-                n = Node(n)
-                n.tick = max(n.tick, t)
+                n = Node(n, cache=self._nodes)
+                n.tick = max_n(n.tick, t)
             if self._recover_event1 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
                 await self._recover_event1.set()
@@ -470,9 +484,10 @@ class Server:
         # Step 2
         missing = msg.get('missing', None)
         if missing is not None:
-            for n,r in missing.items():
-                n = Node(n)
-                r = RangeSet().__setstate__(r)
+            for n,k in missing.items():
+                n = Node(n, cache=self._nodes)
+                r = RangeSet()
+                r.__setstate__(k)
                 n.reported_missing(r)
             if self._recover_event2 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
@@ -481,9 +496,10 @@ class Server:
         # Step 3
         known = msg.get('known',None)
         if known is not None:
-            for n,r in known.items():
-                n = Node(n)
-                r = RangeSet().__setstate__(r)
+            for n,k in known.items():
+                n = Node(n, cache=self._nodes)
+                r = RangeSet()
+                r.__setstate__(k)
                 n.reported_known(r)
 
     async def user_ping(self, msg):
@@ -523,7 +539,7 @@ class Server:
         if self._tock > 1000:
             raise RuntimeError("This test has gone on too long")
 
-        self.last_ping_evt = msg = NodeEvent(self.node).attach(self.ping_chain)
+        self.last_ping_evt = msg = NodeEvent(self.node).attach(self.last_ping_evt)
         self.last_ping = msg = msg.serialize()
         await self._send_event('ping', msg)
 
@@ -537,20 +553,20 @@ class Server:
             # we transmitted the last ping. If no other ping arrives we are
             # the only node.
             return 3
+        # check whether the first half of the ping chain contains nonzero ticks
+        # so that if we're not fully up yet, the chain doesn't only consist of
+        # nodes that don't work.
+        c = self.last_ping_evt.prev
+        p = s = 0
+        l = 1
+        while c is not None:
+            if c.tick is not None and c.tick > 0 and p == 0:
+                p = l
+            if c.node == self.node:
+                s = l
+            l += 1
+            c = c.prev
         if not self._ready.is_set():
-            # check whether the first half of the ping chain contains nonzero ticks
-            # so that if we're not up yet the chain doesn't only consist of
-            # nodes that don't work
-            c = self.last_ping_evt.prev
-            p = s = 0
-            l = 1
-            while c is not None:
-                if c.tick > 0 and p == 0:
-                    p = l
-                if c.node == self.node:
-                    s = l
-                l += 1
-                c = c.prev
             if p > l//2:
                 # No it does not. Do not participate.
                 return 3
@@ -600,7 +616,7 @@ class Server:
                 continue
 
             # Handle incoming ping
-            event = NodeEvent.deserialize(msg)
+            event = NodeEvent.deserialize(msg, cache=self._nodes)
 
             if self.node == event.node:
                 # my own message, returned
@@ -613,31 +629,41 @@ class Server:
                 continue
 
             saved_ping = self.last_ping_evt
-            # colliding pings. The while "loop" is only used as a "goto forward".
+            # colliding pings.
+            #
+            # This while loop is only used as a "goto forward".
+            # ``break`` == "the new ping is better"
+            # ``pass``  == "the last ping I saw is better"
             while True:
-                if event.tick > 0 and not self._ready.is_set():
+                if event.tick == 0 and self._ready.is_set():
+                    # always prefer our ping
                     break
-                if msg.tock < self.last_ping_evt.tock:
-                    break
-                if msg.tock == self.last_ping_evt.tock:
-                    if event.tick < self.last_ping_evt.tick:
+                if event.tick != 0 and not self._ready.is_set():
+                    # always prefer the other ping
+                    pass
+                else:
+                    if msg.tock < self.last_ping.tock:
                         break
-                    if event.tick == self.last_ping_evt.tick:
-                        if event.node.name < self.last_ping_evt.node.name:
+                    if msg.tock == self.last_ping.tock:
+                        if event.tick < self.last_ping_evt.tick:
                             break
-                        assert event.node.name != self.last_ping_evt.node.name
+                        if event.tick == self.last_ping_evt.tick:
+                            if event.node.name < self.last_ping_evt.node.name:
+                                break
+                            assert event.node.name != self.last_ping_evt.node.name
 
                 # If we get here, the other ping is "better".
                 self.last_ping = msg
                 self.last_ping_evt = event
                 t = time.time()
                 self.next_ping = time.time() + clock * self._time_to_next_ping()
-                break
+                break  # always terminate the loop
 
-            if self.last_ping.prev == event.prev:
+            if event.prev is not None and self.last_ping_evt.prev == event.prev:
+                # These pings refer to the same previous ping. Good.
                 continue
 
-            # We have a healed network split. Yowch.
+            # We either have a healed network split (bad) or are noew (oh well).
             if self.sane_ping is None:
                 self.sane_ping = saved_ping
             if self.recover_task is not None:
@@ -646,8 +672,17 @@ class Server:
                 pos = self.sane_ping.find(self.node)
                 if pos is not None:
                     await self.spawn(self.recover_split, pos)
-            else:
+            elif not self.fetch_running:
                 await self.spawn(self.fetch_data)
+
+    async def _get_host_port(self, node):
+        """Retrieve the remote system to connect to"""
+        port = self.cfg.server.port
+        domain = self.cfg.domain
+        host = node.name
+        if domain is not None:
+            host += '.'+domain
+        return (host,port)
 
     async def fetch_data(self):
         """
@@ -655,55 +690,60 @@ class Server:
 
         Try to get the data from some other node.
         """
-        domain = self.cfg.server.domain
-        port = self.cfg.server.port
+        if self.fetch_running:
+            return
+        self.fetch_running = True
         while True:
             n = self.last_ping_evt
             while n is not None:
-                node = n
-                n = node.prev
-                if node.tick == 0:  # not ready
+                node = n.node
+                n = n.prev
+                if node.tick is None:  # not ready
                     continue
 
                 try:
-                    host = node.name
-                    if domain is not None:
-                        host += '.'+domain
-                    async with open_client(host, port) as client:
-                        res = await client.request('get_info', attrdict(nodes=True, known=True), iter=False)
+                    host, port = await self._get_host_port(node)
+                    async with distkv_client.open_client(host, port) as client:
+                        res = await client.request('get_state', nodes=True, known=True, iter=False)
                         await self._process_info(res)
 
                         res = await client.request('get_tree', iter=True, nchain=999, path=())
                         async for r in res:
-                            r = UpdateEvent.deserialize(r)
-                            p = self.root.follow(*r.path, create=True)
-                            await p.apply(r, dropped=self._dropper)
+                            r = UpdateEvent.deserialize(self.root, r, cache=self._nodes)
+                            await r.entry.apply(r, dropped=self._dropper)
 
-                        self.server.tock_seen(res.tock)
+                        self.tock_seen(res.end_msg.tock)
+                        if self.node.tick is None:
+                            self.node.tick = 0
                         await self._check_ticked()
+                    self.fetch_running = False
                     return
+                except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
+                    raise
                 except Exception as exc:
                     logger.exception("Unable to connect to %s" % (node,))
-            anyio.sleep(self.cfg.ping.clock*1.1)
+            await anyio.sleep(self.cfg.ping.clock*1.1)
 
     async def _process_info(self, msg):
         for nn,t in msg.get('nodes',{}).items():
-            nn = Node(nn)
-            nn.tick = max(nn.tick,t)
+            nn = Node(nn, cache=self._nodes)
+            nn.tick = max_n(nn.tick,t)
         for nn,k in msg.get('known',{}).items():
-            nn = Node(nn)
-            r = RangeSet.__setstate__(k)
+            nn = Node(nn, cache=self._nodes)
+            r = RangeSet()
+            r.__setstate__(k)
             nn.reported_known(r, local=True)
         for nn,k in msg.get('remote_missing',{}).items():
             # used when loading data from a state file
-            nn = Node(nn)
-            r = RangeSet.__setstate__(k)
+            nn = Node(nn, cache=self._nodes)
+            r = RangeSet()
+            r.__setstate__(k)
             nn.reported_missing(r)
 
     async def _check_ticked(self):
         if self._ready is None:
             return
-        if self.node.tick > 0:
+        if self.node.tick is not None:
             await self._ready.set()
 
     async def recover_split(self, pos):
@@ -720,7 +760,7 @@ class Server:
 
             try:
                 # Step 1: send an info/ticks message
-                with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
+                async with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
                     await self._recover_event1.wait()
                 if x.cancel_called:
                     msg = dict((x.name,x.tick) for x in self._nodes.values())
@@ -728,12 +768,14 @@ class Server:
                     await self._send_event('info', msg)
 
                 # Step 2: send an info/missing message
-                with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
+                async with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
                     await self._recover_event2.wait()
 
                 msg = dict()
                 for n in self._nodes.values():
-                    m = n.local_missing()
+                    if not n.tick:
+                        continue
+                    m = n.local_missing
                     if len(m) == 0:
                         continue
                     msg[n.name] = m.__getstate__()
@@ -776,9 +818,11 @@ class Server:
                         k.add(t)
             if k:
                 known[n.name] = k.__getstate__()
-            n.remote_missing -= n.known
+            rm = n.remote_missing
+            rm -= n.local_known
+            assert rm is n.remote_missing
         if known:
-            await self._send_event('info', attrdict(known=msg))
+            await self._send_event('info', attrdict(known=known))
 
     async def load(self, stream, local: bool = False):
         """Load data from this stream
@@ -789,7 +833,7 @@ class Server:
                      its contents shall not be broadcast. Don't set this if
                      the server is already operational.
         """
-        if local and self.node.tick:
+        if local and self.node.tick is not None:
             raise RuntimeError("This server already has data.")
         for m in MsgReader(stream=stream):
             if 'value' in m:
@@ -832,7 +876,8 @@ class Server:
             self.serf = serf
             self.spawn = serf.spawn
             self.ping_q = anyio.create_queue(self.cfg.ping.length+2)
-            self.ping_chain = None
+            self.last_ping = None
+            self.last_ping_evt = None
             self.last_sent_ping = None
             self.sane_ping = None # "our" branch when a network split is healed
             self._recover_event1 = None
@@ -854,6 +899,8 @@ class Server:
             await serf.spawn(self.monitor, 'ping', delay)
             await serf.spawn(self.watcher)
             if self._init is not _NotGiven:
+                assert self.node.tick is None
+                self.node.tick = 0
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init)
             
@@ -868,7 +915,6 @@ class Server:
             cfg_s.pop('host', 'localhost')
 
             await self._ready.wait()
-            logger.info("Ready. Accepting clients.")
             if cfg_s.get('port',_NotGiven) is None:
                 del cfg_s['port']
             async with await anyio.create_tcp_server(**cfg_s) as server:

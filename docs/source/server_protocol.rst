@@ -20,10 +20,13 @@ Chains
 
 A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
 
-* ``node`` is the name of DistKV node that effected a change
+* ``node`` is the name of DistKV node that effected a change.
   
 * ``tick`` is a node-specific counter which increments by one when any
   entry on that node is changed.
+
+A chain entry may not have a ``tick`` element. In that case the node has
+not been initialized yet. Such entries are only valid in ``ping`` chains.
 
 Chains are governed by three rules:
 
@@ -54,9 +57,11 @@ sacrificing reliability.
 
 The default chain length should be two larger than the maximum of
 
-* the number of partitions a DistKV system might break up into
+* the number of partitions a DistKV system might break up into,
   
-* the number of hosts within one partition that might change any single value
+* the number of hosts within one partition that might change any single value.
+  Ideally, this number should be two: one for the host that does it as a
+  matter of fact, e.g. a measurement system, and one for any manual intercession.
 
 ticks
 -----

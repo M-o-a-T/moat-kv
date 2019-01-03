@@ -13,14 +13,11 @@ from .util import attrdict
 from logging import getLogger
 logger = getLogger(__name__)
 
-
 class NodeDataSkipped(Exception):
     def __init__(self, node):
         self.node = node
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
-
-_nodes = {}
 
 class Node:
     """Represents one DistKV participant.
@@ -31,22 +28,32 @@ class Node:
     _reported: RangeSet = None # somebody else reported these missing data for this node
     entries: dict = None
 
-    def __new__(cls, name, tick=0):
-        self = _nodes.get(name, None)
-        if self is None:
+    def __new__(cls, name, tick=None, cache=None, create=True):
+        try:
+            self = cache[name]
+        except KeyError:
+            if not create:
+                raise
             self = object.__new__(cls)
             self.name = name
             self.tick = tick
             self._known = RangeSet()
             self._reported = RangeSet()
             self.entries = {}
-            _nodes[name] = self
-        elif self.tick < tick:
-            self.tick = tick
+            cache[name] = self
+        else:
+            if tick is not None:
+                if self.tick is None or self.tick < tick:
+                    self.tick = tick
         return self
 
-    def __init__(self, name, tick=0):
+    def __init__(self, name, tick=None, cache=None, create=True):
         return
+
+    def __eq__(self, other):
+        if isinstance(other, Node):
+            other = other.name
+        return self.name == other
 
     def __getitem__(self, item):
         return self.entries[item]
@@ -105,6 +112,7 @@ class Node:
     @property
     def local_missing(self):
         """Values I have not seen"""
+        assert self.tick
         r = RangeSet(((1,self.tick),))
         r -= self._known
         return r
@@ -123,12 +131,13 @@ class NodeEvent:
       ``prev``: The previous event, if any
 
     """
-    def __init__(self, node:Node, tick = None, prev: NodeEvent = None):
+    def __init__(self, node:Node, tick:int = None, prev: NodeEvent = None):
         self.node = node
         if tick is None:
             tick = node.tick
         self.tick = tick
-        node.seen(tick)
+        if tick is not None and tick > 0:
+            node.seen(tick)
         self.prev = None
         if prev is not None:
             assert prev.filter(self.node) is prev
@@ -211,7 +220,9 @@ class NodeEvent:
     def serialize(self, nchain=100) -> dict:
         if not nchain:
             raise RuntimeError("A chopped NodeEvent must not be set at all")
-        res = attrdict(node= self.node.name, tick= self.tick)
+        res = attrdict(node = self.node.name)
+        if self.tick is not None:
+            res.tick = self.tick
         if self.prev is None:
             res.prev = None
         elif nchain > 1:
@@ -219,14 +230,14 @@ class NodeEvent:
         return res
 
     @classmethod
-    def unserialize(cls, msg):
+    def deserialize(cls, msg, cache):
         if msg is None:
             return None
-        tick = msg['tick']
-        node=Node(msg['node'], tick=tick)
-        self = cls(node=Node(msg['node']), tick=tick)
+        msg = msg.get('chain',msg)
+        tick = msg.get('tick', None)
+        self = cls(node=Node(msg['node'], tick=tick, cache=cache), tick=tick)
         if 'prev' in msg:
-            self.prev = cls.unserialize(msg['prev'])
+            self.prev = cls.deserialize(msg['prev'], cache=cache)
         return self
 
     def attach(self, prev: NodeEvent=None, dropped=None):
@@ -274,13 +285,13 @@ class UpdateEvent:
         return res
 
     @classmethod
-    def unserialize(cls, root, msg):
-        event = NodeEvent.unserialize(msg)
-        entry = root.follow(*msg.path, create=True)
+    def deserialize(cls, root, msg, cache):
         if 'value' in msg:
             value = msg.value
         else:
             value = msg.new_value
+        event = NodeEvent.deserialize(msg, cache=cache)
+        entry = root.follow(*msg.path, create=True)
 
         return UpdateEvent(event, entry, value)
 

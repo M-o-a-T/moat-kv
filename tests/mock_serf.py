@@ -16,6 +16,7 @@ from distkv.client import open_client
 from distkv.default import CFG
 from distkv.server import Server
 from distkv.codec import unpacker
+from distkv.util import attrdict
 
 import logging
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ _serfs = set()
 async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
     TESTCFG = copy.deepcopy(CFG)
     TESTCFG.server.port = None
+    TESTCFG.root="test"
 
     @attr.s
     class S:
@@ -58,6 +60,12 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         assert self._tock < tocks
         await old()
 
+    async def mock_get_host_port(st, node):
+        i = int(node.name[node.name.rindex('_')+1:])
+        s = st.s[i]
+        await s.is_serving
+        return ('localhost',s.port)
+
     async with anyio.create_task_group() as tg:
         async with AsyncExitStack() as ex:
             ex.enter_context(mock.patch("time.time", new=trio.current_time))
@@ -70,7 +78,8 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                 if 'cfg' not in args:
                     args['cfg'] = TESTCFG
                 s = Server(name, **args)
-                pi = ex.enter_context(mock.patch.object(s, "_send_ping", new=partial(mock_send_ping,s,s._send_ping)))
+                ex.enter_context(mock.patch.object(s, "_send_ping", new=partial(mock_send_ping,s,s._send_ping)))
+                ex.enter_context(mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port,st)))
                 st.s.append(s)
             for i in range(n):
                 if kw.get("run_"+str(i), run):
@@ -112,6 +121,7 @@ class MockServ:
 
     async def event(self, typ, payload, coalesce=False):
         logger.debug("SERF:%s: %s", typ, pformat(unpacker(payload)))
+        typ = typ[typ.index('.')+1:]
         for s in list(_serfs):
             s = s.streams.get(typ, None)
             if s is not None:
@@ -120,7 +130,7 @@ class MockServ:
 class MockSerfStream:
     def __init__(self, serf, typ):
         self.serf = serf
-        self.typ = typ
+        self.typ = typ[typ.index('.')+1:]
 
     async def __aenter__(self):
         if self.typ in self.serf.streams:
@@ -137,5 +147,6 @@ class MockSerfStream:
         return self
 
     async def __anext__(self):
-        return await self.q.get()
+        res = await self.q.get()
+        return attrdict(payload=res)
 

@@ -58,6 +58,7 @@ class StreamReply:
     This class represents a multi-message reply.
     """
     send_stop = True
+    end_msg = None
 
     def __init__(self, conn, seq):
         self._conn = conn
@@ -72,6 +73,7 @@ class StreamReply:
         if state == 'end':
             await self.q.put(None)
             self.q = None
+            self.end_msg = res
             return
         elif state is not None:
             logger.warning("Unknown state: %s", repr(state))
