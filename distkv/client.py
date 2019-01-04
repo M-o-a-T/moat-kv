@@ -50,7 +50,7 @@ class _StreamRequest:
 
     async def __call__(self, **params):
         params['seq'] = self.seq
-        logger.debug("Send %s", params)
+        #logger.debug("Send %s", params)
         await self._socket.send_all(_packer(params))
 
 class StreamReply:
@@ -167,7 +167,7 @@ class Client:
             try:
                 while True:
                     for msg in unpacker:
-                        logger.debug("Recv %s", msg)
+                        #logger.debug("Recv %s", msg)
                         await self._handle_msg(msg)
 
                     if self._socket is None:
@@ -215,7 +215,7 @@ class Client:
         res = _SingleReply(self, seq)
         self._handlers[seq] = res
 
-        logger.debug("Send %s", params)
+        #logger.debug("Send %s", params)
         await self._socket.send_all(_packer(params))
         res = await res.get()
         if iter is True and not isinstance(res, StreamReply):
@@ -263,7 +263,7 @@ class Client:
         params['seq'] = seq
         params['state'] = 'start'
 
-        logger.debug("Send %s", params)
+        #logger.debug("Send %s", params)
         await self._socket.send_all(_packer(params))
 
         res = _StreamRequest(self, seq)
@@ -285,9 +285,9 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
         
-        logger.debug("Conn %s %s",self.host,self.port)
+        #logger.debug("Conn %s %s",self.host,self.port)
         async with await anyio.connect_tcp(self.host, self.port) as sock:
-            logger.debug("ConnDone %s %s",self.host,self.port)
+            #logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg
                 self._socket = sock

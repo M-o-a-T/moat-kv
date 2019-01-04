@@ -149,7 +149,7 @@ class NodeEvent:
         return 1+len(self.prev)
 
     def __repr__(self):
-        return "<%s:%s @%d %d>" % (self.__class__.__name__, self.node, self.tick, len(self))
+        return "<%s:%s @%s %s>" % (self.__class__.__name__, self.node, '-' if self.tick is None else self.tick, len(self))
 
     def __eq__(self, other):
         if other is None:

@@ -41,6 +41,13 @@ def max_n(a,b):
     else:
         return a
 
+def cmp_n(a,b):
+    if a is None:
+        a = -1
+    if b is None:
+        b = -1
+    return b-a
+
 def _multi_response(fn):
     async def wrapper(self, msg):
         seq = msg.seq
@@ -343,7 +350,6 @@ class ServerClient:
 class Server:
     serf = None
     _ready = None
-    fetch_running = False
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
         if root is None:
@@ -525,6 +531,8 @@ class Server:
 
             async for resp in stream:
                 msg = msgpack.unpackb(resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False)
+                if self.node.name == "test_0":
+                    logger.debug("CMP %s %s",action,msg)
                 self.tock_seen(msg.get('tock',0))
                 await cmd(msg)
 
@@ -608,7 +616,7 @@ class Server:
         while True:
             msg = None
             t = max(self.next_ping - time.time(), 0)
-            logger.debug("S %s: wait %s", self.node.name, t)
+            #logger.debug("S %s: wait %s", self.node.name, t)
             async with anyio.move_on_after(t):
                 msg = await self.ping_q.get()
             if msg is None:
@@ -634,30 +642,38 @@ class Server:
             # This while loop is only used as a "goto forward".
             # ``break`` == "the new ping is better"
             # ``pass``  == "the last ping I saw is better"
+            if self.node.name == "test_0":
+                logger.debug("CMP: Have %s", self.last_ping)
             while True:
-                if event.tick == 0 and self._ready.is_set():
+                if event.tick is None and self._ready.is_set():
                     # always prefer our ping
                     break
-                if event.tick != 0 and not self._ready.is_set():
+                if event.tick is not None and not self._ready.is_set():
                     # always prefer the other ping
                     pass
                 else:
                     if msg.tock < self.last_ping.tock:
                         break
                     if msg.tock == self.last_ping.tock:
-                        if event.tick < self.last_ping_evt.tick:
+                        if cmp_n(event.tick, self.last_ping_evt.tick) < 0:
                             break
-                        if event.tick == self.last_ping_evt.tick:
+                        if cmp_n(event.tick, self.last_ping_evt.tick) == 0:
                             if event.node.name < self.last_ping_evt.node.name:
                                 break
                             assert event.node.name != self.last_ping_evt.node.name
 
                 # If we get here, the other ping is "better".
+                if self.node.name == "test_0":
+                    logger.debug("CMP: replace %s", event)
                 self.last_ping = msg
                 self.last_ping_evt = event
                 t = time.time()
                 self.next_ping = time.time() + clock * self._time_to_next_ping()
                 break  # always terminate the loop
+
+            if self.last_ping is not msg:
+                if self.node.name == "test_0":
+                    logger.debug("CMP: keep %s", self.last_ping)
 
             if event.prev is not None and self.last_ping_evt.prev == event.prev:
                 # These pings refer to the same previous ping. Good.
@@ -672,8 +688,18 @@ class Server:
                 pos = self.sane_ping.find(self.node)
                 if pos is not None:
                     await self.spawn(self.recover_split, pos)
-            elif not self.fetch_running:
+                    if self.node.name == "test_0":
+                        logger.debug("CMP: recover!")
+                else:
+                    if self.node.name == "test_0":
+                        logger.debug("CMP: NoRecover!")
+            elif self.fetch_running is None and self.last_ping_evt.tick is not None:
+                if self.node.name == "test_0":
+                    logger.debug("CMP: fetch")
                 await self.spawn(self.fetch_data)
+            else:
+                if self.node.name == "test_0":
+                    logger.debug("CMP: nada")
 
     async def _get_host_port(self, node):
         """Retrieve the remote system to connect to"""
@@ -684,13 +710,38 @@ class Server:
             host += '.'+domain
         return (host,port)
 
+    async def do_send_missing(self):
+        """
+        """
+        clock = self.cfg.ping.clock
+        while self.fetch_missing:
+            clock *= 1.3
+            await anyio.sleep(c)
+
+            msg = dict()
+            for n in list(self.fetch_missing):
+                m = n.local_missing
+                if len(m) == 0:
+                    self.fetch_missing.remove(n)
+                    continue
+                msg[n.name] = m.__getstate__()
+            if not len(msg):
+                break
+            msg = attrdict(missing=msg)
+            await self._send_event('info', msg)
+
+        if self.node.tick is None:
+            self.node.tick = 0
+            self.fetch_running = None
+        await self._check_ticked()
+
     async def fetch_data(self):
         """
         We are newly started and don't have any data.
 
-        Try to get the data from some other node.
+        Try to get the initial data from some other node.
         """
-        if self.fetch_running:
+        if self.fetch_running is not None:
             return
         self.fetch_running = True
         while True:
@@ -704,19 +755,26 @@ class Server:
                 try:
                     host, port = await self._get_host_port(node)
                     async with distkv_client.open_client(host, port) as client:
-                        res = await client.request('get_state', nodes=True, known=True, iter=False)
-                        await self._process_info(res)
 
-                        res = await client.request('get_tree', iter=True, nchain=999, path=())
+                        res = await client.request('get_tree', iter=True, from_server=self.node.name, nchain=999, path=())
                         async for r in res:
                             r = UpdateEvent.deserialize(self.root, r, cache=self._nodes)
                             await r.entry.apply(r, dropped=self._dropper)
-
                         self.tock_seen(res.end_msg.tock)
-                        if self.node.tick is None:
+
+                        res = await client.request('get_state', nodes=True, from_server=self.node.name, known=True, iter=False)
+                        await self._process_info(res)
+
+                        for n in self._nodes.values():
+                            if n.tick and len(n.local_missing):
+                                self.fetch_missing.add(n)
+                        if len(self.fetch_missing):
+                            self.fetch_running = False
+                            self.spawn(self.do_send_missing)
+                        else:
                             self.node.tick = 0
-                        await self._check_ticked()
-                    self.fetch_running = False
+                            self.fetch_running = None
+                            await self._check_ticked()
                     return
                 except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                     raise
@@ -744,6 +802,7 @@ class Server:
         if self._ready is None:
             return
         if self.node.tick is not None:
+            logger.debug("Ready %s",self.node.name)
             await self._ready.set()
 
     async def recover_split(self, pos):
@@ -871,6 +930,8 @@ class Server:
           ``setup_done``: optional event that's set when the server is initially set up.
         """
         async with aioserf.serf_client(**self.cfg.serf) as serf:
+            self.fetch_missing = set()
+            self.fetch_running = None
             self._ready = anyio.create_event()
             self._ready2 = anyio.create_event()
             self.serf = serf

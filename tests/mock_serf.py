@@ -9,6 +9,7 @@ import mock
 import attr
 import copy
 import trio
+import time
 from pprint import pformat
 from functools import partial
 
@@ -21,7 +22,7 @@ from distkv.util import attrdict
 import logging
 logger = logging.getLogger(__name__)
 
-_serfs = set()
+otm = time.time
 
 @asynccontextmanager
 async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
@@ -31,6 +32,8 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
 
     clock = trio.hazmat.current_clock()
     clock._autojump_threshold = 0.001
+
+    _serfs = set()
 
     @attr.s
     class S:
@@ -51,13 +54,12 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         def __iter__(self):
             return iter(self.s)
 
+        @asynccontextmanager
         async def client(self, i:int = 0, args: dict={}):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
-            if 'cfg' not in args:
-                cfg = TESTCFG
-            c = await st.ex.enter_async_context(open_client(host='localhost', port=st.s[i].port))
-            return c
+            async with open_client(host='localhost', port=st.s[i].port, **args) as c:
+                yield c
 
     async def mock_send_ping(self,old):
         assert self._tock < tocks
@@ -69,10 +71,16 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         await s.is_serving
         return ('localhost',s.port)
 
+    def tm():
+        try:
+            return trio.current_time()
+        except RuntimeError:
+            return otm()
+
     async with anyio.create_task_group() as tg:
         async with AsyncExitStack() as ex:
-            ex.enter_context(mock.patch("time.time", new=trio.current_time))
-            ex.enter_context(mock.patch("aioserf.serf_client", new=mock_serf_client))
+            ex.enter_context(mock.patch("time.time", new=tm))
+            ex.enter_context(mock.patch("aioserf.serf_client", new=partial(mock_serf_client,_serfs)))
 
             st = S(tg,ex)
             for i in range(n):
@@ -92,12 +100,14 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             try:
                 yield st
             finally:
+                logger.info("Runtime: %s", clock.current_time())
                 await tg.cancel_scope.cancel()
+        logger.info("End")
 
 @asynccontextmanager
-async def mock_serf_client(**cfg):
+async def mock_serf_client(_serfs, **cfg):
     async with anyio.create_task_group() as tg:
-        ms = MockServ(tg, **cfg)
+        ms = MockServ(tg, _serfs, **cfg)
         _serfs.add(ms)
         try:
             yield ms
@@ -105,10 +115,11 @@ async def mock_serf_client(**cfg):
             _serfs.remove(ms)
 
 class MockServ:
-    def __init__(self, tg, **cfg):
+    def __init__(self, tg, _serfs, **cfg):
         self.cfg = cfg
         self.tg = tg
         self.streams = {}
+        self._serfs = _serfs
 
     def __hash__(self):
         return id(self)
@@ -123,9 +134,9 @@ class MockServ:
         return s
 
     async def event(self, typ, payload, coalesce=False):
-        logger.debug("SERF:%s: %s", typ, pformat(unpacker(payload)))
+        #logger.debug("SERF:%s: %s", typ, repr(unpacker(payload)))
         typ = typ[typ.index('.')+1:]
-        for s in list(_serfs):
+        for s in list(self._serfs):
             s = s.streams.get(typ, None)
             if s is not None:
                 await s.q.put(payload)
