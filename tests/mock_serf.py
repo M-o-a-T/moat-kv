@@ -33,12 +33,11 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
     clock = trio.hazmat.current_clock()
     clock._autojump_threshold = 0.001
 
-    _serfs = set()
-
     @attr.s
     class S:
         tg = attr.ib()
-        ex = attr.ib()
+        serfs = attr.ib(factory=set)
+        splits = attr.ib(factory=set)
         s = [] # servers
         c = [] # clients
 
@@ -61,6 +60,15 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             async with open_client(host='localhost', port=st.s[i].port, **args) as c:
                 yield c
 
+        def split(self, s):
+            assert s not in self.splits
+            logger.debug("Split: add %d",s)
+            self.splits.add(s)
+
+        def join(self, s):
+            logger.debug("Split: join %d",s)
+            self.splits.remove(s)
+
     async def mock_send_ping(self,old):
         assert self._tock < tocks
         await old()
@@ -78,16 +86,18 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             return otm()
 
     async with anyio.create_task_group() as tg:
+        st = S(tg)
         async with AsyncExitStack() as ex:
             ex.enter_context(mock.patch("time.time", new=tm))
-            ex.enter_context(mock.patch("aioserf.serf_client", new=partial(mock_serf_client,_serfs)))
+            ex.enter_context(mock.patch("aioserf.serf_client", new=partial(mock_serf_client,st)))
 
-            st = S(tg,ex)
             for i in range(n):
                 name = "test_"+str(i)
-                args = kw.get(name, kw.get('args', {}))
+                args = kw.get(name, kw.get('args', attrdict()))
                 if 'cfg' not in args:
-                    args['cfg'] = TESTCFG
+                    args['cfg'] = args.get('cfg',TESTCFG).copy()
+                    args['cfg']['serf'] = args['cfg']['serf'].copy()
+                    args['cfg']['serf']['i'] = i
                 s = Server(name, **args)
                 ex.enter_context(mock.patch.object(s, "_send_ping", new=partial(mock_send_ping,s,s._send_ping)))
                 ex.enter_context(mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port,st)))
@@ -105,21 +115,21 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         logger.info("End")
 
 @asynccontextmanager
-async def mock_serf_client(_serfs, **cfg):
+async def mock_serf_client(master, **cfg):
     async with anyio.create_task_group() as tg:
-        ms = MockServ(tg, _serfs, **cfg)
-        _serfs.add(ms)
+        ms = MockServ(tg, master, **cfg)
+        master.serfs.add(ms)
         try:
             yield ms
         finally:
-            _serfs.remove(ms)
+            master.serfs.remove(ms)
 
 class MockServ:
-    def __init__(self, tg, _serfs, **cfg):
+    def __init__(self, tg, master, **cfg):
         self.cfg = cfg
         self.tg = tg
         self.streams = {}
-        self._serfs = _serfs
+        self._master = master
 
     def __hash__(self):
         return id(self)
@@ -134,12 +144,16 @@ class MockServ:
         return s
 
     async def event(self, typ, payload, coalesce=False):
-        #logger.debug("SERF:%s: %s", typ, repr(unpacker(payload)))
+        logger.debug("SERF:%s: %s", typ, repr(unpacker(payload)))
         typ = typ[typ.index('.')+1:]
-        for s in list(self._serfs):
-            s = s.streams.get(typ, None)
-            if s is not None:
-                await s.q.put(payload)
+        for s in list(self._master.serfs):
+            for x in self._master.splits:
+                if (s.cfg['i'] < x) != (self.cfg['i'] < x):
+                    break
+            else:
+                s = s.streams.get(typ, None)
+                if s is not None:
+                    await s.q.put(payload)
 
 class MockSerfStream:
     def __init__(self, serf, typ):

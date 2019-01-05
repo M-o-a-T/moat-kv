@@ -19,6 +19,14 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
+def fck():
+    import inspect
+    f = inspect.currentframe()
+    if f.f_back.f_back.f_back.f_back.f_back.f_code.co_name in {"user_update","cmd_set_value"}:
+        return
+    import pdb;pdb.set_trace()
+    pass
+
 class Node:
     """Represents one DistKV participant.
     """
@@ -50,6 +58,9 @@ class Node:
     def __init__(self, name, tick=None, cache=None, create=True):
         return
 
+    def __hash__(self):
+        return hash(self.name)
+
     def __eq__(self, other):
         if isinstance(other, Node):
             other = other.name
@@ -74,7 +85,10 @@ class Node:
                      other nodes saw this.
 
         """
+#       r = self.name == "test_19" and 2 not in self._known
         self._known.add(tick)
+#       if r and 2 in self._known:
+#           fck()
         if not local:
             self._reported.discard(tick)
         if entry is not None:
@@ -97,7 +111,10 @@ class Node:
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
+#       r = self.name == "test_19" and 2 not in self._known
         self._known += range
+#       if r and 2 in self._known:
+#           fck()
         if not local:
             self._reported -= range
 
@@ -113,7 +130,7 @@ class Node:
     def local_missing(self):
         """Values I have not seen"""
         assert self.tick
-        r = RangeSet(((1,self.tick),))
+        r = RangeSet(((1,self.tick+1),))
         r -= self._known
         return r
 
@@ -131,16 +148,15 @@ class NodeEvent:
       ``prev``: The previous event, if any
 
     """
-    def __init__(self, node:Node, tick:int = None, prev: NodeEvent = None):
+    def __init__(self, node:Node, tick:int = None, prev: NodeEvent = None, check_dup=True):
         self.node = node
         if tick is None:
             tick = node.tick
         self.tick = tick
-        if tick is not None and tick > 0:
+        if check_dup and tick is not None and tick > 0:
             node.seen(tick)
         self.prev = None
         if prev is not None:
-            assert prev.filter(self.node) is prev
             self.prev = prev
 
     def __len__(self):
@@ -155,6 +171,22 @@ class NodeEvent:
         if other is None:
             return False
         return self.node == other.node and self.tick == other.tick
+
+    def equals(self, other):
+        """Check whether these chains are equal. Used for ping comparisons.
+
+        The last two items may be missing from either chain.
+        """
+        if other is None:
+            return self.prev is None or len(self.prev) <= 1
+        if self != other:
+            return False
+        if self.prev is None:
+            return other.prev is None or len(other.prev) <= 2
+        elif other.prev is None:
+            return self.prev is None or len(self.prev) <= 2
+        else:
+            return self.prev.equals(other.prev)
 
     def __lt__(self, other):
         if other is None:
@@ -230,14 +262,14 @@ class NodeEvent:
         return res
 
     @classmethod
-    def deserialize(cls, msg, cache):
+    def deserialize(cls, msg, cache, check_dup=True):
         if msg is None:
             return None
         msg = msg.get('chain',msg)
         tick = msg.get('tick', None)
-        self = cls(node=Node(msg['node'], tick=tick, cache=cache), tick=tick)
+        self = cls(node=Node(msg['node'], tick=tick, cache=cache), tick=tick, check_dup=check_dup)
         if 'prev' in msg:
-            self.prev = cls.deserialize(msg['prev'], cache=cache)
+            self.prev = cls.deserialize(msg['prev'], cache=cache, check_dup=check_dup)
         return self
 
     def attach(self, prev: NodeEvent=None, dropped=None):
@@ -447,7 +479,7 @@ class Entry:
             self._data = evt.new_value
         else:
             self._data = evt.value
-        if dropped is not None:
+        if dropped is not None and self.chain is not None:
             dropped(evt.event, self.chain)
         self.chain = evt.event
 

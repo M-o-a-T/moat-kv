@@ -23,13 +23,13 @@ async def test_10_many(autojump_clock):
         s = st.s[1]
         async with st.client(1) as ci:
             assert (await ci.request("get_value", path=())).value == 420
-            await ci.request("set_value", path=("ping"), value="pong")
+            await ci.request("set_value", path=("ping",), value="pong")
 
         await anyio.sleep(1)
         async def s1(i):
             async with st.client(i) as c:
                 assert (await c.request("get_value", path=())).value == 420
-                assert (await c.request("get_value", path=("ping"))).value == "pong"
+                assert (await c.request("get_value", path=("ping",))).value == "pong"
                 await c.request("set_value",path=("foo",i),value=420+i)
 
         async with anyio.create_task_group() as tg:
@@ -44,4 +44,40 @@ async def test_10_many(autojump_clock):
                     assert (await c.request("get_value", path=("foo",i))).value == 420+i
 
         #await anyio.sleep(100)
+
+@pytest.mark.trio
+async def test_11_split1(autojump_clock):
+    """
+    This test starts multiple servers at the same time.
+    """
+    async with stdtest(test_1={'init':420}, n=N, tocks=1000) as st:
+        s = st.s[1]
+        async with st.client(1) as ci:
+            assert (await ci.request("get_value", path=())).value == 420
+            await ci.request("set_value", path=("ping",), value="pong")
+
+        async def s1(i):
+            async with st.client(i) as c:
+                assert (await c.request("get_value", path=())).value == 420
+                await anyio.sleep(5)
+                assert (await c.request("get_value", path=("ping",))).value == "pong"
+                await c.request("set_value",path=("foo",i),value=420+i)
+
+        async with anyio.create_task_group() as tg:
+            for i in range(1,N):
+                await tg.spawn(s1,i)
+
+        await anyio.sleep(100)
+        st.split(N//2)
+        await anyio.sleep(100)
+
+        async with st.client(N-1) as c:
+            await c.request("set_value", path=("ping",), value="pongpang")
+        await anyio.sleep(1)
+        async with st.client(0) as c:
+            assert (await c.request("get_value", path=('ping',))).value == "pong"
+        st.join(N//2)
+        await anyio.sleep(20)
+        async with st.client(0) as c:
+            assert (await c.request("get_value", path=('ping',))).value == "pongpang"
 

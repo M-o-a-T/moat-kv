@@ -36,6 +36,8 @@ Chains are governed by three rules:
   latest change by that node. If a node changes an entry again, the old
   entry is removed before the new entry is prepended.
 
+  This rule does not apply to ``ping`` chains.
+
 * Their length is bounded. If a new entry causes the chain to grow too
   long, the oldest entry is removed.
 
@@ -175,6 +177,16 @@ missing
 A map of (node ⇒ ranges of tick values) which the sending node has not
 seen. Any node that sees this request will re-send change messages in that
 range.
+
+reason
+------
+
+This element is sent in the first step of split reconciliation recovery. If
+the first ``ping`` after being reconnected "wins", then the winning side
+needs to be told that there's a problem.
+
+This element contains the losing side's ping chain, which the nodes in the
+winning side's ping chain use to initiate their recovery procedure.
 
 ping
 ++++
