@@ -13,7 +13,7 @@ import time
 from range_set import RangeSet
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener, PathLongener
+from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -225,15 +225,12 @@ class ServerClient:
         nchain = msg.get('nchain',0)
         shorter = PathShortener(entry.path)
 
-        async def _get_values(entry, cdepth=0):
-            if entry.data is not None:  # TODO: send if recently deleted
-                res = entry.serialize(chop_path=self._chop_path, nchain=nchain)
-                shorter(res)
-                await self.send_result(seq, res)
-            for v in list(entry.values()):
-                await _get_values(v, cdepth=cdepth)
-
-        await _get_values(entry)
+        async def sender(entry):
+            if entry.data is None:
+                return
+            res = entry.serialize(chop_path=self._chop_path, nchain=nchain)
+            await self.send_result(seq, res)
+        await entry.walk(sender)
 
     def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
@@ -535,8 +532,6 @@ class Server:
             if self._recover_event2 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
                 logger.debug("Step2 %s: triggered by %s", self.node.name, self.sane_ping.serialize() if self.sane_ping else "-")
-                if self.sane_ping is None:
-                    import pdb;pdb.set_trace()
                 await self._recover_event2.set()
             elif self._recover_event2 is not None:
                 logger.debug("Step2 %s: not in %s", self.node.name, self.sane_ping.serialize())
@@ -1010,7 +1005,7 @@ class Server:
                 await self._send_event('info', attrdict(known=known))
         self.sending_missing = None
 
-    async def load(self, stream, local: bool = False):
+    async def load(self, path:str, local: bool = False):
         """Load data from this stream
         
         Args:
@@ -1019,27 +1014,65 @@ class Server:
                      its contents shall not be broadcast. Don't set this if
                      the server is already operational.
         """
+        longer = PathLongener(())
+
         if local and self.node.tick is not None:
             raise RuntimeError("This server already has data.")
-        for m in MsgReader(stream=stream):
-            if 'value' in m:
-                m = UpdateEvent.deserialize(m)
-                await m.entry.apply(m, local=local, dropped=self._dropper)
-            elif 'nodes' in m or 'known' in m:
-                await self._process_info(m)
-            else:
-                logger.warn("Unknown message in stream: %s", repr(m))
+        elif not local and self.node.tick is None:
+            raise RuntimeError("This server is not yet operational.")
+        async with MsgReader(path=path) as rdr:
+            async for m in rdr:
+                if 'value' in m:
+                    longer(m)
+                    m = UpdateEvent.deserialize(self.root, m, cache=self._nodes)
+                    await m.entry.apply(m, local=local, dropped=self._dropper)
+                elif 'nodes' in m or 'known' in m:
+                    await self._process_info(m)
+                else:
+                    logger.warn("Unknown message in stream: %s", repr(m))
         logger.info("Loading finished.")
         
-    async def save(self, fn:str, delay:Event):
-        with MsgWriter(fn) as mw:
+    async def _save(self, writer, shorter, nchain=99):
+        """Save the current state.
+
+        TODO: Add code for snapshotting.
+        """
+        async def saver(entry):
+            res = entry.serialize(nchain=nchain)
+            shorter(res)
+            await writer(res)
+        msg = self.get_state(nodes=True, known=True)
+        saver(msg)
+        await self.root.walk(saver)
+
+    async def save(self, path:str=None, stream=None, delay:Event = None):
+        """Save the current state to ``path`` or ``stream``."""
+        shorter = PathShortener([])
+        async with MsgWriter(path=path, stream=stream) as mw:
+            await self._save(mw, shorter)
+
+    async def save_stream(self, path:str=None, stream=None, save_state=False, done: None):
+        """Save the current state to ``path`` or ``stream``.
+        Continue writing updates until cancelled.
+        """
+        shorter = PathShortener([])
+
+        async with MsgWriter(path=path, stream=stream) as mw:
             async with Watcher(self.root) as updates:
                 await self._ready.wait()
+
+                if save_state:
+                    await self._save(mw, shorter)
+
                 msg = self.get_state(nodes=True, known=True)
-                mw(msg)
+                await mw(msg)
+                await mw.flush()
+                if done is not None:
+                    await done.set()
+
                 async for msg in updates:
-                    mw(msg.serialize())
-        
+                    await mw(msg.serialize())
+    
     @property
     async def is_ready(self):
         """Await this to determine if/when the server is operational."""

@@ -475,6 +475,12 @@ class Entry:
             c = c.prev
         await self.updated(evt)
 
+    async def walk(self, proc):
+        """Call ``proc`` on this node and all its children)."""
+        await proc(self)
+        for v in list(self._sub.values()):
+            await v.walk(proc)
+
     def serialize(self, chop_path=0, nchain=2):
         """Serialize this entry for msgpack.
 

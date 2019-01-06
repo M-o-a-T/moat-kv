@@ -131,8 +131,25 @@ class PathLongener:
         self.path = p
         res['path'] = p
 
+class _MsgRW():
+    def __init__(self, path=None, stream=None):
+        if (path is None) == (stream is None):
+            raise RuntimeError("You need to specify either path or stream")
+        from .codec import stream_unpacker
+        self.path = path
+        self.stream = stream
 
-class MsgReader:
+    async def __aenter__(self):
+        if self.path is not None:
+            self.stream = await aopen(self.path,self._mode)
+        return self
+
+    async def __aexit__(self, *tb):
+        if self.path is not None:
+            await self.stream.aclose()
+
+
+class MsgReader(_MsgRW):
     """Read a stream of messages from a file.
     
     Usage::
@@ -142,22 +159,12 @@ class MsgReader:
                 process(msg)
     """
 
-    def __init__(self, filename=None, stream=None):
-        if (filename is None) == (stream is None):
-            raise RuntimeError("You need to specify either filename or stream")
+    _mode = "rb"
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
         from .codec import stream_unpacker
-        self.fn = filename
-        self.fd = stream
         self.unpack = stream_unpacker()
-
-    async def __aenter__(self):
-        if self.fd is None:
-            self.fd = aopen(self.fn,"rb")
-        return self
-
-    async def __aexit__(self, *tb):
-        if self.fn is not None:
-            await self.fd.close()
 
     def __aiter__(self):
         return self
@@ -165,18 +172,21 @@ class MsgReader:
     async def __anext__(self):
         while True:
             try:
-                msg = next(self.unpacker)
+                msg = next(self.unpack)
             except StopIteration:
                 pass
             else:
                 return msg
             
-            d = await self.fd.read(4096)
+            d = await self.stream.read(4096)
             if d == b"":
-                raise StopIteration
-            unpacker.feed(d)
+                raise StopAsyncIteration
+            self.unpack.feed(d)
 
-class MsgWriter:
+
+packer = None
+
+class MsgWriter(_MsgRW):
     """Write a stream of messages from a file.
     
     Usage::
@@ -186,34 +196,47 @@ class MsgWriter:
                 f(msg)
     """
 
-    def __init__(self, fn, buflen=65536):
-        from .codec import stream_unpacker
-        self.fn = fn
+    _mode="wb"
+
+    def __init__(self, buflen=65536, **kw):
+        super().__init__(**kw)
+
         self.buf = []
         self.buflen = buflen
         self.curlen = 0
+        self.excess = 0
 
-    async def __aenter__(self):
-        self.fd = await aopen(fn,"rb")
-        return self
+        global packer
+        if packer is None:
+            from .codec import packer
 
     async def __aexit__(self, *tb):
-        with open_cancel_scope(shield=True):
+        async with open_cancel_scope(shield=True):
             if self.buf:
-                await self.fd.write(b''.join(self.buf))
-            await self.fd.close()
+                await self.stream.write(b''.join(self.buf))
+            await super().__aexit__(*tb)
 
     async def __call__(self, msg):
         msg = packer(msg)
         self.buf.append(msg)
         self.curlen += len(msg)
-        if self.curlen >= self.buflen:
+        if self.curlen >= self.buflen-self.excess:
             buf = b''.join(self.buf)
-            pos = self.buflen * int(self.curlen/self.buflen)
-            await self.fd.write(buf[:pos])
-            buf = buf[pos:]
+            pos = self.buflen * int(self.curlen/self.buflen) - self.excess
+            assert pos > 0
+            wb,buf = buf[:pos],buf[pos:]
             self.buf = [buf]
             self.curlen = len(buf)
+            self.excess = 0
+            await self.stream.write(wb)
+
+    async def flush(self):
+        if self.buf:
+            buf = b''.join(self.buf)
+            self.buf = []
+            self.excess = (self.excess+len(buf)) % self.buflen
+            await self.stream.write(buf)
+
 
 class TimeOnlyFormatter(logging.Formatter):
     default_time_format = "%H:%M:%S"
