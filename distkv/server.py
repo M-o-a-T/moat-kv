@@ -565,7 +565,7 @@ class Server:
         await self.ping_q.put(msg)
 
     async def monitor(self, action: str, delay: Event = None):
-        """The task that hooks to Serg's event stream for receiving messages.
+        """The task that hooks to Serf's event stream for receiving messages.
         
         Args:
           ``action``: The action name, corresponding to a ``user_*`` method.
@@ -964,18 +964,25 @@ class Server:
     async def _run_send_missing(self):
         """Start :meth:`_send_missing_data` if it's not running"""
 
+        pos = (self.sane_ping or self.last_ping_evt).find(self.node)
         if self.sending_missing is None:
             self.sending_missing = True
-            await self.spawn(self._send_missing_data)
+            await self.spawn(self._send_missing_data, pos)
         elif not self.sending_missing:
             self.sending_missing = True
 
-    async def _send_missing_data(self):
+    async def _send_missing_data(self, pos):
         """Step 3 of the re-join protocol.
         For each node, collect events that somebody has reported as missing,
         and re-broadcast them. If the event is unavailable, send a "known"
         message.
         """
+        clock = self.cfg['ping']['clock']
+        if pos is None:
+            await anyio.sleep(clock*(1/2+self.random/5))
+        else:
+            await anyio.sleep(clock*(1-1/(1<<pos))/2)
+
         while self.sending_missing:
             self.sending_missing = False
             nodes = list(self._nodes.values())

@@ -148,7 +148,7 @@ class MockServ:
         typ = typ[typ.index('.')+1:]
         for s in list(self._master.serfs):
             for x in self._master.splits:
-                if (s.cfg['i'] < x) != (self.cfg['i'] < x):
+                if (s.cfg.get('i',0) < x) != (self.cfg.get('i',0) < x):
                     break
             else:
                 s = s.streams.get(typ, None)
