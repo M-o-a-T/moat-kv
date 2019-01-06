@@ -480,16 +480,27 @@ class Server:
 
         if msg.node == self.node.name:
             return  # ignore our own message
+
+        # 'reason' is the ping chain from the node that triggered this info
+        # message. If we're on "our" chain but not on the "other", then we
+        # also need to start recovery. Also, if the "other" chain is better,
+        # we need to replace ours.
+        # This happens when, immediately after a split, our ping is
+        # rejected by the remote side. Instead of sending a ping of their
+        # own immediately, they send their chain as reason with
+        # replace=True.
         r = msg.get('reason', None)
-        if r is not None:
-            r = NodeEvent.deserialize(r, cache=self._nodes, check_dup=False)
-            if self._recover_tock == 0 and self.node not in r:
-                pos = self.last_ping_evt.find(self.node)
-                if pos is not None:
-                    if self._recover_task is None:
-                        if self.sane_ping is None:
-                            self.sane_ping = self.last_ping_evt
-                        await self.spawn(self.recover_split, pos)
+        if r is not None and self._recover_task is None:
+            replace = r.get('replace', False)
+            pos = self.last_ping_evt.find(self.node)
+            rev = NodeEvent.deserialize(r, cache=self._nodes, check_dup=False)
+            if replace:
+                r.tock = msg.tock
+                self.last_ping = r
+                self.last_ping_evt = rev
+            if pos is not None:
+                self.sane_ping = self.last_ping_evt
+                await self.spawn(self.recover_split, pos)
 
         # Step 1
         ticks = msg.get('ticks', None)
@@ -499,6 +510,7 @@ class Server:
                 n.tick = max_n(n.tick, t)
             if self._recover_event1 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
+                logger.debug("Step1 %s: triggered by %s", self.node.name, self.sane_ping.serialize() if self.sane_ping else "-")
                 await self._recover_event1.set()
             elif self._recover_event1 is not None:
                 logger.debug("Step1 %s: not in %s", self.node.name, self.sane_ping.serialize())
@@ -522,6 +534,9 @@ class Server:
                     mr += r
             if self._recover_event2 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
+                logger.debug("Step2 %s: triggered by %s", self.node.name, self.sane_ping.serialize() if self.sane_ping else "-")
+                if self.sane_ping is None:
+                    import pdb;pdb.set_trace()
                 await self._recover_event2.set()
             elif self._recover_event2 is not None:
                 logger.debug("Step2 %s: not in %s", self.node.name, self.sane_ping.serialize())
@@ -724,17 +739,17 @@ class Server:
                     continue
 
                 if saved_ping.tick is None:
-                    # Wne I transmitted the last ping I had no data, so
+                    # The node sending the last ping had no data, so
                     # there's no collision now.
                     continue
 
                 pos = saved_ping.find(self.node)
                 if pos is not None:
-                    if self._recover_task is not None:
-                        await self._recover_task.cancel()
-                    if self.sane_ping is None:
-                        self.sane_ping = saved_ping
-                    await self.spawn(self.recover_split, pos)
+                    if self._recover_task is None:
+                        # await self._recover_task.cancel()
+                        if self.sane_ping is None:
+                            self.sane_ping = saved_ping
+                        await self.spawn(self.recover_split, pos, self.last_ping is not msg)
             elif self.fetch_running is None and self.last_ping_evt.tick is not None:
                 await self.spawn(self.fetch_data)
 
@@ -863,7 +878,7 @@ class Server:
             logger.debug("Ready %s",self.node.name)
             await self._ready.set()
 
-    async def recover_split(self, pos):
+    async def recover_split(self, pos, replace=False):
         """
         Recover from a network split.
         """
@@ -882,12 +897,17 @@ class Server:
                 # for pos=0 this fires immediately. That's intentional.
                 async with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
                     await self._recover_event1.wait()
+                if self.sane_ping is None:
+                    logger.info("SplitRecover %s: no sane 1", self.node.name)
+                    return
                 if x.cancel_called:
                     logger.info("SplitRecover %s: no signal 1", self.node.name)
                     msg = dict((x.name,x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
-                    msg.reason = (self.sane_ping or self.last_ping_evt).serialize()
+                    msg.reason = self.sane_ping.serialize()
+                    msg.reason.replace = replace
+
                     await self._send_event('info', msg)
 
                 # Step 2: send an info/missing message

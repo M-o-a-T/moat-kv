@@ -46,7 +46,8 @@ async def test_10_many(autojump_clock):
         #await anyio.sleep(100)
 
 @pytest.mark.trio
-async def test_11_split1(autojump_clock):
+@pytest.mark.parametrize("tocky", [-10,-2,-1,0,1,2,10])
+async def test_11_split1(autojump_clock, tocky):
     """
     This test starts multiple servers at the same time.
     """
@@ -69,6 +70,10 @@ async def test_11_split1(autojump_clock):
 
         await anyio.sleep(100)
         st.split(N//2)
+        if tocky:
+            async with st.client(2 if tocky < 0 else 14) as ci:
+                for i in range(abs(tocky)):
+                    await ci.request("set_value", path=("one",i), value="two")
         await anyio.sleep(100)
 
         async with st.client(N-1) as c:
@@ -80,4 +85,5 @@ async def test_11_split1(autojump_clock):
         await anyio.sleep(20)
         async with st.client(0) as c:
             assert (await c.request("get_value", path=('ping',))).value == "pongpang"
+
 

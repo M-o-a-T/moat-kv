@@ -19,14 +19,6 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
-def fck():
-    import inspect
-    f = inspect.currentframe()
-    if f.f_back.f_back.f_back.f_back.f_back.f_code.co_name in {"user_update","cmd_set_value"}:
-        return
-    import pdb;pdb.set_trace()
-    pass
-
 class Node:
     """Represents one DistKV participant.
     """
@@ -85,10 +77,7 @@ class Node:
                      other nodes saw this.
 
         """
-#       r = self.name == "test_19" and 2 not in self._known
         self._known.add(tick)
-#       if r and 2 in self._known:
-#           fck()
         if not local:
             self._reported.discard(tick)
         if entry is not None:
@@ -111,10 +100,7 @@ class Node:
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
-#       r = self.name == "test_19" and 2 not in self._known
         self._known += range
-#       if r and 2 in self._known:
-#           fck()
         if not local:
             self._reported -= range
 
