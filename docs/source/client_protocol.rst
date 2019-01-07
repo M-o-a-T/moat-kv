@@ -124,7 +124,7 @@ Send this action to abort a running multi-value request. Set ``task`` to
 the sequence number of the request to abort.
 
 This action only works after you received a ``start`` state message.
-It returns a :cls:`bool` which is :const:`True` if the command was still
+It returns a :class:`bool` which is ``True`` if the command was still
 running.
 
 A positive reply does not indicate that no more messages with the stated

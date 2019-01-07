@@ -33,7 +33,7 @@ SPHINXBUILDDIR ?= $(BUILD_DIR)/sphinx/html
 ALLSPHINXOPTS ?= -d $(BUILD_DIR)/sphinx/doctrees $(SPHINXOPTS) docs
 
 doc:
-	sphinx3-build -a $(INPUT_DIR) $(BUILD_DIR)
+	sphinx-build -a $(INPUT_DIR) $(BUILD_DIR)
 
 livehtml: docs
 	sphinx-autobuild $(AUTOSPHINXOPTS) $(ALLSPHINXOPTS) $(SPHINXBUILDDIR)
