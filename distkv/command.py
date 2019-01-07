@@ -59,7 +59,7 @@ async def pdb(args):
 @click.option("-h","--host", default=None, help="Address to bind to. Default: %s" % (CFG.server.host))
 @click.option("-p","--port", type=int, default=None, help="Port to bind to. Default: %d" % (CFG.server.port,))
 @click.option("-l","--load", type=click.File('rb'), default=None, help="Event log to preload.")
-@click.option("-s","--save", type=click.Path('wb'), default=None, help="Event log to write to.")
+@click.option("-s","--save", type=click.File('wb'), default=None, help="Event log to write to.")
 @click.option("-i","--init", default=None, help="Initial value to set the root to. Use only when setting up a cluster for the first time!")
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
@@ -82,12 +82,8 @@ async def run(ctx, name, host, port, load, save, init, eval):
 
     s = Server(name, cfg=obj.cfg, **kw)
     if load is None:
-        await s.load(load)
-    if save is not None:
-        if save == '':
-            save = None
-        obj.cfg['state'] = save
-    await s.serve(obj.cfg)
+        await s.load(stream=load, local=True)
+    await s.serve(obj.cfg, log_stream=save)
 
 
 @main.group()
@@ -206,16 +202,17 @@ async def delete(ctx, path, chain, recursive):
 
 
 @client.command()
-@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
+@click.option("-c", "--chain", type=int, default=None, help="Length of change list to return. Default: 0")
+@click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
 @click.pass_context
-async def watch(ctx, path, chain, yaml):
+async def watch(ctx, path, chain, yaml, state):
     """Watch a DistKV subtree"""
     if yaml:
         import yaml
     obj = ctx.obj
-    res = await obj.client.request(action="watch", path=path, iter=True, nchain=chain)
+    res = await obj.client.request(action="watch", path=path, iter=True, nchain=chain, state=state)
     pl = PathLongener(path)
     async for r in res:
         pl(r)
@@ -245,3 +242,4 @@ async def update(ctx, path, infile, loca, force):
                 await sender(r)
 
     print(sender.result)
+

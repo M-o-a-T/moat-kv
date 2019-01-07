@@ -238,12 +238,23 @@ class ServerClient:
 
     @_multi_response
     async def cmd_watch(self, msg):
+        """Monitor a subtree for changes.
+        If ``state`` is set, dump the initial state before reporting them.
+        """
         entry = self.root.follow(*msg.path, create=True)
         seq = msg.seq
-        nchain = msg.get('nchain',0)
+        nchain = msg.get('nchain',None)
+        if nchain is None:
+            nchain = self.cfg['change']['length'] if create else 0
 
         async with Watcher(entry) as watcher:
             shorter = PathShortener(entry.path)
+            if msg.get('state', False):
+                async def sender(entry):
+                    res = entry.serialize(nchain=nchain)
+                    shorter(res)
+                    await self.send_result(seq, res)
+                await entry.walk(sender)
 
             async for msg in watcher:
                 res = msg.entry.serialize(chop_path=self._chop_path, nchain=nchain)
@@ -287,6 +298,14 @@ class ServerClient:
         else:
             return {'changed': res}
 
+    async def cmd_log(self, msg):
+        await self.server.run_saver(path=msg.path, save_state=msg.get('state', False))
+        return True
+
+    async def cmd_save(self, msg):
+        await self.server.save(path=msg.path)
+        return True
+
     async def cmd_stop(self, msg):
         try:
             t = self.tasks[msg.task]
@@ -305,12 +324,13 @@ class ServerClient:
         return self.send(res)
 
     async def run(self):
+        """Main loop for this client connection."""
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
 
         async with anyio.create_task_group() as tg:
             self.tg = tg
             await self.send({'seq': 0, 'version': _version_tuple,
-                'node':self.server.node.name, 'local':self.server.node.tick,
+                'node':self.server.node.name, 'tick':self.server.node.tick,
                 'tock':self.server.tock})
 
             while True:
@@ -1041,8 +1061,8 @@ class Server:
             res = entry.serialize(nchain=nchain)
             shorter(res)
             await writer(res)
-        msg = self.get_state(nodes=True, known=True)
-        saver(msg)
+        msg = await self.get_state(nodes=True, known=True)
+        await writer(msg)
         await self.root.walk(saver)
 
     async def save(self, path:str=None, stream=None, delay:Event = None):
@@ -1051,7 +1071,7 @@ class Server:
         async with MsgWriter(path=path, stream=stream) as mw:
             await self._save(mw, shorter)
 
-    async def save_stream(self, path:str=None, stream=None, save_state=False, done: None):
+    async def save_stream(self, path:str=None, stream=None, save_state:bool=False, done:int=None):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
         """
@@ -1064,7 +1084,7 @@ class Server:
                 if save_state:
                     await self._save(mw, shorter)
 
-                msg = self.get_state(nodes=True, known=True)
+                msg = await self.get_state(nodes=True, known=True)
                 await mw(msg)
                 await mw.flush()
                 if done is not None:
@@ -1073,6 +1093,30 @@ class Server:
                 async for msg in updates:
                     await mw(msg.serialize())
     
+    _saver_prev = None
+    async def _saver(self, path:str, done, save_state=False):
+
+        async with anyio.open_cancel_scope() as s:
+            self._saver_prev = s
+            try:
+                await self.save_stream(path=path, done=done, save_state=save_state)
+            finally:
+                if self._saver_prev is s:
+                    self._saver_prev = None
+
+    async def run_saver(self, path: str=None, stream=None, save_state=False):
+        """Start a task that continually saves to disk.
+
+        Only one saver can run at a time; if a new one is started, 
+        the old one is stopped as soon as the new saver's current state is on disk.
+        """
+        done = anyio.create_event()
+        s = self._saver_prev
+        await self.spawn(self._saver, path=path, stream=stream, done=done)
+        await done.wait()
+        if s is not None:
+            await s.cancel()
+
     @property
     async def is_ready(self):
         """Await this to determine if/when the server is operational."""
@@ -1083,11 +1127,12 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, setup_done: Event = None):
+    async def serve(self, setup_done: Event = None, log_stream = None):
         """Task that opens a Serf connection and actually runs the server.
         
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
+          ``log_stream``: a binary stream to write changes and initial state to.
         """
         async with aioserf.serf_client(**self.cfg['serf']) as serf:
             # Collect all "info/missing" messages seen since the last
@@ -1146,6 +1191,9 @@ class Server:
 
             if self.cfg['state'] is not None:
                 await self.spawn(self.save, self.cfg['state'])
+
+            if log_stream is not None:
+                await self.run_saver(stream=log_stream, save_state=True)
 
             # Link up our "user_*" code
             for d in dir(self):

@@ -93,11 +93,18 @@ never contains any one DistKV server more than once.
 
 See the server protocol for a detailed description.
 
+tick
+----
+
+The current server's change counter. This field can be used to ensure that
+the local server is not restarted with old state.
+
 tock
 ----
 
 An always-increasing integer that's (supposed to be) shared within the
-whole DistKV system.
+whole DistKV system. You can use it when you need to reconnect to a server,
+to make sure that the system is (mostly) up-to-date.
 
 Actions
 =======
@@ -105,10 +112,10 @@ Actions
 connect
 -------
 
-This is a pseudo-action with sequence number zero which the server assumes
+This is a pseudo-action with sequence number zero, which the server assumes
 to have received after connecting. The server's first message will contain
 ``seq=0``, its ``node`` name, a ``version`` (as a list of integers), and
-possibly its current ``local`` and ``global`` sequence numbers.
+possibly its current ``tick`` and ``tock`` sequence numbers.
 
 stop
 ----
@@ -228,6 +235,23 @@ Stream changes to this node. The replies look like those from ``get_tree``.
 
 The recommended way to use this is to first open a monitor and then fill in
 unknown values via ``get_values``. This way you won't lose any changes.
+
+save
+----
+
+Instruct the server to save its state to the given ``path`` (a string with
+a filename).
+
+log
+---
+
+Instruct the server to continuously write change entries to the given ``path``
+(a string with a filename). If ``state`` is set, the server will also write 
+its current state to that file.
+
+This command returns after the new file has been opened and the initial
+state has been written, if so requested. If there was an old log stream,
+there may be some duplicate entries. No updates are skipped.
 
 Examples
 ========
