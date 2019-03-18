@@ -29,7 +29,7 @@ setup(
     ],
     python_requires=">=3.7",
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 3 - Alpha",
         "Intended Audience :: Information Technology",
         "License :: OSI Approved :: MIT License",
         "License :: OSI Approved :: Apache Software License",
