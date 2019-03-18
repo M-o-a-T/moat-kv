@@ -38,22 +38,20 @@ doc:
 livehtml: docs
 	sphinx-autobuild $(AUTOSPHINXOPTS) $(ALLSPHINXOPTS) $(SPHINXBUILDDIR)
 
+update:
+	pip install -r ci/test-requirements.txt
+
 test:
 	$(PYTEST) $(PACKAGE) $(TEST_OPTIONS)
 
+tag:	
+	./mktag
 
-tag:
-		@git tag v$(shell python3 setup.py -V)
-
-pypi:   tag
-	@if python3 setup.py -V 2>/dev/null | grep -qs + >/dev/null 2>&1 ; \
-		then echo "You need a clean, tagged tree" >&2; exit 1 ; fi
+pypi:	tag
 	python3 setup.py sdist upload
 	## version depends on tag, so re-tagging doesn't make sense
 
 upload: pypi
-	git push-all --tags
+	git push --tags
 
-update:
-	pip install -r ci/test-requirements.txt
-
+.PHONY: all tag pypi upload

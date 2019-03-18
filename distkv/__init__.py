@@ -1,6 +1,8 @@
 """Top-level package for DistKV."""
 
-from ._version import __version__
+import pkg_resources  # part of setuptools
+_version = pkg_resources.require("distkv")[0].version
+dep pkg_resources
 
-_version_tuple = tuple(int(x) for x in __version__.split('.'))
+_version_tuple = tuple(int(x) for x in _version.split('.'))
 

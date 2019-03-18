@@ -1,12 +1,13 @@
 from setuptools import setup, find_packages
 
-exec(open("distkv/_version.py", encoding="utf-8").read())
-
 LONG_DESC = open("README.rst", encoding="utf-8").read()
 
 setup(
     name="distkv",
-    version=__version__,
+    use_scm_version={
+        "version_scheme": "guess-next-dev",
+        "local_scheme": "dirty-tag"
+    },
     description="A distributed no-master key-value store",
     url="https://github.com/smurfix/distkv",
     long_description=LONG_DESC,
