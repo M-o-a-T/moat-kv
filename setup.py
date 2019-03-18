@@ -23,6 +23,7 @@ setup(
         "anyio",
         "range_set >= 0.2",
         "attrs",
+        "aioserf >= 0.3.3",
     ],
     keywords=[
         "async", "key-values", "distributed",
