@@ -82,8 +82,9 @@ def _stream(fn):
     return wrapper
 
 class ServerClient:
-    """Represent one listening client"""
+    """Represent one (non-server) client."""
     _nursery = None
+    _chroot = False
 
     def __init__(self, server: Server, stream: SocketStream):
         self.server = server
@@ -98,7 +99,16 @@ class ServerClient:
         _client_nr += 1
         self._client_nr = _client_nr
         logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
-    
+
+    @property
+    def nulls_ok(self):
+        if self._chroot:
+            return False
+        if None not in self.root:
+            return 2
+        # TODO test for superuser-ness, if so return True
+        return False
+
     async def process(self, msg, stream=False):
         """
         Process an incoming message.
@@ -108,7 +118,7 @@ class ServerClient:
             self.tasks[seq] = s
             try:
                 if 'chain' in msg:
-                    msg.chain = NodeEvent.deserialize(msg.chain)
+                    msg.chain = NodeEvent.deserialize(msg.chain, nulls_ok=self.nulls_ok)
 
                 try:
                     fn = getattr(self, ('scmd_' if stream else 'cmd_') + str(msg.action))
@@ -132,8 +142,9 @@ class ServerClient:
     async def cmd_root(self, msg):
         """Change to a sub-tree.
         """
-        entry = self.root.follow(*msg.path)
+        entry = self.root.follow(*msg.path, nulls_ok=False)
         self.root = entry
+        self._chroot = True
         self._chop_path += len(msg.path)
         return entry.serialize(chop_path=self._chop_path)
 
@@ -145,7 +156,7 @@ class ServerClient:
             return n[msg.tick].serialize(chop_path=self._chop_path, nchain=msg.get('nchain', 0))
 
         try:
-            entry = self.root.follow(*msg.path, create=False)
+            entry = self.root.follow(*msg.path, create=False, nulls_ok=self.nulls_ok)
         except KeyError:
             entry = {'value': None}
         else:
@@ -155,7 +166,7 @@ class ServerClient:
     async def cmd_set_value(self, msg):
         """Set a node's value.
         """
-        entry = self.root.follow(*msg.path)
+        entry = self.root.follow(*msg.path, nulls_ok=self.nulls_ok)
         send_prev = True
         if 'prev' in msg:
             if entry.data != msg.prev:
@@ -189,7 +200,7 @@ class ServerClient:
 
         This streams the input.
         """
-        msg = UpdateEvent.deserialize(self.root, msg)
+        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok)
         await msg.entry.apply(msg, dropped=self._dropper)
 
     async def cmd_update(self, msg):
@@ -198,7 +209,7 @@ class ServerClient:
 
         You usually do this via a stream command.
         """
-        msg = UpdateEvent.deserialize(self.root, msg)
+        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok)
         res = await msg.entry.apply(msg, dropped=self._dropper)
         if res is None:
             return False
@@ -217,7 +228,7 @@ class ServerClient:
     @_multi_response
     async def cmd_get_tree(self, msg):
         try:
-            entry = self.root.follow(*msg.path, create=False)
+            entry = self.root.follow(*msg.path, create=False, nulls_ok=self.nulls_ok)
         except KeyError:
             await self.send_result(seq, {'value':None})
             return
@@ -242,7 +253,7 @@ class ServerClient:
         """Monitor a subtree for changes.
         If ``state`` is set, dump the initial state before reporting them.
         """
-        entry = self.root.follow(*msg.path, create=True)
+        entry = self.root.follow(*msg.path, create=True, nulls_ok=self.nulls_ok)
         seq = msg.seq
         nchain = msg.get('nchain',None)
         if nchain is None:
@@ -274,7 +285,7 @@ class ServerClient:
         ps = PathShortener(msg.path)
 
         try:
-            entry = self.root.follow(*msg.path)
+            entry = self.root.follow(*msg.path, nulls_ok=self.nulls_ok)
         except KeyError:
             return False
 
@@ -488,7 +499,7 @@ class Server:
 
     async def user_update(self, msg):
         """Process an update."""
-        msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes)
+        msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
         await msg.entry.apply(msg, dropped=self._dropper)
 
     async def user_info(self, msg):
@@ -511,7 +522,7 @@ class Server:
         if r is not None and self._recover_task is None:
             replace = r.get('replace', False)
             pos = self.last_ping_evt.find(self.node)
-            rev = NodeEvent.deserialize(r, cache=self._nodes, check_dup=False)
+            rev = NodeEvent.deserialize(r, cache=self._nodes, check_dup=False, nulls_ok=True)
             if replace:
                 r.tock = msg.tock
                 self.last_ping = r
@@ -584,10 +595,10 @@ class Server:
         """The task that hooks to Serf's event stream for receiving messages.
         
         Args:
-          ``action``: The action name, corresponding to a ``user_*`` method.
-          ``delay``: an optional event to wait for, between starting the
-                     listener and actually processing messages. This helps
-                     to avoid possible inconsistency errors on startup.
+          ``action``: The action name, corresponding to a Serf ``user_*`` method.
+          ``delay``: an optional event to wait for, after starting the
+                     listener but before actually processing messages. This
+                     helps to avoid possible inconsistency errors on startup.
         """
         cmd = getattr(self, 'user_'+action)
         async with self.serf.stream('user:%s.%s' % (self.cfg['root'], action)) as stream:
@@ -692,7 +703,7 @@ class Server:
                 continue
 
             # Handle incoming ping
-            event = NodeEvent.deserialize(msg, cache=self._nodes, check_dup=False)
+            event = NodeEvent.deserialize(msg, cache=self._nodes, check_dup=False, nulls_ok=True)
 
             if self.node == event.node:
                 # my own message, returned
@@ -842,7 +853,7 @@ class Server:
 
                         res = await client.request('get_tree', iter=True, from_server=self.node.name, nchain=999, path=())
                         async for r in res:
-                            r = UpdateEvent.deserialize(self.root, r, cache=self._nodes)
+                            r = UpdateEvent.deserialize(self.root, r, cache=self._nodes, nulls_ok=True)
                             await r.entry.apply(r, dropped=self._dropper)
                         self.tock_seen(res.end_msg.tock)
 
@@ -1045,7 +1056,7 @@ class Server:
             async for m in rdr:
                 if 'value' in m:
                     longer(m)
-                    m = UpdateEvent.deserialize(self.root, m, cache=self._nodes)
+                    m = UpdateEvent.deserialize(self.root, m, cache=self._nodes, nulls_ok=True)
                     await m.entry.apply(m, local=local, dropped=self._dropper)
                 elif 'nodes' in m or 'known' in m:
                     await self._process_info(m)

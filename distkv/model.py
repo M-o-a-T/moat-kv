@@ -248,14 +248,14 @@ class NodeEvent:
         return res
 
     @classmethod
-    def deserialize(cls, msg, cache, check_dup=True):
+    def deserialize(cls, msg, cache, check_dup=True, nulls_ok=False):
         if msg is None:
             return None
         msg = msg.get('chain',msg)
         tick = msg.get('tick', None)
         self = cls(node=Node(msg['node'], tick=tick, cache=cache), tick=tick, check_dup=check_dup)
         if 'prev' in msg:
-            self.prev = cls.deserialize(msg['prev'], cache=cache, check_dup=check_dup)
+            self.prev = cls.deserialize(msg['prev'], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok)
         return self
 
     def attach(self, prev: NodeEvent=None, dropped=None):
@@ -303,13 +303,13 @@ class UpdateEvent:
         return res
 
     @classmethod
-    def deserialize(cls, root, msg, cache):
+    def deserialize(cls, root, msg, cache, nulls_ok=False):
         if 'value' in msg:
             value = msg.value
         else:
             value = msg.new_value
-        event = NodeEvent.deserialize(msg, cache=cache)
-        entry = root.follow(*msg.path, create=True)
+        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        entry = root.follow(*msg.path, create=True, nulls_ok = nulls_ok)
 
         return UpdateEvent(event, entry, value)
 
@@ -372,8 +372,21 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow(self, *path, create = True):
+    def follow(self, *path, create = True, nulls_ok = False):
+        """Follow this path.
+        
+        If ``create`` is True (default), unknown nodes are silently created.
+        Otherwise they cause a `KeyError`.
+        
+        If ``nulls_ok`` is False (default), `None` is not allowed as a path
+        element. If 2, it is allowed anywhere; if True, only as the first
+        element.
+        """
         for name in path:
+            if name is None and not nulls_ok:
+                raise ValueError("Null path element")
+            if nulls_ok == 1:  # root only
+                nulls_ok = False
             child = self._sub.get(name, None)
             if child is None:
                 if not create:
