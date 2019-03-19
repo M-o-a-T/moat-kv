@@ -11,6 +11,7 @@ from typing import Any
 from random import Random
 import time
 from range_set import RangeSet
+import io
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader
@@ -1025,7 +1026,7 @@ class Server:
                 await self._send_event('info', attrdict(known=known))
         self.sending_missing = None
 
-    async def load(self, path:str, local: bool = False):
+    async def load(self, path:str, stream: io.IOBase = None, local: bool = False):
         """Load data from this stream
         
         Args:
@@ -1040,7 +1041,7 @@ class Server:
             raise RuntimeError("This server already has data.")
         elif not local and self.node.tick is None:
             raise RuntimeError("This server is not yet operational.")
-        async with MsgReader(path=path) as rdr:
+        async with MsgReader(path=path, stream=stream) as rdr:
             async for m in rdr:
                 if 'value' in m:
                     longer(m)

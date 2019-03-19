@@ -35,7 +35,7 @@ class ServerConnectionError(ServerError):
 async def open_client(host, port, init_timeout=5):
     client = Client(host, port)
     async with anyio.create_task_group() as tg:
-        async with  client._connected(tg, init_timeout=init_timeout) as client:
+        async with client._connected(tg, init_timeout=init_timeout) as client:
             yield client
 
 class _StreamRequest:

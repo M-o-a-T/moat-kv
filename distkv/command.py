@@ -81,9 +81,9 @@ async def run(ctx, name, host, port, load, save, init, eval):
         kw['init'] = init
 
     s = Server(name, cfg=obj.cfg, **kw)
-    if load is None:
+    if load is not None:
         await s.load(stream=load, local=True)
-    await s.serve(obj.cfg, log_stream=save)
+    await s.serve(log_stream=save)
 
 
 @main.group()
