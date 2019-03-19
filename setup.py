@@ -22,8 +22,9 @@ setup(
         "trio_click",
         "anyio",
         "range_set >= 0.2",
-        "attrs",
+        "attrs >= 18.2",
         "aioserf >= 0.3.3",
+        "jsonschema >= 2.5",
     ],
     keywords=[
         "async", "key-values", "distributed",
