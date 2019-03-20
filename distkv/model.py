@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import weakref
-import anyio
+import trio
 from range_set import RangeSet
 
 from typing import Optional, List, Any
 
-from .util import attrdict
+from .util import attrdict, Queue
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -572,7 +572,7 @@ class Watcher:
     async def __aenter__(self):
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
-        self.q = anyio.create_queue(self.q_len)
+        self.q = Queue(self.q_len)
         self.q._distkv__free = self.q_len
         self.root.monitors.add(self.q)
         return self

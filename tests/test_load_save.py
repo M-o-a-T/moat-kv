@@ -1,5 +1,4 @@
 import pytest
-import anyio
 import trio
 import mock
 from time import time
@@ -32,14 +31,14 @@ async def test_21_load_save(autojump_clock, tmpdir):
         s, = st.s
         async with st.client() as c:
             assert (await c.request("get_value", path=())).value == 234
-            d = anyio.create_event()
+            d = trio.Event()
             await c.tg.spawn(watch_changes,c,d)
             await d.wait()
 
             r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
             r = await c.request("set_value", path=("foo","bar"), value="baz", nchain=3)
             r = await c.request("set_value", path=(), value=2345, nchain=3)
-            await anyio.sleep(1) # allow the writer to write
+            await trio.sleep(1) # allow the writer to write
 
         logger.debug("SAVE %s",path)
         await s.save(path)
@@ -69,13 +68,13 @@ async def test_21_load_save(autojump_clock, tmpdir):
         logger.debug("LOAD %s",path)
         await s.load(path, local=True)
         logger.debug("LOADED")
-        r = anyio.create_event()
+        r = trio.Event()
         await st.tg.spawn(st.s[0].serve, r)
         await r.wait()
         logger.debug("RUNNING")
 
         async with st.client() as c:
-            d = anyio.create_event()
+            d = trio.Event()
             await c.tg.spawn(watch_changes,c,d)
             await d.wait()
 
@@ -83,7 +82,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
             assert (await c.request("get_value", path=("foo",))).value == 'hello'
             assert (await c.request("get_value", path=("foo","bar"))).value == 'baz'
             assert (await c.request("get_value", path=(()))).value == 2345
-            await anyio.sleep(1) # allow the writer to write
+            await trio.sleep(1) # allow the writer to write
     for m in msgs:
         m.pop('tock',None)
     assert sorted(msgs, key=lambda x:x.chain.tick) == [
@@ -191,7 +190,7 @@ async def test_03_three(autojump_clock):
                 # This verifies that the chain entry for the initial update is gone
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
-                await anyio.sleep(1)
+                await trio.sleep(1)
                 r = await ci.request("set_value", path=(), value=127, nchain=3)
                 assert r.prev==126
                 assert r.chain.tick == 2
@@ -207,7 +206,7 @@ async def test_03_three(autojump_clock):
                     await ci.request("get_value", node="test_1", tick=1)
                 
                 # Now test that the internal states match.
-                await anyio.sleep(1)
+                await trio.sleep(1)
                 r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
                 del r['tock']
                 del r['seq']

@@ -1,4 +1,4 @@
-from anyio import aopen, open_cancel_scope
+import trio
 
 import logging
 
@@ -136,12 +136,12 @@ class _MsgRW():
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
         from .codec import stream_unpacker
-        self.path = path
+        self.path = trio.Path(path)
         self.stream = stream
 
     async def __aenter__(self):
         if self.path is not None:
-            self.stream = await aopen(self.path,self._mode)
+            self.stream = await self.path.open(self._mode)
         return self
 
     async def __aexit__(self, *tb):
@@ -211,7 +211,7 @@ class MsgWriter(_MsgRW):
             from .codec import packer
 
     async def __aexit__(self, *tb):
-        async with open_cancel_scope(shield=True):
+        async with trio.CancelScope(shield=True):
             if self.buf:
                 await self.stream.write(b''.join(self.buf))
             await super().__aexit__(*tb)
@@ -241,4 +241,58 @@ class MsgWriter(_MsgRW):
 class TimeOnlyFormatter(logging.Formatter):
     default_time_format = "%H:%M:%S"
     default_msec_format = "%s.%03d"
+
+class Queue:
+    def __init__(self, len):
+        self._send,self._recv = trio.open_memory_channel(len)
+
+    async def get(self):
+        await self._recv.receive()
+
+    async def put(self, msg):
+        await self._send.send(msg)
+
+    async def aclose(self):
+        await self._send.aclose()
+
+class _Server:
+    _servers = None
+    _q = None
+    def __init__(self, port=0, **kw):
+        self.port = port
+        self._kw = kw
+
+    @staticmethod
+    async def _listen(self, server, q):
+        while True:
+            conn = await server.accept()
+            await q.send(conn)
+
+    @asynccontextmanager
+    async def _runner():
+        send_q, recv_q = trio.create_memory_channel()
+        servers = await trio.open_tcp_listeners(self.port, **self._kw)
+        async with trio.open_nursery as tg:
+            for s in servers:
+                tg.start_soon(self._listen, tg, send_q)
+            self._q = recv_q
+            yield self
+            await send_q.aclose()
+            tg.cancel_scope.cancel()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return await self._q.receive()
+        except trio.EndOfChannel:
+            raise StopAsyncIteration
+
+
+async def create_tcp_server(**args) -> _Server:
+    server = _Server(**args)
+    async with server._runner():
+        yield server
+
 

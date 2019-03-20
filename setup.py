@@ -20,7 +20,7 @@ setup(
     ],
     install_requires=[
         "trio_click",
-        "anyio",
+        "trio (>= 0.11)",
         "range_set >= 0.2",
         "attrs >= 18.2",
         "trio_serf >= 0.4",

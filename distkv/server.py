@@ -1,9 +1,8 @@
 # Local server
 from __future__ import annotations
 
-import anyio
-from anyio.exceptions import ClosedResourceError
-from anyio.abc import SocketStream, Event
+import trio
+from trio.abc import SocketStream, Event
 from async_generator import asynccontextmanager
 import msgpack
 import trio_serf
@@ -14,7 +13,8 @@ from range_set import RangeSet
 import io
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader
+from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue,
+    create_tcp_server
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -114,7 +114,7 @@ class ServerClient:
         Process an incoming message.
         """
         seq = msg.seq
-        async with anyio.open_cancel_scope() as s:
+        async with trio.CancelScope() as s:
             self.tasks[seq] = s
             try:
                 if 'chain' in msg:
@@ -339,7 +339,7 @@ class ServerClient:
         """Main loop for this client connection."""
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
 
-        async with anyio.create_task_group() as tg:
+        async with trio.open_nursery() as tg:
             self.tg = tg
             await self.send({'seq': 0, 'version': _version_tuple,
                 'node':self.server.node.name, 'tick':self.server.node.tick,
@@ -354,7 +354,7 @@ class ServerClient:
                         if q is not None:
                             await q.put(msg)
                         elif msg.get('state','') == 'start':
-                            q = anyio.create_queue(100)
+                            q = Queue(100)
                             self.inqueue[seq] = q
                             await self.tg.spawn(self.process, q, True)
                         else:
@@ -369,7 +369,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive_some(4096)
-                except (ConnectionResetError, ClosedResourceError):
+                except (ConnectionResetError, trio.ClosedResourceError):
                     return  # closed/reset/whatever
                 if len(buf) == 0:  # Connection was closed.
                     return # done
@@ -390,7 +390,7 @@ class Server:
         self._tock = 0
         self._init = init
 
-        self._evt_lock = anyio.create_lock()
+        self._evt_lock = trio.Lock()
         self._random = Random()
 
     @asynccontextmanager
@@ -688,7 +688,7 @@ class Server:
         clock = self.cfg['ping']['clock']
 
         # initial delay: anywhere from clock/2 to clock seconds
-        await anyio.sleep((self.random/2+0.5)*clock)
+        await trio.sleep((self.random/2+0.5)*clock)
         await self._send_ping()
         await delay.set()
 
@@ -696,7 +696,7 @@ class Server:
             msg = None
             t = max(self.next_ping - time.time(), 0)
             #logger.debug("S %s: wait %s", self.node.name, t)
-            async with anyio.move_on_after(t):
+            async with trio.move_on_after(t):
                 msg = await self.ping_q.get()
             if msg is None:
                 await self._send_ping()
@@ -799,7 +799,7 @@ class Server:
                 logger.debug("send-missing %s halted", self.node.name)
                 return
             clock *= self.random/2+1
-            await anyio.sleep(clock)
+            await trio.sleep(clock)
 
             n = 0
             msg = dict()
@@ -880,7 +880,7 @@ class Server:
                         self.fetch_running = None
                         await self._check_ticked()
                     return
-            await anyio.sleep(self.cfg['ping']['clock']*1.1)
+            await trio.sleep(self.cfg['ping']['clock']*1.1)
 
     async def _process_info(self, msg):
         for nn,t in msg.get('nodes',{}).items():
@@ -912,17 +912,17 @@ class Server:
         clock = self.cfg['ping']['clock']
         tock = self.tock
         self._recover_tock = tock
-        self._recover_event1 = anyio.create_event()
-        self._recover_event2 = anyio.create_event()
+        self._recover_event1 = trio.Event()
+        self._recover_event2 = trio.Event()
         logger.info("SplitRecover %s: %s @%d", self.node.name, pos, tock)
 
-        async with anyio.open_cancel_scope() as s:
+        async with trio.CancelScope() as s:
             self._recover_task = s
 
             try:
                 # Step 1: send an info/ticks message
                 # for pos=0 this fires immediately. That's intentional.
-                async with anyio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
+                async with trio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
                     await self._recover_event1.wait()
                 if self.sane_ping is None:
                     logger.info("SplitRecover %s: no sane 1", self.node.name)
@@ -942,7 +942,7 @@ class Server:
                 # chance to wait for other info/ticks messages. We can't
                 # trigger on them because there may be more than one, for a
                 # n-way merge.
-                async with anyio.move_on_after(clock * (2-1/(1<<pos))/2) as x:
+                async with trio.move_on_after(clock * (2-1/(1<<pos))/2) as x:
                     await self._recover_event2.wait()
 
                 if x.cancel_called:
@@ -969,7 +969,7 @@ class Server:
                 # wait a bit more before continuing. Again this depends on
                 # `pos` so that there won't be two nodes that send the same
                 # data at the same time, hopefully.
-                await anyio.sleep(clock * (1-1/(1<<pos)))
+                await trio.sleep(clock * (1-1/(1<<pos)))
 
                 # Step 3: start a task that sends stuff
                 await self._run_send_missing()
@@ -1006,9 +1006,9 @@ class Server:
         """
         clock = self.cfg['ping']['clock']
         if pos is None:
-            await anyio.sleep(clock*(1/2+self.random/5))
+            await trio.sleep(clock*(1/2+self.random/5))
         else:
-            await anyio.sleep(clock*(1-1/(1<<pos))/2)
+            await trio.sleep(clock*(1-1/(1<<pos))/2)
 
         while self.sending_missing:
             self.sending_missing = False
@@ -1021,7 +1021,7 @@ class Server:
                     for t in range(*r):
                         if t not in n.remote_missing:
                             # some other node could have sent this while we worked
-                            await anyio.sleep(self.cfg['ping']['clock']/10)
+                            await trio.sleep(self.cfg['ping']['clock']/10)
                             continue
                         if t in n:
                             msg = n[t].serialize()
@@ -1108,7 +1108,7 @@ class Server:
     _saver_prev = None
     async def _saver(self, path:str, done, save_state=False):
 
-        async with anyio.open_cancel_scope() as s:
+        async with trio.CancelScope() as s:
             self._saver_prev = s
             try:
                 await self.save_stream(path=path, done=done, save_state=save_state)
@@ -1122,7 +1122,7 @@ class Server:
         Only one saver can run at a time; if a new one is started, 
         the old one is stopped as soon as the new saver's current state is on disk.
         """
-        done = anyio.create_event()
+        done = trio.Event()
         s = self._saver_prev
         await self.spawn(self._saver, path=path, stream=stream, done=done)
         await done.wait()
@@ -1165,16 +1165,16 @@ class Server:
 
             # Set when self.node.tick is no longer None, i.e. we have some
             # reasonable state
-            self._ready = anyio.create_event()
+            self._ready = trio.Event()
 
             # set when we're ready to accept client connections
-            self._ready2 = anyio.create_event()
+            self._ready2 = trio.Event()
 
             self.serf = serf
             self.spawn = serf.spawn
 
             # Queue for processing incoming ping broadcasts
-            self.ping_q = anyio.create_queue(self.cfg['ping'].length+2)
+            self.ping_q = Queue(self.cfg['ping'].length+2)
 
             # Last "reasonable" ping seen
             self.last_ping = None
@@ -1195,8 +1195,8 @@ class Server:
 
             # used to sync starting up everything so no messages get either
             # lost, or processed prematurely
-            delay = anyio.create_event()
-            delay2 = anyio.create_event()
+            delay = trio.Event()
+            delay2 = trio.Event()
 
             if setup_done is not None:
                 await setup_done.set()
@@ -1224,7 +1224,7 @@ class Server:
             await self.spawn(self.pinger, delay2)
             await delay2.wait()
 
-            await anyio.sleep(0.1)
+            await trio.sleep(0.1)
             await delay.set()
             await self._check_ticked()  # when _init is set
 
@@ -1234,7 +1234,7 @@ class Server:
             await self._ready.wait()
             if cfg_s.get('port',_NotGiven) is None:
                 del cfg_s['port']
-            async with await anyio.create_tcp_server(**cfg_s) as server:
+            async with await create_tcp_server(**cfg_s) as server:
                 self.port = server.port
                 logger.debug("S %s: opened port %s", self.node.name, self.port)
                 await self._ready2.set()

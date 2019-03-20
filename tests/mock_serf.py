@@ -4,7 +4,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
-import anyio
+import trio
 import mock
 import attr
 import copy
@@ -17,7 +17,7 @@ from distkv.client import open_client
 from distkv.default import CFG
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict
+from distkv.util import attrdict, Queue
 
 import logging
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         except RuntimeError:
             return otm()
 
-    async with anyio.create_task_group() as tg:
+    async with trio.open_nursery() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
             ex.enter_context(mock.patch("time.time", new=tm))
@@ -104,7 +104,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                 st.s.append(s)
             for i in range(n):
                 if kw.get("run_"+str(i), run):
-                    r = anyio.create_event()
+                    r = trio.Event()
                     await tg.spawn(st.s[i].serve,r)
                     await r.wait()
             try:
@@ -116,7 +116,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
-    async with anyio.create_task_group() as tg:
+    async with trio.open_nursery() as tg:
         ms = MockServ(tg, master, **cfg)
         master.serfs.add(ms)
         try:
@@ -163,7 +163,7 @@ class MockSerfStream:
     async def __aenter__(self):
         if self.typ in self.serf.streams:
             raise RuntimeError("Only one listener per event type allowed")
-        self.q = anyio.create_queue(100)
+        self.q = Queue(100)
         self.serf.streams[self.typ] = self
         return self
 

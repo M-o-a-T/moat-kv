@@ -1,5 +1,4 @@
 import pytest
-import anyio
 import trio
 import mock
 from time import time
@@ -14,15 +13,15 @@ logger = logging.getLogger(__name__)
 
 # This is a basic Trio test which we keep around to check that
 # (a) the autojump clock works as advertised
-# (b) we can use anyio.
+# (b) we can use trio.
 @pytest.mark.trio
-async def test_00_anyio_clock(autojump_clock):
+async def test_00_trio_clock(autojump_clock):
     assert trio.current_time() == 0
     t = time()
 
     for i in range(10):
         start_time = trio.current_time()
-        await anyio.sleep(i)
+        await trio.sleep(i)
         end_time = trio.current_time()
 
         assert end_time - start_time == i
@@ -168,7 +167,7 @@ async def test_03_three(autojump_clock):
                 # This verifies that the chain entry for the initial update is gone
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
-                await anyio.sleep(1)
+                await trio.sleep(1)
                 r = await ci.request("set_value", path=(), value=127, nchain=3)
                 assert r.prev==126
                 assert r.chain.tick == 2
@@ -184,7 +183,7 @@ async def test_03_three(autojump_clock):
                     await ci.request("get_value", node="test_1", tick=1)
                 
                 # Now test that the internal states match.
-                await anyio.sleep(1)
+                await trio.sleep(1)
                 r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
                 del r['tock']
                 del r['seq']

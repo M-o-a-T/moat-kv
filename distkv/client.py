@@ -1,13 +1,12 @@
 # dist-kv client
 
-import anyio
-from anyio.exceptions import ClosedResourceError
+import trio
 import outcome
 import msgpack
 import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
-from .util import attrdict
+from .util import attrdict, Queue
 
 import logging
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class ServerConnectionError(ServerError):
 @asynccontextmanager
 async def open_client(host, port, init_timeout=5):
     client = Client(host, port)
-    async with anyio.create_task_group() as tg:
+    async with trio.open_nursery() as tg:
         async with client._connected(tg, init_timeout=init_timeout) as client:
             yield client
 
@@ -63,7 +62,7 @@ class StreamReply:
     def __init__(self, conn, seq):
         self._conn = conn
         self.seq = seq
-        self.q = anyio.create_queue(10000)
+        self.q = Queue(10000)
 
     async def set(self, res):
         if 'error' in res:
@@ -163,7 +162,7 @@ class Client:
         """
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
 
-        async with anyio.open_cancel_scope(shield=True) as s:
+        async with trio.CancelScope(shield=True) as s:
             try:
                 while True:
                     for msg in unpacker:
@@ -174,7 +173,7 @@ class Client:
                         break
                     try:
                         buf = await self._socket.receive_some(4096)
-                    except ClosedResourceError:
+                    except trio.ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.
                         raise ServerClosedError("Connection closed by peer")
@@ -182,7 +181,7 @@ class Client:
 
             finally:
                 hdl, self._handlers = self._handlers, None
-                async with anyio.open_cancel_scope(shield=True):
+                async with trio.CancelScope(shield=True):
                     for m in hdl.values():
                         await m.cancel()
 
@@ -286,13 +285,13 @@ class Client:
         self._handlers[0] = hello
         
         #logger.debug("Conn %s %s",self.host,self.port)
-        async with await anyio.connect_tcp(self.host, self.port) as sock:
+        async with await trio.open_tcp_stream(self.host, self.port) as sock:
             #logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg
                 self._socket = sock
                 await self.tg.spawn(self._reader)
-                async with anyio.fail_after(init_timeout):
+                async with trio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                 yield self
             except socket.error as e:
