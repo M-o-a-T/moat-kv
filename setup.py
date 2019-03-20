@@ -23,7 +23,7 @@ setup(
         "anyio",
         "range_set >= 0.2",
         "attrs >= 18.2",
-        "aioserf >= 0.3.3",
+        "trio_serf >= 0.4",
         "jsonschema >= 2.5",
     ],
     keywords=[

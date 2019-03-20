@@ -8,7 +8,7 @@ from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
-import aioserf
+import trio_serf
 import msgpack
 from distkv.util import attrdict
 
@@ -59,7 +59,7 @@ async def test_11_split1(autojump_clock, tocky):
     async with stdtest(test_1={'init':420}, n=N, tocks=1000) as st:
         async def watch():
             nonlocal n_two
-            async with aioserf.serf_client() as s:
+            async with trio_serf.serf_client() as s:
                 async with s.stream("user:test.update") as sr:
                     async for r in sr:
                         msg = msgpack.unpackb(r.payload, object_pairs_hook=attrdict, raw=False, use_list=False)

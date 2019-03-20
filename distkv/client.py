@@ -6,7 +6,7 @@ import outcome
 import msgpack
 import socket
 from async_generator import asynccontextmanager
-from aioserf.util import ValueEvent
+from trio_serf.util import ValueEvent
 from .util import attrdict
 
 import logging
