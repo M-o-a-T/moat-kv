@@ -1237,7 +1237,7 @@ class Server:
                 self.ports = server.ports
                 logger.debug("S %s: opened %s", self.node.name, self.ports)
                 self._ready2.set()
-                async for client in server.accept_connections():
+                async for client in server:
                     await self.spawn(self._connect, client)
                 pass # unwinding create_tcp_server
             pass # unwinding serf_client (cancelled or error)
