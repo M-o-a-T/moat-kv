@@ -57,7 +57,8 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         async def client(self, i:int = 0, args: dict={}):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
-            async with open_client(host='localhost', port=st.s[i].port, **args) as c:
+            host,port = port=st.s[i].ports[0]
+            async with open_client(host=host, port=port, **args) as c:
                 yield c
 
         def split(self, s):

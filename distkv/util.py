@@ -258,41 +258,50 @@ class Queue:
 class _Server:
     _servers = None
     _q = None
-    def __init__(self, port=0, **kw):
+    def __init__(self, tg, port=0, **kw):
+        self.tg = tg
         self.port = port
+        self.ports = None
         self._kw = kw
 
-    @staticmethod
-    async def _listen(self, server, q):
-        while True:
-            conn = await server.accept()
-            await q.send(conn)
+    async def _accept(self, server, q, *, task_status=trio.TASK_STATUS_IGNORED):
+        self.ports.append(server.socket.getsockname())
+        task_status.started()
+        try:
+            while True:
+                conn = await server.accept()
+                await q.send(conn)
+        finally:
+            await q.aclose()
 
-    @asynccontextmanager
-    async def _runner():
-        send_q, recv_q = trio.create_memory_channel()
+    async def __aenter__(self):
+        send_q, self.recv_q = trio.open_memory_channel(1)
         servers = await trio.open_tcp_listeners(self.port, **self._kw)
-        async with trio.open_nursery as tg:
-            for s in servers:
-                tg.start_soon(self._listen, tg, send_q)
-            self._q = recv_q
-            yield self
-            await send_q.aclose()
-            tg.cancel_scope.cancel()
+        self.ports = []
+        for s in servers:
+            await self.tg.start(self._accept, s, send_q.clone())
+        await send_q.aclose()
+        return self
+
+    async def __aexit__(self, *tb):
+        self.tg.cancel_scope.cancel()
+        await self.recv_q.aclose()
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
         try:
-            return await self._q.receive()
+            return await self.recv_q.receive()
         except trio.EndOfChannel:
             raise StopAsyncIteration
 
 
+@asynccontextmanager
 async def create_tcp_server(**args) -> _Server:
-    server = _Server(**args)
-    async with server._runner():
-        yield server
+    async with trio.open_nursery() as tg:
+        server = _Server(tg, **args)
+        async with server:
+            yield server
 
 

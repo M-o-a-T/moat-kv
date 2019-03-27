@@ -1234,8 +1234,8 @@ class Server:
             await self._ready.wait()
             if cfg_s.get('port',_NotGiven) is None:
                 del cfg_s['port']
-            async with await create_tcp_server(**cfg_s) as server:
-                self.port = server.port
+            async with create_tcp_server(**cfg_s) as server:
+                self.ports = server.ports
                 logger.debug("S %s: opened port %s", self.node.name, self.port)
                 self._ready2.set()
                 async for client in server.accept_connections():
