@@ -1,4 +1,5 @@
 import trio
+from trio_serf.util import ValueEvent
 
 import logging
 
@@ -315,3 +316,7 @@ async def create_tcp_server(**args) -> _Server:
             yield server
 
 
+class AsyncValueEvent(ValueEvent):
+    """A ValueEvent with an async `set` method"""
+    async def set(self, value):
+        super().set(value)

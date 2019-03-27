@@ -6,7 +6,7 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
-from .util import attrdict, Queue
+from .util import attrdict, Queue, AsyncValueEvent
 
 import logging
 logger = logging.getLogger(__name__)
@@ -282,7 +282,7 @@ class Client:
         This async context manager handles the actual TCP connection to
         the DistKV server.
         """
-        hello = ValueEvent()
+        hello = AsyncValueEvent()
         self._handlers[0] = hello
         
         #logger.debug("Conn %s %s",self.host,self.port)
