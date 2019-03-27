@@ -117,13 +117,13 @@ class _SingleReply:
     async def set(self, res):
         if res.get('state') == 'start':
             res = StreamReply(self._conn, self.seq)
-            await self.q.set(res)
+            self.q.set(res)
             return res
         else:
             if 'error' in res:
-                await self.q.set_error(ServerError(res.error))
+                self.q.set_error(ServerError(res.error))
             else:
-                await self.q.set(res)
+                self.q.set(res)
 
     def get(self):
         return self.q.get()

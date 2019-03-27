@@ -111,7 +111,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                 yield st
             finally:
                 logger.info("Runtime: %s", clock.current_time())
-                await tg.cancel_scope.cancel()
+                tg.cancel_scope.cancel()
         logger.info("End")
 
 @asynccontextmanager

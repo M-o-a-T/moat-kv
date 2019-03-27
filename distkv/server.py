@@ -540,7 +540,7 @@ class Server:
             if self._recover_event1 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
                 logger.debug("Step1 %s: triggered by %s", self.node.name, self.sane_ping.serialize() if self.sane_ping else "-")
-                await self._recover_event1.set()
+                self._recover_event1.set()
             elif self._recover_event1 is not None:
                 logger.debug("Step1 %s: not in %s", self.node.name, self.sane_ping.serialize())
 #           else:
@@ -564,7 +564,7 @@ class Server:
             if self._recover_event2 is not None and \
                     (self.sane_ping is None or self.node in self.sane_ping):
                 logger.debug("Step2 %s: triggered by %s", self.node.name, self.sane_ping.serialize() if self.sane_ping else "-")
-                await self._recover_event2.set()
+                self._recover_event2.set()
             elif self._recover_event2 is not None:
                 logger.debug("Step2 %s: not in %s", self.node.name, self.sane_ping.serialize())
 #           else:
@@ -690,13 +690,13 @@ class Server:
         # initial delay: anywhere from clock/2 to clock seconds
         await trio.sleep((self.random/2+0.5)*clock)
         await self._send_ping()
-        await delay.set()
+        delay.set()
 
         while True:
             msg = None
             t = max(self.next_ping - time.time(), 0)
             #logger.debug("S %s: wait %s", self.node.name, t)
-            async with trio.move_on_after(t):
+            with trio.move_on_after(t):
                 msg = await self.ping_q.get()
             if msg is None:
                 await self._send_ping()
@@ -903,7 +903,7 @@ class Server:
             return
         if self.node.tick is not None:
             logger.debug("Ready %s",self.node.name)
-            await self._ready.set()
+            self._ready.set()
 
     async def recover_split(self, pos, replace=False):
         """
@@ -1199,7 +1199,7 @@ class Server:
             delay2 = trio.Event()
 
             if setup_done is not None:
-                await setup_done.set()
+                setup_done.set()
 
             if self.cfg['state'] is not None:
                 await self.spawn(self.save, self.cfg['state'])
@@ -1225,7 +1225,7 @@ class Server:
             await delay2.wait()
 
             await trio.sleep(0.1)
-            await delay.set()
+            delay.set()
             await self._check_ticked()  # when _init is set
 
             cfg_s = self.cfg['server'].copy()
@@ -1237,7 +1237,7 @@ class Server:
             async with await create_tcp_server(**cfg_s) as server:
                 self.port = server.port
                 logger.debug("S %s: opened port %s", self.node.name, self.port)
-                await self._ready2.set()
+                self._ready2.set()
                 async for client in server.accept_connections():
                     await self.spawn(self._connect, client)
 
