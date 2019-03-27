@@ -106,7 +106,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             for i in range(n):
                 if kw.get("run_"+str(i), run):
                     r = trio.Event()
-                    await tg.spawn(st.s[i].serve,r)
+                    tg.start_soon(st.s[i].serve,r)
                     await r.wait()
             try:
                 yield st
@@ -137,8 +137,8 @@ class MockServ:
     def __hash__(self):
         return id(self)
 
-    def spawn(self, *args, **kw):
-        return self.tg.spawn(*args, **kw)
+    async def spawn(self, *args, **kw):
+        return self.tg.start_soon(*args, **kw)
 
     def stream(self, event_types='*'):
         if ',' in event_types or not event_types.startswith('user:'):
