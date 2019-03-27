@@ -253,7 +253,7 @@ class Queue:
         self._send,self._recv = trio.open_memory_channel(len)
 
     async def get(self):
-        await self._recv.receive()
+        return await self._recv.receive()
 
     async def put(self, msg):
         await self._send.send(msg)
