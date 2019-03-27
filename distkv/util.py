@@ -152,7 +152,8 @@ class _MsgRW():
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            await self.stream.aclose()
+            async with trio.CancelScope(shield=True):
+                await self.stream.aclose()
 
 
 class MsgReader(_MsgRW):
@@ -278,7 +279,9 @@ class _Server:
                 conn = await server.accept()
                 await q.send(conn)
         finally:
-            await q.aclose()
+            with trio.CancelScope(shield=True):
+                await q.aclose()
+                await server.aclose()
 
     async def __aenter__(self):
         send_q, self.recv_q = trio.open_memory_channel(1)
@@ -291,7 +294,8 @@ class _Server:
 
     async def __aexit__(self, *tb):
         self.tg.cancel_scope.cancel()
-        await self.recv_q.aclose()
+        with trio.CancelScope(shield=True):
+            await self.recv_q.aclose()
 
     def __aiter__(self):
         return self
