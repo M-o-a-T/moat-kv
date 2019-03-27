@@ -157,12 +157,13 @@ class Client:
             self._handlers[seq] = res
 
 
-    async def _reader(self):
+    async def _reader(self, *, task_status=trio.TASK_STATUS_IGNORED):
         """Main loop for reading
         """
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
 
         async with trio.CancelScope(shield=True) as s:
+            task_status.started(s)
             try:
                 while True:
                     for msg in unpacker:
@@ -290,7 +291,7 @@ class Client:
             try:
                 self.tg = tg
                 self._socket = sock
-                await self.tg.spawn(self._reader)
+                await self.tg.start(self._reader)
                 async with trio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                 yield self
