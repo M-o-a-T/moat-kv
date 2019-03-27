@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import trio
-from trio.abc import SocketStream, Event
+from trio.abc import Stream
 from async_generator import asynccontextmanager
 import msgpack
 import trio_serf
@@ -86,7 +86,7 @@ class ServerClient:
     _nursery = None
     _chroot = False
 
-    def __init__(self, server: Server, stream: SocketStream):
+    def __init__(self, server: Server, stream: Stream):
         self.server = server
         self.root = server.root
         self.stream = stream
@@ -591,7 +591,7 @@ class Server:
         """
         await self.ping_q.put(msg)
 
-    async def monitor(self, action: str, delay: Event = None):
+    async def monitor(self, action: str, delay: trio.Event = None):
         """The task that hooks to Serf's event stream for receiving messages.
         
         Args:
@@ -672,7 +672,7 @@ class Server:
             # send late (fallback)
             return 2.5+self.random/2
 
-    async def pinger(self, delay):
+    async def pinger(self, delay: Event):
         """
         This task
         * sends PING messages
@@ -1139,7 +1139,7 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, setup_done: Event = None, log_stream = None):
+    async def serve(self, setup_done: trio.Event = None, log_stream = None):
         """Task that opens a Serf connection and actually runs the server.
         
         Args:
