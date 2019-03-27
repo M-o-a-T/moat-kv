@@ -1235,7 +1235,7 @@ class Server:
                 del cfg_s['port']
             async with create_tcp_server(**cfg_s) as server:
                 self.ports = server.ports
-                logger.debug("S %s: opened port %s", self.node.name, self.port)
+                logger.debug("S %s: opened %s", self.node.name, self.ports)
                 self._ready2.set()
                 async for client in server.accept_connections():
                     await self.spawn(self._connect, client)

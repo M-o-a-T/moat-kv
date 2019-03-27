@@ -57,7 +57,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         async def client(self, i:int = 0, args: dict={}):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
-            host,port = port=st.s[i].ports[0]
+            host,port = st.s[i].ports[0][0:2]
             async with open_client(host=host, port=port, **args) as c:
                 yield c
 
@@ -78,7 +78,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
         i = int(node.name[node.name.rindex('_')+1:])
         s = st.s[i]
         await s.is_serving
-        return ('localhost',s.port)
+        return s.ports[0][0:2]
 
     def tm():
         try:

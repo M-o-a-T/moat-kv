@@ -110,16 +110,16 @@ async def test_02_cmd(autojump_clock):
         async with st.client() as c:
             assert (await c.request("get_value", path=())).value == 123
 
-            r = await run("client","-p",s.port,"set","-v","hello","foo")
-            r = await run("client","-p",s.port,"set","-ev","'baz'","foo","bar")
+            r = await run("client","-h",s.ports[0][0],"-p",s.ports[0][1],"set","-v","hello","foo")
+            r = await run("client","-h",s.ports[0][0],"-p",s.ports[0][1],"set","-ev","'baz'","foo","bar")
 
-            r = await run("client","-p",s.port,"get")
+            r = await run("client","-h",s.ports[0][0],"-p",s.ports[0][1],"get")
             assert r.stdout == "123\n"
 
-            r = await run("client","-p",s.port,"get", "foo")
+            r = await run("client","-h",s.ports[0][0],"-p",s.ports[0][1],"get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run("client","-p",s.port,"get", "foo", "bar")
+            r = await run("client","-h",s.ports[0][0],"-p",s.ports[0][1],"get", "foo", "bar")
             assert r.stdout == "'baz'\n"
 
             r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
