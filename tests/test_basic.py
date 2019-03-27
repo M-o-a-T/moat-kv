@@ -77,6 +77,8 @@ async def test_01_basic(autojump_clock):
             del r['tock']
             del r['seq']
             assert r == {'nodes': {'test_0': 4}, 'known': {'test_0': ((1, 5),)}, 'missing': {}, 'remote_missing': {}}
+            pass # client end
+        pass # server end
 
 @pytest.mark.trio
 async def test_02_cmd(autojump_clock):
@@ -122,6 +124,8 @@ async def test_02_cmd(autojump_clock):
             del r['tock']
             del r['seq']
             assert r == {'nodes': {'test_0': 4}, 'known': {'test_0': ((1, 5),)}, 'missing': {}, 'remote_missing': {}}
+            pass # client end
+        pass # server end
 
 @pytest.mark.trio
 async def test_03_three(autojump_clock):
@@ -193,4 +197,6 @@ async def test_03_three(autojump_clock):
             del r['tock']
             del r['seq']
             assert r == {'nodes': {'test_0': 1, 'test_1': 2}, 'known': {'test_0': (1,), 'test_1': ((1,3),)}, 'missing': {}, 'remote_missing': {}}
+            pass # client end
+        pass # server end
 

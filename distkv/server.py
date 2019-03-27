@@ -1240,6 +1240,8 @@ class Server:
                 self._ready2.set()
                 async for client in server.accept_connections():
                     await self.spawn(self._connect, client)
+                pass # unwinding create_tcp_server
+            pass # unwinding serf_client (cancelled or error)
 
     async def _connect(self, stream):
         c = ServerClient(server=self, stream=stream)

@@ -46,6 +46,7 @@ async def test_10_many(autojump_clock):
                     assert (await c.request("get_value", path=("foo",i))).value == 420+i
 
         #await trio.sleep(100)
+        pass # server end
 
 @pytest.mark.trio
 @pytest.mark.parametrize("tocky", [-10,-2,-1,0,1,2,10])
@@ -79,6 +80,7 @@ async def test_11_split1(autojump_clock, tocky):
                 await trio.sleep(5)
                 assert (await c.request("get_value", path=("ping",))).value == "pong"
                 await c.request("set_value",path=("foo",i),value=420+i)
+                pass # client end
 
         async with trio.open_nursery() as tg:
             for i in range(1,N):
@@ -101,6 +103,7 @@ async def test_11_split1(autojump_clock, tocky):
         await trio.sleep(20)
         async with st.client(0) as c:
             assert (await c.request("get_value", path=('ping',))).value == "pongpang"
+        pass # server end
 
     # Now make sure that updates are transmitted once
     assert n_two <= N+1

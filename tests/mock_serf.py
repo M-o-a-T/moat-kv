@@ -113,6 +113,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                 logger.info("Runtime: %s", clock.current_time())
                 tg.cancel_scope.cancel()
         logger.info("End")
+        pass # unwinding ex:AsyncExitStack
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
@@ -123,6 +124,7 @@ async def mock_serf_client(master, **cfg):
             yield ms
         finally:
             master.serfs.remove(ms)
+        pass # terminating mock_serf_client nursery
 
 class MockServ:
     def __init__(self, tg, master, **cfg):

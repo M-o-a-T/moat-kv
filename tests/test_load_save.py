@@ -39,10 +39,12 @@ async def test_21_load_save(autojump_clock, tmpdir):
             r = await c.request("set_value", path=("foo","bar"), value="baz", nchain=3)
             r = await c.request("set_value", path=(), value=2345, nchain=3)
             await trio.sleep(1) # allow the writer to write
+            pass # client end
 
         logger.debug("SAVE %s",path)
         await s.save(path)
         logger.debug("SAVED")
+        pass # server end
 
     logger.debug("NEXT")
     for m in msgs:
@@ -145,6 +147,8 @@ async def test_02_cmd(autojump_clock):
             del r['tock']
             del r['seq']
             assert r == {'nodes': {'test_0': 4}, 'known': {'test_0': ((1, 5),)}, 'missing': {}, 'remote_missing': {}}
+            pass # client end
+        pass # server end
 
 @pytest.mark.trio
 async def test_03_three(autojump_clock):
@@ -211,9 +215,12 @@ async def test_03_three(autojump_clock):
                 del r['tock']
                 del r['seq']
                 assert r == {'nodes': {'test_0': 1, 'test_1': 2}, 'known': {'test_0': (1,), 'test_1': ((1,3),)}, 'missing': {}, 'remote_missing': {}}
+                pass # client2 end
 
             r = await ci.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
             del r['tock']
             del r['seq']
             assert r == {'nodes': {'test_0': 1, 'test_1': 2}, 'known': {'test_0': (1,), 'test_1': ((1,3),)}, 'missing': {}, 'remote_missing': {}}
+            pass # client end
+        pass # server end
 
