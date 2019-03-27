@@ -297,10 +297,16 @@ class Client:
                 yield self
             except socket.error as e:
                 raise ServerConnectionError(self.host, self.port) from e
+            else:
+                # This is intentionally not in the error path
+                # cancelling the nursey causes open_client() to
+                # exit without a yield which triggers an async error,
+                # which masks the exception
+                self.tg.cancel_scope.cancel()
             finally:
                 if self._socket is not None:
                     await self._socket.aclose()
                     self._socket = None
-                self.tg.cancel_scope.cancel()
                 self.tg = None
+
 
