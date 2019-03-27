@@ -1247,5 +1247,5 @@ class Server:
         try:
             await c.run()
         finally:
-            await stream.close()
+            await stream.aclose()
 

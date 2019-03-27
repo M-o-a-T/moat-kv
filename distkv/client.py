@@ -299,7 +299,7 @@ class Client:
                 raise ServerConnectionError(self.host, self.port) from e
             finally:
                 if self._socket is not None:
-                    await self._socket.close()
+                    await self._socket.aclose()
                     self._socket = None
                 self.tg.cancel_scope.cancel()
                 self.tg = None
