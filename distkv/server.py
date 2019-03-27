@@ -13,8 +13,7 @@ from range_set import RangeSet
 import io
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue,
-    create_tcp_server
+from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
