@@ -71,7 +71,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             self.splits.remove(s)
 
     async def mock_send_ping(self,old):
-        assert self._tock < tocks
+        assert self._tock < tocks, "Test didn't terminate. Limit:"+str(tocks)
         await old()
 
     async def mock_get_host_port(st, node):
