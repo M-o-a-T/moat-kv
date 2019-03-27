@@ -152,7 +152,7 @@ class _MsgRW():
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            async with trio.CancelScope(shield=True):
+            with trio.CancelScope(shield=True):
                 await self.stream.aclose()
 
 
@@ -218,7 +218,7 @@ class MsgWriter(_MsgRW):
             from .codec import packer
 
     async def __aexit__(self, *tb):
-        async with trio.CancelScope(shield=True):
+        with trio.CancelScope(shield=True):
             if self.buf:
                 await self.stream.write(b''.join(self.buf))
             await super().__aexit__(*tb)

@@ -113,7 +113,7 @@ class ServerClient:
         Process an incoming message.
         """
         seq = msg.seq
-        async with trio.CancelScope() as s:
+        with trio.CancelScope() as s:
             self.tasks[seq] = s
             try:
                 if 'chain' in msg:
@@ -915,13 +915,13 @@ class Server:
         self._recover_event2 = trio.Event()
         logger.info("SplitRecover %s: %s @%d", self.node.name, pos, tock)
 
-        async with trio.CancelScope() as s:
+        with trio.CancelScope() as s:
             self._recover_task = s
 
             try:
                 # Step 1: send an info/ticks message
                 # for pos=0 this fires immediately. That's intentional.
-                async with trio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
+                with trio.move_on_after(clock * (1-1/(1<<pos))/2) as x:
                     await self._recover_event1.wait()
                 if self.sane_ping is None:
                     logger.info("SplitRecover %s: no sane 1", self.node.name)
@@ -941,7 +941,7 @@ class Server:
                 # chance to wait for other info/ticks messages. We can't
                 # trigger on them because there may be more than one, for a
                 # n-way merge.
-                async with trio.move_on_after(clock * (2-1/(1<<pos))/2) as x:
+                with trio.move_on_after(clock * (2-1/(1<<pos))/2) as x:
                     await self._recover_event2.wait()
 
                 if x.cancel_called:
@@ -1107,7 +1107,7 @@ class Server:
     _saver_prev = None
     async def _saver(self, path:str, done, save_state=False):
 
-        async with trio.CancelScope() as s:
+        with trio.CancelScope() as s:
             self._saver_prev = s
             try:
                 await self.save_stream(path=path, done=done, save_state=save_state)

@@ -162,7 +162,7 @@ class Client:
         """
         unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
 
-        async with trio.CancelScope(shield=True) as s:
+        with trio.CancelScope(shield=True) as s:
             task_status.started(s)
             try:
                 while True:
@@ -182,9 +182,9 @@ class Client:
 
             finally:
                 hdl, self._handlers = self._handlers, None
-                async with trio.CancelScope(shield=True):
+                with trio.CancelScope(shield=True):
                     for m in hdl.values():
-                        await m.cancel()
+                        m.cancel()
 
     async def request(self, action, iter=None, seq=None, **params):
         """Send a request. Wait for a reply.
@@ -292,7 +292,7 @@ class Client:
                 self.tg = tg
                 self._socket = sock
                 await self.tg.start(self._reader)
-                async with trio.fail_after(init_timeout):
+                with trio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                 yield self
             except socket.error as e:
