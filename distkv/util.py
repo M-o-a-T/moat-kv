@@ -2,6 +2,12 @@ import trio
 
 import logging
 
+try:
+    from contextlib import asynccontextmanager
+except ImportError:
+    from async_generator import asynccontextmanager
+
+
 def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.
