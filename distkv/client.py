@@ -145,7 +145,9 @@ class Client:
     async def _handle_msg(self, msg):
         try:
             seq = msg.seq
-        except KeyError:
+        except AttributeError:
+            if 'error' in msg:
+                raise RuntimeError("Server error",msg.error)
             raise RuntimeError("Reader got out of sync: " + str(msg))
         try:
             hdl = self._handlers.pop(seq)
