@@ -111,13 +111,14 @@ class ServerClient:
         # TODO test for superuser-ness, if so return True
         return False
 
-    async def process(self, msg, stream=False):
+    async def process(self, msg, stream=False, *, task_status=trio.TASK_STATUS_IGNORED):
         """
         Process an incoming message.
         """
         seq = msg.seq
         with trio.CancelScope() as s:
             self.tasks[seq] = s
+            task_status.started(s)
             try:
                 if 'chain' in msg:
                     msg.chain = NodeEvent.deserialize(msg.chain, nulls_ok=self.nulls_ok)
@@ -369,7 +370,7 @@ class ServerClient:
                             if self.seq >= seq:
                                 raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
                             self.seq = seq
-                            await self.tg.spawn(self.process, msg)
+                            await self.tg.start(self.process, msg)
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             logger.exception("ERR %d: Client error on %s", self._client_nr, repr(msg))
@@ -1148,7 +1149,7 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, setup_done: trio.Event = None, log_stream = None):
+    async def serve(self, log_stream = None, task_status=trio.TASK_STATUS_IGNORED):
         """Task that opens a Serf connection and actually runs the server.
         
         Args:
@@ -1207,9 +1208,6 @@ class Server:
             delay = trio.Event()
             delay2 = trio.Event()
 
-            if setup_done is not None:
-                setup_done.set()
-
             if self.cfg['state'] is not None:
                 await self.spawn(self.save, self.cfg['state'])
 
@@ -1228,6 +1226,8 @@ class Server:
                 self.node.tick = 0
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init)
+
+            task_status.started()
             
             # send initial ping
             await self.spawn(self.pinger, delay2)

@@ -106,8 +106,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             for i in range(n):
                 if kw.get("run_"+str(i), run):
                     r = trio.Event()
-                    tg.start_soon(st.s[i].serve,r)
-                    await r.wait()
+                    await tg.start(st.s[i].serve)
             try:
                 yield st
             finally:

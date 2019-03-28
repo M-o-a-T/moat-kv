@@ -28,15 +28,16 @@ async def test_10_many(autojump_clock):
             await ci.request("set_value", path=("ping",), value="pong")
 
         await trio.sleep(1)
-        async def s1(i):
+        async def s1(i, *, task_status=trio.TASK_STATUS_IGNORED):
             async with st.client(i) as c:
+                task_status.started()
                 assert (await c.request("get_value", path=())).value == 420
                 assert (await c.request("get_value", path=("ping",))).value == "pong"
                 await c.request("set_value",path=("foo",i),value=420+i)
 
         async with trio.open_nursery() as tg:
             for i in range(1,N):
-                await tg.spawn(s1,i)
+                await tg.start(s1,i)
 
         await trio.sleep(1)
         NN=min(N-1,3)
@@ -57,10 +58,11 @@ async def test_11_split1(autojump_clock, tocky):
     n_two = 0
 
     async with stdtest(test_1={'init':420}, n=N, tocks=1000) as st:
-        async def watch():
+        async def watch(*, task_status=trio.TASK_STATUS_IGNORED):
             nonlocal n_two
             async with trio_serf.serf_client() as s:
                 async with s.stream("user:test.update") as sr:
+                    task_status.started()
                     async for r in sr:
                         msg = msgpack.unpackb(r.payload, object_pairs_hook=attrdict, raw=False, use_list=False)
                         if msg.get('value','') == 'two':
@@ -68,14 +70,15 @@ async def test_11_split1(autojump_clock, tocky):
 
                     i.s()
 
-        await st.tg.spawn(watch)
+        await st.tg.start(watch)
         s = st.s[1]
         async with st.client(1) as ci:
             assert (await ci.request("get_value", path=())).value == 420
             await ci.request("set_value", path=("ping",), value="pong")
 
-        async def s1(i):
+        async def s1(i, *, task_status=trio.TASK_STATUS_IGNORED):
             async with st.client(i) as c:
+                task_status.started()
                 assert (await c.request("get_value", path=())).value == 420
                 await trio.sleep(5)
                 assert (await c.request("get_value", path=("ping",))).value == "pong"
@@ -84,7 +87,7 @@ async def test_11_split1(autojump_clock, tocky):
 
         async with trio.open_nursery() as tg:
             for i in range(1,N):
-                await tg.spawn(s1,i)
+                await tg.start(s1,i)
 
         await trio.sleep(30)
         st.split(N//2)

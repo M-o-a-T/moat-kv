@@ -19,10 +19,10 @@ async def test_21_load_save(autojump_clock, tmpdir):
     logger.debug("START")
     msgs = []
     s = None
-    async def watch_changes(c,d):
+    async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
         l = PathLongener(())
         res = await c.request(action="watch", path=(), iter=True, nchain=9, state=True)
-        await d.set()
+        task_status.started()
         async for m in res:
             l(m)
             msgs.append(m)
@@ -31,9 +31,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
         s, = st.s
         async with st.client() as c:
             assert (await c.request("get_value", path=())).value == 234
-            d = trio.Event()
-            await c.tg.spawn(watch_changes,c,d)
-            await d.wait()
+            await c.tg.start(watch_changes,c)
 
             r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
             r = await c.request("set_value", path=("foo","bar"), value="baz", nchain=3)
@@ -70,15 +68,11 @@ async def test_21_load_save(autojump_clock, tmpdir):
         logger.debug("LOAD %s",path)
         await s.load(path, local=True)
         logger.debug("LOADED")
-        r = trio.Event()
-        await st.tg.spawn(st.s[0].serve, r)
-        await r.wait()
+        await st.tg.start(st.s[0].serve)
         logger.debug("RUNNING")
 
         async with st.client() as c:
-            d = trio.Event()
-            await c.tg.spawn(watch_changes,c,d)
-            await d.wait()
+            await c.tg.start(watch_changes,c)
 
             await c.request("set_value", path=("foof",), value="again")
             assert (await c.request("get_value", path=("foo",))).value == 'hello'
