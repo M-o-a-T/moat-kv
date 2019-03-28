@@ -51,7 +51,8 @@ def cmp_n(a,b):
 def _multi_response(fn):
     async def wrapper(self, msg):
         seq = msg.seq
-        await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
+        async with self._send_lock:
+            await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
         try:
             await fn(self, msg)
         except BaseException as exc:
@@ -71,7 +72,8 @@ def _stream(fn):
         while True:
             msg = await q.get()
             if msg.get('state','') == 'end':
-                await self.send({'seq':seq, 'count':n, 'tock':self.server.tock})
+                async with self._send_lock:
+                    await self.send({'seq':seq, 'count':n, 'tock':self.server.tock})
                 del self.inqueue[seq]
                 return
             longer(msg)
@@ -93,6 +95,7 @@ class ServerClient:
         self.tasks = {}
         self.inqueue = {}
         self._chop_path = 0
+        self._send_lock = trio.Lock()
 
         global _client_nr
         _client_nr += 1
@@ -133,7 +136,8 @@ class ServerClient:
             except Exception as exc:
                 if not isinstance(exc, (KeyError,ClientError)):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
-                await self.send({'error': str(exc), 'seq': seq, 'tock':self.server.tock})
+                async with self._send_lock:
+                    await self.send({'error': str(exc), 'seq': seq, 'tock':self.server.tock})
 
             finally:
                 del self.tasks[seq]
@@ -280,7 +284,8 @@ class ServerClient:
         seq = msg.seq
         nchain = msg.get('nchain', 0)
         if nchain:
-            await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
+            async with self._send_lock:
+                await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
         ps = PathShortener(msg.path)
 
         try:
@@ -298,14 +303,16 @@ class ServerClient:
                         r['seq'] = seq
                         del r['new_value']  # always None
                         ps(r)
-                        await self.send(r)
+                        async with self._send_lock:
+                            await self.send(r)
                 res += 1
             for v in entry.values():
                 res += await _del(v)
             return res
         res = await _del(entry)
         if nchain:
-            await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
+            async with self._send_lock:
+                await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
         else:
             return {'changed': res}
 
@@ -329,10 +336,11 @@ class ServerClient:
         logger.debug("OUT%d: %s", self._client_nr, msg)
         return self.stream.send_all(_packer(msg))
 
-    def send_result(self, seq, res):
+    async def send_result(self, seq, res):
         res['seq'] = seq
         res['tock'] = self.server.tock
-        return self.send(res)
+        async with self._send_lock:
+            await self.send(res)
 
     async def run(self):
         """Main loop for this client connection."""
@@ -340,9 +348,10 @@ class ServerClient:
 
         async with trio.open_nursery() as tg:
             self.tg = tg
-            await self.send({'seq': 0, 'version': _version_tuple,
-                'node':self.server.node.name, 'tick':self.server.node.tick,
-                'tock':self.server.tock})
+            async with self._send_lock:
+                await self.send({'seq': 0, 'version': _version_tuple,
+                    'node':self.server.node.name, 'tick':self.server.node.tick,
+                    'tock':self.server.tock})
 
             while True:
                 for msg in unpacker:
@@ -364,7 +373,8 @@ class ServerClient:
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             logger.exception("ERR %d: Client error on %s", self._client_nr, repr(msg))
-                        await self.send({'error': str(exc), 'tock':self.server.tock})
+                        async with self._send_lock:
+                            await self.send({'error': str(exc), 'tock':self.server.tock})
 
                 try:
                     buf = await self.stream.receive_some(4096)
