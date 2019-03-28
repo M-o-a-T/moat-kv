@@ -362,6 +362,9 @@ class Entry:
     def __bool__(self):
         return self._data is not None or len(self._sub) > 0
 
+    def __contains__(self, key):
+        return key in self._sub
+
     @property
     def path(self):
         if self._path is None:
