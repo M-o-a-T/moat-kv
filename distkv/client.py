@@ -56,6 +56,7 @@ class _StreamRequest:
 class StreamReply:
     """
     This class represents a multi-message reply.
+    # TODO tell the sender to not flood the receiver
     """
     send_stop = True
     end_msg = None
@@ -95,6 +96,7 @@ class StreamReply:
         return res.unwrap()
 
     async def cancel(self):
+        # TODO tell the sender to close the stream
         await self.send_q.send(outcome.Error(CancelledError()))
         await self.send_q.aclose()
 
