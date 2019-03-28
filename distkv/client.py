@@ -7,6 +7,7 @@ import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
 from .util import attrdict, Queue, AsyncValueEvent
+from concurrent.futures import CancelledError
 
 import logging
 logger = logging.getLogger(__name__)
@@ -62,22 +63,21 @@ class StreamReply:
     def __init__(self, conn, seq):
         self._conn = conn
         self.seq = seq
-        self.q = Queue(10000)
+        self.send_q, self.recv_q = trio.open_memory_channel(100)
 
     async def set(self, res):
         if 'error' in res:
-            await self.q.put(outcome.Error(ServerError(res.error)))
+            await self.send_q.send(outcome.Error(ServerError(res.error)))
             return
         state = res.get('state', None)
         if state == 'end':
-            await self.q.put(None)
-            self.q = None
             self.end_msg = res
+            await self.send_q.aclose()
             return
         elif state is not None:
             logger.warning("Unknown state: %s", repr(state))
         del res['seq']
-        await self.q.put(outcome.Value(res))
+        await self.send_q.send(outcome.Value(res))
         return self
 
     def __iter__(self):
@@ -88,16 +88,15 @@ class StreamReply:
         return self
 
     async def __anext__(self):
-        if self.q is None:
-            raise StopAsyncIteration
-        res = await self.q.get()
-        if res is None:
+        try:
+            res = await self.recv_q.receive()
+        except trio.EndOfChannel:
             raise StopAsyncIteration
         return res.unwrap()
 
     async def cancel(self):
-        if self.q is not None:
-            await self.q.put(None)
+        await self.send_q.send(outcome.Error(CancelledError()))
+        await self.send_q.aclose()
 
 
 
