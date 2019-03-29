@@ -95,7 +95,7 @@ class StreamReply:
             raise StopAsyncIteration
         return res.unwrap()
 
-    async def cancel(self):
+    async def kill(self):
         # TODO tell the sender to close the stream
         await self.send_q.send(outcome.Error(CancelledError()))
         await self.send_q.aclose()
@@ -129,7 +129,7 @@ class _SingleReply:
     def get(self):
         return self.q.get()
     
-    async def cancel(self):
+    async def kill(self):
         pass
 
 
@@ -187,7 +187,7 @@ class Client:
                 hdl, self._handlers = self._handlers, None
                 with trio.CancelScope(shield=True):
                     for m in hdl.values():
-                        m.cancel()
+                        await m.kill()
 
     async def request(self, action, iter=None, seq=None, **params):
         """Send a request. Wait for a reply.
