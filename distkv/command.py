@@ -179,6 +179,8 @@ async def get(ctx, path, chain, yaml, verbose, recursive, as_dict, maxdepth):
             import yaml
             print(yaml.safe_dump(y))
         return
+    if maxdepth is not None:
+        raise click.UsageError("'maxdepth' only works with 'recursive'")
     res = await obj.client.request(action="get_value", path=path, iter=False, nchain=chain)
     if not verbose:
         res = res.value
