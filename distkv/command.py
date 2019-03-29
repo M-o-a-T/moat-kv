@@ -92,7 +92,6 @@ def gen_auth(s: str):
 @click.pass_context
 async def run(ctx, name, host, port, load, save, init, eval):
     obj = ctx.obj
-    print("Start run.")
     if host is not None:
         obj.cfg.server.host = host
     if port is not None:
@@ -106,10 +105,13 @@ async def run(ctx, name, host, port, load, save, init, eval):
     elif init is not None:
         kw['init'] = init
 
+    class RunMsg:
+        def started(self, x=None):
+            print("Running.")
     s = Server(name, cfg=obj.cfg, **kw)
     if load is not None:
         await s.load(stream=load, local=True)
-    await s.serve(log_stream=save)
+    await s.serve(log_stream=save, task_status=RunMsg())
 
 
 @main.group()
