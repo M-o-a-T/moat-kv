@@ -187,8 +187,12 @@ class SCmd_get_tree(StreamCommand):
         msg = self.msg
         entry = self.client.root.follow(*msg.path, create=False, nulls_ok=self.client.nulls_ok)
 
+        kw = {}
         nchain = msg.get('nchain',0)
         ps = PathShortener(entry.path)
+        maxdepth = msg.get('maxdepth',None)
+        if maxdepth is not None:
+            kw['max_depth'] = maxdepth
 
         async def send_sub(entry):
             if entry.data is None:
@@ -196,7 +200,7 @@ class SCmd_get_tree(StreamCommand):
             res = entry.serialize(chop_path=self.client._chop_path, nchain=nchain)
             ps(res)
             await sender(**res)
-        await entry.walk(send_sub)
+        await entry.walk(send_sub, **kw)
 
 
 class SCmd_watch(StreamCommand):
