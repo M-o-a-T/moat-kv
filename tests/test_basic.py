@@ -7,6 +7,7 @@ from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
+from distkv.util import PathLongener
 
 import logging
 logger = logging.getLogger(__name__)
@@ -34,6 +35,16 @@ async def test_00_runner(autojump_clock):
     await run('--doesnotexist', expect_exit=2)
     #await run('pdb','pdb')  # used for verifying that debugging works
 
+async def collect(i,path=()):
+    res = []
+    pl = PathLongener(path)
+    async for r in i:
+        r.pop('tock',0)
+        r.pop('seq',0)
+        pl(r)
+        res.append(r)
+    return res
+
 @pytest.mark.trio
 async def test_01_basic(autojump_clock):
     async with stdtest(args={'init':123}) as st:
@@ -48,6 +59,25 @@ async def test_01_basic(autojump_clock):
 
             r = await c.request("get_value", path=("foo",))
             assert r.value == "hello"
+
+            exp = [
+                {'path': (), 'value': 123},
+                {'path': ('foo',), 'value': 'hello'},
+                {'path': ('foo','bar'), 'value': 'baz'},
+            ]
+            r = await c.request("get_tree", path=(), iter=True, maxdepth=2)
+            r = await collect(r)
+            assert r == exp
+
+            exp.pop()
+            r = await c.request("get_tree", path=(), iter=True, maxdepth=1)
+            r = await collect(r)
+            assert r == exp
+
+            exp.pop()
+            r = await c.request("get_tree", path=(), iter=True, maxdepth=0)
+            r = await collect(r)
+            assert r == exp
 
             r = await c.request("get_value", path=("foo","bar"))
             assert r.value == "baz"
