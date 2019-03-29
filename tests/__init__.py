@@ -21,7 +21,10 @@ def load_cfg(cfg):
 
     from logging.config import dictConfig
     cfg['disable_existing_loggers'] = False
-    dictConfig(cfg)
+    try:
+        dictConfig(cfg)
+    except ValueError:
+        pass
     logging.captureWarnings(True)
     logger.debug("Test %s","starting up")
     return cfg
