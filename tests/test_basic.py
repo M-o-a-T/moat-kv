@@ -41,12 +41,12 @@ async def test_01_basic(autojump_clock):
         async with st.client() as c:
             assert (await c.request("get_value", path=())).value == 123
 
-            r = await c.request("set_value", path=("foo"), value="hello", nchain=3)
+            r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
             r = await c.request("set_value", path=("foo","bar"), value="baz", nchain=3)
             r = await c.request("get_value", path=())
             assert r.value == 123
 
-            r = await c.request("get_value", path=("foo"))
+            r = await c.request("get_value", path=("foo",))
             assert r.value == "hello"
 
             r = await c.request("get_value", path=("foo","bar"))
@@ -54,7 +54,8 @@ async def test_01_basic(autojump_clock):
 
             r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
             del r['tock']
-            assert r == {'nodes': {'test_0': 3}, 'known': {'test_0': ((1, 4),)}, 'missing': {}, 'remote_missing': {}, 'seq': 7}
+            del r['seq']
+            assert r == {'nodes': {'test_0': 3}, 'known': {'test_0': ((1, 4),)}, 'missing': {}, 'remote_missing': {}}
 
             assert (await c.request("get_value", node="test_0", tick=1)).value == 123
             assert (await c.request("get_value", node="test_0", tick=2)).value == "hello"
