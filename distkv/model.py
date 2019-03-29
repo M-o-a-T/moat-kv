@@ -491,11 +491,14 @@ class Entry:
             c = c.prev
         await self.updated(evt)
 
-    async def walk(self, proc):
+    async def walk(self, proc, max_depth=-1):
         """Call ``proc`` on this node and all its children)."""
         await proc(self)
+        if not max_depth:
+            return
+        max_depth -= 1
         for v in list(self._sub.values()):
-            await v.walk(proc)
+            await v.walk(proc, max_depth=max_depth)
 
     def serialize(self, chop_path=0, nchain=2):
         """Serialize this entry for msgpack.
