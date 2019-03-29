@@ -55,6 +55,29 @@ async def pdb(args):
         return
     return await main.main(args)
 
+def gen_auth(s: str):
+    """
+    Generate auth data from parameters or YAML file (if first char is '=').
+    """
+    from distkv.auth import loader
+    m,*p = s.split()
+    if len(p) == 0 and m[0] == '=':
+        with io.open(m[1:],"r") as f:
+            kw = yaml.safe_load(f)
+            m = kw.pop('type')
+    else:
+        kw = {}
+        for pp in p:
+            k,v = pp.split('=',1)
+            try:
+                v = int(v)
+            except ValueError:
+                pass
+            kw[k] = v
+    m = loader(m, "client")
+    return m.build(**kw)
+
+
 @main.command()
 @click.option("-h","--host", default=None, help="Address to bind to. Default: %s" % (CFG.server.host))
 @click.option("-p","--port", type=int, default=None, help="Port to bind to. Default: %d" % (CFG.server.port,))
@@ -89,14 +112,20 @@ async def run(ctx, name, host, port, load, save, init, eval):
 @main.group()
 @click.option("-h","--host", default=None, help="Host to use. Default: %s" % (CFG.server.host,))
 @click.option("-p","--port", type=int, default=None, help="Port to use. Default: %d" % (CFG.server.port,))
+@click.option("-a","--auth", type=str, default=None, help="Auth params. =file or 'type param=value…' Default: _anon")
 @click.pass_context
-async def client(ctx,host,port):
+async def client(ctx,host,port,auth):
     obj = ctx.obj
     if host is None:
         host = obj.cfg.server.host
     if port is None:
         port = obj.cfg.server.port
-    obj.client = await ctx.enter_async_context(open_client(host, port))
+
+    kw = {}
+    if auth is not None:
+        kw['auth'] = gen_auth(auth)
+
+    obj.client = await ctx.enter_async_context(open_client(host, port, **kw))
     logger.debug("Connected.")
 
 
@@ -242,4 +271,18 @@ async def update(ctx, path, infile, loca, force):
                 await sender(r)
 
     print(sender.result)
+
+
+@client.group()
+#@click.option("-t", "--type", type=str, help="Auth method. No default!")
+@click.argument("type", nargs=1)
+@click.pass_context
+async def auth(ctx, type):
+    """Manage authorization"""
+    pass
+
+@auth.command()
+async def list():
+    print("ListAuth")
+
 

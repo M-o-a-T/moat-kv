@@ -11,9 +11,11 @@ from random import Random
 import time
 from range_set import RangeSet
 import io
+from functools import partial
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server
+from .auth import BaseServerUser, loader
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -49,16 +51,11 @@ def cmp_n(a,b):
     return b-a
 
 def _multi_response(fn):
-    async def wrapper(self, msg):
+    async def wrapper(self, msg, *args):
         seq = msg.seq
-        async with self._send_lock:
-            await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
-        try:
-            await fn(self, msg)
-        except BaseException as exc:
-            raise # handled in the caller
-        else:
-            await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
+        await self.send({'seq':seq, 'state':'start'})
+        await fn(self, msg, *args)
+        await self.send({'seq':seq, 'state':'end'})
     return wrapper
 
 def _stream(fn):
@@ -70,11 +67,10 @@ def _stream(fn):
         longer = PathLongener(path) if path is not None else lambda x:x
         n=0
         while True:
-            msg = await q.get()
+            msg = await q.receive()
             if msg.get('state','') == 'end':
-                async with self._send_lock:
-                    await self.send({'seq':seq, 'count':n, 'tock':self.server.tock})
                 del self.inqueue[seq]
+                await self.send({'seq':seq, 'count':n})
                 return
             longer(msg)
             res = await fn(self, msg)
@@ -82,10 +78,162 @@ def _stream(fn):
                 n += res
     return wrapper
 
+
+class StreamCommand:
+    """Represent the execution of a streamed command.
+
+    Implement the actual command by overriding ``run``.
+    Read the next input line by reading ``in_recv_q``.
+    
+    This auto-detects whether the command sends multiple lines, by closing
+    the incoming channel if there's no state=start in the command.
+
+    Selection of outgoing multiline-or-not must be done beforehand,
+    by setting ``.multiline``: either statically in a subclass, or
+    overriding ``__call__``.
+    """
+    multiline = False
+    send_q = None
+    _scope = None
+    
+    def __new__(cls, client, msg):
+        if cls is StreamCommand:
+            seq = msg.seq
+            cls = globals()["SCmd_"+msg.action]
+            return cls(client, msg)
+        else:
+            return object.__new__(cls)
+
+    def __init__(self, client, msg):
+        self.client = client
+        self.msg = msg
+        self.seq = msg.seq
+        self.in_send_q,self.in_recv_q = trio.open_memory_channel(3)
+
+    async def send(self, value):
+        await self.client.send({'seq':self.seq, 'value':value})
+
+    async def recv(self, msg):
+        """Receive another message from the client"""
+        s = msg.get('state','')
+        if s == 'end':
+            await self.in_send_q.aclose()
+        else:
+            await self.in_send_q.send()
+
+    async def aclose(self):
+        await self.in_send_q.aclose()
+
+    async def __call__(self, **kw):
+        msg = self.msg
+        if msg.get('state') != 'start':
+            # single message
+            await self.in_send_q.aclose()
+
+        if self.multiline:
+            await self.client.send({'seq':self.seq, 'state':'start'})
+            try:
+                async def sender(**msg):
+                    msg['seq'] = self.seq
+                    await self.client.send(msg)
+                await self.run(sender=sender, **kw)
+            finally:
+                await self.client.send({'seq':self.seq, 'state':'end'})
+
+        else:
+            res = run(**kw)
+            if res is None:
+                res = {}
+            res['seq'] = self.seq
+            await self.client.send(res)
+
+    async def run(self):
+        raise RuntimeError("Do implement me!")
+
+
+class SCmd_auth(StreamCommand):
+    multiline = True
+
+    async def run(self):
+        """
+        User authorization.
+        """
+
+        if self._user is not None:
+            await self._user.auth_sub(msg)
+            return
+
+        root = msg.get('root',None)
+        
+        if root is not None:
+            if self._chroot:
+                raise RuntimeError("You can't auth in a chroot env")
+            self._chroot(root)
+
+        data = self.server.root.follow(None,"auth",msg.typ, create=False)
+        cls = loader(msg.typ,"user",server=True)
+        user = cls.read(data, name=msg.name)
+        self._user = user
+        try:
+            await user.auth(self, msg)
+            self.user = user
+        finally:
+            self._user = None
+
+
+class SCmd_get_tree(StreamCommand):
+    multiline = True
+    async def run(self, sender):
+        msg = self.msg
+        entry = self.client.root.follow(*msg.path, create=False, nulls_ok=self.client.nulls_ok)
+
+        nchain = msg.get('nchain',0)
+        ps = PathShortener(entry.path)
+
+        async def send_sub(entry):
+            if entry.data is None:
+                return
+            res = entry.serialize(chop_path=self.client._chop_path, nchain=nchain)
+            ps(res)
+            await sender(**res)
+        await entry.walk(send_sub)
+
+
+class SCmd_watch(StreamCommand):
+    """Monitor a subtree for changes.
+    If ``state`` is set, dump the initial state before reporting them.
+    """
+    multiline = True
+    async def run(self, sender):
+        msg = self.msg
+        client = self.client
+        entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
+        seq = msg.seq
+        nchain = msg.get('nchain',None)
+        if nchain is None:
+            nchain = client.cfg['change']['length'] if create else 0
+
+        async with Watcher(entry) as watcher:
+            shorter = PathShortener(entry.path)
+            if msg.get('state', False):
+                async def worker(entry):
+                    res = entry.serialize(nchain=nchain)
+                    shorter(res)
+                    await sender(**res)
+                await entry.walk(worker)
+
+            async for msg in watcher:
+                res = msg.entry.serialize(chop_path=client._chop_path, nchain=nchain)
+                shorter(res)
+                await sender(**res)
+
+
 class ServerClient:
     """Represent one (non-server) client."""
     _nursery = None
     _chroot = False
+    _user = None # user during auth
+    user = None # authorized user
 
     def __init__(self, server: Server, stream: Stream):
         self.server = server
@@ -93,7 +241,7 @@ class ServerClient:
         self.stream = stream
         self.seq = 0
         self.tasks = {}
-        self.inqueue = {}
+        self.in_stream = {}
         self._chop_path = 0
         self._send_lock = trio.Lock()
 
@@ -111,25 +259,37 @@ class ServerClient:
         # TODO test for superuser-ness, if so return True
         return False
 
-    async def process(self, msg, stream=False, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def _process(self, fn, msg):
+        res = await fn(msg)
+        if res is None:
+            res = {}
+        res['seq'] = msg.seq
+        await self.send(res)
+
+    async def process(self, msg, *, task_status=trio.TASK_STATUS_IGNORED):
         """
         Process an incoming message.
         """
+        if (self.user is None or self._user is not None) and msg.action != "auth":
+            raise RuntimeError("You are not authorized")
+
         seq = msg.seq
         with trio.CancelScope() as s:
             self.tasks[seq] = s
-            task_status.started(s)
-            try:
-                if 'chain' in msg:
-                    msg.chain = NodeEvent.deserialize(msg.chain, nulls_ok=self.nulls_ok)
+            if 'chain' in msg:
+                msg.chain = NodeEvent.deserialize(msg.chain, nulls_ok=self.nulls_ok)
 
-                try:
-                    fn = getattr(self, ('scmd_' if stream else 'cmd_') + str(msg.action))
-                except AttributeError:
-                    raise ClientError("Command not recognized: " + repr(msg.action))
-                else:
-                    res = await fn(msg)
-                    if res is not None: await self.send_result(seq, res)
+            if msg.get('state','') != 'start':
+                fn = getattr(self, 'cmd_' + str(msg.action), None)
+            if fn is None:
+                fn = StreamCommand(self, msg)
+                self.in_stream[seq] = fn
+            else:
+                fn = partial(self._process, fn, msg)
+            task_status.started(s)
+
+            try:
+                res = await fn()
 
             except BrokenPipeError as exc:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
@@ -137,19 +297,23 @@ class ServerClient:
             except Exception as exc:
                 if not isinstance(exc, (KeyError,ClientError)):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
-                async with self._send_lock:
-                    await self.send({'error': str(exc), 'seq': seq, 'tock':self.server.tock})
+                await self.send({'error': str(exc), 'seq': seq})
 
             finally:
                 del self.tasks[seq]
-        
+                if isinstance(fn, StreamCommand):
+                    del self.in_stream[seq]
+
+    def _chroot(self, root):
+        entry = self.root.follow(*root, nulls_ok=False)
+        self.root = entry
+        self._chroot = True
+        self._chop_path += len(root)
+
     async def cmd_root(self, msg):
         """Change to a sub-tree.
         """
-        entry = self.root.follow(*msg.path, nulls_ok=False)
-        self.root = entry
-        self._chroot = True
-        self._chop_path += len(msg.path)
+        self._chroot(msg.path)
         return entry.serialize(chop_path=self._chop_path)
 
     async def cmd_get_value(self, msg):
@@ -198,7 +362,7 @@ class ServerClient:
         return res
 
     @_stream
-    async def scmd_update(self, msg):
+    async def scmd_update(self, msg, q):
         """
         Apply a stored update.
 
@@ -229,54 +393,9 @@ class ServerClient:
         msg.value = None
         return await self.cmd_set_value(msg)
 
-    @_multi_response
-    async def cmd_get_tree(self, msg):
-        try:
-            entry = self.root.follow(*msg.path, create=False, nulls_ok=self.nulls_ok)
-        except KeyError:
-            await self.send_result(seq, {'value':None})
-            return
-
-        seq = msg.seq
-        nchain = msg.get('nchain',0)
-        shorter = PathShortener(entry.path)
-
-        async def sender(entry):
-            if entry.data is None:
-                return
-            res = entry.serialize(chop_path=self._chop_path, nchain=nchain)
-            await self.send_result(seq, res)
-        await entry.walk(sender)
-
     def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
         return self.server.get_state(**msg)
-
-    @_multi_response
-    async def cmd_watch(self, msg):
-        """Monitor a subtree for changes.
-        If ``state`` is set, dump the initial state before reporting them.
-        """
-        entry = self.root.follow(*msg.path, create=True, nulls_ok=self.nulls_ok)
-        seq = msg.seq
-        nchain = msg.get('nchain',None)
-        if nchain is None:
-            nchain = self.cfg['change']['length'] if create else 0
-
-        async with Watcher(entry) as watcher:
-            shorter = PathShortener(entry.path)
-            if msg.get('state', False):
-                async def sender(entry):
-                    res = entry.serialize(nchain=nchain)
-                    shorter(res)
-                    await self.send_result(seq, res)
-                await entry.walk(sender)
-
-            async for msg in watcher:
-                res = msg.entry.serialize(chop_path=self._chop_path, nchain=nchain)
-                shorter(res)
-                await self.send_result(seq, res)
-
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
@@ -285,8 +404,7 @@ class ServerClient:
         seq = msg.seq
         nchain = msg.get('nchain', 0)
         if nchain:
-            async with self._send_lock:
-                await self.send({'seq':seq, 'state':'start', 'tock':self.server.tock})
+            await self.send({'seq':seq, 'state':'start'})
         ps = PathShortener(msg.path)
 
         try:
@@ -304,16 +422,14 @@ class ServerClient:
                         r['seq'] = seq
                         del r['new_value']  # always None
                         ps(r)
-                        async with self._send_lock:
-                            await self.send(r)
+                        await self.send(r)
                 res += 1
             for v in entry.values():
                 res += await _del(v)
             return res
         res = await _del(entry)
         if nchain:
-            async with self._send_lock:
-                await self.send({'seq':seq, 'state':'end', 'tock':self.server.tock})
+            await self.send({'seq':seq, 'state':'end'})
         else:
             return {'changed': res}
 
@@ -330,18 +446,30 @@ class ServerClient:
             t = self.tasks[msg.task]
         except KeyError:
             return False
+        import pdb;pdb.set_trace()
         t.cancel()
         return True
 
-    def send(self, msg):
+    async def send(self, msg):
         logger.debug("OUT%d: %s", self._client_nr, msg)
-        return self.stream.send_all(_packer(msg))
+        if self._send_lock is None:
+            return
+        async with self._send_lock:
+            if self._send_lock is None:
+                return
+
+            msg['tock'] = self.server.tock
+            try:
+                await self.stream.send_all(_packer(msg))
+            except trio.BrokenResourceError:
+                logger.error("Trying to send %r",msg)
+                self._send_lock = None
+                raise
 
     async def send_result(self, seq, res):
         res['seq'] = seq
         res['tock'] = self.server.tock
-        async with self._send_lock:
-            await self.send(res)
+        await self.send(res)
 
     async def run(self):
         """Main loop for this client connection."""
@@ -349,23 +477,26 @@ class ServerClient:
 
         async with trio.open_nursery() as tg:
             self.tg = tg
-            async with self._send_lock:
-                await self.send({'seq': 0, 'version': _version_tuple,
+            msg = {'seq': 0, 'version': _version_tuple,
                     'node':self.server.node.name, 'tick':self.server.node.tick,
-                    'tock':self.server.tock})
+                    'tock':self.server.tock}
+            try:
+                auth = self.root.follow(None,"auth", nulls_ok=True, create=False)
+            except KeyError:
+                self.user = BaseServerUser()
+            else:
+                msg['auth'] = tuple(auth.keys())
+            await self.send(msg)
 
             while True:
                 for msg in unpacker:
+                    seq = None
                     try:
                         logger.debug("IN %d: %s", self._client_nr, msg)
                         seq = msg.seq
-                        q = self.inqueue.get(seq, None)
-                        if q is not None:
-                            await q.put(msg)
-                        elif msg.get('state','') == 'start':
-                            q = Queue(100)
-                            self.inqueue[seq] = q
-                            await self.tg.spawn(self.process, q, True)
+                        send_q = self.in_stream.get(seq, None)
+                        if send_q is not None:
+                            await send_q.recv(msg)
                         else:
                             if self.seq >= seq:
                                 raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
@@ -374,8 +505,10 @@ class ServerClient:
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             logger.exception("ERR %d: Client error on %s", self._client_nr, repr(msg))
-                        async with self._send_lock:
-                            await self.send({'error': str(exc), 'tock':self.server.tock})
+                        msg = {'error': str(exc)}
+                        if seq is not None:
+                            msg['seq'] = seq
+                        await self.send(msg)
 
                 try:
                     buf = await self.stream.receive_some(4096)
@@ -467,15 +600,6 @@ class Server:
                     continue
                 p = msg.serialize(nchain=self.cfg['change']['length'])
                 await self._send_event('update', p)
-
-    async def _process(self, msg):
-        """Dispatch an incoming message to ``cmd_*`` methods"""
-        try:
-            fn = getattr(self, 'cmd_' + str(msg.action))
-        except AttributeError:
-            raise ClientError("Command not recognized: " + repr(msg.action))
-        else:
-            return await fn(msg)
 
     async def get_state(self, nodes=False, known=False, missing=False,
             remote_missing=False, **kw):
@@ -1256,6 +1380,14 @@ class Server:
         c = ServerClient(server=self, stream=stream)
         try:
             await c.run()
+        except BaseException as exc:
+            logger.exception("Client connection killed")
+            try:
+                with trio.move_on_after(2) as cs:
+                    cs.shield = True
+                    await self.send({'error': str(exc)})
+            except Exception:
+                pass
         finally:
             await stream.aclose()
 

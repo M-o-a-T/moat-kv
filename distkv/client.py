@@ -7,6 +7,7 @@ import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
 from .util import attrdict, Queue, AsyncValueEvent
+from .exceptions import ClientAuthMethodError, ClientAuthRequiredError
 from concurrent.futures import CancelledError
 
 import logging
@@ -32,10 +33,10 @@ class ServerConnectionError(ServerError):
     pass
 
 @asynccontextmanager
-async def open_client(host, port, init_timeout=5):
+async def open_client(host, port, init_timeout=5, auth=None):
     client = Client(host, port)
     async with trio.open_nursery() as tg:
-        async with client._connected(tg, init_timeout=init_timeout) as client:
+        async with client._connected(tg, init_timeout=init_timeout, auth=auth) as client:
             yield client
 
 class _StreamRequest:
@@ -152,7 +153,7 @@ class Client:
         try:
             hdl = self._handlers.pop(seq)
         except KeyError:
-            logger.warn("Spurious message %s: %s", seq, msg)
+            logger.warning("Spurious message %s: %s", seq, msg)
             return
 
         res = await hdl.set(msg)
@@ -278,9 +279,22 @@ class Client:
         else:
             res.result = await self.request("end", seq=seq, iter=iter)
 
+    async def _run_auth(self, auth=None):
+        hello = self._server_init
+        sa = hello.get('auth', ())
+        if not sa:
+            # no auth required
+            if auth:
+                logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
+            return
+        if not auth:
+            raise ClientAuthRequiredError("You need to log in using:", sa)
+        if auth._auth_method not in sa:
+            raise ClientAuthMethodError("You cannot use %s" % (auth._auth_method), sa)
+        await auth(self)
 
     @asynccontextmanager
-    async def _connected(self, tg, init_timeout=5):
+    async def _connected(self, tg, init_timeout=5, auth=None):
         """
         This async context manager handles the actual TCP connection to
         the DistKV server.
@@ -297,6 +311,7 @@ class Client:
                 await self.tg.start(self._reader)
                 with trio.fail_after(init_timeout):
                     self._server_init = await hello.get()
+                    await self._run_auth(auth)
                 yield self
             except socket.error as e:
                 raise ServerConnectionError(self.host, self.port) from e
