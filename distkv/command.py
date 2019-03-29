@@ -22,6 +22,9 @@ _NotGiven = _NotGiven()
 def cmd():
     try:
         main(standalone_mode=False)
+    except click.exceptions.Abort:
+        print("Aborted.", file=sys.stderr)
+        pass
     except BaseException as exc:
         raise
         print(exc)
