@@ -103,10 +103,23 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                 ex.enter_context(mock.patch.object(s, "_send_ping", new=partial(mock_send_ping,s,s._send_ping)))
                 ex.enter_context(mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port,st)))
                 st.s.append(s)
+
+            class IsStarted:
+                def __init__(self,n):
+                    self.n = n
+                    self.dly = trio.Event()
+                def started(self, x=None):
+                    self.n -= 1
+                    if not self.n:
+                        self.dly.set()
+            is_started = IsStarted(n)
             for i in range(n):
                 if kw.get("run_"+str(i), run):
                     r = trio.Event()
-                    await tg.start(st.s[i].serve)
+                    tg.start_soon(partial(st.s[i].serve, task_status=is_started))
+                else:
+                    is_started.started() # mock me
+            await is_started.dly.wait()
             try:
                 yield st
             finally:

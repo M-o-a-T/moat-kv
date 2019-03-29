@@ -1351,8 +1351,6 @@ class Server:
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init)
 
-            task_status.started()
-            
             # send initial ping
             await self.spawn(self.pinger, delay2)
             await delay2.wait()
@@ -1369,6 +1367,8 @@ class Server:
                 del cfg_s['port']
             async with create_tcp_server(**cfg_s) as server:
                 self.ports = server.ports
+                task_status.started(server)
+            
                 logger.debug("S %s: opened %s", self.node.name, self.ports)
                 self._ready2.set()
                 async for client in server:
@@ -1381,7 +1381,9 @@ class Server:
         try:
             await c.run()
         except BaseException as exc:
-            logger.exception("Client connection killed")
+            exc = exc.filter(trio.Cancelled)
+            if exc:
+                logger.exception("Client connection killed", exc=exc)
             try:
                 with trio.move_on_after(2) as cs:
                     cs.shield = True
