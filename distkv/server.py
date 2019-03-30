@@ -242,13 +242,13 @@ class SCmd_watch(StreamCommand):
                 async def worker(entry):
                     res = entry.serialize(nchain=nchain)
                     shorter(res)
-                    await sender(**res)
+                    await self.send(**res)
                 await entry.walk(worker)
 
             async for msg in watcher:
                 res = msg.entry.serialize(chop_path=client._chop_path, nchain=nchain)
                 shorter(res)
-                await sender(**res)
+                await self.send(**res)
 
 
 class ServerClient:
