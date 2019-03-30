@@ -90,10 +90,7 @@ else
     # Actual tests
     pip install -Ur ci/test-requirements.txt
 
-    mkdir empty
-    cd empty
-
-    pytest -W error -ra -v --pyargs distkv --cov=distkv --cov-config=../.coveragerc --verbose
+    pytest -W error -ra -v --pyargs tests --cov=distkv --cov-config=.coveragerc --verbose ../tests
 
     bash <(curl -s https://codecov.io/bash)
 fi
