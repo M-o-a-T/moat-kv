@@ -475,7 +475,6 @@ class ServerClient:
             t = self.tasks[msg.task]
         except KeyError:
             return False
-        import pdb;pdb.set_trace()
         t.cancel()
         return True
 
