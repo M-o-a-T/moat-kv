@@ -4,10 +4,11 @@ import sys
 import trio_click as click
 from pprint import pprint
 
-from .util import attrdict, combine_dict, PathLongener
+from .util import attrdict, combine_dict, PathLongener, acount
 from .client import open_client, StreamReply
 from .default import CFG, PORT
 from .server import Server
+from .auth import loader
 from .model import Entry
 from .exceptions import ClientError
 
@@ -168,14 +169,21 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             if yaml:
                 if as_dict is not None:
                     yy = y
-                    for p in r.path:
+                    for p in r.pop('path'):
                         yy = yy.setdefault(p,{})
-                        yy[as_dict] = r.value
-                else:
-                    yr = {'path': r.path, 'value': r.value}
                     if 'chain' in r:
-                        yr['chain'] = r.chain
-                    y.append(yr)
+                        yy['chain'] = r.chain
+                    yy[as_dict] = r.pop('value')
+                    if verbose:
+                        yy.update(r)
+                else:
+                    if verbose:
+                        y.append(r)
+                    else:
+                        yr = {'path': r.path, 'value': r.value}
+                        if 'chain' in r:
+                            yr['chain'] = r.chain
+                        y.append(yr)
             else:
                 if verbose:
                     pprint(r)
@@ -288,15 +296,140 @@ async def update(obj, path, infile, loca, force):
 
 
 @client.group()
-#@click.option("-t", "--type", type=str, help="Auth method. No default!")
-@click.argument("type", nargs=1)
-@click.pass_context
-async def auth(ctx, type):
-    """Manage authorization"""
-    pass
+@click.option('-m',"--method", default=None, help="Affect this auth method")
+@click.pass_obj
+async def auth(obj, method):
+    """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
+    a = await obj.client.request(action="get_value", path=(None,'auth'))
+    a = a.value
+    if a is not None:
+        a = a['current']
+    obj.auth_current = a
+    obj.auth = method or a or (await one_auth(obj))
+
+
+async def enum_auth(obj):
+    """List all configured auth types."""
+    if obj.get('auth',None) is not None:
+        yield obj.auth
+        return
+    res = await obj.client.request(action="get_tree", path=(None,'auth'), iter=True, nchain=0, mindepth=1,maxdepth=1)
+    async for r in res:
+        yield r.path[-1]
+
+
+async def one_auth(obj):
+    """Return the current auth method (from the command line or as used by the server)."""
+    if obj.get('auth',None) is not None:
+        return obj.auth
+    auth = None
+    async for a in enum_auth(obj):
+        if auth is not None:
+            raise click.UsageError("You need to set the auth method")
+        auth = a
+    if auth is None:
+        raise click.UsageError("You need to set the auth method")
+    return auth
+            
+
+async def enum_typ(obj, kind='user', ident=None):
+    """List all known auth entries of a kind."""
+    async for auth in enum_auth(obj):
+        if ident is not None:
+            res = await obj.client.request(action="get_value", path=(None,'auth',auth,kind,ident), iter=False)
+            yield res
+        else:
+            res = await obj.client.request(action="get_tree", path=(None,'auth',auth,kind), iter=True, maxdepth=1,mindepth=1)
+            async for r in res:
+                yield r
+
 
 @auth.command()
-async def list():
-    print("ListAuth")
+@click.pass_obj
+async def list(obj):
+    """List known auth methods"""
+    async for auth in enum_auth(obj):
+        print(auth)
+
+
+@auth.command()
+@click.option("-s","--switch",is_flag=True,help="Switch to a different auth method")
+@click.pass_obj
+async def init(obj,switch):
+    """Setup authorization"""
+    if obj.auth_current is not None and not switch:
+        raise click.UsageError("Authentication is already set up")
+
+    await obj.client.request(action="set_auth_typ", typ=obj.auth)
+    if obj.debug >= 0:
+        if obj.auth:
+            print("Authorization switched to",obj.auth)
+        else:
+            print("Authorization turned off.")
+
+
+@auth.group()
+@click.pass_obj
+async def user(obj):
+    """Manage users."""
+    pass
+
+@user.command()
+@click.pass_obj
+async def list(obj):
+    """List all users."""
+    async for r in enum_typ(obj):
+        print(r)
+
+@user.command()
+@click.argument("ident", nargs=1)
+@click.pass_obj
+async def get(obj, ident):
+    """Retrieve a user."""
+    l = loader(await one_auth(obj),'user', make=True, server=False)
+    async for u in enum_typ(obj, ident=ident):
+        u = await l.load(obj.client,u)
+        print(u.export())
+
+
+@user.command()
+@click.argument("args", nargs=-1)
+@click.pass_obj
+async def add(obj, args):
+    """Add a user."""
+    await add_mod_user(obj, args, None)
+
+@user.command()
+@click.argument("ident", nargs=1)
+@click.argument("args", nargs=-1)
+@click.pass_obj
+async def mod(obj, ident, args):
+    """Change a user."""
+    await add_mod_user(obj, args, ident)
+
+async def add_mod_user(obj, args, modify):
+    auth = await one_auth(obj)
+    u = loader(auth,'user', make=True, server=False)
+    chain=None
+    if modify:
+        res = await obj.client.request(action="get_value", path=(None,'auth',auth,'user',modify), chain=2)
+        chain=res.chain
+        ou = await u.load(res.value)
+        kw = await ou.export()
+    else:
+        kw = {}
+    for a in args:
+        if '=' in a:
+            k,v = a.split('=',1)
+            try:
+                v = int(v)
+            except ValueError:
+                pass
+            kw[k] = v
+    u = u.build(kw)
+    if modify is not None and u.ident != modify:
+        chain = None  # new user
+    res = await obj.client.request(action="set_value", path=(None,'auth',auth,'user',u.ident), value=await u.save(obj.client), chain=chain)
+    print("Added" if chain is None else "Modified" ,u.ident)
 
 

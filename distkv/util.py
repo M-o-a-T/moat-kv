@@ -62,6 +62,18 @@ from yaml.representer import SafeRepresenter
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
+def count(iter):
+    n = 0
+    for _ in iter:
+        n += 1
+    return n
+
+async def acount(iter):
+    n = 0
+    async for _ in iter:
+        n += 1
+    return n
+
 class PathShortener:
     """This class shortens path entries so that the initial components that
     are equal to the last-used path (or the original base) are skipped.
@@ -320,3 +332,5 @@ class AsyncValueEvent(ValueEvent):
     """A ValueEvent with an async `set` method"""
     async def set(self, value):
         super().set(value)
+    async def kill(self):
+        self.cancel()

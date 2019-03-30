@@ -117,6 +117,26 @@ to have received after connecting. The server's first message will contain
 ``seq=0``, its ``node`` name, a ``version`` (as a list of integers), and
 possibly its current ``tick`` and ``tock`` sequence numbers.
 
+The ``auth`` parameter, if present, carries a list of configured
+authorization methods. The first method in the list **should** be used to
+authorize the client. If the list's first entry is ``None`` then
+authorization is not required. Other entries **may** be used for
+testing after a client is logged in.
+
+auth
+----
+
+Tell the server about your identity. This method **must** be sent first if
+the server requests authorization.
+
+The ``identity`` parameter tells the server which user ID (or equivalent)
+to use for logging in. ``typ`` contains the auth type to use; this
+**must** be identical to the first entry in the ``connect`` reply's
+``auth`` parameter.
+
+If this is not the first message, the authorization is verified but the
+resulting user identity is ignored.
+
 stop
 ----
 

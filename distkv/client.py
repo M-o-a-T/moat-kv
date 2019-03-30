@@ -282,14 +282,14 @@ class Client:
     async def _run_auth(self, auth=None):
         hello = self._server_init
         sa = hello.get('auth', ())
-        if not sa:
+        if not sa or not sa[0]:
             # no auth required
             if auth:
                 logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
             return
         if not auth:
-            raise ClientAuthRequiredError("You need to log in using:", sa)
-        if auth._auth_method not in sa:
+            raise ClientAuthRequiredError("You need to log in using:", sa[0])
+        if auth._auth_method != sa[0]:
             raise ClientAuthMethodError("You cannot use %s" % (auth._auth_method), sa)
         await auth(self)
 

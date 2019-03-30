@@ -46,7 +46,7 @@ The server process is:
 * modify a user:
 
   * the server calls :meth:`BaseServerUser.read` with the stored data,
-    then sends a record created with :meth:`BaseServerUser.export` to the client.
+    then sends a record created with :meth:`BaseServerUser.save` to the client.
 
 * verify a user:
 
@@ -60,16 +60,17 @@ import jsonschema
 from importlib import import_module
 
 
-NullSchema = { "type": "null" }
+NullSchema = { "type": "object", "additionalProperties":False }
 
 def loader(method:str, *a,**k):
     m = method
     if m[0] == '_':
         m= 'distkv.auth.'+m[1:]
-    obj = import_module(m).load(*a,**k)
-    obj._auth_method = method
+    cls = import_module(m).load(*a,**k)
+    cls._auth_method = method
+    return cls
 
-def load(typ:str, make:bool, server:bool):
+def load(typ:str, *, make:bool=False, server:bool):
     """
     This procedure is used to load and return a user management class.
 
@@ -134,12 +135,27 @@ class BaseClientUser:
         """Some user identifier.
         Required so that the server can actually find the record.
         """
-        return "anon"
+        return "*"
+
+    def export(self) -> dict:
+        """
+        Return additional key-value parameters to send in the initial auth message.
+
+        The parameters do not contain ``ident`` or ``method`` elements.
+        """
+        return {}
 
     async def __call__(self, client: "distkv.client.Client", chroot=()):
         """
         Authorizes this user with the server.
         """
+        res = await client.request(action="auth", typ=self._auth_method, ident=self.ident, **(await self.export()))
+        from ..client import StreamReply
+        if isinstance(res,StreamReply):
+            async for r in res:
+                print(r)
+        else:
+            print(res)
         return None
 
 
@@ -163,14 +179,25 @@ class BaseClientUserMaker:
         jsonschema.validate(instance=user, schema=cls.schema)
         return cls()
 
+    @property
+    def ident(self):
+        """Some user identifier.
+        Required so that the server can actually find the record.
+        """
+        return "*"
+
     @classmethod
     async def load(cls, client: "distkv.client.Client", data):
         """Read a record representing a user from the server."""
-        pass
+        return cls()
     
-    async def export(self, client: "distkv.client.Client"):
+    async def save(self, client: "distkv.client.Client"):
         """Create a record representing this user, to send to the server."""
-        return None
+        return {}
+
+    def export(self):
+        """Return the data required to re-create the user via :meth:`build`."""
+        return {}
 
 
 class BaseServerUser:
@@ -179,52 +206,73 @@ class BaseServerUser:
 
     The schema verifies the output of :class:`BaseClientUser`.
     It does *not* verify the user's data record in DistKV.
+
+    The schema matches the initial client message and thus needs to
+    have additionalProperties set.
     """
-    schema = NullSchema
+    schema = NullSchema.copy()
+    schema['additionalProperties'] = True
+
+    is_super_root = False
+    can_create_subtree = False
 
     @classmethod
-    async def read(self, auth: 'distkv.model.Entry', name:str):
+    async def read(cls, auth: 'distkv.model.Entry'):
         """Create a ServerUser object from existing stored data"""
         return cls()
 
     async def auth(self, cmd: 'distkv.server.StreamCommand', data):
-        """Verify that this record authenticates this user"""
-        jsonschema.validate(instance=data, schema=cls.schema)
+        """Verify that @data authenticates this user."""
+        jsonschema.validate(instance=data, schema=type(self).schema)
 
-    async def auth_path(*path, client: "distkv.client.ServerClient", mode="r"):
-        """Verify that this user may access/write this path"""
-        return True
-
-    async def verify_write(*path, client: "distkv.client.ServerClient", data=None):
-        """Check that this user may write these data at this location.
+    async def check_read(self, *path, client: "distkv.client.ServerClient", data=None):
+        """Check that this user may read the element at this location.
         This method may modify the data.
         """
         return data
+
+    async def check_write(self, *path, client: "distkv.client.ServerClient", data=None):
+        """Check that this user may write the element at this location.
+        This method may modify the data.
+        """
+        return data
+
+class RootServerUser(BaseServerUser):
+    """The default user when no auth is required
+    """
+    is_super_root = True
+    can_create_subtree = True
 
 class BaseServerUserMaker:
     """
     This class is used on the server to verify the user record and to store it in DistKV.
 
-    The schema verifies the output of :meth:`BaseClientUserMaker.export`.
+    The schema verifies the output of :meth:`BaseClientUserMaker.save`.
     It does *not* verify the user's data record in DistKV.
     """
     schema = NullSchema
 
     @classmethod
-    async def build(cls, data) -> 'BaseServerUserMaker':
+    async def build(cls, cmd: 'distkv.server.StreamCommand', data) -> 'BaseServerUserMaker':
         """Create a new user by reading the record from the client"""
         jsonschema.validate(instance=user, schema=cls.schema)
         return cls()
 
-    async def save(self):
+    @property
+    def ident(self):
+        """The record to store this user under."""
+        return '*'
+
+    def save(self):
         """Return a record to represent this user, suitable for saving to DistKV"""
-        pass
+        return {}
 
     @classmethod
-    async def read(cls, data):
+    def read(cls, data):
         """Read the user data from DistKV"""
         return cls()
 
-    async def export(self):
+    def export(self):
         """Return a record to represent this user, suitable for sending to the client"""
-        pass
+        return {}
+

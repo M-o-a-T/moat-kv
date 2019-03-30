@@ -15,7 +15,7 @@ from functools import partial
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server
-from .auth import BaseServerUser, loader
+from .auth import RootServerUser, loader
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -254,7 +254,7 @@ class SCmd_watch(StreamCommand):
 class ServerClient:
     """Represent one (non-server) client."""
     _nursery = None
-    _chroot = False
+    is_chroot = False
     _user = None # user during auth
     user = None # authorized user
 
@@ -275,10 +275,12 @@ class ServerClient:
 
     @property
     def nulls_ok(self):
-        if self._chroot:
+        if self.is_chroot:
             return False
         if None not in self.root:
             return 2
+        if self.user.is_super_root:
+            return True
         # TODO test for superuser-ness, if so return True
         return False
 
@@ -330,7 +332,7 @@ class ServerClient:
     def _chroot(self, root):
         entry = self.root.follow(*root, nulls_ok=False)
         self.root = entry
-        self._chroot = True
+        self.is_chroot = True
         self._chop_path += len(root)
 
     async def cmd_root(self, msg):
@@ -354,10 +356,14 @@ class ServerClient:
             entry = entry.serialize(chop_path=-1, nchain=msg.get('nchain', 0))
         return entry
 
-    async def cmd_set_value(self, msg):
+    async def cmd_set_value(self, msg, _nulls_ok=False):
         """Set a node's value.
         """
-        entry = self.root.follow(*msg.path, nulls_ok=self.nulls_ok)
+        ## TODO drop this as soon as we have server-side user mods
+        if self.user.is_super_root:
+            _nulls_ok = 2
+
+        entry = self.root.follow(*msg.path, nulls_ok=_nulls_ok)
         send_prev = True
         if 'prev' in msg:
             if entry.data != msg.prev:
@@ -473,6 +479,25 @@ class ServerClient:
         t.cancel()
         return True
 
+    async def cmd_set_auth_typ(self, msg):
+        if not self.user.is_super_root:
+            raise RuntimeError("You're not allowed to do that")
+        a = self.root.follow(None,"auth", nulls_ok=True)
+        if a.data is None:
+            val = {}
+        else:
+            val = a.data.copy()
+
+        if msg.typ is None:
+            val.pop('current',None)
+        elif msg.typ not in a or not len(a[msg.typ]["user"].keys()):
+            raise RuntimeError("You didn't configure this method yet")
+        else:
+            val['current'] = msg.typ
+        msg.value = val
+        msg.path=(None,"auth")
+        return await self.cmd_set_value(msg, _nulls_ok=True)
+
     async def send(self, msg):
         logger.debug("OUT%d: %s", self._client_nr, msg)
         if self._send_lock is None:
@@ -506,9 +531,22 @@ class ServerClient:
             try:
                 auth = self.root.follow(None,"auth", nulls_ok=True, create=False)
             except KeyError:
-                self.user = BaseServerUser()
+                a = None
             else:
-                msg['auth'] = tuple(auth.keys())
+                auths = list(auth.keys())
+                try:
+                    a = auth.data['current']
+                except (ValueError,KeyError,IndexError,TypeError):
+                    a = None
+                else:
+                    try:
+                        auths.remove(a)
+                    except ValueError:
+                        a = None
+                auths.insert(0,a)
+                msg['auth'] = auths
+            if a is None:
+                self.user = RootServerUser()
             await self.send(msg)
 
             while True:
@@ -535,7 +573,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive_some(4096)
-                except (ConnectionResetError, trio.ClosedResourceError):
+                except (ConnectionResetError, trio.ClosedResourceError,trio.BrokenResourceError):
                     return  # closed/reset/whatever
                 if len(buf) == 0:  # Connection was closed.
                     return # done
@@ -1401,9 +1439,10 @@ class Server:
         try:
             await c.run()
         except BaseException as exc:
-            exc = exc.filter(trio.Cancelled)
-            if exc:
-                logger.exception("Client connection killed", exc=exc)
+            if isinstance(exc, trio.MultiError):
+                exc = exc.filter(trio.Cancelled)
+            if exc is not None:
+                logger.exception("Client connection killed", exc_info=exc)
             try:
                 with trio.move_on_after(2) as cs:
                     cs.shield = True
