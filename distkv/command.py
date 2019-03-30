@@ -9,6 +9,7 @@ from .client import open_client, StreamReply
 from .default import CFG, PORT
 from .server import Server
 from .model import Entry
+from .exceptions import ClientError
 
 import trio_click as click
 
@@ -22,9 +23,14 @@ _NotGiven = _NotGiven()
 def cmd():
     try:
         main(standalone_mode=False)
+    except click.exceptions.UsageError as exc:
+        print(str(exc), file=sys.stderr)
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
+    except ClientError as err:
+        print(type(err).__name__+':', *err.args, file=sys.stderr)
+        sys.exit(1)
     except BaseException as exc:
         raise
         print(exc)
@@ -77,8 +83,11 @@ def gen_auth(s: str):
             except ValueError:
                 pass
             kw[k] = v
-    m = loader(m, "client")
-    return m.build(**kw)
+    try:
+        m = loader(m, "user", server=False)
+    except ModuleNotFoundError:
+        raise click.UsageError("Auth module not found: "+m) from None
+    return m.build(kw)
 
 
 @main.command()
