@@ -98,9 +98,8 @@ def gen_auth(s: str):
 @click.option("-i","--init", default=None, help="Initial value to set the root to. Use only when setting up a cluster for the first time!")
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
-@click.pass_context
-async def run(ctx, name, host, port, load, save, init, eval):
-    obj = ctx.obj
+@click.pass_obj
+async def run(obj, name, host, port, load, save, init, eval):
     if host is not None:
         obj.cfg.server.host = host
     if port is not None:
@@ -155,7 +154,6 @@ async def client(ctx,host,port,auth):
 @click.pass_obj
 async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, mindepth):
     """Read a DistKV value"""
-    obj = ctx.obj
     if verbose and yaml:
         raise click.UsageError("'verbose' and 'yaml' are mutually exclusive")
     if recursive:
@@ -211,10 +209,9 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
-@click.pass_context
-async def set(ctx, path, value, eval, chain, prev, last, yaml):
+@click.pass_obj
+async def set(obj, path, value, eval, chain, prev, last, yaml):
     """Set a DistKV value"""
-    obj = ctx.obj
     if eval:
         value = __builtins__['eval'](value)
     args = {}
@@ -240,9 +237,9 @@ async def set(ctx, path, value, eval, chain, prev, last, yaml):
 @click.argument("path", nargs=-1)
 @click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
-@click.pass_context
-async def delete(ctx, path, chain, recursive):
-    obj = ctx.obj
+@click.pass_obj
+async def delete(obj, path, chain, recursive):
+    """Delete a node."""
     res = await obj.client.request(action="delete_tree" if recursive else "delete_value", path=path, nchain=chain)
     if isinstance(res, StreamReply):
         pl = PathLongener(path)
@@ -258,12 +255,11 @@ async def delete(ctx, path, chain, recursive):
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
-@click.pass_context
-async def watch(ctx, path, chain, yaml, state):
+@click.pass_obj
+async def watch(obj, path, chain, yaml, state):
     """Watch a DistKV subtree"""
     if yaml:
         import yaml
-    obj = ctx.obj
     res = await obj.client.request(action="watch", path=path, iter=True, nchain=chain, state=state)
     pl = PathLongener(path)
     async for r in res:
@@ -279,13 +275,12 @@ async def watch(ctx, path, chain, yaml, state):
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
 @click.option("-i", "--infile", type=click.File('rb'), help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
-@click.pass_context
-async def update(ctx, path, infile, loca, force):
+@click.pass_obj
+async def update(obj, path, infile, loca, force):
     """Send a list of updates to a DistKV subtree"""
     if local and force:
         raise click.UsageError("'local' and 'force' are mutually exclusive")
 
-    obj = ctx.obj
     ps = PathShortener()
     async with MsgReader() as reader:
         with obj.client.stream(action="update", path=path, iter=False, force=force, local=local) as sender:
