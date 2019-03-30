@@ -284,7 +284,7 @@ class ServerClient:
         with trio.CancelScope() as s:
             self.tasks[seq] = s
             if 'chain' in msg:
-                msg.chain = NodeEvent.deserialize(msg.chain, nulls_ok=self.nulls_ok)
+                msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server._nodes, nulls_ok=self.nulls_ok)
 
             if msg.get('state','') != 'start':
                 fn = getattr(self, 'cmd_' + str(msg.action), None)
