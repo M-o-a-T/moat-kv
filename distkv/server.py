@@ -110,9 +110,6 @@ class StreamCommand:
         self.seq = msg.seq
         self.in_send_q,self.in_recv_q = trio.open_memory_channel(3)
 
-    async def send(self, value):
-        await self.client.send({'seq':self.seq, 'value':value})
-
     async def recv(self, msg):
         """Receive another message from the client"""
         s = msg.get('state','')
@@ -124,6 +121,14 @@ class StreamCommand:
     async def aclose(self):
         await self.in_send_q.aclose()
 
+    async def send(self, **msg):
+        msg['seq'] = self.seq
+        if not self.multiline:
+            if self.multiline is None:
+                raise RuntimeError("Non-Multiline tried to send twice")
+            self.multiline = None
+        await self.client.send(msg)
+
     async def __call__(self, **kw):
         msg = self.msg
         if msg.get('state') != 'start':
@@ -131,21 +136,20 @@ class StreamCommand:
             await self.in_send_q.aclose()
 
         if self.multiline:
-            await self.client.send({'seq':self.seq, 'state':'start'})
+            await self.send(state='start')
             try:
-                async def sender(**msg):
-                    msg['seq'] = self.seq
-                    await self.client.send(msg)
-                await self.run(sender=sender, **kw)
+                res = await self.run(**kw)
+                if res is not None:
+                    await self.send(res)
             finally:
-                await self.client.send({'seq':self.seq, 'state':'end'})
+                await self.send(state='end')
 
         else:
             res = run(**kw)
             if res is None:
                 res = {}
             res['seq'] = self.seq
-            await self.client.send(res)
+            await self.send(res)
 
     async def run(self):
         raise RuntimeError("Do implement me!")
@@ -158,32 +162,41 @@ class SCmd_auth(StreamCommand):
         """
         User authorization.
         """
+        msg = self.msg
+        client = self.client
 
-        if self._user is not None:
-            await self._user.auth_sub(msg)
+        if client._user is not None:
+            await client._user.auth_sub(msg)
             return
 
         root = msg.get('root',None)
         
         if root is not None:
-            if self._chroot:
+            if self.client.is_chroot:
                 raise RuntimeError("You can't auth in a chroot env")
-            self._chroot(root)
+            self.client._chroot(root)
 
-        data = self.server.root.follow(None,"auth",msg.typ, create=False)
+        auth = client.root.follow(None,"auth", nulls_ok=True, create=False)
+        if client.user is None:
+            a = auth.data['current']
+            if msg.typ != a:
+                raise RuntimeError("Wrong auth type", a)
+
+        data = auth.follow(msg.typ, 'user', msg.ident, create=False)
         cls = loader(msg.typ,"user",server=True)
-        user = cls.read(data, name=msg.name)
-        self._user = user
+        user = await cls.read(data)
+        client._user = user
         try:
             await user.auth(self, msg)
-            self.user = user
+            if client.user is None:
+                client.user = user
         finally:
-            self._user = None
+            client._user = None
 
 
 class SCmd_get_tree(StreamCommand):
     multiline = True
-    async def run(self, sender):
+    async def run(self):
         msg = self.msg
         entry = self.client.root.follow(*msg.path, create=False, nulls_ok=self.client.nulls_ok)
 
@@ -202,7 +215,7 @@ class SCmd_get_tree(StreamCommand):
                 return
             res = entry.serialize(chop_path=self.client._chop_path, nchain=nchain)
             ps(res)
-            await sender(**res)
+            await self.send(**res)
         await entry.walk(send_sub, **kw)
 
 
@@ -211,7 +224,7 @@ class SCmd_watch(StreamCommand):
     If ``state`` is set, dump the initial state before reporting them.
     """
     multiline = True
-    async def run(self, sender):
+    async def run(self):
         msg = self.msg
         client = self.client
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
