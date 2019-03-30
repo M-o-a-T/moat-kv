@@ -154,11 +154,7 @@ async def client(ctx,host,port,auth):
 @click.pass_obj
 async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, mindepth):
     """Read a DistKV value"""
-    if verbose and yaml:
-        raise click.UsageError("'verbose' and 'yaml' are mutually exclusive")
     if recursive:
-        if verbose and yaml:
-            raise click.UsageError("'verbose' does not work in recursive YAML mode")
         kw = {}
         if maxdepth is not None:
             kw['maxdepth'] = maxdepth
