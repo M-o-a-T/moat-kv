@@ -141,6 +141,9 @@ class StreamCommand:
                 res = await self.run(**kw)
                 if res is not None:
                     await self.send(res)
+            except Exception as exc:
+                logger.exception("ERS%d: %r", self.seq, self.msg)
+                await self.send(error=repr(exc))
             finally:
                 await self.send(state='end')
 
