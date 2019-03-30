@@ -25,6 +25,7 @@ setup(
         "attrs >= 18.2",
         "trio_serf >= 0.4",
         "jsonschema >= 2.5",
+        "yaml >= 3",
     ],
     keywords=[
         "async", "key-values", "distributed",
