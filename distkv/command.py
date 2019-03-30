@@ -140,10 +140,11 @@ async def client(ctx,host,port,auth):
 @click.option("-d", "--as-dict", default=None, help="YAML: structure as dictionary. The argument is the key to use for values. Default: return as list")
 @click.option("-v", "--verbose", is_flag=True, help="Print the complete result. Default: just the value")
 @click.option("-m", "--maxdepth", type=int, default=None, help="Limit recursion depth. Default: whole tree")
+@click.option("-M", "--mindepth", type=int, default=None, help="Starting depth. Default: whole tree")
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
-@click.pass_context
-async def get(ctx, path, chain, yaml, verbose, recursive, as_dict, maxdepth):
+@click.pass_obj
+async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, mindepth):
     """Read a DistKV value"""
     obj = ctx.obj
     if verbose and yaml:
@@ -154,6 +155,8 @@ async def get(ctx, path, chain, yaml, verbose, recursive, as_dict, maxdepth):
         kw = {}
         if maxdepth is not None:
             kw['maxdepth'] = maxdepth
+        if mindepth is not None:
+            kw['mindepth'] = mindepth
         res = await obj.client.request(action="get_tree", path=path, iter=True, nchain=chain, **kw)
         pl = PathLongener(path)
         y = {} if as_dict is not None else []
@@ -179,8 +182,8 @@ async def get(ctx, path, chain, yaml, verbose, recursive, as_dict, maxdepth):
             import yaml
             print(yaml.safe_dump(y))
         return
-    if maxdepth is not None:
-        raise click.UsageError("'maxdepth' only works with 'recursive'")
+    if maxdepth is not None or mindepth is not None:
+        raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     res = await obj.client.request(action="get_value", path=path, iter=False, nchain=chain)
     if not verbose:
         res = res.value
