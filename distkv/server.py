@@ -749,16 +749,13 @@ class Server:
                 await cmd(msg)
 
     def tock_seen(self, tock):
-        """Update the current ``tock`` if it's not high enough."""
+        """Update my current ``tock`` if it's not high enough."""
         self._tock = max(self._tock, tock)
 
     async def _send_ping(self):
         """Send a ping message and note when to send the next one,
         assuming that no intervening ping arrives.
         """
-        if self._tock > 1000:
-            raise RuntimeError("This test has gone on too long")
-
         self.last_ping_evt = msg = NodeEvent(self.node, prev=self.last_ping_evt)
         self.last_ping = msg = msg.serialize(self.cfg['ping']['length'])
         await self._send_event('ping', msg)
