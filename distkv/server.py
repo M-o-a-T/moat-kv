@@ -193,6 +193,9 @@ class SCmd_get_tree(StreamCommand):
         maxdepth = msg.get('maxdepth',None)
         if maxdepth is not None:
             kw['max_depth'] = maxdepth
+        mindepth = msg.get('mindepth',None)
+        if mindepth is not None:
+            kw['min_depth'] = mindepth
 
         async def send_sub(entry):
             if entry.data is None:
