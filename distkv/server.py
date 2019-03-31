@@ -232,15 +232,13 @@ class SCmd_watch(StreamCommand):
         client = self.client
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
         seq = msg.seq
-        nchain = msg.get('nchain',None)
-        if nchain is None:
-            nchain = client.cfg['change']['length'] if create else 0
+        nchain = msg.get('nchain',0)
 
         async with Watcher(entry) as watcher:
             shorter = PathShortener(entry.path)
             if msg.get('state', False):
                 async def worker(entry):
-                    res = entry.serialize(nchain=nchain)
+                    res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
                     shorter(res)
                     await self.send(**res)
                 await entry.walk(worker)
