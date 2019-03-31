@@ -182,7 +182,7 @@ class SCmd_auth(StreamCommand):
         auth = client.root.follow(None,"auth", nulls_ok=True, create=False)
         if client.user is None:
             a = auth.data['current']
-            if msg.typ != a:
+            if msg.typ != a and client.user is None:
                 raise RuntimeError("Wrong auth type", a)
 
         data = auth.follow(msg.typ, 'user', msg.ident, create=False)
