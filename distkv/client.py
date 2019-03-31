@@ -39,9 +39,14 @@ async def open_client(host, port, init_timeout=5, auth=None):
         async with client._connected(tg, init_timeout=init_timeout, auth=auth) as client:
             yield client
 
+
 class _StreamRequest:
     """
-    This class represents the core of a multi-message reply.
+    This class represents the core of a multi-message request.
+
+    Somewhat untested.
+    TODO: add rate limit.
+    TODO: add interleaved request+reply, required for auth et al.
     """
     result = None
 
@@ -54,10 +59,12 @@ class _StreamRequest:
         #logger.debug("Send %s", params)
         await self._socket.send_all(_packer(params))
 
+
 class StreamReply:
     """
     This class represents a multi-message reply.
-    # TODO tell the sender to not flood the receiver
+
+    TODO tell the sender to not flood the receiver
     """
     send_stop = True
     end_msg = None

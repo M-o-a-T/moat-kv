@@ -122,6 +122,10 @@ class StreamCommand:
         await self.in_send_q.aclose()
 
     async def send(self, **msg):
+        """Send a message to the client.
+
+        TODO add a rate limit
+        """
         msg['seq'] = self.seq
         if not self.multiline:
             if self.multiline is None:
@@ -159,12 +163,22 @@ class StreamCommand:
 
 
 class SCmd_auth(StreamCommand):
+    """
+    Perform user authorization.
+
+    root: sub-root directory (TODO)
+    typ: auth method (_null)
+    ident: user identifier (*)
+
+    plus any other data the client-side auth object sends
+
+    This call cannot be used to re-authenticate. The code will go
+    through the motions but not actually do anything, thus you can
+    non-destructively test an updated authorization.
+    """
     multiline = True
 
     async def run(self):
-        """
-        User authorization.
-        """
         msg = self.msg
         client = self.client
 
@@ -198,6 +212,16 @@ class SCmd_auth(StreamCommand):
 
 
 class SCmd_get_tree(StreamCommand):
+    """
+    Get a subtree.
+
+    path: position to start to enumerate.
+    mindepth: tree depth at which to start returning results. Default 0=path location.
+    maxdepth: tree depth at which to not go deeper. Default +inf=everything.
+    nchain: number of change chain entries to return. Default 0=don't send chain data.
+
+    The returned data is PathShortened.
+    """
     multiline = True
     async def run(self):
         msg = self.msg
@@ -223,8 +247,16 @@ class SCmd_get_tree(StreamCommand):
 
 
 class SCmd_watch(StreamCommand):
-    """Monitor a subtree for changes.
+    """
+    Monitor a subtree for changes.
     If ``state`` is set, dump the initial state before reporting them.
+
+    path: position to start to monitor.
+    nchain: number of change chain entries to return. Default 0=don't send chain data.
+    state: flag whether to send the current subtree before reporting changes. Default False.
+
+    The returned data is PathShortened.
+    The current state dump may not be consistent; always process changes.
     """
     multiline = True
     async def run(self):
