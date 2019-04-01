@@ -8,7 +8,7 @@ from .util import attrdict, combine_dict, PathLongener, acount
 from .client import open_client, StreamReply
 from .default import CFG, PORT
 from .server import Server
-from .auth import loader
+from .auth import loader, gen_auth
 from .model import Entry
 from .exceptions import ClientError
 
@@ -64,31 +64,6 @@ async def pdb(args):
     if not args:
         return
     return await main.main(args)
-
-def gen_auth(s: str):
-    """
-    Generate auth data from parameters or YAML file (if first char is '=').
-    """
-    from distkv.auth import loader
-    m,*p = s.split()
-    if len(p) == 0 and m[0] == '=':
-        with io.open(m[1:],"r") as f:
-            kw = yaml.safe_load(f)
-            m = kw.pop('type')
-    else:
-        kw = {}
-        for pp in p:
-            k,v = pp.split('=',1)
-            try:
-                v = int(v)
-            except ValueError:
-                pass
-            kw[k] = v
-    try:
-        m = loader(m, "user", server=False)
-    except ModuleNotFoundError:
-        raise click.UsageError("Auth module not found: "+m) from None
-    return m.build(kw)
 
 
 @main.command()

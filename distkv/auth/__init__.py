@@ -70,6 +70,33 @@ def loader(method:str, *a,**k):
     cls._auth_method = method
     return cls
 
+
+def gen_auth(s: str):
+    """
+    Generate auth data from parameters or YAML file (if first char is '=').
+    """
+    from distkv.auth import loader
+    m,*p = s.split()
+    if len(p) == 0 and m[0] == '=':
+        with io.open(m[1:],"r") as f:
+            kw = yaml.safe_load(f)
+            m = kw.pop('type')
+    else:  
+        kw = {}
+        for pp in p:
+            k,v = pp.split('=',1)
+            try:
+                v = int(v)    
+            except ValueError:
+                pass
+            kw[k] = v
+    try:
+        m = loader(m, "user", server=False)
+    except ModuleNotFoundError:
+        raise click.UsageError("Auth module not found: "+m) from None
+    return m.build(kw)
+
+
 def load(typ:str, *, make:bool=False, server:bool):
     """
     This procedure is used to load and return a user management class.
