@@ -58,6 +58,7 @@ The server process is:
 
 import jsonschema
 from importlib import import_module
+from distkv.client import NoData
 
 
 NullSchema = { "type": "object", "additionalProperties":False }
@@ -164,27 +165,22 @@ class BaseClientUser:
         """
         return "*"
 
-    def export(self) -> dict:
-        """
-        Return additional key-value parameters to send in the initial auth message.
-
-        The parameters do not contain ``ident`` or ``method`` elements.
-        """
-        return {}
-
-    async def __call__(self, client: "distkv.client.Client", chroot=()):
+    async def auth(self, client: "distkv.client.Client", chroot=()):
         """
         Authorizes this user with the server.
         """
-        res = await client.request(action="auth", typ=self._auth_method, ident=self.ident, **(await self.export()))
-        from ..client import StreamReply
-        if isinstance(res,StreamReply):
-            async for r in res:
-                print(r)
-        else:
-            print(res)
-        return None
+        try:
+            await client.request(action="auth", typ=self._auth_method, iter=False, ident=self.ident, **self.auth_data())
+        except NoData:
+            pass
 
+    def auth_data(self):
+        """
+        Additional data for the initial auth message.
+
+        Does NOT include 'ident', that gets added explicitly by :meth:`auth`.
+        """
+        return {}
 
 class BaseClientUserMaker:
     """
@@ -206,6 +202,10 @@ class BaseClientUserMaker:
         jsonschema.validate(instance=user, schema=cls.schema)
         return cls()
 
+    def export(self):
+        """Return the data required to re-create the user via :meth:`build`."""
+        return {}
+
     @property
     def ident(self):
         """Some user identifier.
@@ -214,18 +214,20 @@ class BaseClientUserMaker:
         return "*"
 
     @classmethod
-    async def load(cls, client: "distkv.client.Client", data):
-        """Read a record representing a user from the server."""
+    async def recv(cls, client: "distkv.client.Client",  ident:str, _kind='user'):
+        res = await client.request("auth_get", typ=type(self)._auth_method, kind=_kind)
+        """Read this user from the server."""
         return cls()
     
-    async def save(self, client: "distkv.client.Client"):
-        """Create a record representing this user, to send to the server."""
-        return {}
+    async def send(self, client: "distkv.client.Client", _kind='user'):
+        """Send this user to the server."""
+        try:
+            await client.request("auth_set", iter=False, typ=type(self)._auth_method, kind=_kind, **self.send_data())
+        except NoData:
+            pass
 
-    def export(self):
-        """Return the data required to re-create the user via :meth:`build`."""
+    def send_data(self):
         return {}
-
 
 class BaseServerUser:
     """
@@ -242,9 +244,11 @@ class BaseServerUser:
 
     is_super_root = False
     can_create_subtree = False
+    can_auth_read = False
+    can_auth_write = False
 
     @classmethod
-    async def read(cls, auth: 'distkv.model.Entry'):
+    async def build(cls, data: 'distkv.model.Entry'):
         """Create a ServerUser object from existing stored data"""
         return cls()
 
@@ -269,6 +273,8 @@ class RootServerUser(BaseServerUser):
     """
     is_super_root = True
     can_create_subtree = True
+    can_auth_read = True
+    can_auth_write = True
 
 class BaseServerUserMaker:
     """
@@ -277,12 +283,18 @@ class BaseServerUserMaker:
     The schema verifies the output of :meth:`BaseClientUserMaker.save`.
     It does *not* verify the user's data record in DistKV.
     """
-    schema = NullSchema
+    schema = NullSchema.copy()
+    schema['additionalProperties'] = True
 
     @classmethod
-    async def build(cls, cmd: 'distkv.server.StreamCommand', data) -> 'BaseServerUserMaker':
+    def build(cls, data: 'distkv.model.Entry'):
+        """Read the user data from DistKV"""
+        return cls()
+
+    @classmethod
+    async def recv(cls, cmd: 'distkv.server.StreamCommand', data) -> 'BaseServerUserMaker':
         """Create a new user by reading the record from the client"""
-        jsonschema.validate(instance=user, schema=cls.schema)
+        jsonschema.validate(instance=data, schema=cls.schema)
         return cls()
 
     @property
@@ -294,12 +306,7 @@ class BaseServerUserMaker:
         """Return a record to represent this user, suitable for saving to DistKV"""
         return {}
 
-    @classmethod
-    def read(cls, data):
-        """Read the user data from DistKV"""
-        return cls()
-
-    def export(self):
-        """Return a record to represent this user, suitable for sending to the client"""
+    async def send(self, cmd: 'distkv.server.StreamCommand'):
+        """Send a record to the client, possibly multi-step secured"""
         return {}
 

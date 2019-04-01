@@ -32,6 +32,10 @@ class ServerUserMaker(BaseServerUserMaker):
 class ServerUser(RootServerUser):
     pass
 class ClientUserMaker(BaseClientUserMaker):
-    pass
+    def send_data(self):
+        res = super().send_data()
+        res['ident'] = '*'
+        return res
+
 class ClientUser(BaseClientUser):
     pass

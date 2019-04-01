@@ -4,9 +4,10 @@ import sys
 
 from distkv.command import main
 
-async def run(*args, expect_exit=0):
-    old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
+async def run(*args, expect_exit=0, do_stdout=True):
+    if do_stdout:
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
     try:
         res = await main.main(args)
         return res
@@ -21,5 +22,6 @@ async def run(*args, expect_exit=0):
         assert expect_exit == 0
         return res
     finally:
-        res.stdout = sys.stdout.getvalue()
-        sys.stdout = old_stdout
+        if do_stdout:
+            res.stdout = sys.stdout.getvalue()
+            sys.stdout = old_stdout

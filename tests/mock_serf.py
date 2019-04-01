@@ -54,11 +54,11 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             return iter(self.s)
 
         @asynccontextmanager
-        async def client(self, i:int = 0, args: dict={}):
+        async def client(self, i:int = 0, **kv):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
             host,port = st.s[i].ports[0][0:2]
-            async with open_client(host=host, port=port, **args) as c:
+            async with open_client(host=host, port=port, **kv) as c:
                 yield c
 
         def split(self, s):

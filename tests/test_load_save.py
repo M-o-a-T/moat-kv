@@ -47,6 +47,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
     logger.debug("NEXT")
     for m in msgs:
         m.pop('tock',None)
+        m.pop('seq',None)
     assert sorted(msgs, key=lambda x:x.chain.tick) == [
         {'chain': {'node': 'test_0', 'prev': None, 'tick': 1},
         'path': (),
@@ -81,6 +82,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
             await trio.sleep(1) # allow the writer to write
     for m in msgs:
         m.pop('tock',None)
+        m.pop('seq',None)
     assert sorted(msgs, key=lambda x:x.chain.tick) == [
         {'chain': {'node': 'test_0', 'prev': None, 'tick': 2},
         'path': ('foo',),
@@ -118,7 +120,8 @@ async def test_02_cmd(autojump_clock):
 
             r = await c.request("get_state", nodes=True, known=True, missing=True, remote_missing=True)
             del r['tock']
-            assert r == {'nodes': {'test_0': 3}, 'known': {'test_0': ((1, 4),)}, 'missing': {}, 'remote_missing': {}, 'seq': 2}
+            del r['seq']
+            assert r == {'nodes': {'test_0': 3}, 'known': {'test_0': ((1, 4),)}, 'missing': {}, 'remote_missing': {}}
 
             assert (await c.request("get_value", node="test_0", tick=1)).value == 123
             assert (await c.request("get_value", node="test_0", tick=2)).value == "hello"

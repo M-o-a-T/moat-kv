@@ -65,18 +65,19 @@ async def test_01_basic(autojump_clock):
                 {'path': ('foo',), 'value': 'hello'},
                 {'path': ('foo','bar'), 'value': 'baz'},
             ]
-            r = await c.request("get_tree", path=(), iter=True, maxdepth=2)
-            r = await collect(r)
+            res=[]
+            async with c.stream("get_tree", path=(), maxdepth=2) as rr:
+                r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            r = await c.request("get_tree", path=(), iter=True, maxdepth=1)
-            r = await collect(r)
+            async with c.stream("get_tree", path=(), iter=True, maxdepth=1) as rr:
+                r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            r = await c.request("get_tree", path=(), iter=True, maxdepth=0)
-            r = await collect(r)
+            async with c.stream("get_tree", path=(), iter=True, maxdepth=0) as rr:
+                r = await collect(rr)
             assert r == exp
 
             r = await c.request("get_value", path=("foo","bar"))

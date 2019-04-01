@@ -144,7 +144,7 @@ class StreamCommand:
             try:
                 res = await self.run(**kw)
                 if res is not None:
-                    await self.send(res)
+                    await self.send(**res)
             except Exception as exc:
                 logger.exception("ERS%d: %r", self.seq, self.msg)
                 await self.send(error=repr(exc))
@@ -156,7 +156,7 @@ class StreamCommand:
             if res is None:
                 res = {}
             res['seq'] = self.seq
-            await self.send(res)
+            await self.send(**res)
 
     async def run(self):
         raise RuntimeError("Do implement me!")
@@ -166,7 +166,7 @@ class SCmd_auth(StreamCommand):
     """
     Perform user authorization.
 
-    root: sub-root directory (TODO)
+    root: sub-root directory
     typ: auth method (_null)
     ident: user identifier (*)
 
@@ -186,14 +186,8 @@ class SCmd_auth(StreamCommand):
             await client._user.auth_sub(msg)
             return
 
-        root = msg.get('root',None)
-        
-        if root is not None:
-            if self.client.is_chroot:
-                raise RuntimeError("You can't auth in a chroot env")
-            self.client._chroot(root)
-
-        auth = client.root.follow(None,"auth", nulls_ok=True, create=False)
+        root = msg.get('root',())
+        auth = client.root.follow(*root, None,"auth", nulls_ok=2, create=False)
         if client.user is None:
             a = auth.data['current']
             if msg.typ != a and client.user is None:
@@ -201,14 +195,82 @@ class SCmd_auth(StreamCommand):
 
         data = auth.follow(msg.typ, 'user', msg.ident, create=False)
         cls = loader(msg.typ,"user",server=True)
-        user = await cls.read(data)
+        user = await cls.build(data)
         client._user = user
         try:
             await user.auth(self, msg)
+
             if client.user is None:
+                client._chroot(root)
                 client.user = user
         finally:
             client._user = None
+
+
+class SCmd_auth_get(StreamCommand):
+    """
+    Read auth data.
+
+    root: sub-root directory
+    typ: auth method (_null)
+    kind: type of data to read('user')
+    ident: user identifier (foo)
+
+    plus any other data the client-side manager object sends
+    """
+    multiline = True
+
+    async def run(self):
+        msg = self.msg
+        client = self.client
+        if not client.user.can_auth_read:
+            raise RuntimeError("Not allowed")
+
+        root = msg.get('root',())
+        if root and not self.user.is_super_root:
+            raise RuntimeError("Cannot read tenant users")
+        kind = msg.get('kind','user')
+
+        auth = client.root.follow(*root, None,"auth", nulls_ok=2, create=False)
+        data = auth.follow(msg.typ, kind, msg.ident, create=False)
+        cls = loader(msg.typ, kind, server=True, make=True)
+        user = await cls.read(data)
+        res = await user.send(self)
+        if res is not None:
+            await self.send(**res)
+
+
+class SCmd_auth_set(StreamCommand):
+    """
+    Write auth data.
+
+    root: sub-root directory
+    typ: auth method (_null)
+    kind: type of data to read('user')
+    ident: user identifier (foo)
+
+    plus any other data the client sends
+    """
+    multiline = True
+
+    async def run(self):
+        msg = self.msg
+        client = self.client
+        if not client.user.can_auth_write:
+            raise RuntimeError("Not allowed")
+
+        root = msg.get('root',())
+        if root and not self.user.is_super_root:
+            raise RuntimeError("Cannot write tenant users")
+        kind = msg.get('kind','user')
+
+        auth = client.root.follow(*root, None,"auth", nulls_ok=2, create=True)
+        cls = loader(msg.typ, kind, server=True, make=True)
+
+        user = await cls.recv(self,msg)
+        msg.value = user.save()
+        msg.path=(*root,None,"auth",msg.typ, kind, msg.ident)
+        return await client.cmd_set_value(msg, _nulls_ok=True)
 
 
 class SCmd_get_tree(StreamCommand):
@@ -334,6 +396,7 @@ class ServerClient:
             if 'chain' in msg:
                 msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server._nodes, nulls_ok=self.nulls_ok)
 
+            fn = None
             if msg.get('state','') != 'start':
                 fn = getattr(self, 'cmd_' + str(msg.action), None)
             if fn is None:
@@ -360,6 +423,8 @@ class ServerClient:
                     del self.in_stream[seq]
 
     def _chroot(self, root):
+        if not root:
+            return
         entry = self.root.follow(*root, nulls_ok=False)
         self.root = entry
         self.is_chroot = True
@@ -520,7 +585,7 @@ class ServerClient:
         if msg.typ is None:
             val.pop('current',None)
         elif msg.typ not in a or not len(a[msg.typ]["user"].keys()):
-            raise RuntimeError("You didn't configure this method yet")
+            raise RuntimeError("You didn't configure this method yet:"+repr((msg.typ,vars(a))))
         else:
             val['current'] = msg.typ
         msg.value = val

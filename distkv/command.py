@@ -5,7 +5,7 @@ import trio_click as click
 from pprint import pprint
 
 from .util import attrdict, combine_dict, PathLongener, acount
-from .client import open_client, StreamReply
+from .client import open_client, StreamedRequest
 from .default import CFG, PORT
 from .server import Server
 from .auth import loader, gen_auth
@@ -220,7 +220,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
 async def delete(obj, path, chain, recursive):
     """Delete a node."""
     res = await obj.client.request(action="delete_tree" if recursive else "delete_value", path=path, nchain=chain)
-    if isinstance(res, StreamReply):
+    if isinstance(res, StreamedRequest):
         pl = PathLongener(path)
         async for r in res:
             pl(r)
@@ -262,10 +262,10 @@ async def update(obj, path, infile, loca, force):
 
     ps = PathShortener()
     async with MsgReader() as reader:
-        with obj.client.stream(action="update", path=path, iter=False, force=force, local=local) as sender:
+        with obj.client.stream(action="update", path=path, force=force, local=local) as sender:
             async for r in res:
                 ps(r)
-                await sender(r)
+                await sender.send(r)
 
     print(sender.result)
 
@@ -387,9 +387,7 @@ async def add_mod_user(obj, args, modify):
     u = loader(auth,'user', make=True, server=False)
     chain=None
     if modify:
-        res = await obj.client.request(action="get_value", path=(None,'auth',auth,'user',modify), chain=2)
-        chain=res.chain
-        ou = await u.load(res.value)
+        ou = await u.recv(obj.client, modify)
         kw = await ou.export()
     else:
         kw = {}
@@ -404,7 +402,7 @@ async def add_mod_user(obj, args, modify):
     u = u.build(kw)
     if modify is not None and u.ident != modify:
         chain = None  # new user
-    res = await obj.client.request(action="set_value", path=(None,'auth',auth,'user',u.ident), value=await u.save(obj.client), chain=chain)
+    res = await u.send(obj.client)
     print("Added" if chain is None else "Modified" ,u.ident)
 
 
