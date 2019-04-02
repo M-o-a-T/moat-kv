@@ -285,7 +285,7 @@ class SCmd_auth_set(StreamCommand):
 
         user = await cls.recv(self,msg)
         msg.value = user.save()
-        msg.path=(*root,None,"auth",msg.typ, kind, msg.ident)
+        msg.path=(*root,None,"auth",msg.typ, kind, user.ident)
         return await client.cmd_set_value(msg, _nulls_ok=True)
 
 
