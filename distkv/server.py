@@ -419,7 +419,6 @@ class ServerClient:
                 fn = getattr(self, 'cmd_' + str(msg.action), None)
             if fn is None:
                 fn = StreamCommand(self, msg)
-                self.in_stream[seq] = fn
             else:
                 fn = partial(self._process, fn, msg)
             task_status.started(s)
@@ -437,8 +436,6 @@ class ServerClient:
 
             finally:
                 del self.tasks[seq]
-                if isinstance(fn, StreamCommand):
-                    del self.in_stream[seq]
 
     def _chroot(self, root):
         if not root:
@@ -669,10 +666,10 @@ class ServerClient:
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
-                            await send_q.recv(msg)
+                            await send_q.received(msg)
                         else:
                             if self.seq >= seq:
-                                raise ClientError("Sequence numbers are not monotonic: %d < %d" % (self.seq, msg.seq))
+                                raise ClientError("Channel closed? Sequence error: %d < %d" % (self.seq, msg.seq))
                             self.seq = seq
                             await self.tg.start(self.process, msg)
                     except Exception as exc:
