@@ -166,7 +166,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
                     print("%s: %s" % (' '.join(r.path), repr(r.value)))
         if yaml:
             import yaml
-            print(yaml.safe_dump(y))
+            print(yaml.safe_dump(y, default_flow_style=False))
         return
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
@@ -175,7 +175,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         res = res.value
     if yaml:
         import yaml
-        print(yaml.safe_dump(res))
+        print(yaml.safe_dump(res, default_flow_style=False))
     else:
         pprint(res)
 
@@ -207,7 +207,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
     res = await obj.client.request(action="set_value", value=value, path=path, iter=False, nchain=chain, **args)
     if yaml:
         import yaml
-        print(yaml.safe_dump(res))
+        print(yaml.safe_dump(res, default_flow_style=False))
     elif chain:
         pprint(res)
 
@@ -245,7 +245,7 @@ async def watch(obj, path, chain, yaml, state):
         pl(r)
         del r['seq']
         if yaml:
-            print(yaml.safe_dump(r))
+            print(yaml.safe_dump(r, default_flow_style=False))
         else:
             pprint(r)
 
