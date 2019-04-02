@@ -354,7 +354,7 @@ class Client:
             yield res
         except BaseException as exc:
             if stream:
-                await res.send(error=str(exc))
+                await res.send(error=repr(exc))
             raise
         finally:
             await res.aclose()
