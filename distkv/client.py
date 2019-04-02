@@ -152,11 +152,17 @@ class StreamedRequest:
         await self.send_q.send(outcome.Error(CancelledError()))
         await self.aclose()
 
-    async def aclose(self):
+    async def aclose(self, timeout=0.2):
         await self.send_q.aclose()
         if self._stream == 2:
-            req = await self.client.request(action="stop",task=self.seq, _async=True)
-            await self.client.send(seq=self.seq, state='end')
+            await self._client.send(seq=self.seq, state='end')
+            if timeout is not None:
+                with trio.move_on_after(timeout):
+                    try:
+                        await self.recv()
+                    except StopAsyncIteration:
+                        return
+            req = await self._client.request(action="stop",task=self.seq, _async=True)
             return await req.get()
 
 
