@@ -16,6 +16,7 @@ from functools import partial
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
 from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server
 from .auth import RootServerUser, loader
+from .exceptions import ClientError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 

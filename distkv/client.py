@@ -7,7 +7,7 @@ import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
 from .util import attrdict, Queue, AsyncValueEvent
-from .exceptions import ClientAuthMethodError, ClientAuthRequiredError
+from .exceptions import ClientAuthMethodError, ClientAuthRequiredError, ServerClosedError,ServerConnectionError,ServerError
 from concurrent.futures import CancelledError
 
 import logging
@@ -22,15 +22,6 @@ class NoData(ValueError):
 
 class ManyData(ValueError):
     """More than one reply arrived"""
-
-class ServerError(RuntimeError):
-    """The server sent us an error"""
-
-class ServerClosedError(ServerError):
-    pass
-
-class ServerConnectionError(ServerError):
-    pass
 
 @asynccontextmanager
 async def open_client(host, port, init_timeout=5, auth=None):

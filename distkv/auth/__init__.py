@@ -58,7 +58,8 @@ The server process is:
 
 import jsonschema
 from importlib import import_module
-from distkv.client import NoData
+from ..client import NoData
+from ..exceptions import NoAuthModuleError
 
 
 NullSchema = { "type": "object", "additionalProperties":False }
@@ -94,7 +95,7 @@ def gen_auth(s: str):
     try:
         m = loader(m, "user", server=False)
     except ModuleNotFoundError:
-        raise click.UsageError("Auth module not found: "+m) from None
+        raise NoAuthModuleError(m) from None
     return m.build(kw)
 
 
