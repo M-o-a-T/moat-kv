@@ -74,7 +74,10 @@ class StreamedRequest:
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
         if 'error' in msg:
-            await self.send_q.send(outcome.Error(ServerError(msg.error)))
+            try:
+                await self.send_q.send(outcome.Error(ServerError(msg.error)))
+            except trio.ClosedResourceError:
+                pass
             return
         state = msg.get('state', "")
         if state == "":
