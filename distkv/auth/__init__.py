@@ -66,8 +66,8 @@ NullSchema = { "type": "object", "additionalProperties":False }
 
 def loader(method:str, *a,**k):
     m = method
-    if m[0] == '_':
-        m= 'distkv.auth.'+m[1:]
+    if '.' not in m:
+        m= 'distkv.auth.'+m
     cls = import_module(m).load(*a,**k)
     cls._auth_method = method
     return cls

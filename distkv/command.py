@@ -419,7 +419,7 @@ async def add_mod_user(obj, args, modify):
 
 
 @user.command(name="auth")
-@click.option("-a","--auth", type=str, default="_null", help="Auth params. =file or 'type param=value…' Default: _null")
+@click.option("-a","--auth", type=str, default="root", help="Auth params. =file or 'type param=value…' Default: root")
 @click.pass_obj
 async def auth_(obj, auth):
     """Test user authorization."""

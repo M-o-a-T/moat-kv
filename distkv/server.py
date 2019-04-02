@@ -183,7 +183,7 @@ class SCmd_auth(StreamCommand):
     Perform user authorization.
 
     root: sub-root directory
-    typ: auth method (_null)
+    typ: auth method (root)
     ident: user identifier (*)
 
     plus any other data the client-side auth object sends
@@ -228,7 +228,7 @@ class SCmd_auth_list(StreamCommand):
     List auth data.
 
     root: sub-root directory
-    typ: auth method (_null)
+    typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo) (if missing: return all)
     """
@@ -281,7 +281,7 @@ class SCmd_auth_get(StreamCommand):
     Read auth data.
 
     root: sub-root directory
-    typ: auth method (_null)
+    typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
 
@@ -314,7 +314,7 @@ class SCmd_auth_set(StreamCommand):
     Write auth data.
 
     root: sub-root directory
-    typ: auth method (_null)
+    typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
 
