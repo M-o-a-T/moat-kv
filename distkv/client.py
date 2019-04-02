@@ -238,7 +238,10 @@ class Client:
                 while True:
                     for msg in unpacker:
                         #logger.debug("Recv %s", msg)
-                        await self._handle_msg(msg)
+                        try:
+                            await self._handle_msg(msg)
+                        except trio.ClosedResourceError:
+                            raise RuntimeError(msg)
 
                     if self._socket is None:
                         break
@@ -253,8 +256,11 @@ class Client:
             finally:
                 hdl, self._handlers = self._handlers, None
                 with trio.CancelScope(shield=True):
-                    for m in hdl.values():
-                        await m.kill()
+                    try:
+                        for m in hdl.values():
+                            await m.kill()
+                    except trio.ClosedResourceError:
+                        pass
 
     async def request(self, action, iter=None, seq=None, _async=False, **params):
         """Send a request. Wait for a reply.
