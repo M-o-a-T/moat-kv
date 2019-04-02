@@ -307,16 +307,16 @@ async def one_auth(obj):
     return auth
             
 
-async def enum_typ(obj, kind='user', ident=None):
+async def enum_typ(obj, kind='user', ident=None, nchain=0):
     """List all known auth entries of a kind."""
     async for auth in enum_auth(obj):
         if ident is not None:
-            res = await obj.client.request(action="get_value", path=(None,'auth',auth,kind,ident), iter=False)
+            res = await obj.client.request(action="auth_list", typ=auth, kind=kind, ident=ident, iter=False, nchain=nchain)
             yield res
         else:
-            res = await obj.client.request(action="get_tree", path=(None,'auth',auth,kind), iter=True, maxdepth=1,mindepth=1)
-            async for r in res:
-                yield r
+            async with obj.client.stream(action="auth_list", typ=auth, kind=kind, nchain=nchain) as res:
+                async for r in res:
+                    yield r
 
 
 @auth.command()
@@ -350,11 +350,23 @@ async def user(obj):
     pass
 
 @user.command()
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option("-c", "--chain", default=0, help="Length of change list to return. Default: 0")
 @click.pass_obj
-async def list(obj):
+async def list(obj, yaml,chain):
     """List all users."""
-    async for r in enum_typ(obj):
-        print(r)
+    if yaml:
+        import yaml
+    async for r in enum_typ(obj,nchain=chain):
+        if obj.debug < 2:
+            del r['seq']
+            del r['tock']
+        if yaml:
+            print(yaml.safe_dump(r, default_flow_style=False))
+        elif obj.debug > 0:
+            print(r)
+        else:
+            print(r.ident)
 
 @user.command()
 @click.argument("ident", nargs=1)
@@ -382,6 +394,41 @@ async def mod(obj, ident, args):
     """Change a user."""
     await add_mod_user(obj, args, ident)
 
+async def add_mod_user(obj, args, modify):
+    auth = await one_auth(obj)
+    u = loader(auth,'user', make=True, server=False)
+    chain=None
+    if modify:
+        ou = await u.recv(obj.client, modify)
+        kw = await ou.export()
+    else:
+        kw = {}
+    for a in args:
+        if '=' in a:
+            k,v = a.split('=',1)
+            try:
+                v = int(v)
+            except ValueError:
+                pass
+            kw[k] = v
+    u = u.build(kw)
+    if modify is not None and u.ident != modify:
+        chain = None  # new user
+    res = await u.send(obj.client)
+    print("Added" if chain is None else "Modified" ,u.ident)
+
+
+@user.command(name="auth")
+@click.option("-a","--auth", type=str, default="_null", help="Auth params. =file or 'type param=value…' Default: _null")
+@click.pass_obj
+async def auth_(obj, auth):
+    """Test user authorization."""
+    user = gen_auth(auth)
+    await user.auth(obj.client)
+    if obj.debug >= 0:
+        print("OK.")
+
+    
 async def add_mod_user(obj, args, modify):
     auth = await one_auth(obj)
     u = loader(auth,'user', make=True, server=False)

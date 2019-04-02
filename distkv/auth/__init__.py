@@ -183,6 +183,7 @@ class BaseClientUser:
         """
         return {}
 
+
 class BaseClientUserMaker:
     """
     This class is used for creating a data record which describes a user record.
@@ -256,6 +257,15 @@ class BaseServerUser:
     async def auth(self, cmd: 'distkv.server.StreamCommand', data):
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data, schema=type(self).schema)
+
+    def info(self):
+        """
+        Return whatever public data the user might want to have displayed.
+
+        This includes information to identify the user, but not anything
+        that'd be suitable for verifying or even faking authorization.
+        """
+        return {}
 
     async def check_read(self, *path, client: "distkv.client.ServerClient", data=None):
         """Check that this user may read the element at this location.

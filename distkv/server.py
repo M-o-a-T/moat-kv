@@ -223,6 +223,59 @@ class SCmd_auth(StreamCommand):
             client._user = None
 
 
+class SCmd_auth_list(StreamCommand):
+    """
+    List auth data.
+
+    root: sub-root directory
+    typ: auth method (_null)
+    kind: type of data to read('user')
+    ident: user identifier (foo) (if missing: return all)
+    """
+    multiline = True
+
+    async def send_one(self, data, nchain=2):
+        typ,kind,ident = data.path[-3:]
+        cls = loader(typ, kind, server=True, make=False)
+        user = await cls.build(data)
+        res = user.info()
+        res['typ'] = typ
+        res['kind'] = kind
+        res['ident'] = ident
+        if data.chain is not None and nchain > 0:
+            res['chain'] = data.chain.serialize(nchain=nchain)
+
+        await self.send(**res)
+
+    async def run(self):
+        msg = self.msg
+        client = self.client
+        if not client.user.can_auth_read:
+            raise RuntimeError("Not allowed")
+
+        nchain = msg.get('nchain',0)
+        root = msg.get('root',())
+        if root and not self.user.is_super_root:
+            raise RuntimeError("Cannot read tenant users")
+        kind = msg.get('kind','user')
+
+        auth = client.root.follow(*root, None,"auth", nulls_ok=2, create=False)
+        if 'ident' in msg:
+            data = auth.follow(msg.typ, kind, msg.ident, create=False)
+            await self.send_one(data, nchain=nchain)
+
+        else:
+            d = auth.follow(msg.typ, kind, create=False)
+            for data in d.values():
+                await self.send_one(data, nchain=nchain)
+
+    async def __call__(self, **kw):
+        # simplify for single-value result
+        msg = self.msg
+        self.multiline = ('ident' not in msg)
+        return await super().__call__(**kw)
+
+
 class SCmd_auth_get(StreamCommand):
     """
     Read auth data.
