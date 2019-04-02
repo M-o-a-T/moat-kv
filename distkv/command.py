@@ -59,8 +59,8 @@ async def main(ctx, verbose, quiet, cfg):
 
 @main.command()
 @click.argument("args", nargs=-1)
-async def pdb(args):
-    import pdb;pdb.set_trace()
+async def pdb(args):  # safe
+    import pdb;pdb.set_trace()  # safe
     if not args:
         return
     return await main.main(args)
