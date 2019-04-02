@@ -45,7 +45,6 @@ class StreamedRequest:
     Call ``.send(**params)`` to send something; call ``.recv()``
     or async-iterate for receiving.
     """
-    send_stop = True
     start_msg = None
     end_msg = None
 
@@ -163,8 +162,6 @@ class _SingleReply:
     It will delegate itself to a StreamedRequest if a multi message reply
     arrives.
     """
-    send_stop = True
-
     def __init__(self, conn, seq):
         self._conn = conn
         self.seq = seq
