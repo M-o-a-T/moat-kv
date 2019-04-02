@@ -51,34 +51,6 @@ def cmp_n(a,b):
         b = -1
     return b-a
 
-def _multi_response(fn):
-    async def wrapper(self, msg, *args):
-        seq = msg.seq
-        await self.send({'seq':seq, 'state':'start'})
-        await fn(self, msg, *args)
-        await self.send({'seq':seq, 'state':'end'})
-    return wrapper
-
-def _stream(fn):
-    """A simple wrapper that calls the original function with each message"""
-    async def wrapper(self, msg):
-        seq = msg.seq
-        q = self.inqueue[seq]
-        path = msg.get('path', None)
-        longer = PathLongener(path) if path is not None else lambda x:x
-        n=0
-        while True:
-            msg = await q.receive()
-            if msg.get('state','') == 'end':
-                del self.inqueue[seq]
-                await self.send({'seq':seq, 'count':n})
-                return
-            longer(msg)
-            res = await fn(self, msg)
-            if isinstance(res, int):
-                n += res
-    return wrapper
-
 
 class StreamCommand:
     """Represent the execution of a streamed command.
@@ -411,6 +383,24 @@ class SCmd_watch(StreamCommand):
                 shorter(res)
                 await self.send(**res)
 
+class SCmd_update(StreamCommand):
+    """
+    Stream a stored update to the server and apply it.
+    """
+    multiline = False
+
+    async def run(self):
+        client = self.client
+        path = msg.get('path', None)
+        longer = PathLongener(path) if path is not None else lambda x:x
+        n=0
+        async for msg in self.in_recv_q:
+            longer(msg)
+            msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok)
+            await msg.entry.apply(msg, dropped=client._dropper)
+            n += 1
+        await self.send(count=n)
+
 
 class ServerClient:
     """Represent one (non-server) client."""
@@ -553,16 +543,6 @@ class ServerClient:
             res['chain'] = entry.chain.serialize(nchain=nchain)
         return res
 
-    @_stream
-    async def scmd_update(self, msg, q):
-        """
-        Apply a stored update.
-
-        This streams the input.
-        """
-        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok)
-        await msg.entry.apply(msg, dropped=self._dropper)
-
     async def cmd_update(self, msg):
         """
         Apply a stored update.
@@ -689,7 +669,8 @@ class ServerClient:
             self.tg = tg
             msg = {'seq': 0, 'version': _version_tuple,
                     'node':self.server.node.name, 'tick':self.server.node.tick,
-                    'tock':self.server.tock}
+                    'tock':self.server.tock,
+                  }
             try:
                 auth = self.root.follow(None,"auth", nulls_ok=True, create=False)
             except KeyError:
