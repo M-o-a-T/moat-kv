@@ -335,9 +335,9 @@ class Client:
             async with client.strem("interactive_thing", path=(None,"foo")) as req:
                 msg = await req.recv()
                 while msg.get(s,"")=="more":
-                    foo.send(s="more",value="some data")
+                    await foo.send(s="more",value="some data")
                     msg = await req.recv()
-                foo.send(s="that's all then")
+                await foo.send(s="that's all then")
 
         Any server-side exception will be raised on recv.
 
