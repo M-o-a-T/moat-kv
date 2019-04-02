@@ -96,6 +96,7 @@ class StreamCommand:
     multiline = False
     send_q = None
     _scope = None
+    end_msg = None
     
     def __new__(cls, client, msg):
         if cls is StreamCommand:
@@ -110,17 +111,31 @@ class StreamCommand:
         self.msg = msg
         self.seq = msg.seq
         self.in_send_q,self.in_recv_q = trio.open_memory_channel(3)
+        self.client.in_stream[self.seq] = self
 
-    async def recv(self, msg):
+    async def received(self, msg):
         """Receive another message from the client"""
+
         s = msg.get('state','')
+        err = msg.get('error',None)
+        if err:
+            await self.in_send_q.send(msg)
         if s == 'end':
-            await self.in_send_q.aclose()
-        else:
-            await self.in_send_q.send()
+            self.end_msg = msg
+            await self.aclose()
+        elif not err:
+            await self.in_send_q.send(msg)
 
     async def aclose(self):
+        self.client.in_stream.pop(self.seq, None)
         await self.in_send_q.aclose()
+
+    async def recv(self):
+        msg = await self.in_recv_q.receive()
+
+        if 'error' in msg:
+            raise ClientError(msg.error)
+        return msg
 
     async def send(self, **msg):
         """Send a message to the client.
