@@ -1,7 +1,7 @@
 from .util import attrdict
 
 __all__ = [
-        'PORT', 'CFG',
+        'PORT', 'CFG', 'gen_ssl',
     ]
 
 PORT = 27586  # 2000 + 100*ord('K') + ord('V')
@@ -10,6 +10,8 @@ CFG = attrdict(
         server=attrdict(
             host="localhost",
             port=PORT,
+            ssl=False,
+            # ssl=attrdict(cert='/path/to/cert.pem',key='/path/to/cert.key'),
             ),
         serf=attrdict(
             host="localhost",
@@ -28,3 +30,4 @@ CFG = attrdict(
             clock=5,
             ),
     )
+

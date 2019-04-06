@@ -20,12 +20,15 @@ setup(
     ],
     install_requires=[
         "trio_click",
-        "trio (>= 0.11)",
+        "trio >= 0.11",
         "range_set >= 0.2",
         "attrs >= 18.2",
         "trio_serf >= 0.4",
         "jsonschema >= 2.5",
         "pyyaml >= 3",
+    ],
+    tests_require=[
+        "trustme >= 0.5",
     ],
     keywords=[
         "async", "key-values", "distributed",

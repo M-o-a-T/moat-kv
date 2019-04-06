@@ -278,11 +278,12 @@ class Queue:
 class _Server:
     _servers = None
     _q = None
-    def __init__(self, tg, port=0, **kw):
+    def __init__(self, tg, port=0, ssl=None, **kw):
         self.tg = tg
         self.port = port
         self.ports = None
         self._kw = kw
+        self.ssl = ssl
 
     async def _accept(self, server, q, *, task_status=trio.TASK_STATUS_IGNORED):
         self.ports.append(server.socket.getsockname())
@@ -290,6 +291,8 @@ class _Server:
         try:
             while True:
                 conn = await server.accept()
+                if self.ssl:
+                    conn =  trio.SSLStream(conn, self.ssl, server_side=True)
                 await q.send(conn)
         finally:
             with trio.CancelScope(shield=True):
@@ -334,3 +337,18 @@ class AsyncValueEvent(ValueEvent):
         super().set(value)
     async def kill(self):
         self.cancel()
+
+
+def gen_ssl(ctx, server: bool = True):
+    if not ctx:
+        return None
+    if ctx is True:
+        ctx = dict()
+    if not isinstance(ctx,dict):
+        return ctx
+
+    ctx_ = trio.ssl.create_default_context(purpose=trio.ssl.Purpose.CLIENT_AUTH if server else trio.ssl.Purpose.SERVER_AUTH)
+    if 'key' in ctx:
+        ctx_.load_cert_chain(ctx['cert'],ctx['key'])
+    return ctx_
+

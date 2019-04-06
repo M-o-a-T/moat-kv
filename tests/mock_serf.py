@@ -25,10 +25,22 @@ logger = logging.getLogger(__name__)
 otm = time.time
 
 @asynccontextmanager
-async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
+async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
     TESTCFG = copy.deepcopy(CFG)
     TESTCFG.server.port = None
     TESTCFG.root="test"
+
+    if ssl:
+        import ssl
+        import trustme
+        ca = trustme.CA()
+        cert = ca.issue_server_cert(u"test.distkv.m-o-a-t.org")
+        server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
+        client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+        ca.configure_trust(client_ctx)
+        cert.configure_cert(server_ctx)
+    else:
+        server_ctx = client_ctx = None
 
     clock = trio.hazmat.current_clock()
     clock._autojump_threshold = 0.001
@@ -58,7 +70,7 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
             host,port = st.s[i].ports[0][0:2]
-            async with open_client(host=host, port=port, **kv) as c:
+            async with open_client(host=host, port=port, ssl=client_ctx, **kv) as c:
                 yield c
 
         def split(self, s):
@@ -99,6 +111,9 @@ async def stdtest(n=1, run=True, client=True, tocks=20, **kw):
                     args['cfg'] = args.get('cfg',TESTCFG).copy()
                     args['cfg']['serf'] = args['cfg']['serf'].copy()
                     args['cfg']['serf']['i'] = i
+                    if server_ctx:
+                        args['cfg']['server'] = args['cfg']['server'].copy()
+                        args['cfg']['server']['ssl'] = server_ctx
                 s = Server(name, **args)
                 ex.enter_context(mock.patch.object(s, "_send_ping", new=partial(mock_send_ping,s,s._send_ping)))
                 ex.enter_context(mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port,st)))

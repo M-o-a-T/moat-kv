@@ -6,9 +6,10 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
-from .util import attrdict, Queue, AsyncValueEvent
+from .util import attrdict, Queue, AsyncValueEvent, gen_ssl
 from .exceptions import ClientAuthMethodError, ClientAuthRequiredError, ServerClosedError,ServerConnectionError,ServerError
 from concurrent.futures import CancelledError
+#from trio_log import LogStream
 
 import logging
 logger = logging.getLogger(__name__)
@@ -24,8 +25,8 @@ class ManyData(ValueError):
     """More than one reply arrived"""
 
 @asynccontextmanager
-async def open_client(host, port, init_timeout=5, auth=None):
-    client = Client(host, port)
+async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
+    client = Client(host, port, ssl=ssl)
     async with trio.open_nursery() as tg:
         async with client._connected(tg, init_timeout=init_timeout, auth=auth) as client:
             yield client
@@ -194,12 +195,13 @@ class _SingleReply:
 class Client:
     _server_init = None  # Server greeting
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, ssl=False):
         self.host = host
         self.port = port
         self._seq = 0
         self._handlers = {}
         self._send_lock = trio.Lock()
+        self.ssl = gen_ssl(ssl, server=False)
 
     async def _handle_msg(self, msg):
         try:
@@ -385,6 +387,11 @@ class Client:
         
         #logger.debug("Conn %s %s",self.host,self.port)
         async with await trio.open_tcp_stream(self.host, self.port) as sock:
+            if self.ssl:
+                #sock = LogStream(sock,"CL")
+                sock = trio.SSLStream(sock, self.ssl, server_side=False)
+                #sock = LogStream(sock,"CH")
+                await sock.do_handshake()
             #logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg

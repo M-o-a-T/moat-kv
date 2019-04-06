@@ -12,9 +12,10 @@ import time
 from range_set import RangeSet
 import io
 from functools import partial
+#from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server
+from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server, gen_ssl
 from .auth import RootServerUser, loader
 from .exceptions import ClientError
 from . import client as distkv_client  # needs to be mock-able
@@ -1561,7 +1562,9 @@ class Server:
             await self._check_ticked()  # when _init is set
 
             cfg_s = self.cfg['server'].copy()
-            cfg_s.pop('host', 'localhost')
+            cfg_s.setdefault('host', 'localhost')
+            ssl_ctx = cfg_s.pop('ssl',False)
+            ssl_ctx = gen_ssl(ssl_ctx, server=True)
 
             await self._ready.wait()
             if cfg_s.get('port',_NotGiven) is None:
@@ -1573,6 +1576,11 @@ class Server:
                 logger.debug("S %s: opened %s", self.node.name, self.ports)
                 self._ready2.set()
                 async for client in server:
+                    if ssl_ctx:
+                        #client = LogStream(client,"SL")
+                        client = trio.SSLStream(client, ssl_ctx, server_side=True)
+                        #client = LogStream(client,"SH")
+                        await client.do_handshake()
                     await self.spawn(self._connect, client)
                 pass # unwinding create_tcp_server
             pass # unwinding serf_client (cancelled or error)
