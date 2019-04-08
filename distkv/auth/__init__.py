@@ -61,7 +61,6 @@ from importlib import import_module
 from ..client import NoData
 from ..exceptions import NoAuthModuleError
 
-
 NullSchema = { "type": "object", "additionalProperties":False }
 
 def loader(method:str, *a,**k):
@@ -86,12 +85,7 @@ def gen_auth(s: str):
     else:  
         kw = {}
         for pp in p:
-            k,v = pp.split('=',1)
-            try:
-                v = int(v)    
-            except ValueError:
-                pass
-            kw[k] = v
+            split_one(p,kw)
     try:
         m = loader(m, "user", server=False)
     except ModuleNotFoundError:

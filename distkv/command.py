@@ -4,7 +4,7 @@ import sys
 import trio_click as click
 from pprint import pprint
 
-from .util import attrdict, combine_dict, PathLongener, acount
+from .util import attrdict, combine_dict, PathLongener, acount, split_one
 from .client import open_client, StreamedRequest
 from .default import CFG, PORT
 from .server import Server
@@ -417,13 +417,7 @@ async def add_mod_user(obj, args, modify):
     else:
         kw = {}
     for a in args:
-        if '=' in a:
-            k,v = a.split('=',1)
-            try:
-                v = int(v)
-            except ValueError:
-                pass
-            kw[k] = v
+        split_one(a,kw)
     u = u.build(kw)
     if modify is not None and u.ident != modify:
         chain = None  # new user

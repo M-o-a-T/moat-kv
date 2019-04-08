@@ -1,5 +1,6 @@
 import trio
 from trio_serf.util import ValueEvent
+from getpass import getpass
 
 import logging
 
@@ -359,3 +360,22 @@ def num2byte(num:int, length=None):
 def byte2num(data:bytes):
     return int.from_bytes(data, byteorder='big')
 
+def split_one(p,kw):
+    """Split 'p' and add to dict 'kw'."""
+    try:
+        k,v = p.split('=',1)
+    except ValueError:
+        if p[-1] == '?':
+            k = p[:-1]
+            v = getpass(k+'? ')
+        else:
+            raise
+    else:
+        if k[-1] == '?':
+            k = k[:-1]
+            v = getpass(v+': ')
+        try:
+            v = int(v)    
+        except ValueError:
+            pass
+    kw[k] = v
