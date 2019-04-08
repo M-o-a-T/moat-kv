@@ -74,6 +74,7 @@ class ClientUserMaker(BaseClientUserMaker):
             properties=dict(
                 name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
             ),
+            required=['name']
         )
     _name=None
     @property
@@ -118,4 +119,22 @@ class ClientUserMaker(BaseClientUserMaker):
         return {'name':self._name}
 
 class ClientUser(BaseClientUser):
-    pass
+    schema = dict(
+            type="object",
+            additionalProperties=False,
+            properties=dict(
+                name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
+            ),
+            required=['name']
+        )
+    _name=None
+    @property
+    def ident(self):
+        return self._name
+
+    @classmethod
+    def build(cls,user):
+        self=super().build(user)
+        self._name=user['name']
+        return self
+

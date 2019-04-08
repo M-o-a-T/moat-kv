@@ -6,7 +6,7 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from trio_serf.util import ValueEvent
-from .util import attrdict, Queue, AsyncValueEvent, gen_ssl
+from .util import attrdict, Queue, AsyncValueEvent, gen_ssl, num2byte, byte2num
 from .exceptions import ClientAuthMethodError, ClientAuthRequiredError, ServerClosedError,ServerConnectionError,ServerError
 from concurrent.futures import CancelledError
 #from trio_log import LogStream
@@ -194,6 +194,7 @@ class _SingleReply:
 
 class Client:
     _server_init = None  # Server greeting
+    _dh_key = None
 
     def __init__(self, host, port, ssl=False):
         self.host = host
@@ -221,6 +222,22 @@ class Client:
             del self._handlers[seq]
         elif res:
             self._handlers[seq] = res
+
+    async def dh_secret(self, length=1024):
+        """Exchange a diffie-hellman secret with the server"""
+        if self._dh_key is None:
+            if length > 100:
+                import sys,pdb;pdb.Pdb(stdout=sys.__stdout__).set_trace()
+            from diffiehellman.diffiehellman import DiffieHellman
+            def gen_key():
+                k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
+                k.generate_public_key()
+                return k
+            k = await trio.run_sync_in_worker_thread(gen_key)
+            res = await self.request("diffie_hellman",pubkey=num2byte(k.public_key), length=length) # length=k.key_length
+            await trio.run_sync_in_worker_thread(k.generate_shared_secret, byte2num(res.pubkey))
+            self._dh_key = num2byte(k.shared_secret)[0:32]
+        return self._dh_key
 
     async def send(self, **params):
         async with self._send_lock:
@@ -325,16 +342,16 @@ class Client:
 
         This is a context manager. Use it like this::
 
-            async with client.strem("update", path="private storage".split(), stream=True) as req:
+            async with client.stream("update", path="private storage".split(), stream=True) as req:
                 with MsgReader("/tmp/msgs.pack") as f:
                     for msg in f:
                         await req.send(msg)
             # … or …
-            async with client.strem("get_tree", path="private storage".split()) as req:
+            async with client.stream("get_tree", path="private storage".split()) as req:
                 for msg in req:
                     await process_entry(msg)
             # … or maybe … (auth does this)
-            async with client.strem("interactive_thing", path=(None,"foo")) as req:
+            async with client.stream("interactive_thing", path=(None,"foo")) as req:
                 msg = await req.recv()
                 while msg.get(s,"")=="more":
                     await foo.send(s="more",value="some data")
@@ -373,7 +390,9 @@ class Client:
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError("You cannot use %s" % (auth._auth_method), sa)
+            raise ClientAuthMethodError("You cannot use '%s' auth" % (auth._auth_method), sa)
+        if getattr(auth,'_DEBUG', False):
+            auth._length = 16
         await auth.auth(self)
 
     @asynccontextmanager

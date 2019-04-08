@@ -17,5 +17,11 @@ class ClientAuthRequiredError(ClientAuthError):
 class ClientAuthMethodError(ClientAuthError):
     pass
 
-class NoAuthModuleError(ClientError):
+class DistKVauthError(ClientError):
+    pass
+class NoAuthError(DistKVauthError):
+    pass
+class NoAuthModuleError(DistKVauthError):
+    pass
+class AuthFailedError(DistKVauthError):
     pass

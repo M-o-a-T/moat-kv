@@ -26,6 +26,8 @@ setup(
         "trio_serf >= 0.4",
         "jsonschema >= 2.5",
         "pyyaml >= 3",
+        #"argon2 >= 18.3",
+        "nacl >= 1.3",
     ],
     tests_require=[
         "trustme >= 0.5",

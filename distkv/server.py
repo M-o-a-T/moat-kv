@@ -15,9 +15,9 @@ from functools import partial
 #from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
-from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server, gen_ssl
+from .util import attrdict, PathShortener, PathLongener, MsgWriter, MsgReader, Queue, create_tcp_server, gen_ssl, num2byte, byte2num
 from .auth import RootServerUser, loader
-from .exceptions import ClientError
+from .exceptions import ClientError, NoAuthError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -120,6 +120,8 @@ class StreamCommand:
             if self.multiline is None:
                 raise RuntimeError("Non-Multiline tried to send twice")
             self.multiline = None
+        elif self.multiline == -1:
+            raise RuntimeError("Can't explicitly send in simple interaction")
         await self.client.send(msg)
 
     async def __call__(self, **kw):
@@ -128,7 +130,7 @@ class StreamCommand:
             # single message
             await self.in_send_q.aclose()
 
-        if self.multiline:
+        if self.multiline > 0:
             await self.send(state='start')
             try:
                 res = await self.run(**kw)
@@ -141,14 +143,30 @@ class StreamCommand:
                 await self.send(state='end')
 
         else:
-            res = run(**kw)
+            res = await self.run(**kw)
             if res is None:
+                if self.multiline is None:
+                    return
                 res = {}
+            if self.multiline is None:
+                raise RuntimeError("Can't explicitly send in single-line reply")
+            if self.multiline < 0:
+                return res
             res['seq'] = self.seq
             await self.send(**res)
 
     async def run(self):
         raise RuntimeError("Do implement me!")
+
+
+class SingleMixin:
+    """This is a mix-in that transforms a StreamCommand into something that
+    doesn't."""
+    multiline=-1
+
+    async def __call__(self,**kw):
+        await self.aclose()
+        await super().__call__(**kw)
 
 
 class SCmd_auth(StreamCommand):
@@ -166,6 +184,7 @@ class SCmd_auth(StreamCommand):
     non-destructively test an updated authorization.
     """
     multiline = True
+    noAuth = True
 
     async def run(self):
         msg = self.msg
@@ -409,6 +428,7 @@ class ServerClient:
     is_chroot = False
     _user = None # user during auth
     user = None # authorized user
+    _dh_key = None
 
     def __init__(self, server: Server, stream: Stream):
         self.server = server
@@ -449,8 +469,7 @@ class ServerClient:
         """
         Process an incoming message.
         """
-        if (self.user is None or self._user is not None) and msg.action != "auth":
-            raise RuntimeError("You are not authorized")
+        needAuth = self.user is None or self._user is not None
 
         seq = msg.seq
         with trio.CancelScope() as s:
@@ -463,7 +482,11 @@ class ServerClient:
                 fn = getattr(self, 'cmd_' + str(msg.action), None)
             if fn is None:
                 fn = StreamCommand(self, msg)
+                if needAuth and not getattr(fn,'noAuth', False):
+                    raise NoAuthError()
             else:
+                if needAuth and not getattr(fn,'noAuth', False):
+                    raise NoAuthError()
                 fn = partial(self._process, fn, msg)
             task_status.started(s)
 
@@ -488,6 +511,42 @@ class ServerClient:
         self.root = entry
         self.is_chroot = True
         self._chop_path += len(root)
+
+    async def cmd_diffie_hellman(self, msg):
+        if self._dh_key:
+            raise RuntimeError("Can't call dh twice")
+        from diffiehellman.diffiehellman import DiffieHellman
+        def gen_key():
+            length = msg.get('length',1024)
+            k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
+            k.generate_public_key()
+            k.generate_shared_secret(byte2num(msg.pubkey))
+            self._dh_key = num2byte(k.shared_secret)[0:32]
+            return k
+        k = await trio.run_sync_in_worker_thread(gen_key, limiter=self.server.crypto_limiter)
+        return {'pubkey': num2byte(k.public_key)}
+    cmd_diffie_hellman.noAuth = True
+
+    @property
+    def dh_key(self):
+        if self._dh_key is None:
+            raise RuntimeError("The client has not executed DH key exchange")
+        return self._dh_key
+
+    async def cmd_auth_get(self, msg):
+        class AuthGet(SingleMixin, SCmd_auth_get):
+            pass
+        return await AuthGet(self,msg)()
+
+    async def cmd_auth_set(self, msg):
+        class AuthSet(SingleMixin, SCmd_auth_set):
+            pass
+        return await AuthSet(self,msg)()
+
+    async def cmd_auth_list(self, msg):
+        class AuthList(SingleMixin, SCmd_auth_list):
+            pass
+        return await AuthList(self,msg)()
 
     async def cmd_root(self, msg):
         """Change to a sub-tree.
@@ -737,9 +796,11 @@ class Server:
         self.node = Node(name, None, cache=self._nodes)
         self._tock = 0
         self._init = init
+        self.crypto_limiter = trio.CapacityLimiter(3)
 
         self._evt_lock = trio.Lock()
         self._random = Random()
+        self._clients = set()
 
     @asynccontextmanager
     async def next_event(self):
@@ -1588,6 +1649,7 @@ class Server:
     async def _connect(self, stream):
         c = ServerClient(server=self, stream=stream)
         try:
+            self._clients.add(c)
             await c.run()
         except BaseException as exc:
             if isinstance(exc, trio.MultiError):
@@ -1601,5 +1663,6 @@ class Server:
             except Exception:
                 pass
         finally:
+            self._clients.remove(c)
             await stream.aclose()
 

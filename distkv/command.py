@@ -40,11 +40,13 @@ def cmd():
 @click.group()
 @click.option("-v","--verbose", count=True, help="Enable debugging. Use twice for more verbosity.")
 @click.option("-q","--quiet", count=True, help="Disable debugging. Opposite of '--verbose'.")
+@click.option("-D","--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc).")
 @click.option("-c","--cfg", type=click.File('r'), default=None)
 @click.pass_context
-async def main(ctx, verbose, quiet, cfg):
+async def main(ctx, verbose, quiet, debug, cfg):
     ctx.ensure_object(attrdict)
     ctx.obj.debug = verbose - quiet
+    ctx.obj._DEBUG = debug
     logging.basicConfig(level=logging.DEBUG if verbose>2 else
                               logging.INFO if verbose>1 else
                               logging.WARNING if verbose>0 else
@@ -113,6 +115,8 @@ async def client(ctx,host,port,auth):
     kw = {}
     if auth is not None:
         kw['auth'] = gen_auth(auth)
+        if obj._DEBUG:
+            kw['auth']._DEBUG = True
 
     obj.client = await ctx.enter_async_context(open_client(host, port, **kw))
     logger.debug("Connected.")
@@ -271,7 +275,7 @@ async def update(obj, path, infile, loca, force):
 
 
 @client.group()
-@click.option('-m',"--method", default=None, help="Affect this auth method")
+@click.option('-m',"--method", default=None, help="Affect/use this auth method")
 @click.pass_obj
 async def auth(obj, method):
     """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
@@ -280,7 +284,12 @@ async def auth(obj, method):
     if a is not None:
         a = a['current']
     obj.auth_current = a
-    obj.auth = method or a or (await one_auth(obj))
+    if method is None:
+        obj.auth = a or (await one_auth(obj))
+    else:
+        if method == '-':
+            method = None
+        obj.auth = method
 
 
 async def enum_auth(obj):
@@ -374,6 +383,8 @@ async def list(obj, yaml,chain):
 async def get(obj, ident):
     """Retrieve a user."""
     l = loader(await one_auth(obj),'user', make=True, server=False)
+    if obj._DEBUG:
+        l._length = 16
     async for u in enum_typ(obj, ident=ident):
         u = await l.load(obj.client,u)
         print(u.export())
@@ -397,6 +408,8 @@ async def mod(obj, ident, args):
 async def add_mod_user(obj, args, modify):
     auth = await one_auth(obj)
     u = loader(auth,'user', make=True, server=False)
+    if obj._DEBUG:
+        u._length = 16
     chain=None
     if modify:
         ou = await u.recv(obj.client, modify)
@@ -428,28 +441,5 @@ async def auth_(obj, auth):
     if obj.debug >= 0:
         print("OK.")
 
-    
-async def add_mod_user(obj, args, modify):
-    auth = await one_auth(obj)
-    u = loader(auth,'user', make=True, server=False)
-    chain=None
-    if modify:
-        ou = await u.recv(obj.client, modify)
-        kw = await ou.export()
-    else:
-        kw = {}
-    for a in args:
-        if '=' in a:
-            k,v = a.split('=',1)
-            try:
-                v = int(v)
-            except ValueError:
-                pass
-            kw[k] = v
-    u = u.build(kw)
-    if modify is not None and u.ident != modify:
-        chain = None  # new user
-    res = await u.send(obj.client)
-    print("Added" if chain is None else "Modified" ,u.ident)
 
 

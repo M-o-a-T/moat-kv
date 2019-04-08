@@ -154,7 +154,6 @@ class _MsgRW():
     def __init__(self, path=None, stream=None):
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
-        from .codec import stream_unpacker
         self.path = trio.Path(path)
         self.stream = stream
 
@@ -181,7 +180,7 @@ class MsgReader(_MsgRW):
 
     _mode = "rb"
 
-    def __init__(self, **kw):
+    def __init__(self, stream, **kw):
         super().__init__(**kw)
         from .codec import stream_unpacker
         self.unpack = stream_unpacker()
@@ -351,4 +350,12 @@ def gen_ssl(ctx, server: bool = True):
     if 'key' in ctx:
         ctx_.load_cert_chain(ctx['cert'],ctx['key'])
     return ctx_
+
+def num2byte(num:int, length=None):
+    if length is None:
+        length = (num.bit_length()+7)//8
+    return num.to_bytes(length=length,byteorder="big")
+
+def byte2num(data:bytes):
+    return int.from_bytes(data, byteorder='big')
 
