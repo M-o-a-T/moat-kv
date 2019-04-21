@@ -4,10 +4,7 @@ LONG_DESC = open("README.rst").read()
 
 setup(
     name="distkv",
-    use_scm_version={
-        "version_scheme": "guess-next-dev",
-        "local_scheme": "dirty-tag"
-    },
+    use_scm_version={"version_scheme": "guess-next-dev", "local_scheme": "dirty-tag"},
     description="A distributed no-master key-value store",
     url="https://github.com/smurfix/distkv",
     long_description=LONG_DESC,
@@ -15,10 +12,7 @@ setup(
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
     packages=find_packages(),
-    setup_requires=[
-        "setuptools_scm",
-        "pytest-runner",
-    ],
+    setup_requires=["setuptools_scm", "pytest-runner"],
     install_requires=[
         "trio_click",
         "trio >= 0.11",
@@ -27,18 +21,13 @@ setup(
         "asyncserf >= 0.5",
         "jsonschema >= 2.5",
         "pyyaml >= 3",
-        #"argon2 >= 18.3",
+        # "argon2 >= 18.3",
         "PyNaCl >= 1.3",
         "diffiehellman",
         "trustme",
     ],
-    tests_require=[
-        "trustme >= 0.5",
-        "pytest",
-    ],
-    keywords=[
-        "async", "key-values", "distributed",
-    ],
+    tests_require=["trustme >= 0.5", "pytest"],
+    keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -57,10 +46,9 @@ setup(
         "Topic :: Home Automation",
         "Topic :: System :: Distributed Computing",
     ],
-    entry_points='''
+    entry_points="""
     [console_scripts]
     distkv = distkv.command:cmd
-    ''',
+    """,
     zip_safe=True,
-
 )
