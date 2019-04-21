@@ -29,6 +29,8 @@ setup(
         "pyyaml >= 3",
         #"argon2 >= 18.3",
         "PyNaCl >= 1.3",
+        "diffiehellman",
+        "trustme",
     ],
     tests_require=[
         "trustme >= 0.5",
