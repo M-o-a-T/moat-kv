@@ -4,7 +4,7 @@ __all__ = [
         'PORT', 'CFG', 'gen_ssl',
     ]
 
-PORT = 27586  # 2000 + 100*ord('K') + ord('V')
+PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 
 CFG = attrdict(
         server=attrdict(
