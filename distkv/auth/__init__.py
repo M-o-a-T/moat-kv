@@ -59,6 +59,7 @@ The server process is:
 import jsonschema
 from importlib import import_module
 from ..client import NoData
+from ..util import split_one
 from ..exceptions import NoAuthModuleError
 
 NullSchema = { "type": "object", "additionalProperties":False }
@@ -85,7 +86,7 @@ def gen_auth(s: str):
     else:  
         kw = {}
         for pp in p:
-            split_one(p,kw)
+            split_one(pp,kw)
     try:
         m = loader(m, "user", server=False)
     except ModuleNotFoundError:
