@@ -78,8 +78,9 @@ author = 'The DistKV authors'
 # built documents.
 #
 # The short X.Y version.
-import distkv
-version = distkv.__version__
+import pkg_resources
+version = pkg_resources.get_distribution("distkv").version
+
 # The full version, including alpha/beta/rc tags.
 release = version
 

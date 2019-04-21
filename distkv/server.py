@@ -28,7 +28,6 @@ from .util import (
     num2byte,
     byte2num,
 )
-from .auth import RootServerUser, loader
 from .exceptions import ClientError, NoAuthError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
@@ -202,6 +201,8 @@ class SCmd_auth(StreamCommand):
     noAuth = True
 
     async def run(self):
+        from .auth import loader
+
         msg = self.msg
         client = self.client
 
@@ -217,6 +218,7 @@ class SCmd_auth(StreamCommand):
                 raise RuntimeError("Wrong auth type", a)
 
         data = auth.follow(msg.typ, "user", msg.ident, create=False)
+
         cls = loader(msg.typ, "user", server=True)
         user = await cls.build(data)
         client._user = user
@@ -243,6 +245,8 @@ class SCmd_auth_list(StreamCommand):
     multiline = True
 
     async def send_one(self, data, nchain=2):
+        from .auth import loader
+
         typ, kind, ident = data.path[-3:]
         cls = loader(typ, kind, server=True, make=False)
         user = await cls.build(data)
@@ -299,6 +303,8 @@ class SCmd_auth_get(StreamCommand):
     multiline = True
 
     async def run(self):
+        from .auth import loader
+
         msg = self.msg
         client = self.client
         if not client.user.can_auth_read:
@@ -333,6 +339,8 @@ class SCmd_auth_set(StreamCommand):
     multiline = True
 
     async def run(self):
+        from .auth import loader
+
         msg = self.msg
         client = self.client
         if not client.user.can_auth_write:
@@ -858,6 +866,7 @@ class ServerClient:
                 auths.insert(0, a)
                 msg["auth"] = auths
             if a is None:
+                from .auth import RootServerUser
                 self.user = RootServerUser()
             await self.send(msg)
 

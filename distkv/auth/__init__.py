@@ -21,18 +21,18 @@ The client process is:
 
 * create a user:
 
-  * Create a :cls:`BaseUserMaker` by calling :meth:`BaseUserMaker.build`
+  * Create a :class:`BaseUserMaker` by calling :meth:`BaseUserMaker.build`
     with a record conforming to its schema.
 
   * Export that and save it to the server, at (None,"auth","user",NAME).
 
 * modify a user:
 
-  * Call :cls:`BaseUserMaker.import` with the value from the server.
+  * Call :class:`BaseUserMaker.import` with the value from the server.
 
 * Log in:
 
-  * Create a :cls:`BaseUser` by calling :meth:`BaseUserMaker.build`
+  * Create a :class:`BaseUser` by calling :meth:`BaseUserMaker.build`
     with a record conforming to its schema.
 
   * Call :meth:`BaseUser.auth`.
@@ -63,9 +63,9 @@ import jsonschema
 import io
 import yaml
 from importlib import import_module
-from ..client import NoData, Client, ServerClient
+from ..client import NoData, Client
 from ..model import Entry
-from ..server import StreamCommand
+from ..server import StreamCommand, ServerClient
 from ..util import split_one
 from ..exceptions import NoAuthModuleError
 
@@ -202,8 +202,8 @@ class BaseClientUserMaker:
     """
     This class is used for creating a data record which describes a user record.
 
-    This is not the same as a :cls:`BaseClientUser`; this class is used to
-    represent stored user data on the server, while a :cls:`BaseClientUser` is used solely
+    This is not the same as a :class:`BaseClientUser`; this class is used to
+    represent stored user data on the server, while a :class:`BaseClientUser` is used solely
     for authentication.
 
     The schema verifies the input to :meth:`build`.
@@ -317,7 +317,7 @@ class BaseServerUserMaker:
     """
     This class is used on the server to verify the user record and to store it in DistKV.
 
-    The schema verifies the output of :meth:`BaseClientUserMaker.save`.
+    The schema verifies the output of :meth:`BaseClientUserMaker.send`.
     It does *not* verify the user's data record in DistKV.
     """
 
