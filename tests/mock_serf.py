@@ -12,6 +12,11 @@ import trio
 import time
 from pprint import pformat
 from functools import partial
+try:
+    from concurrent.futures import CancelledError
+except ImportError:
+    class CancelledError(Exception):
+        pass
 
 from distkv.client import open_client
 from distkv.default import CFG
@@ -163,8 +168,14 @@ class MockServ:
     def __hash__(self):
         return id(self)
 
-    async def spawn(self, *args, **kw):
-        return self.tg.start_soon(*args, **kw)
+    async def spawn(self, fn, *args, **kw):
+        async def run():
+            try:
+                await fn(*args, **kw)
+            except CancelledError:
+                pass
+
+        return self.tg.start_soon(run)
 
     def stream(self, event_types='*'):
         if ',' in event_types or not event_types.startswith('user:'):
