@@ -102,7 +102,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         st = S(tg)
         async with AsyncExitStack() as ex:
             ex.enter_context(mock.patch("time.time", new=tm))
-            ex.enter_context(mock.patch("trio_serf.serf_client", new=partial(mock_serf_client,st)))
+            ex.enter_context(mock.patch("asyncserf.serf_client", new=partial(mock_serf_client,st)))
 
             for i in range(n):
                 name = "test_"+str(i)

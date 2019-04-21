@@ -5,7 +5,7 @@ import trio
 from trio.abc import Stream
 from async_generator import asynccontextmanager
 import msgpack
-import trio_serf
+import asyncserf
 from typing import Any
 from random import Random
 import time
@@ -1588,7 +1588,7 @@ class Server:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_stream``: a binary stream to write changes and initial state to.
         """
-        async with trio_serf.serf_client(**self.cfg['serf']) as serf:
+        async with asyncserf.serf_client(**self.cfg['serf']) as serf:
             # Collect all "info/missing" messages seen since the last
             # healed network split so that they're only sent once.
             self.seen_missing = {}

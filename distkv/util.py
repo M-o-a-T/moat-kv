@@ -1,5 +1,5 @@
 import trio
-from trio_serf.util import ValueEvent
+from asyncserf.util import ValueEvent
 from getpass import getpass
 
 import logging
