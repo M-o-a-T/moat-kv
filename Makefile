@@ -44,14 +44,15 @@ update:
 test:
 	$(PYTEST) $(PACKAGE) $(TEST_OPTIONS)
 
-tag:	
-	./mktag
+tagged:
+	git describe --tags --exact-match
+	test $$(git ls-files -m | wc -l) = 0
 
-pypi:	tag
+pypi:	tagged
 	python3 setup.py sdist upload
 	## version depends on tag, so re-tagging doesn't make sense
 
 upload: pypi
 	git push --tags
 
-.PHONY: all tag pypi upload
+.PHONY: all tagged pypi upload
