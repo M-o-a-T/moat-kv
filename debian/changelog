@@ -1,3 +1,9 @@
+distkv (0.3.0-3) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Sun, 21 Apr 2019 08:30:18 +0200
+
 distkv (0.3.0-2) unstable; urgency=medium
 
   * Depend on asyncserf
