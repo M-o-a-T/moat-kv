@@ -1,4 +1,4 @@
-distkv (0.2.5~dev91-1) smurf; urgency=low
+distkv (0.3.0-1) unstable; urgency=medium
 
   * source package automatically created by stdeb 0.8.5
 
