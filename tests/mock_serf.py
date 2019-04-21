@@ -47,7 +47,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
     else:
         server_ctx = client_ctx = None
 
-    clock = trio.testing.MockClock(autojump_threshold=0.001)
+    clock = trio.hazmat.current_clock()
+    clock.autojump_threshold = 0.01
 
     @attr.s
     class S:
@@ -174,7 +175,6 @@ class MockServ:
                 await fn(*args, **kw)
             except CancelledError:
                 pass
-
         return self.tg.start_soon(run)
 
     def stream(self, event_types='*'):
