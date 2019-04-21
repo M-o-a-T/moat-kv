@@ -6,29 +6,42 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from asyncserf.util import ValueEvent
-from .util import attrdict, Queue, gen_ssl, num2byte, byte2num
-from .exceptions import ClientAuthMethodError, ClientAuthRequiredError, ServerClosedError,ServerConnectionError,ServerError
+from .util import attrdict, gen_ssl, num2byte, byte2num
+from .exceptions import (
+    ClientAuthMethodError,
+    ClientAuthRequiredError,
+    ServerClosedError,
+    ServerConnectionError,
+    ServerError,
+)
 from concurrent.futures import CancelledError
-#from trio_log import LogStream
+
+# from trio_log import LogStream
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
-__all__ = ['NodData', 'ManyData', 'open_client', 'StreamedRequest']
+__all__ = ["NoData", "ManyData", "open_client", "StreamedRequest"]
+
 
 class NoData(ValueError):
     """No reply arrived"""
 
+
 class ManyData(ValueError):
     """More than one reply arrived"""
+
 
 @asynccontextmanager
 async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
     client = Client(host, port, ssl=ssl)
     async with trio.open_nursery() as tg:
-        async with client._connected(tg, init_timeout=init_timeout, auth=auth) as client:
+        async with client._connected(
+            tg, init_timeout=init_timeout, auth=auth
+        ) as client:
             yield client
 
 
@@ -46,10 +59,11 @@ class StreamedRequest:
     Call ``.send(**params)`` to send something; call ``.recv()``
     or async-iterate for receiving.
     """
+
     start_msg = None
     end_msg = None
 
-    def __init__(self, client, seq, stream:bool=False, report_start:bool=False):
+    def __init__(self, client, seq, stream: bool = False, report_start: bool = False):
         self._stream = stream
         self._client = client
         self.seq = seq
@@ -64,13 +78,13 @@ class StreamedRequest:
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
-        if 'error' in msg:
+        if "error" in msg:
             try:
                 await self.send_q.send(outcome.Error(ServerError(msg.error)))
             except trio.ClosedResourceError:
                 pass
             return
-        state = msg.get('state', "")
+        state = msg.get("state", "")
         if state == "":
             if self._reply_stream is False:
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
@@ -80,7 +94,7 @@ class StreamedRequest:
             if self._reply_stream is False:
                 await self.send_q.aclose()
 
-        elif state == 'start':
+        elif state == "start":
             if self._reply_stream is not None:
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
@@ -88,7 +102,7 @@ class StreamedRequest:
             if self._report_start:
                 await self.send_q.send(outcome.Value(msg))
 
-        elif state == 'end':
+        elif state == "end":
             if self._reply_stream is not True:
                 raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
@@ -101,7 +115,7 @@ class StreamedRequest:
 
     async def get(self):
         """Receive a single reply"""
-        pass # receive reply
+        pass  # receive reply
         if self._reply_stream:
             raise RuntimeError("Unexpected multi stream msg")
         msg = await self.recv()
@@ -111,6 +125,7 @@ class StreamedRequest:
 
     def __iter__(self):
         raise RuntimeError("You need to use 'async for …'")
+
     __next__ = __iter__
 
     def __aiter__(self):
@@ -124,15 +139,15 @@ class StreamedRequest:
         return res.unwrap()
 
     async def send(self, **params):
-        #logger.debug("Send %s", params)
+        # logger.debug("Send %s", params)
         if not self._stream:
             if self._stream is None:
                 raise RuntimeError("You can't send more than one request")
             self._stream = None
         elif self._stream is True:
             self._stream = 2
-            params['state'] = 'start'
-        elif self._stream == 2 and params.get('state','') == 'end':
+            params["state"] = "start"
+        elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
         await self._client.send(seq=self.seq, **params)
 
@@ -146,14 +161,14 @@ class StreamedRequest:
     async def aclose(self, timeout=0.2):
         await self.send_q.aclose()
         if self._stream == 2:
-            await self._client.send(seq=self.seq, state='end')
+            await self._client.send(seq=self.seq, state="end")
             if timeout is not None:
                 with trio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
                         return
-            req = await self._client.request(action="stop",task=self.seq, _async=True)
+            req = await self._client.request(action="stop", task=self.seq, _async=True)
             return await req.get()
 
 
@@ -163,6 +178,7 @@ class _SingleReply:
     It will delegate itself to a StreamedRequest if a multi message reply
     arrives.
     """
+
     def __init__(self, conn, seq):
         self._conn = conn
         self.seq = seq
@@ -170,12 +186,12 @@ class _SingleReply:
 
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
-        if msg.get('state') == 'start':
+        if msg.get("state") == "start":
             res = StreamedRequest(self._conn, self.seq, stream=None)
             await res.set(msg)
             await self.q.set(res)
             return res
-        elif 'error' in msg:
+        elif "error" in msg:
             await self.q.set_error(ServerError(msg.error))
         else:
             await self.q.set(msg)
@@ -183,11 +199,11 @@ class _SingleReply:
 
     async def get(self):
         """Wait for and return the result.
-        
+
         This is a coroutine.
         """
         return await self.q.get()
-    
+
     async def cancel(self):
         pass
 
@@ -208,8 +224,8 @@ class Client:
         try:
             seq = msg.seq
         except AttributeError:
-            if 'error' in msg:
-                raise RuntimeError("Server error",msg.error)
+            if "error" in msg:
+                raise RuntimeError("Server error", msg.error)
             raise RuntimeError("Reader got out of sync: " + str(msg))
         try:
             hdl = self._handlers[seq]
@@ -226,16 +242,20 @@ class Client:
     async def dh_secret(self, length=1024):
         """Exchange a diffie-hellman secret with the server"""
         if self._dh_key is None:
-            if length > 100:
-                import sys,pdb;pdb.Pdb(stdout=sys.__stdout__).set_trace()
             from diffiehellman.diffiehellman import DiffieHellman
+
             def gen_key():
                 k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
                 k.generate_public_key()
                 return k
+
             k = await trio.run_sync_in_worker_thread(gen_key)
-            res = await self.request("diffie_hellman",pubkey=num2byte(k.public_key), length=length) # length=k.key_length
-            await trio.run_sync_in_worker_thread(k.generate_shared_secret, byte2num(res.pubkey))
+            res = await self.request(
+                "diffie_hellman", pubkey=num2byte(k.public_key), length=length
+            )  # length=k.key_length
+            await trio.run_sync_in_worker_thread(
+                k.generate_shared_secret, byte2num(res.pubkey)
+            )
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
@@ -246,14 +266,16 @@ class Client:
     async def _reader(self, *, task_status=trio.TASK_STATUS_IGNORED):
         """Main loop for reading
         """
-        unpacker = msgpack.Unpacker(object_pairs_hook=attrdict, raw=False, use_list=False)
+        unpacker = msgpack.Unpacker(
+            object_pairs_hook=attrdict, raw=False, use_list=False
+        )
 
         with trio.CancelScope(shield=True) as s:
             task_status.started(s)
             try:
                 while True:
                     for msg in unpacker:
-                        #logger.debug("Recv %s", msg)
+                        # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
                         except trio.ClosedResourceError:
@@ -306,29 +328,32 @@ class Client:
 
         if action is not None:
             params[act] = action
-        params['seq'] = seq
+        params["seq"] = seq
         res = _SingleReply(self, seq)
         self._handlers[seq] = res
 
-        #logger.debug("Send %s", params)
+        # logger.debug("Send %s", params)
         await self.send(**params)
         if _async:
             return res
 
         res = await res.get()
         if iter is True and not isinstance(res, StreamedRequest):
+
             async def send_one(res):
                 yield res
+
             res = send_one(res)
         elif iter is False and isinstance(res, StreamedRequest):
             rr = None
             async for r in res:
                 if rr is not None:
-                    raise MoreData(action)
+                    raise ManyData(action)
+                rr = r
             if rr is None:
                 raise NoData(action)
+            res = rr
         return res
-
 
     @asynccontextmanager
     async def stream(self, action, stream=False, **params):
@@ -366,7 +391,7 @@ class Client:
         self._seq += 1
         seq = self._seq
 
-        #logger.debug("Send %s", params)
+        # logger.debug("Send %s", params)
         res = StreamedRequest(self, seq, stream=stream)
         await res.send(action=action, **params)
         try:
@@ -378,20 +403,23 @@ class Client:
         finally:
             await res.aclose()
 
-
     async def _run_auth(self, auth=None):
         hello = self._server_init
-        sa = hello.get('auth', ())
+        sa = hello.get("auth", ())
         if not sa or not sa[0]:
             # no auth required
             if auth:
-                logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
+                logger.info(
+                    "Tried to use auth=%s, but not required.", auth._auth_method
+                )
             return
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError("You cannot use '%s' auth" % (auth._auth_method), sa)
-        if getattr(auth,'_DEBUG', False):
+            raise ClientAuthMethodError(
+                "You cannot use '%s' auth" % (auth._auth_method), sa
+            )
+        if getattr(auth, "_DEBUG", False):
             auth._length = 16
         await auth.auth(self)
 
@@ -403,15 +431,15 @@ class Client:
         """
         hello = ValueEvent()
         self._handlers[0] = hello
-        
-        #logger.debug("Conn %s %s",self.host,self.port)
+
+        # logger.debug("Conn %s %s",self.host,self.port)
         async with await trio.open_tcp_stream(self.host, self.port) as sock:
             if self.ssl:
-                #sock = LogStream(sock,"CL")
+                # sock = LogStream(sock,"CL")
                 sock = trio.SSLStream(sock, self.ssl, server_side=False)
-                #sock = LogStream(sock,"CH")
+                # sock = LogStream(sock,"CH")
                 await sock.do_handshake()
-            #logger.debug("ConnDone %s %s",self.host,self.port)
+            # logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg
                 self._socket = sock
@@ -433,5 +461,3 @@ class Client:
                     await self._socket.aclose()
                     self._socket = None
                 self.tg = None
-
-

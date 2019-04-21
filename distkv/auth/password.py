@@ -7,14 +7,25 @@ Does not limit anything, allows everything.
 
 import nacl.secret
 
-from . import BaseServerUserMaker,RootServerUser,BaseClientUserMaker,BaseClientUser, null_server_login,null_client_login
-from ..client import NoData
+from . import (
+    BaseServerUserMaker,
+    RootServerUser,
+    BaseClientUserMaker,
+    BaseClientUser,
+    null_server_login,
+    null_client_login,
+)
+from ..client import NoData, Client
+from ..server import StreamCommand
+from ..model import Entry
 from ..exceptions import AuthFailedError
 
 import logging
+
 logger = logging.getLogger(__name__)
 
-def load(typ:str, *, make:bool=False, server:bool):
+
+def load(typ: str, *, make: bool = False, server: bool):
     if typ == "client":
         if server:
             return null_server_login
@@ -33,16 +44,19 @@ def load(typ:str, *, make:bool=False, server:bool):
         else:
             return ClientUser
 
-async def pack_pwd(client,password,length):
+
+async def pack_pwd(client, password, length):
     """Client side: encrypt password"""
     secret = await client.dh_secret(length=length)
     from hashlib import sha256
+
     pwd = sha256(password).digest()
     box = nacl.secret.SecretBox(secret)
     pwd = box.encrypt(pwd)
     return pwd
 
-async def unpack_pwd(client,password):
+
+async def unpack_pwd(client, password):
     """Server side: extract password"""
     box = nacl.secret.SecretBox(client.dh_key)
     pwd = box.decrypt(password)
@@ -51,7 +65,8 @@ async def unpack_pwd(client,password):
 
 
 class ServerUserMaker(BaseServerUserMaker):
-    _name=None
+    _name = None
+
     @property
     def ident(self):
         return self._name
@@ -59,47 +74,48 @@ class ServerUserMaker(BaseServerUserMaker):
     # Overly-complicated methods of exchanging the user name
 
     @classmethod
-    async def recv(cls,cmd,data):
+    async def recv(cls, cmd, data):
         self = cls()
         self._name = data.ident
-        pwd = await unpack_pwd(cmd.client,data.password)
+        pwd = await unpack_pwd(cmd.client, data.password)
 
         # TODO use Argon2 to re-hash this
         self._password = pwd
         return self
 
-    async def send(self,cmd):
+    async def send(self, cmd):
         return  # nothing to do, we don't share the hash
 
     # Annoying methods to read+save the user name from/to KV
 
     @classmethod
-    def build(cls,data):
-        self=super().build(data)
+    def build(cls, data):
+        self = super().build(data)
         self._name = data.path[-1]
-        self._password = data['password']
+        self._password = data["password"]
         return self
 
     def save(self):
         res = super().save()
-        res['password']=self._password
+        res["password"] = self._password
         return res
+
 
 class ServerUser(RootServerUser):
     is_super_root = True
     can_create_subtree = True
     can_auth_read = True
     can_auth_write = True
-    
+
     @classmethod
-    async def build(cls, data: 'distkv.model.Entry'):
+    async def build(cls, data: Entry):
         """Create a ServerUser object from existing stored data"""
         self = await super().build(data)
         self._name = data.path[-1]
-        self._password = data.data['password']
+        self._password = data.data["password"]
         return self
 
-    async def auth(self, cmd: 'distkv.server.StreamCommand', data):
+    async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
         await super().auth(cmd, data)
 
@@ -110,17 +126,17 @@ class ServerUser(RootServerUser):
 
 class ClientUserMaker(BaseClientUserMaker):
     schema = dict(
-            type="object",
-            additionalProperties=False,
-            properties=dict(
-                name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
-                password=dict(type="string", minLength=5),
-            ),
-            required=['name','password']
-        )
-    _name=None
-    _pass=None
-    _length=1024
+        type="object",
+        additionalProperties=False,
+        properties=dict(
+            name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
+            password=dict(type="string", minLength=5),
+        ),
+        required=["name", "password"],
+    )
+    _name = None
+    _pass = None
+    _length = 1024
 
     @property
     def ident(self):
@@ -129,64 +145,79 @@ class ClientUserMaker(BaseClientUserMaker):
     # Overly-complicated methods of exchanging the user name
 
     @classmethod
-    def build(cls,user):
-        self=super().build(user)
-        self._name=user['name']
-        self._pass=user['password'].encode("utf-8")
+    def build(cls, user):
+        self = super().build(user)
+        self._name = user["name"]
+        self._pass = user["password"].encode("utf-8")
         return self
 
     @classmethod
-    async def recv(cls, client: "distkv.client.Client", ident:str, _kind:'user'):
+    async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
-        m = client.request(action="auth_get",typ=cls._auth_method,kind=_kind,ident=ident)
+        m = client.request(
+            action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
+        )
         # just to verify that the user exists
         # There's no reason to send the password hash back
         self = cls()
         self._name = m.name
         return self
-    
-    async def send(self, client: "distkv.client.Client", _kind='user'):
+
+    async def send(self, client: Client, _kind="user"):
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 
-        await client.request(action="auth_set",ident=self._name,typ=type(self)._auth_method,kind=_kind, password=pw)
+        await client.request(
+            action="auth_set",
+            ident=self._name,
+            typ=type(self)._auth_method,
+            kind=_kind,
+            password=pw,
+        )
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {'name':self._name}
+        return {"name": self._name}
+
 
 class ClientUser(BaseClientUser):
     schema = dict(
-            type="object",
-            additionalProperties=False,
-            properties=dict(
-                name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
-                password=dict(type="string", minLength=5),
-            ),
-            required=['name','password']
-        )
-    _name=None
-    _pass=None
-    _length=1024
+        type="object",
+        additionalProperties=False,
+        properties=dict(
+            name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
+            password=dict(type="string", minLength=5),
+        ),
+        required=["name", "password"],
+    )
+    _name = None
+    _pass = None
+    _length = 1024
 
     @property
     def ident(self):
         return self._name
 
     @classmethod
-    def build(cls,user):
-        self=super().build(user)
-        self._name=user['name']
-        self._pass=user['password'].encode("utf-8")
+    def build(cls, user):
+        self = super().build(user)
+        self._name = user["name"]
+        self._pass = user["password"].encode("utf-8")
         return self
 
-    async def auth(self, client: "distkv.client.Client", chroot=()):
+    async def auth(self, client: Client, chroot=()):
         """
         Authorizes this user with the server.
         """
         try:
             pw = await pack_pwd(client, self._pass, self._length)
-            await client.request(action="auth", typ=self._auth_method, iter=False, ident=self.ident, password=pw, **self.auth_data())
+            await client.request(
+                action="auth",
+                typ=self._auth_method,
+                iter=False,
+                ident=self.ident,
+                password=pw,
+                **self.auth_data()
+            )
         except NoData:
             pass
-

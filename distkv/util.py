@@ -1,5 +1,6 @@
 import trio
 from getpass import getpass
+from collections.abc import Mapping
 
 import logging
 
@@ -13,7 +14,7 @@ def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
-    
+
     This recurses if values are dicts.
     """
     res = {}
@@ -21,44 +22,49 @@ def combine_dict(*d):
     if len(d) <= 1:
         return d
     for kv in d:
-        for k,v in kv.items():
+        for k, v in kv.items():
             if k not in keys:
                 keys[k] = []
             keys[k].append(v)
-    for k,v in keys.items():
+    for k, v in keys.items():
         if len(v) == 1:
             res[k] = v[0]
-        elif not isinstance(v[0],Mapping):
+        elif not isinstance(v[0], Mapping):
             for vv in v[1:]:
-                assert not isinstance(vv,Mapping)
+                assert not isinstance(vv, Mapping)
             res[k] = v[0]
         else:
             res[k] = combine_dict(*v)
     return res
 
+
 class attrdict(dict):
     """A dictionary which can be accessed via attributes, for convenience"""
-    def __init__(self,*a,**k):
-        super(attrdict,self).__init__(*a,**k)
+
+    def __init__(self, *a, **k):
+        super(attrdict, self).__init__(*a, **k)
         self._done = set()
 
-    def __getattr__(self,a):
-        if a.startswith('_'):
-            return super(attrdict,self).__getattr__(a)
+    def __getattr__(self, a):
+        if a.startswith("_"):
+            return super(attrdict, self).__getattr__(a)
         try:
             return self[a]
         except KeyError:
             raise AttributeError(a) from None
-    def __setattr__(self,a,b):
+
+    def __setattr__(self, a, b):
         if a.startswith("_"):
-            super(attrdict,self).__setattr__(a,b)
+            super(attrdict, self).__setattr__(a, b)
         else:
-            self[a]=b
-    def __delattr__(self,a):
+            self[a] = b
+
+    def __delattr__(self, a):
         del self[a]
 
-import yaml
+
 from yaml.representer import SafeRepresenter
+
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
@@ -68,11 +74,13 @@ def count(iter):
         n += 1
     return n
 
+
 async def acount(iter):
     n = 0
-    async for _ in iter:
+    async for _ in iter:  # noqa: F841
         n += 1
     return n
+
 
 class PathShortener:
     """This class shortens path entries so that the initial components that
@@ -87,8 +95,8 @@ class PathShortener:
         a b c d
         a b c e f
         a b c e g h
-        a b c i 
-        a b j 
+        a b c i
+        a b j
 
     is shortened to
 
@@ -114,16 +122,19 @@ class PathShortener:
     Note that the dict is modified in-place.
 
     """
+
     def __init__(self, prefix):
         self.prefix = prefix
         self.depth = len(prefix)
         self.path = []
 
     def __call__(self, res):
-        if res.path[:self.depth] != self.prefix:
-            raise RuntimeError("Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix)))
+        if res.path[: self.depth] != self.prefix:
+            raise RuntimeError(
+                "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
+            )
 
-        p = res['path'][self.depth:]
+        p = res["path"][self.depth:]
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
@@ -131,26 +142,28 @@ class PathShortener:
                 break
         self.path = p
         p = p[cdepth:]
-        res['path'] = p
-        res['depth'] = cdepth
+        res["path"] = p
+        res["depth"] = cdepth
 
 
 class PathLongener:
     """This reverts the operation of a PathShortener.
     """
+
     def __init__(self, prefix):
         self.depth = len(prefix)
         self.path = prefix
 
     def __call__(self, res):
-        p = res.pop('path', ())
-        d = res.pop('depth', None)
+        p = res.pop("path", ())
+        d = res.pop("depth", None)
         if d is not None:
-            p = self.path[:self.depth+d] + p
+            p = self.path[: self.depth + d] + p
         self.path = p
-        res['path'] = p
+        res["path"] = p
 
-class _MsgRW():
+
+class _MsgRW:
     def __init__(self, path=None, stream=None):
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
@@ -170,7 +183,7 @@ class _MsgRW():
 
 class MsgReader(_MsgRW):
     """Read a stream of messages from a file.
-    
+
     Usage::
 
         async with MsgReader("/tmp/msgs.pack") as f:
@@ -183,6 +196,7 @@ class MsgReader(_MsgRW):
     def __init__(self, stream, **kw):
         super().__init__(**kw)
         from .codec import stream_unpacker
+
         self.unpack = stream_unpacker()
 
     def __aiter__(self):
@@ -196,7 +210,7 @@ class MsgReader(_MsgRW):
                 pass
             else:
                 return msg
-            
+
             d = await self.stream.read(4096)
             if d == b"":
                 raise StopAsyncIteration
@@ -205,9 +219,10 @@ class MsgReader(_MsgRW):
 
 packer = None
 
+
 class MsgWriter(_MsgRW):
     """Write a stream of messages from a file.
-    
+
     Usage::
 
         async with MsgWriter("/tmp/msgs.pack") as f:
@@ -215,7 +230,7 @@ class MsgWriter(_MsgRW):
                 f(msg)
     """
 
-    _mode="wb"
+    _mode = "wb"
 
     def __init__(self, buflen=65536, **kw):
         super().__init__(**kw)
@@ -232,18 +247,18 @@ class MsgWriter(_MsgRW):
     async def __aexit__(self, *tb):
         with trio.CancelScope(shield=True):
             if self.buf:
-                await self.stream.write(b''.join(self.buf))
+                await self.stream.write(b"".join(self.buf))
             await super().__aexit__(*tb)
 
     async def __call__(self, msg):
         msg = packer(msg)
         self.buf.append(msg)
         self.curlen += len(msg)
-        if self.curlen >= self.buflen-self.excess:
-            buf = b''.join(self.buf)
-            pos = self.buflen * int(self.curlen/self.buflen) - self.excess
+        if self.curlen >= self.buflen - self.excess:
+            buf = b"".join(self.buf)
+            pos = self.buflen * int(self.curlen / self.buflen) - self.excess
             assert pos > 0
-            wb,buf = buf[:pos],buf[pos:]
+            wb, buf = buf[:pos], buf[pos:]
             self.buf = [buf]
             self.curlen = len(buf)
             self.excess = 0
@@ -251,9 +266,9 @@ class MsgWriter(_MsgRW):
 
     async def flush(self):
         if self.buf:
-            buf = b''.join(self.buf)
+            buf = b"".join(self.buf)
             self.buf = []
-            self.excess = (self.excess+len(buf)) % self.buflen
+            self.excess = (self.excess + len(buf)) % self.buflen
             await self.stream.write(buf)
 
 
@@ -261,9 +276,10 @@ class TimeOnlyFormatter(logging.Formatter):
     default_time_format = "%H:%M:%S"
     default_msec_format = "%s.%03d"
 
+
 class Queue:
     def __init__(self, len):
-        self._send,self._recv = trio.open_memory_channel(len)
+        self._send, self._recv = trio.open_memory_channel(len)
 
     async def get(self):
         return await self._recv.receive()
@@ -274,9 +290,11 @@ class Queue:
     async def aclose(self):
         await self._send.aclose()
 
+
 class _Server:
     _servers = None
     _q = None
+
     def __init__(self, tg, port=0, ssl=None, **kw):
         self.tg = tg
         self.port = port
@@ -291,7 +309,7 @@ class _Server:
             while True:
                 conn = await server.accept()
                 if self.ssl:
-                    conn =  trio.SSLStream(conn, self.ssl, server_side=True)
+                    conn = trio.SSLStream(conn, self.ssl, server_side=True)
                 await q.send(conn)
         finally:
             with trio.CancelScope(shield=True):
@@ -335,38 +353,43 @@ def gen_ssl(ctx, server: bool = True):
         return None
     if ctx is True:
         ctx = dict()
-    if not isinstance(ctx,dict):
+    if not isinstance(ctx, dict):
         return ctx
 
-    ctx_ = trio.ssl.create_default_context(purpose=trio.ssl.Purpose.CLIENT_AUTH if server else trio.ssl.Purpose.SERVER_AUTH)
-    if 'key' in ctx:
-        ctx_.load_cert_chain(ctx['cert'],ctx['key'])
+    ctx_ = trio.ssl.create_default_context(
+        purpose=trio.ssl.Purpose.CLIENT_AUTH if server else trio.ssl.Purpose.SERVER_AUTH
+    )
+    if "key" in ctx:
+        ctx_.load_cert_chain(ctx["cert"], ctx["key"])
     return ctx_
 
-def num2byte(num:int, length=None):
+
+def num2byte(num: int, length=None):
     if length is None:
-        length = (num.bit_length()+7)//8
-    return num.to_bytes(length=length,byteorder="big")
+        length = (num.bit_length() + 7) // 8
+    return num.to_bytes(length=length, byteorder="big")
 
-def byte2num(data:bytes):
-    return int.from_bytes(data, byteorder='big')
 
-def split_one(p,kw):
+def byte2num(data: bytes):
+    return int.from_bytes(data, byteorder="big")
+
+
+def split_one(p, kw):
     """Split 'p' and add to dict 'kw'."""
     try:
-        k,v = p.split('=',1)
+        k, v = p.split("=", 1)
     except ValueError:
-        if p[-1] == '?':
+        if p[-1] == "?":
             k = p[:-1]
-            v = getpass(k+'? ')
+            v = getpass(k + "? ")
         else:
             raise
     else:
-        if k[-1] == '?':
+        if k[-1] == "?":
             k = k[:-1]
-            v = getpass(v+': ')
+            v = getpass(v + ": ")
         try:
-            v = int(v)    
+            v = int(v)
         except ValueError:
             pass
     kw[k] = v

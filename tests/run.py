@@ -1,8 +1,9 @@
-#from trio_click.testing import CliRunner
+# from trio_click.testing import CliRunner
 import io
 import sys
 
 from distkv.command import main
+
 
 async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:

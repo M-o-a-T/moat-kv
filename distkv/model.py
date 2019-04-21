@@ -3,29 +3,33 @@
 from __future__ import annotations
 
 import weakref
-import trio
 from range_set import RangeSet
 
-from typing import Optional, List, Any
+from typing import List, Any
 
 from .util import attrdict, Queue
 
 from logging import getLogger
+
 logger = getLogger(__name__)
+
 
 class NodeDataSkipped(Exception):
     def __init__(self, node):
         self.node = node
+
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
+
 
 class Node:
     """Represents one DistKV participant.
     """
+
     name: str = None
     tick: int = None
-    _known: RangeSet = None # I have these as valid data
-    _reported: RangeSet = None # somebody else reported these missing data for this node
+    _known: RangeSet = None  # I have these as valid data
+    _reported: RangeSet = None  # somebody else reported these missing data for this node
     entries: dict = None
 
     def __new__(cls, name, tick=None, cache=None, create=True):
@@ -86,7 +90,7 @@ class Node:
     def supersede(self, tick):
         """The event with this tick is no longer in the referred entry's chain.
         This happens when an entry is updated.
-        
+
         Args:
           ``tick``: The event that once affected the given entry.
         """
@@ -94,7 +98,7 @@ class Node:
 
     def reported_known(self, range, local=False):
         """Some node said that these entries may have been superseded.
-        
+
         Args:
           ``range``: The RangeSet thus marked.
           ``local``: The message was not broadcast, thus do not assume that
@@ -116,7 +120,7 @@ class Node:
     def local_missing(self):
         """Values I have not seen"""
         assert self.tick
-        r = RangeSet(((1,self.tick+1),))
+        r = RangeSet(((1, self.tick + 1),))
         r -= self._known
         return r
 
@@ -124,6 +128,7 @@ class Node:
     def remote_missing(self):
         """Values from this node which somebody else has not seen"""
         return self._reported
+
 
 class NodeEvent:
     """Represents any event originating at a node.
@@ -134,7 +139,10 @@ class NodeEvent:
       ``prev``: The previous event, if any
 
     """
-    def __init__(self, node:Node, tick:int = None, prev: NodeEvent = None, check_dup=True):
+
+    def __init__(
+        self, node: Node, tick: int = None, prev: 'NodeEvent' = None, check_dup=True
+    ):
         self.node = node
         if tick is None:
             tick = node.tick
@@ -148,10 +156,15 @@ class NodeEvent:
     def __len__(self):
         if self.prev is None:
             return 1
-        return 1+len(self.prev)
+        return 1 + len(self.prev)
 
     def __repr__(self):
-        return "<%s:%s @%s %s>" % (self.__class__.__name__, self.node, '-' if self.tick is None else self.tick, len(self))
+        return "<%s:%s @%s %s>" % (
+            self.__class__.__name__,
+            self.node,
+            "-" if self.tick is None else self.tick,
+            len(self),
+        )
 
     def __eq__(self, other):
         if other is None:
@@ -196,7 +209,6 @@ class NodeEvent:
                 return False
         return self.tick >= other.tick
 
-
     def __lte__(self, other):
         return self.__eq__(other) or self.__lt__(other)
 
@@ -234,31 +246,37 @@ class NodeEvent:
             # No change, so return unmodified
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
-        
+
     def serialize(self, nchain=100) -> dict:
         if not nchain:
             raise RuntimeError("A chopped NodeEvent must not be set at all")
-        res = attrdict(node = self.node.name)
+        res = attrdict(node=self.node.name)
         if self.tick is not None:
             res.tick = self.tick
         if self.prev is None:
             res.prev = None
         elif nchain > 1:
-            res.prev = self.prev.serialize(nchain-1)
+            res.prev = self.prev.serialize(nchain - 1)
         return res
 
     @classmethod
     def deserialize(cls, msg, cache, check_dup=True, nulls_ok=False):
         if msg is None:
             return None
-        msg = msg.get('chain',msg)
-        tick = msg.get('tick', None)
-        self = cls(node=Node(msg['node'], tick=tick, cache=cache), tick=tick, check_dup=check_dup)
-        if 'prev' in msg:
-            self.prev = cls.deserialize(msg['prev'], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok)
+        msg = msg.get("chain", msg)
+        tick = msg.get("tick", None)
+        self = cls(
+            node=Node(msg["node"], tick=tick, cache=cache),
+            tick=tick,
+            check_dup=check_dup,
+        )
+        if "prev" in msg:
+            self.prev = cls.deserialize(
+                msg["prev"], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok
+            )
         return self
 
-    def attach(self, prev: NodeEvent=None, dropped=None):
+    def attach(self, prev: 'NodeEvent' = None, dropped=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
             prev = prev.filter(self.node, dropped=dropped)
@@ -266,13 +284,16 @@ class NodeEvent:
             self = NodeEvent(node=self.node, tick=self.tick, prev=prev)
         return self
 
+
 class _NotGiven:
     pass
+
 
 class UpdateEvent:
     """Represents an event which updates something.
     """
-    def __init__(self, event: NodeEvent, entry: Entry, new_value, old_value=_NotGiven):
+
+    def __init__(self, event: NodeEvent, entry: 'Entry', new_value, old_value=_NotGiven):
         self.event = event
         self.entry = entry
         self.new_value = new_value
@@ -283,14 +304,18 @@ class UpdateEvent:
         if self.entry.chain == self.event:
             res = ""
         else:
-            res = repr(self.event)+": "
+            res = repr(self.event) + ": "
         return "<%s:%s%s: %s→%s>" % (
-                self.__class__.__name__,
-                res,
-                repr(self.entry),
-                '-' if not hasattr(self,'old_value') else '' if self.new_value == self.entry.data else repr(self.old_value),
-                '' if self.new_value == self.entry.data else repr(self.old_value),
-            )
+            self.__class__.__name__,
+            res,
+            repr(self.entry),
+            "-"
+            if not hasattr(self, "old_value")
+            else ""
+            if self.new_value == self.entry.data
+            else repr(self.old_value),
+            "" if self.new_value == self.entry.data else repr(self.old_value),
+        )
 
     def serialize(self, chop_path=0, nchain=2, with_old=False):
         res = self.event.serialize(nchain=nchain)
@@ -304,28 +329,30 @@ class UpdateEvent:
 
     @classmethod
     def deserialize(cls, root, msg, cache, nulls_ok=False):
-        if 'value' in msg:
+        if "value" in msg:
             value = msg.value
         else:
             value = msg.new_value
         event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
-        entry = root.follow(*msg.path, create=True, nulls_ok = nulls_ok)
+        entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
 
         return UpdateEvent(event, entry, value)
+
 
 class Entry:
     """This class represents one key/value pair
     """
-    _parent: Entry = None
+
+    _parent: 'Entry' = None
     name: str = None
     _path: List[str] = None
-    _root: Root = None
+    _root: 'Entry' = None
     _data: bytes = None
     chain: NodeEvent = None
 
     monitors = None
 
-    def __init__(self, name: Str, parent: Entry):
+    def __init__(self, name: str, parent: 'Entry'):
         self.name = name
         self._sub = {}
         self.monitors = set()
@@ -334,7 +361,7 @@ class Entry:
             parent._add_subnode(self)
             self._parent = weakref.ref(parent)
 
-    def _add_subnode(self, child: Entry):
+    def _add_subnode(self, child: 'Entry'):
         self._sub[child.name] = child
 
     def __hash__(self):
@@ -375,12 +402,12 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow(self, *path, create = True, nulls_ok = False):
+    def follow(self, *path, create=True, nulls_ok=False):
         """Follow this path.
-        
+
         If ``create`` is True (default), unknown nodes are silently created.
         Otherwise they cause a `KeyError`.
-        
+
         If ``nulls_ok`` is False (default), `None` is not allowed as a path
         element. If 2, it is allowed anywhere; if True, only as the first
         element.
@@ -443,7 +470,9 @@ class Entry:
     def data(self):
         return self._data
 
-    async def set_data(self, event: NodeEvent, data: Any, local: bool = False, dropped=None):
+    async def set_data(
+        self, event: NodeEvent, data: Any, local: bool = False, dropped=None
+    ):
         """This entry is updated by that event.
 
         Args:
@@ -458,15 +487,20 @@ class Entry:
         await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt:UpdateEvent, local: bool = False, dropped=None):
+    async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None):
         """Apply this :cls`UpdateEvent` to me.
-        
+
         Also, forward to watchers (unless ``local`` is set).
         """
         if evt.event == self.chain:
-            assert self._data == evt.new_value, ("has:",self._data, "but should have:",evt.new_value)
+            assert self._data == evt.new_value, (
+                "has:",
+                self._data,
+                "but should have:",
+                evt.new_value,
+            )
             return
-        if self.chain > evt.event: # already superseded
+        if self.chain > evt.event:  # already superseded
             return
         if not (self.chain < evt.event):
             logger.warn("*** inconsistency TODO ***")
@@ -475,9 +509,9 @@ class Entry:
             logger.warn("New: %s", evt.event)
             return
 
-        if not hasattr(evt, 'old_value'):
+        if not hasattr(evt, "old_value"):
             evt.old_value = self._data
-        if hasattr(evt, 'new_value'):
+        if hasattr(evt, "new_value"):
             self._data = evt.new_value
         else:
             self._data = evt.value
@@ -543,22 +577,13 @@ class Entry:
             if node is None:
                 break
 
-
-    def log(self):
-        """
-        Returns an async context manager plus async iterator which reports
-        all updates to this node.
-
-        All concurrent loggers receive all updates.
-        """
-        return _RootLog(self)
-
     _counter = 0
 
     @property
     def counter(self):
         self._counter += 1
         return self._counter
+
 
 class Watcher:
     """
@@ -601,4 +626,3 @@ class Watcher:
             raise RuntimeError("Aborted. Queue filled?")
         self.q._distkv__free += 1
         return res
-

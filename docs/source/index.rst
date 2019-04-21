@@ -77,9 +77,7 @@ an etcd2 compatibility server yet.
 .. toctree::
    :maxdepth: 2
 
-   getting_started.rst
-   client_api.rst
-   command_line.rst
+   auth.rst
    client_protocol.rst
    server_protocol.rst
    history.rst
