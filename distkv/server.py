@@ -1063,7 +1063,12 @@ class Server:
         """Send a ping message and note when to send the next one,
         assuming that no intervening ping arrives.
         """
-        self.last_ping_evt = msg = NodeEvent(self.node, prev=self.last_ping_evt)
+        msg = NodeEvent(self.node, prev=self.last_ping_evt)
+        # This skips "nothing happened" entries
+        if self.last_ping_evt != msg:
+            self.last_ping_evt = msg
+        else:
+            msg = self.last_ping_evt
         self.last_ping = msg = msg.serialize(self.cfg['ping']['length'])
         await self._send_event('ping', msg)
 
