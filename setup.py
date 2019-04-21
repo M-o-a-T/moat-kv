@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-LONG_DESC = open("README.rst", encoding="utf-8").read()
+LONG_DESC = open("README.rst").read()
 
 setup(
     name="distkv",
@@ -17,6 +17,7 @@ setup(
     packages=find_packages(),
     setup_requires=[
         "setuptools_scm",
+        "pytest-runner",
     ],
     install_requires=[
         "trio_click",
@@ -27,10 +28,11 @@ setup(
         "jsonschema >= 2.5",
         "pyyaml >= 3",
         #"argon2 >= 18.3",
-        "nacl >= 1.3",
+        "PyNaCl >= 1.3",
     ],
     tests_require=[
         "trustme >= 0.5",
+        "pytest",
     ],
     keywords=[
         "async", "key-values", "distributed",
@@ -56,6 +58,7 @@ setup(
     entry_points='''
     [console_scripts]
     distkv = distkv.command:cmd
-    '''
+    ''',
+    zip_safe=True,
 
 )
