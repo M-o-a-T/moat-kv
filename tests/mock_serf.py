@@ -174,31 +174,36 @@ class MockServ:
         return s
 
     async def event(self, typ, payload, coalesce=False):
-        logger.debug("SERF:%s: %s", typ, repr(unpacker(payload)))
-        typ = typ[typ.index('.')+1:]
+        try:
+            logger.debug("SERF:%s: %r", typ, unpacker(payload))
+        except Exception:
+            logger.debug("SERF:%s: %r", typ, payload)
+
         for s in list(self._master.serfs):
             for x in self._master.splits:
                 if (s.cfg.get('i',0) < x) != (self.cfg.get('i',0) < x):
                     break
             else:
-                s = s.streams.get(typ, None)
-                if s is not None:
-                    await s.q.put(payload)
+                sl = s.streams.get(typ, None)
+                if sl is not None:
+                    for s in sl:
+                        await s.q.put(payload)
 
 class MockSerfStream:
     def __init__(self, serf, typ):
         self.serf = serf
-        self.typ = typ[typ.index('.')+1:]
+        assert typ.startswith('user:')
+        self.typ = typ[5:]
 
     async def __aenter__(self):
-        if self.typ in self.serf.streams:
-            raise RuntimeError("Only one listener per event type allowed")
+        logger.debug("SERF:MON START:%s", self.typ)
         self.q = Queue(100)
-        self.serf.streams[self.typ] = self
+        self.serf.streams.setdefault(self.typ, []).append(self)
         return self
 
     async def __aexit__(self, *tb):
-        del self.serf.streams[self.typ]
+        self.serf.streams[self.typ].remove(self)
+        logger.debug("SERF:MON END:%s", self.typ)
         del self.q
 
     def __aiter__(self):

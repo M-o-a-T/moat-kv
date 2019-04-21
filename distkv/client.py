@@ -6,7 +6,7 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from asyncserf.util import ValueEvent
-from .util import attrdict, Queue, AsyncValueEvent, gen_ssl, num2byte, byte2num
+from .util import attrdict, Queue, gen_ssl, num2byte, byte2num
 from .exceptions import ClientAuthMethodError, ClientAuthRequiredError, ServerClosedError,ServerConnectionError,ServerError
 from concurrent.futures import CancelledError
 #from trio_log import LogStream
@@ -139,7 +139,7 @@ class StreamedRequest:
     async def recv(self):
         return await self.__anext__()
 
-    async def kill(self):
+    async def cancel(self):
         await self.send_q.send(outcome.Error(CancelledError()))
         await self.aclose()
 
@@ -173,22 +173,22 @@ class _SingleReply:
         if msg.get('state') == 'start':
             res = StreamedRequest(self._conn, self.seq, stream=None)
             await res.set(msg)
-            self.q.set(res)
+            await self.q.set(res)
             return res
         elif 'error' in msg:
-            self.q.set_error(ServerError(msg.error))
+            await self.q.set_error(ServerError(msg.error))
         else:
-            self.q.set(msg)
+            await self.q.set(msg)
         return False
 
-    def get(self):
+    async def get(self):
         """Wait for and return the result.
         
         This is a coroutine.
         """
-        return self.q.get()
+        return await self.q.get()
     
-    async def kill(self):
+    async def cancel(self):
         pass
 
 
@@ -274,7 +274,7 @@ class Client:
                 with trio.CancelScope(shield=True):
                     try:
                         for m in hdl.values():
-                            await m.kill()
+                            await m.cancel()
                     except trio.ClosedResourceError:
                         pass
 
@@ -401,7 +401,7 @@ class Client:
         This async context manager handles the actual TCP connection to
         the DistKV server.
         """
-        hello = AsyncValueEvent()
+        hello = ValueEvent()
         self._handlers[0] = hello
         
         #logger.debug("Conn %s %s",self.host,self.port)

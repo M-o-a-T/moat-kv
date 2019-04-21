@@ -1,5 +1,4 @@
 import trio
-from asyncserf.util import ValueEvent
 from getpass import getpass
 
 import logging
@@ -329,14 +328,6 @@ async def create_tcp_server(**args) -> _Server:
         server = _Server(tg, **args)
         async with server:
             yield server
-
-
-class AsyncValueEvent(ValueEvent):
-    """A ValueEvent with an async `set` method"""
-    async def set(self, value):
-        super().set(value)
-    async def kill(self):
-        self.cancel()
 
 
 def gen_ssl(ctx, server: bool = True):

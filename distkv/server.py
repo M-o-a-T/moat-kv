@@ -660,9 +660,9 @@ class ServerClient:
         msg.value = None
         return await self.cmd_set_value(msg)
 
-    def cmd_get_state(self, msg):
+    async def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
-        return self.server.get_state(**msg)
+        return await self.server.get_state(**msg)
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
