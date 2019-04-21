@@ -423,7 +423,7 @@ class SCmd_serfmon(StreamCommand):
         if msg.type[0] == ':':
             raise RuntimeError("Types may not start with a colon")
 
-        async with self.serf.stream('user:' + msg.type) as stream:
+        async with self.client.server.serf.stream('user:' + msg.type) as stream:
             async for resp in stream:
                 res = attrdict(type=msg.type)
                 if raw:
@@ -664,6 +664,16 @@ class ServerClient:
         """Return some info about this node's internal state"""
         return await self.server.get_state(**msg)
 
+    async def cmd_serfsend(self, msg):
+        if msg.type[0] == ':':
+            raise RuntimeError("Types may not start with a colon")
+        if 'raw' in msg:
+            assert 'data' not in msg
+            data = msg.raw
+        else:
+            data = _packer(msg.data)
+        await self.server.serf.event(msg.type, data, coalesce=msg.get('coalesce', False))
+
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
         Sub-nodes are cleared (after their parent).
@@ -890,16 +900,6 @@ class Server:
             msg['tick'] = self.node.tick
         msg = _packer(msg)
         await self.serf.event(self.cfg['root']+'.'+action, msg, coalesce=coalesce)
-
-    async def cmd_serfsend(self, msg):
-        if msg.type[0] == ':':
-            raise RuntimeError("Types may not start with a colon")
-        if 'raw' in msg:
-            assert 'data' not in msg
-            data = msg.raw
-        else:
-            data = _packer(msg.data)
-        await self.serf.event(msg.type, data, coalesce=msg.get('coalesce', False))
 
     async def watcher(self):
         """This method implements the task that watches a (sub)tree for changes"""
