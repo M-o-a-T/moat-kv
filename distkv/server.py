@@ -403,6 +403,41 @@ class SCmd_watch(StreamCommand):
                 shorter(res)
                 await self.send(**res)
 
+class SCmd_serfmon(StreamCommand):
+    """
+    Monitor a subtree for changes.
+    If ``state`` is set, dump the initial state before reporting them.
+
+    path: position to start to monitor.
+    nchain: number of change chain entries to return. Default 0=don't send chain data.
+    state: flag whether to send the current subtree before reporting changes. Default False.
+
+    The returned data is PathShortened.
+    The current state dump may not be consistent; always process changes.
+    """
+    multiline = True
+    async def run(self):
+        msg = self.msg
+        raw = msg.get('raw', False)
+
+        if msg.type[0] == ':':
+            raise RuntimeError("Types may not start with a colon")
+
+        async with self.serf.stream('user:' + msg.type) as stream:
+            async for resp in stream:
+                res = attrdict(type=msg.type)
+                if raw:
+                    res['raw'] = resp.payload
+                else:
+                    try:
+                        res['data'] = msgpack.unpackb(resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False)
+                    except Exception as exc:
+                        res['raw'] = resp.payload
+                        res['error'] = repr(exc)
+
+                await self.send(**res)
+
+
 class SCmd_update(StreamCommand):
     """
     Stream a stored update to the server and apply it.
@@ -855,6 +890,16 @@ class Server:
             msg['tick'] = self.node.tick
         msg = _packer(msg)
         await self.serf.event(self.cfg['root']+'.'+action, msg, coalesce=coalesce)
+
+    async def cmd_serfsend(self, msg):
+        if msg.type[0] == ':':
+            raise RuntimeError("Types may not start with a colon")
+        if 'raw' in msg:
+            assert 'data' not in msg
+            data = msg.raw
+        else:
+            data = _packer(msg.data)
+        await self.serf.event(msg.type, data, coalesce=msg.get('coalesce', False))
 
     async def watcher(self):
         """This method implements the task that watches a (sub)tree for changes"""

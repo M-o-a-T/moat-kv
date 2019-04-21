@@ -251,10 +251,11 @@ This action returns the new root node's value.
 watch
 -----
 
-Stream changes to this node. The replies look like those from ``get_tree``.
+Monitor changes to this node (and those below it). Replies look like those from ``get_tree``.
 
-The recommended way to use this is to first open a monitor and then fill in
-unknown values via ``get_values``. This way you won't lose any changes.
+The recommended way to start a ``watch`` call, then fetch the current state
+via ``get_tree``. The code processing the latter call should skip entries
+that you already have. This way you won't lose any changes.
 
 save
 ----
@@ -272,6 +273,28 @@ its current state to that file.
 This command returns after the new file has been opened and the initial
 state has been written, if so requested. If there was an old log stream,
 there may be some duplicate entries. No updates are skipped.
+
+serfsend
+--------
+
+Pass-through call to transmit a message via ``serf``. Parameters are
+``type`` (the user event to send to), ``data`` (the data to send) and
+optionally ``tag`` (a string that limits recipients to Serf nodes with this
+tag).
+
+Raw binary data may be transmitted by using ``raw`` instead of ``data``.
+
+serfmon
+-------
+
+Pass-through call to receive brodcast messages via ``serf``. You'll get a
+stream with ``data`` containing the decoded message. If decoding fails,
+``raw`` contains the message's bytes and ``error`` holds a string
+representation of the decoder problem.
+
+Set ``raw`` to True if the incoming messages are not supposed to be
+msgpack-encoded in the first place. In this case, ``data`` and ``error``
+will always be missing.
 
 Examples
 ========

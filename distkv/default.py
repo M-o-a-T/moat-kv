@@ -19,7 +19,7 @@ CFG = attrdict(
             ),
         state=None, # path to load/save system state
 
-        root="distkv", # serf user event prefix
+        root=":distkv", # serf user event prefix. Should start with a colon.
         domain=None, # domain in which to look up nodes
 
         change=attrdict(
