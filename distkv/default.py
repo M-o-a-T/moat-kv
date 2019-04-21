@@ -1,6 +1,6 @@
 from .util import attrdict
 
-__all__ = ["PORT", "CFG", "gen_ssl"]
+__all__ = ["PORT", "CFG"]
 
 PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 

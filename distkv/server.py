@@ -40,12 +40,6 @@ logger = logging.getLogger(__name__)
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
 
-class ClientError(ValueError):
-    """report error to the client but don't dump a stack trace"""
-
-    pass
-
-
 class _NotGiven:
     pass
 
@@ -77,7 +71,7 @@ class StreamCommand:
 
     Implement the actual command by overriding ``run``.
     Read the next input line by reading ``in_recv_q``.
-    
+
     This auto-detects whether the command sends multiple lines, by closing
     the incoming channel if there's no state=start in the command.
 
@@ -93,7 +87,6 @@ class StreamCommand:
 
     def __new__(cls, client, msg):
         if cls is StreamCommand:
-            seq = msg.seq
             cls = globals()["SCmd_" + msg.action]
             return cls(client, msg)
         else:
@@ -350,7 +343,7 @@ class SCmd_auth_set(StreamCommand):
             raise RuntimeError("Cannot write tenant users")
         kind = msg.get("kind", "user")
 
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=True)
+        client.root.follow(*root, None, "auth", nulls_ok=2, create=True)
         cls = loader(msg.typ, kind, server=True, make=True)
 
         user = await cls.recv(self, msg)
@@ -418,7 +411,6 @@ class SCmd_watch(StreamCommand):
         msg = self.msg
         client = self.client
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
-        seq = msg.seq
         nchain = msg.get("nchain", 0)
 
         async with Watcher(entry) as watcher:
@@ -489,6 +481,8 @@ class SCmd_update(StreamCommand):
 
     async def run(self):
         client = self.client
+        msg = self.msg
+
         path = msg.get("path", None)
         longer = PathLongener(path) if path is not None else lambda x: x
         n = 0
@@ -509,7 +503,7 @@ class ServerClient:
     user = None  # authorized user
     _dh_key = None
 
-    def __init__(self, server: Server, stream: Stream):
+    def __init__(self, server: 'Server', stream: Stream):
         self.server = server
         self.root = server.root
         self.stream = stream
@@ -572,7 +566,7 @@ class ServerClient:
             task_status.started(s)
 
             try:
-                res = await fn()
+                await fn()
 
             except BrokenPipeError as exc:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
@@ -641,7 +635,7 @@ class ServerClient:
         """Change to a sub-tree.
         """
         self._chroot(msg.path)
-        return entry.serialize(chop_path=self._chop_path)
+        return self.root.serialize(chop_path=self._chop_path)
 
     async def cmd_get_value(self, msg):
         """Get a node's value.
@@ -663,7 +657,7 @@ class ServerClient:
     async def cmd_set_value(self, msg, _nulls_ok=False):
         """Set a node's value.
         """
-        ## TODO drop this as soon as we have server-side user mods
+        # TODO drop this as soon as we have server-side user mods
         if self.user.is_super_root:
             _nulls_ok = 2
 
@@ -942,7 +936,7 @@ class Server:
     @property
     def tock(self):
         """Retrieve ``tock``.
-        
+
         Also increments it because tock values may not be re-used."""
         self._tock += 1
         return self._tock
@@ -1028,7 +1022,7 @@ class Server:
 
     async def user_info(self, msg):
         """Process info broadcasts.
-        
+
         These are mainly used in the split recovery protocol."""
 
         if msg.node == self.node.name:
@@ -1131,7 +1125,7 @@ class Server:
 
     async def monitor(self, action: str, delay: trio.Event = None):
         """The task that hooks to Serf's event stream for receiving messages.
-        
+
         Args:
           ``action``: The action name, corresponding to a Serf ``user_*`` method.
           ``delay``: an optional event to wait for, after starting the
@@ -1184,27 +1178,27 @@ class Server:
         # nodes that don't work.
         c = self.last_ping_evt.prev
         p = s = 0
-        l = 1
+        lv = 1
         while c is not None:
             if c.tick is not None and c.tick > 0 and p == 0:
-                p = l
+                p = lv
             if c.node == self.node:
-                s = l
-            l += 1
+                s = lv
+            lv += 1
             c = c.prev
         if not self._ready.is_set():
-            if p > l // 2:
+            if p > lv // 2:
                 # No it does not. Do not participate.
                 return 3
 
         if s > 0:
             # We are on the chain. Send ping depending on our position.
-            return 2 - (s - 1) / l
+            return 2 - (s - 1) / lv
             # this will never be 1 because we need to leave some time for
             # interlopers, below. Otherwise we could divide by l-1, as
             # l must be at least 2. s must also be at least 1.
 
-        if l < self.cfg["ping"]["length"] - 1:
+        if lv < self.cfg["ping"]["length"] - 1:
             # the chain is too short. Try harder to get onto it.
             f = 3
         else:
@@ -1216,7 +1210,7 @@ class Server:
             # send late (fallback)
             return 2.5 + self.random / 2
 
-    async def pinger(self, delay: Event):
+    async def pinger(self, delay: trio.Event):
         """
         This task
         * sends PING messages
@@ -1429,7 +1423,7 @@ class Server:
                     TypeError,
                 ):
                     raise
-                except Exception as exc:
+                except Exception:
                     logger.exception("Unable to connect to %s" % (node,))
                 else:
                     # At this point we successfully cloned some other
@@ -1606,7 +1600,7 @@ class Server:
 
     async def load(self, path: str, stream: io.IOBase = None, local: bool = False):
         """Load data from this stream
-        
+
         Args:
           ``fd``: The stream to read.
           ``local``: Flag whether this file contains initial data and thus
@@ -1648,7 +1642,7 @@ class Server:
         await writer(msg)
         await self.root.walk(saver)
 
-    async def save(self, path: str = None, stream=None, delay: Event = None):
+    async def save(self, path: str = None, stream=None, delay: trio.Event = None):
         """Save the current state to ``path`` or ``stream``."""
         shorter = PathShortener([])
         async with MsgWriter(path=path, stream=stream) as mw:
@@ -1693,7 +1687,7 @@ class Server:
     async def run_saver(self, path: str = None, stream=None, save_state=False):
         """Start a task that continually saves to disk.
 
-        Only one saver can run at a time; if a new one is started, 
+        Only one saver can run at a time; if a new one is started,
         the old one is stopped as soon as the new saver's current state is on disk.
         """
         done = trio.Event()
@@ -1715,7 +1709,7 @@ class Server:
 
     async def serve(self, log_stream=None, task_status=trio.TASK_STATUS_IGNORED):
         """Task that opens a Serf connection and actually runs the server.
-        
+
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_stream``: a binary stream to write changes and initial state to.

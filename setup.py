@@ -24,9 +24,12 @@ setup(
         # "argon2 >= 18.3",
         "PyNaCl >= 1.3",
         "diffiehellman",
-        "trustme",
     ],
-    tests_require=["trustme >= 0.5", "pytest"],
+    tests_require=[
+        "trustme >= 0.5",
+        "pytest",
+        "flake8 >= 3.7",
+    ],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[

@@ -14,6 +14,8 @@ from . import (
     null_client_login,
 )
 
+from ..client import Client
+
 
 def load(typ: str, *, make: bool = False, server: bool):
     if typ == "client":
@@ -102,7 +104,7 @@ class ClientUserMaker(BaseClientUserMaker):
         return self
 
     @classmethod
-    async def recv(cls, client: "distkv.client.Client", ident: str, _kind: "user"):
+    async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
         async with client.stream(
             action="auth_get",
@@ -121,7 +123,7 @@ class ClientUserMaker(BaseClientUserMaker):
             self._name = m.name
             return self
 
-    async def send(self, client: "distkv.client.Client", _kind="user"):
+    async def send(self, client: Client, _kind="user"):
         """Send a record representing this user to the server."""
         async with client.stream(
             action="auth_set", typ=type(self)._auth_method, kind=_kind, stream=True

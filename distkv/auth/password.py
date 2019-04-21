@@ -15,7 +15,9 @@ from . import (
     null_server_login,
     null_client_login,
 )
-from ..client import NoData
+from ..client import NoData, Client
+from ..server import StreamCommand
+from ..model import Entry
 from ..exceptions import AuthFailedError
 
 import logging
@@ -106,14 +108,14 @@ class ServerUser(RootServerUser):
     can_auth_write = True
 
     @classmethod
-    async def build(cls, data: "distkv.model.Entry"):
+    async def build(cls, data: Entry):
         """Create a ServerUser object from existing stored data"""
         self = await super().build(data)
         self._name = data.path[-1]
         self._password = data.data["password"]
         return self
 
-    async def auth(self, cmd: "distkv.server.StreamCommand", data):
+    async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
         await super().auth(cmd, data)
 
@@ -150,7 +152,7 @@ class ClientUserMaker(BaseClientUserMaker):
         return self
 
     @classmethod
-    async def recv(cls, client: "distkv.client.Client", ident: str, _kind: "user"):
+    async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
         m = client.request(
             action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
@@ -161,7 +163,7 @@ class ClientUserMaker(BaseClientUserMaker):
         self._name = m.name
         return self
 
-    async def send(self, client: "distkv.client.Client", _kind="user"):
+    async def send(self, client: Client, _kind="user"):
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 
@@ -203,7 +205,7 @@ class ClientUser(BaseClientUser):
         self._pass = user["password"].encode("utf-8")
         return self
 
-    async def auth(self, client: "distkv.client.Client", chroot=()):
+    async def auth(self, client: Client, chroot=()):
         """
         Authorizes this user with the server.
         """

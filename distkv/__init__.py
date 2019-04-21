@@ -8,6 +8,6 @@ try:
 
     _version_tuple = tuple(int(x) for x in _version.split("."))
 
-except Exception as exc:
+except Exception:
     _version = "0.0.1"
     _version_tuple = (0, 0, 1)

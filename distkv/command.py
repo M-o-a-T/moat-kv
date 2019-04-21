@@ -4,15 +4,12 @@ import sys
 import trio_click as click
 from pprint import pprint
 
-from .util import attrdict, combine_dict, PathLongener, acount, split_one
+from .util import attrdict, combine_dict, PathLongener, MsgReader, PathShortener, split_one
 from .client import open_client, StreamedRequest
-from .default import CFG, PORT
+from .default import CFG
 from .server import Server
 from .auth import loader, gen_auth
-from .model import Entry
 from .exceptions import ClientError
-
-import trio_click as click
 
 import logging
 
@@ -116,7 +113,8 @@ async def pdb(args):  # safe
     "-i",
     "--init",
     default=None,
-    help="Initial value to set the root to. Use only when setting up a cluster for the first time!",
+    help="Initial value to set the root to. Use only when setting up " \
+         "a cluster for the first time!",
 )
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
@@ -190,7 +188,8 @@ async def client(ctx, host, port, auth):
     "-d",
     "--as-dict",
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use for values. Default: return as list",
+    help="YAML: structure as dictionary. The argument is the key to use " \
+         "for values. Default: return as list",
 )
 @click.option(
     "-v",
@@ -372,7 +371,7 @@ async def watch(obj, path, chain, yaml, state):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def update(obj, path, infile, loca, force):
+async def update(obj, path, infile, local, force):
     """Send a list of updates to a DistKV subtree"""
     if local and force:
         raise click.UsageError("'local' and 'force' are mutually exclusive")
@@ -382,7 +381,7 @@ async def update(obj, path, infile, loca, force):
         with obj.client.stream(
             action="update", path=path, force=force, local=local
         ) as sender:
-            async for r in res:
+            async for r in reader:
                 ps(r)
                 await sender.send(r)
 
@@ -517,11 +516,11 @@ async def list(obj, yaml, chain):
 @click.pass_obj
 async def get(obj, ident):
     """Retrieve a user."""
-    l = loader(await one_auth(obj), "user", make=True, server=False)
+    lv = loader(await one_auth(obj), "user", make=True, server=False)
     if obj._DEBUG:
-        l._length = 16
+        lv._length = 16
     async for u in enum_typ(obj, ident=ident):
-        u = await l.load(obj.client, u)
+        u = await lv.load(obj.client, u)
         print(u.export())
 
 
@@ -558,7 +557,7 @@ async def add_mod_user(obj, args, modify):
     u = u.build(kw)
     if modify is not None and u.ident != modify:
         chain = None  # new user
-    res = await u.send(obj.client)
+    await u.send(obj.client)
     print("Added" if chain is None else "Modified", u.ident)
 
 

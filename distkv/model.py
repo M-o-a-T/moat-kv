@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import weakref
-import trio
 from range_set import RangeSet
 
-from typing import Optional, List, Any
+from typing import List, Any
 
 from .util import attrdict, Queue
 
@@ -91,7 +90,7 @@ class Node:
     def supersede(self, tick):
         """The event with this tick is no longer in the referred entry's chain.
         This happens when an entry is updated.
-        
+
         Args:
           ``tick``: The event that once affected the given entry.
         """
@@ -99,7 +98,7 @@ class Node:
 
     def reported_known(self, range, local=False):
         """Some node said that these entries may have been superseded.
-        
+
         Args:
           ``range``: The RangeSet thus marked.
           ``local``: The message was not broadcast, thus do not assume that
@@ -142,7 +141,7 @@ class NodeEvent:
     """
 
     def __init__(
-        self, node: Node, tick: int = None, prev: NodeEvent = None, check_dup=True
+        self, node: Node, tick: int = None, prev: 'NodeEvent' = None, check_dup=True
     ):
         self.node = node
         if tick is None:
@@ -277,7 +276,7 @@ class NodeEvent:
             )
         return self
 
-    def attach(self, prev: NodeEvent = None, dropped=None):
+    def attach(self, prev: 'NodeEvent' = None, dropped=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
             prev = prev.filter(self.node, dropped=dropped)
@@ -294,7 +293,7 @@ class UpdateEvent:
     """Represents an event which updates something.
     """
 
-    def __init__(self, event: NodeEvent, entry: Entry, new_value, old_value=_NotGiven):
+    def __init__(self, event: NodeEvent, entry: 'Entry', new_value, old_value=_NotGiven):
         self.event = event
         self.entry = entry
         self.new_value = new_value
@@ -344,16 +343,16 @@ class Entry:
     """This class represents one key/value pair
     """
 
-    _parent: Entry = None
+    _parent: 'Entry' = None
     name: str = None
     _path: List[str] = None
-    _root: Root = None
+    _root: 'Entry' = None
     _data: bytes = None
     chain: NodeEvent = None
 
     monitors = None
 
-    def __init__(self, name: Str, parent: Entry):
+    def __init__(self, name: str, parent: 'Entry'):
         self.name = name
         self._sub = {}
         self.monitors = set()
@@ -362,7 +361,7 @@ class Entry:
             parent._add_subnode(self)
             self._parent = weakref.ref(parent)
 
-    def _add_subnode(self, child: Entry):
+    def _add_subnode(self, child: 'Entry'):
         self._sub[child.name] = child
 
     def __hash__(self):
@@ -405,10 +404,10 @@ class Entry:
 
     def follow(self, *path, create=True, nulls_ok=False):
         """Follow this path.
-        
+
         If ``create`` is True (default), unknown nodes are silently created.
         Otherwise they cause a `KeyError`.
-        
+
         If ``nulls_ok`` is False (default), `None` is not allowed as a path
         element. If 2, it is allowed anywhere; if True, only as the first
         element.
@@ -490,7 +489,7 @@ class Entry:
 
     async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None):
         """Apply this :cls`UpdateEvent` to me.
-        
+
         Also, forward to watchers (unless ``local`` is set).
         """
         if evt.event == self.chain:
@@ -577,15 +576,6 @@ class Entry:
             node = node.parent
             if node is None:
                 break
-
-    def log(self):
-        """
-        Returns an async context manager plus async iterator which reports
-        all updates to this node.
-
-        All concurrent loggers receive all updates.
-        """
-        return _RootLog(self)
 
     _counter = 0
 

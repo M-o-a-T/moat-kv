@@ -6,7 +6,7 @@ import msgpack
 import socket
 from async_generator import asynccontextmanager
 from asyncserf.util import ValueEvent
-from .util import attrdict, Queue, gen_ssl, num2byte, byte2num
+from .util import attrdict, gen_ssl, num2byte, byte2num
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
-__all__ = ["NodData", "ManyData", "open_client", "StreamedRequest"]
+__all__ = ["NoData", "ManyData", "open_client", "StreamedRequest"]
 
 
 class NoData(ValueError):
@@ -199,7 +199,7 @@ class _SingleReply:
 
     async def get(self):
         """Wait for and return the result.
-        
+
         This is a coroutine.
         """
         return await self.q.get()
@@ -242,10 +242,6 @@ class Client:
     async def dh_secret(self, length=1024):
         """Exchange a diffie-hellman secret with the server"""
         if self._dh_key is None:
-            if length > 100:
-                import sys, pdb
-
-                pdb.Pdb(stdout=sys.__stdout__).set_trace()
             from diffiehellman.diffiehellman import DiffieHellman
 
             def gen_key():
@@ -352,9 +348,11 @@ class Client:
             rr = None
             async for r in res:
                 if rr is not None:
-                    raise MoreData(action)
+                    raise ManyData(action)
+                rr = r
             if rr is None:
                 raise NoData(action)
+            res = rr
         return res
 
     @asynccontextmanager

@@ -4,7 +4,9 @@
 """
 This set of modules authenticates users.
 
-A submodule is expected to export a "load(type:str, make:bool, server:bool)" method that returns a class.
+A submodule is expected to export a "load(type:str, make:bool, server:bool)"
+method that returns a class.
+
 It must recognize, at minimum:
 
 * load("stream", server:bool):
@@ -39,7 +41,8 @@ The server process is:
 
 * create a user:
 
-  * The server intercepts the write call and uses the data to call :meth:`BaseServerUserMaker.build`.
+  * The server intercepts the write call and uses the data to call
+    :meth:`BaseServerUserMaker.build`.
 
   * It calls :meth:`BaseServerMaker.save` and stores the actual result.
 
@@ -51,14 +54,18 @@ The server process is:
 * verify a user:
 
   * The server calls :meth:`BaseServerUser.read` with the stored data.
-     
+
   * The server calls :meth:`BaseServerUser.auth` with the record from the client.
 
 """
 
 import jsonschema
+import io
+import yaml
 from importlib import import_module
-from ..client import NoData
+from ..client import NoData, Client, ServerClient
+from ..model import Entry
+from ..server import StreamCommand
 from ..util import split_one
 from ..exceptions import NoAuthModuleError
 
@@ -167,7 +174,7 @@ class BaseClientUser:
         """
         return "*"
 
-    async def auth(self, client: "distkv.client.Client", chroot=()):
+    async def auth(self, client: Client, chroot=()):
         """
         Authorizes this user with the server.
         """
@@ -224,12 +231,12 @@ class BaseClientUserMaker:
         return "*"
 
     @classmethod
-    async def recv(cls, client: "distkv.client.Client", ident: str, _kind="user"):
-        res = await client.request("auth_get", typ=type(self)._auth_method, kind=_kind)
+    async def recv(cls, client: Client, ident: str, _kind="user"):
+        res = await client.request("auth_get", typ=cls._auth_method, kind=_kind)
         """Read this user from the server."""
-        return cls()
+        return cls(**res)
 
-    async def send(self, client: "distkv.client.Client", _kind="user"):
+    async def send(self, client: Client, _kind="user"):
         """Send this user to the server."""
         try:
             await client.request(
@@ -266,11 +273,11 @@ class BaseServerUser:
     can_auth_write = False
 
     @classmethod
-    async def build(cls, data: "distkv.model.Entry"):
+    async def build(cls, data: Entry):
         """Create a ServerUser object from existing stored data"""
         return cls()
 
-    async def auth(self, cmd: "distkv.server.StreamCommand", data):
+    async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data, schema=type(self).schema)
 
@@ -283,13 +290,13 @@ class BaseServerUser:
         """
         return {}
 
-    async def check_read(self, *path, client: "distkv.client.ServerClient", data=None):
+    async def check_read(self, *path, client: ServerClient, data=None):
         """Check that this user may read the element at this location.
         This method may modify the data.
         """
         return data
 
-    async def check_write(self, *path, client: "distkv.client.ServerClient", data=None):
+    async def check_write(self, *path, client: ServerClient, data=None):
         """Check that this user may write the element at this location.
         This method may modify the data.
         """
@@ -318,13 +325,13 @@ class BaseServerUserMaker:
     schema["additionalProperties"] = True
 
     @classmethod
-    def build(cls, data: "distkv.model.Entry"):
+    def build(cls, data: Entry):
         """Read the user data from DistKV"""
         return cls()
 
     @classmethod
     async def recv(
-        cls, cmd: "distkv.server.StreamCommand", data
+        cls, cmd: StreamCommand, data
     ) -> "BaseServerUserMaker":
         """Create a new user by reading the record from the client"""
         jsonschema.validate(instance=data, schema=cls.schema)
@@ -339,6 +346,6 @@ class BaseServerUserMaker:
         """Return a record to represent this user, suitable for saving to DistKV"""
         return {}
 
-    async def send(self, cmd: "distkv.server.StreamCommand"):
+    async def send(self, cmd: StreamCommand):
         """Send a record to the client, possibly multi-step secured"""
         return {}

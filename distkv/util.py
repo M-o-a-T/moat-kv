@@ -1,5 +1,6 @@
 import trio
 from getpass import getpass
+from collections.abc import Mapping
 
 import logging
 
@@ -13,7 +14,7 @@ def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
-    
+
     This recurses if values are dicts.
     """
     res = {}
@@ -62,7 +63,6 @@ class attrdict(dict):
         del self[a]
 
 
-import yaml
 from yaml.representer import SafeRepresenter
 
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
@@ -77,7 +77,7 @@ def count(iter):
 
 async def acount(iter):
     n = 0
-    async for _ in iter:
+    async for _ in iter:  # noqa: F841
         n += 1
     return n
 
@@ -95,8 +95,8 @@ class PathShortener:
         a b c d
         a b c e f
         a b c e g h
-        a b c i 
-        a b j 
+        a b c i
+        a b j
 
     is shortened to
 
@@ -134,7 +134,7 @@ class PathShortener:
                 "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
             )
 
-        p = res["path"][self.depth :]
+        p = res["path"][self.depth:]
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
@@ -183,7 +183,7 @@ class _MsgRW:
 
 class MsgReader(_MsgRW):
     """Read a stream of messages from a file.
-    
+
     Usage::
 
         async with MsgReader("/tmp/msgs.pack") as f:
@@ -222,7 +222,7 @@ packer = None
 
 class MsgWriter(_MsgRW):
     """Write a stream of messages from a file.
-    
+
     Usage::
 
         async with MsgWriter("/tmp/msgs.pack") as f:
