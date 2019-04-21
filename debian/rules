@@ -4,6 +4,7 @@
 # Sun, 21 Apr 2019 07:51:58 +0200
 export PYBUILD_NAME=distkv
 export LOG_CFG=$(shell pwd)/tests/logging.cfg
+export MSGPACK_PUREPYTHON=1
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 

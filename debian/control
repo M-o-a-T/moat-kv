@@ -5,6 +5,7 @@ Priority: optional
 Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
   python3-anyio,
   python3-asyncserf,
+  python3-pytest,
 Standards-Version: 3.9.6
 Homepage: https://github.com/smurfix/distkv
 
