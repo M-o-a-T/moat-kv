@@ -13,8 +13,8 @@ from .exceptions import (
     ServerClosedError,
     ServerConnectionError,
     ServerError,
+    CancelledError,
 )
-from concurrent.futures import CancelledError
 
 # from trio_log import LogStream
 
