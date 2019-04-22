@@ -12,16 +12,9 @@ import time
 from pprint import pformat
 from functools import partial
 
-try:
-    from concurrent.futures import CancelledError
-except ImportError:
-
-    class CancelledError(Exception):
-        pass
-
-
 from distkv.client import open_client
 from distkv.default import CFG
+from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
 from distkv.util import attrdict, Queue
