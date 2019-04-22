@@ -12,7 +12,11 @@ setup(
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
     packages=find_packages(),
-    setup_requires=["setuptools_scm", "pytest-runner"],
+    setup_requires=[
+        "setuptools_scm",
+        "pytest-runner",
+        "trustme >= 0.5",
+    ],
     install_requires=[
         "trio_click",
         "trio >= 0.11",

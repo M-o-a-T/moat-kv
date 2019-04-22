@@ -18,6 +18,10 @@ class ServerConnectionError(ServerError):
     pass
 
 
+class CancelledError(ClientError):
+    pass
+
+
 class ClientAuthError(ClientError):
     pass
 

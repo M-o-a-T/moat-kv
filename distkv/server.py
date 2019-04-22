@@ -12,10 +12,11 @@ import time
 from range_set import RangeSet
 import io
 from functools import partial
-
+from asyncserf.util import CancelledError as SerfCancelledError
 # from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
+from .default import CFG
 from .util import (
     attrdict,
     PathShortener,
@@ -23,12 +24,13 @@ from .util import (
     MsgWriter,
     MsgReader,
     Queue,
+    combine_dict,
     create_tcp_server,
     gen_ssl,
     num2byte,
     byte2num,
 )
-from .exceptions import ClientError, NoAuthError
+from .exceptions import ClientError, NoAuthError, CancelledError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -149,7 +151,8 @@ class StreamCommand:
                 if res is not None:
                     await self.send(**res)
             except Exception as exc:
-                logger.exception("ERS%d: %r", self.seq, self.msg)
+                if not isinstance(exc, SerfCancelledError):
+                    logger.exception("ERS%d: %r", self.seq, self.msg)
                 await self.send(error=repr(exc))
             finally:
                 await self.send(state="end")
@@ -918,7 +921,7 @@ class Server:
         if root is None:
             root = Entry("ROOT", None)
         self.root = root
-        self.cfg = cfg
+        self.cfg = combine_dict(cfg, CFG)
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._tock = 0
@@ -1142,18 +1145,21 @@ class Server:
                      helps to avoid possible inconsistency errors on startup.
         """
         cmd = getattr(self, "user_" + action)
-        async with self.serf.stream(
-            "user:%s.%s" % (self.cfg["root"], action)
-        ) as stream:
-            if delay is not None:
-                await delay.wait()
+        try:
+            async with self.serf.stream(
+                "user:%s.%s" % (self.cfg["root"], action)
+            ) as stream:
+                if delay is not None:
+                    await delay.wait()
 
-            async for resp in stream:
-                msg = msgpack.unpackb(
-                    resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
-                )
-                self.tock_seen(msg.get("tock", 0))
-                await cmd(msg)
+                async for resp in stream:
+                    msg = msgpack.unpackb(
+                        resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
+                    )
+                    self.tock_seen(msg.get("tock", 0))
+                    await cmd(msg)
+        except (CancelledError, SerfCancelledError):
+            pass
 
     def tock_seen(self, tock):
         """Update my current ``tock`` if it's not high enough."""
