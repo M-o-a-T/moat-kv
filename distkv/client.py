@@ -4,6 +4,8 @@ import trio
 import outcome
 import msgpack
 import socket
+import weakref
+import heapq
 from async_generator import asynccontextmanager
 from asyncserf.util import ValueEvent
 from .util import attrdict, gen_ssl, num2byte, byte2num
@@ -43,6 +45,146 @@ async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
             tg, init_timeout=init_timeout, auth=auth
         ) as client:
             yield client
+
+
+class ClientEntry:
+    """A helper class that represents a server entry on the client.
+    """
+    def __init__(self, parent, name=None):
+        self._children = dict()
+        self.path = (parent.path + (name,))
+        self.value = None
+        self.chain = None
+        self._root = weakref.ref(parent.root)
+        self.client = parent.client
+
+    @property
+    def root(self):
+        return self._root()
+
+    @property
+    def subpath(self):
+        """Return the path, starting with the root."""
+        return self.path[len(self.root.path):]
+
+    def __getitem__(self, k):
+        try:
+            c = self._children[k]
+        except KeyError:
+            c = ClientEntry(self, k)
+            self._children[k] = c
+        return c
+
+    def __in__(self, k):
+        return k in self._children
+
+    async def update(self, value):
+        """Update this node's value.
+
+        This is a coroutine.
+        """
+        await self.client.request("set_value", chain=self.chain, path=self.path, value=value)
+        self.value = value
+
+
+def _node_gt(self, other):
+    if other is None:
+        return True
+    if self == other:
+        return False
+    while self['node'] != other['node']:
+        self = self['prev']
+        if self is None:
+            return False
+    return self['tick'] >= other['tick']
+
+
+class ClientRoot(ClientEntry):
+    """A helper class that represents the root of a server entry list."""
+    def __init__(self, client, *path, need_wait=False):
+        self._children = dict()
+        self.client = client
+        self.path = path
+        self.value = None
+        self._need_wait = need_wait
+        if need_wait:
+            self._waiters = dict()
+            self._seen = dict()
+
+    @property
+    def root(self):
+        return self
+
+    @asynccontextmanager
+    async def run(self, task_status=trio.TASK_STATUS_IGNORED):
+        """A coroutine that fetches, and continually updates, a subtree.
+        """
+        async with trio.open_nursery() as n:
+            self._nursery = n
+            async def monitor(task_status=trio.TASK_STATUS_IGNORED):
+                async with self.client.stream("watch", nchain=3, path=self.path) as w:
+                    task_status.started()
+                    async for r in w:
+                        entry = self
+                        for p in r.path:
+                            entry = entry[p]
+                        try:
+                            assert _node_gt(r.chain, entry.chain)
+                        except AttributeError:
+                            pass
+                        entry.value = r.value
+                        entry.chain = r.chain
+
+                        if not self._need_wait:
+                            return
+                        c = r.chain
+                        while c is not None:
+                            try:
+                                if self._seen[c.node] < c.tick:
+                                    self._seen[c.node] = c.tick
+                            except KeyError:
+                                self._seen[c.node] = c.tick
+                            try:
+                                w = self._waiters[c.node]
+                            except KeyError:
+                                pass
+                            else:
+                                while w[0][0] <= c.node:
+                                    heapq.heappop(w)[1].set()
+                            c = c.get('prev', None)
+
+            await n.start(monitor)
+            async with self.client.stream("get_tree", nchain=3, path=self.path) as w:
+                async for r in w:
+                    entry = self
+                    for p in r.path:
+                        entry = entry[p]
+                    if entry.value is None:
+                        entry.value = r.value
+                        entry.chain = r.chain
+
+            task_status.started()
+            try:
+                yield self
+            finally:
+                n.cancel_scope.cancel()
+
+    async def cancel(self):
+        """Stop the monitor"""
+        self._nursery.cancel_scope.cancel()
+
+    async def _wait_chain(self, chain):
+        """Wait for a tree update containing this tick."""
+        try:
+            if chain.tick <= self._seen[chain.node]:
+                return
+        except KeyError:
+            pass
+        w = self._waiters.setdefault(chain.node, [])
+        e = trio.Event()
+        heapq.heappush(w, (chain.tick, e))
+        await w.wait()
+
 
 
 class StreamedRequest:
@@ -402,6 +544,15 @@ class Client:
             raise
         finally:
             await res.aclose()
+
+    def mirror(self, *path, **kw):
+        """An async context manager that affords an update-able mirror
+        of part of a DistKV store.
+
+        Returns: the root of this tree.
+        """
+        root = ClientRoot(self, *path, **kw)
+        return root.run()
 
     async def _run_auth(self, auth=None):
         hello = self._server_init
