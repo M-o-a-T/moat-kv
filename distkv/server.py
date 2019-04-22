@@ -16,6 +16,7 @@ from asyncserf.util import CancelledError as SerfCancelledError
 # from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
+from .default import CFG
 from .util import (
     attrdict,
     PathShortener,
@@ -23,6 +24,7 @@ from .util import (
     MsgWriter,
     MsgReader,
     Queue,
+    combine_dict,
     create_tcp_server,
     gen_ssl,
     num2byte,
@@ -919,7 +921,7 @@ class Server:
         if root is None:
             root = Entry("ROOT", None)
         self.root = root
-        self.cfg = cfg
+        self.cfg = combine_dict(cfg, CFG)
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._tock = 0
