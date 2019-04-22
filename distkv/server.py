@@ -1757,7 +1757,7 @@ class Server:
             self.spawn = serf.spawn
 
             # Queue for processing incoming ping broadcasts
-            self.ping_q = Queue(self.cfg["ping"].length + 2)
+            self.ping_q = Queue(self.cfg["ping"]["length"] + 2)
 
             # Last "reasonable" ping seen
             self.last_ping = None
