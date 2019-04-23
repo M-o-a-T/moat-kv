@@ -154,6 +154,7 @@ class NodeEvent:
             self.prev = prev
 
     def __len__(self):
+        """Length of this chain"""
         if self.prev is None:
             return 1
         return 1 + len(self.prev)
@@ -188,6 +189,9 @@ class NodeEvent:
             return self.prev.equals(other.prev)
 
     def __lt__(self, other):
+        """Check whether this node precedes ``other``, i.e. "other" is an
+        event that is based on this.
+        """
         if other is None:
             return False
         if self == other:
@@ -199,6 +203,9 @@ class NodeEvent:
         return self.tick <= other.tick
 
     def __gt__(self, other):
+        """Check whether this node succedes ``other``, i.e. this event is
+        based on it.
+        """
         if other is None:
             return True
         if self == other:
@@ -219,7 +226,11 @@ class NodeEvent:
         return self.find(node) is not None
 
     def find(self, node):
-        """Return the position of a node in the node chain."""
+        """Return the position of a node in this chain.
+        Zero if the first entry matches.
+        
+        Returns ``None`` if not present.
+        """
         res = 0
         while self is not None:
             if self.node == node:
@@ -231,7 +242,7 @@ class NodeEvent:
     def filter(self, node, dropped=None):
         """Return an event chain without the given node.
 
-        If the node is not in the chain, the result is not a copy.
+        If the node is not in the chain, the result is *not* a copy.
         """
         if self.node == node:
             if dropped is not None:
@@ -249,7 +260,7 @@ class NodeEvent:
 
     def serialize(self, nchain=100) -> dict:
         if not nchain:
-            raise RuntimeError("A chopped NodeEvent must not be set at all")
+            raise RuntimeError("A chopped-off NodeEvent must not be sent")
         res = attrdict(node=self.node.name)
         if self.tick is not None:
             res.tick = self.tick
