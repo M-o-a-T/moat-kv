@@ -13,6 +13,7 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
+
 # from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
@@ -514,7 +515,7 @@ class ServerClient:
     user = None  # authorized user
     _dh_key = None
 
-    def __init__(self, server: 'Server', stream: Stream):
+    def __init__(self, server: "Server", stream: Stream):
         self.server = server
         self.root = server.root
         self.stream = stream
@@ -870,6 +871,7 @@ class ServerClient:
                 msg["auth"] = auths
             if a is None:
                 from .auth import RootServerUser
+
                 self.user = RootServerUser()
             await self.send(msg)
 
@@ -1154,7 +1156,10 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
+                        resp.payload,
+                        object_pairs_hook=attrdict,
+                        raw=False,
+                        use_list=False,
                     )
                     self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)

@@ -141,7 +141,7 @@ class NodeEvent:
     """
 
     def __init__(
-        self, node: Node, tick: int = None, prev: 'NodeEvent' = None, check_dup=True
+        self, node: Node, tick: int = None, prev: "NodeEvent" = None, check_dup=True
     ):
         self.node = node
         if tick is None:
@@ -276,7 +276,7 @@ class NodeEvent:
             )
         return self
 
-    def attach(self, prev: 'NodeEvent' = None, dropped=None):
+    def attach(self, prev: "NodeEvent" = None, dropped=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
             prev = prev.filter(self.node, dropped=dropped)
@@ -293,7 +293,9 @@ class UpdateEvent:
     """Represents an event which updates something.
     """
 
-    def __init__(self, event: NodeEvent, entry: 'Entry', new_value, old_value=_NotGiven):
+    def __init__(
+        self, event: NodeEvent, entry: "Entry", new_value, old_value=_NotGiven
+    ):
         self.event = event
         self.entry = entry
         self.new_value = new_value
@@ -343,16 +345,16 @@ class Entry:
     """This class represents one key/value pair
     """
 
-    _parent: 'Entry' = None
+    _parent: "Entry" = None
     name: str = None
     _path: List[str] = None
-    _root: 'Entry' = None
+    _root: "Entry" = None
     _data: bytes = None
     chain: NodeEvent = None
 
     monitors = None
 
-    def __init__(self, name: str, parent: 'Entry'):
+    def __init__(self, name: str, parent: "Entry"):
         self.name = name
         self._sub = {}
         self.monitors = set()
@@ -361,7 +363,7 @@ class Entry:
             parent._add_subnode(self)
             self._parent = weakref.ref(parent)
 
-    def _add_subnode(self, child: 'Entry'):
+    def _add_subnode(self, child: "Entry"):
         self._sub[child.name] = child
 
     def __hash__(self):

@@ -134,7 +134,7 @@ class PathShortener:
                 "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
             )
 
-        p = res["path"][self.depth:]
+        p = res["path"][self.depth :]
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:

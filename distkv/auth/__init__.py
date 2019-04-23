@@ -330,9 +330,7 @@ class BaseServerUserMaker:
         return cls()
 
     @classmethod
-    async def recv(
-        cls, cmd: StreamCommand, data
-    ) -> "BaseServerUserMaker":
+    async def recv(cls, cmd: StreamCommand, data) -> "BaseServerUserMaker":
         """Create a new user by reading the record from the client"""
         jsonschema.validate(instance=data, schema=cls.schema)
         return cls()

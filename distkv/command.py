@@ -4,7 +4,14 @@ import sys
 import trio_click as click
 from pprint import pprint
 
-from .util import attrdict, combine_dict, PathLongener, MsgReader, PathShortener, split_one
+from .util import (
+    attrdict,
+    combine_dict,
+    PathLongener,
+    MsgReader,
+    PathShortener,
+    split_one,
+)
 from .client import open_client, StreamedRequest
 from .default import CFG
 from .server import Server
@@ -113,8 +120,8 @@ async def pdb(args):  # safe
     "-i",
     "--init",
     default=None,
-    help="Initial value to set the root to. Use only when setting up " \
-         "a cluster for the first time!",
+    help="Initial value to set the root to. Use only when setting up "
+    "a cluster for the first time!",
 )
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
@@ -181,15 +188,19 @@ async def client(ctx, host, port, auth):
 
 @client.command()
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-d",
     "--as-dict",
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use " \
-         "for values. Default: return as list",
+    help="YAML: structure as dictionary. The argument is the key to use "
+    "for values. Default: return as list",
 )
 @click.option(
     "-v",
@@ -276,7 +287,11 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
 @click.option("-v", "--value", help="Value to set. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option(
     "-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'"
@@ -316,7 +331,11 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
 @client.command()
 @click.argument("path", nargs=-1)
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.pass_obj
@@ -492,7 +511,11 @@ async def user(obj):
 @user.command()
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.pass_obj
 async def list(obj, yaml, chain):

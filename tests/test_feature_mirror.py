@@ -23,7 +23,9 @@ async def test_61_basic(autojump_clock):
                 assert (await c.request("get_value", path=())).value == 123
 
                 r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
-                r = await c.request("set_value", path=("foo", "bar"), value="baz", nchain=3)
+                r = await c.request(
+                    "set_value", path=("foo", "bar"), value="baz", nchain=3
+                )
                 await m._wait_chain(r.chain)
                 assert m.value == "hello"
                 assert m["bar"].value == "baz"
@@ -31,5 +33,3 @@ async def test_61_basic(autojump_clock):
                 pass  # mirror end
             pass  # client end
         pass  # server end
-
-

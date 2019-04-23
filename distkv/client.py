@@ -50,9 +50,10 @@ async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
 class ClientEntry:
     """A helper class that represents a server entry on the client.
     """
+
     def __init__(self, parent, name=None):
         self._children = dict()
-        self.path = (parent.path + (name,))
+        self.path = parent.path + (name,)
         self.value = None
         self.chain = None
         self._root = weakref.ref(parent.root)
@@ -65,7 +66,7 @@ class ClientEntry:
     @property
     def subpath(self):
         """Return the path, starting with the root."""
-        return self.path[len(self.root.path):]
+        return self.path[len(self.root.path) :]
 
     def __getitem__(self, k):
         try:
@@ -83,7 +84,9 @@ class ClientEntry:
 
         This is a coroutine.
         """
-        await self.client.request("set_value", chain=self.chain, path=self.path, value=value)
+        await self.client.request(
+            "set_value", chain=self.chain, path=self.path, value=value
+        )
         self.value = value
 
 
@@ -92,15 +95,16 @@ def _node_gt(self, other):
         return True
     if self == other:
         return False
-    while self['node'] != other['node']:
-        self = self['prev']
+    while self["node"] != other["node"]:
+        self = self["prev"]
         if self is None:
             return False
-    return self['tick'] >= other['tick']
+    return self["tick"] >= other["tick"]
 
 
 class ClientRoot(ClientEntry):
     """A helper class that represents the root of a server entry list."""
+
     def __init__(self, client, *path, need_wait=False):
         self._children = dict()
         self.client = client
@@ -121,6 +125,7 @@ class ClientRoot(ClientEntry):
         """
         async with trio.open_nursery() as n:
             self._nursery = n
+
             async def monitor(task_status=trio.TASK_STATUS_IGNORED):
                 async with self.client.stream("watch", nchain=3, path=self.path) as w:
                     task_status.started()
@@ -151,7 +156,7 @@ class ClientRoot(ClientEntry):
                             else:
                                 while w[0][0] <= c.node:
                                     heapq.heappop(w)[1].set()
-                            c = c.get('prev', None)
+                            c = c.get("prev", None)
 
             await n.start(monitor)
             async with self.client.stream("get_tree", nchain=3, path=self.path) as w:
@@ -184,7 +189,6 @@ class ClientRoot(ClientEntry):
         e = trio.Event()
         heapq.heappush(w, (chain.tick, e))
         await w.wait()
-
 
 
 class StreamedRequest:
