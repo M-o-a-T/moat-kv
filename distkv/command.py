@@ -339,7 +339,7 @@ async def delete(obj, path, chain, recursive):
     "-c",
     "--chain",
     type=int,
-    default=None,
+    default=0,
     help="Length of change list to return. Default: 0",
 )
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
