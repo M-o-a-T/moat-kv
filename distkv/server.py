@@ -424,22 +424,39 @@ class SCmd_watch(StreamCommand):
         client = self.client
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
         nchain = msg.get("nchain", 0)
+        max_depth = msg.get('max_depth', -1)
+        min_depth = msg.get('min_depth', 0)
 
         async with Watcher(entry) as watcher:
-            shorter = PathShortener(entry.path)
-            if msg.get("state", False):
+            async with trio.open_nursery() as n:
+                tock = client.server.tock
+                shorter = PathShortener(entry.path)
+                if msg.get("fetch", False):
+                    async def orig_state(task_status=trio.TASK_STATUS_IGNORED):
+                        task_status.started()
+                        kv = {'max_depth': max_depth, 'min_depth': min_depth}
 
-                async def worker(entry):
-                    res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
+                        async def worker(entry):
+                            if entry.tock is None:
+                                import pdb;pdb.set_trace()
+                            if entry.tock < tock:
+                                res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
+                                shorter(res)
+                                await self.send(**res)
+                        await entry.walk(worker, **kv)
+                        await self.send(state="uptodate")
+
+                    await n.start(orig_state)
+
+                async for m in watcher:
+                    ml = len(m.entry.path) - len(msg.path)
+                    if ml < min_depth:
+                        continue
+                    if max_depth > 0 and ml > max_depth:
+                        continue
+                    res = m.entry.serialize(chop_path=client._chop_path, nchain=nchain)
                     shorter(res)
                     await self.send(**res)
-
-                await entry.walk(worker)
-
-            async for msg in watcher:
-                res = msg.entry.serialize(chop_path=client._chop_path, nchain=nchain)
-                shorter(res)
-                await self.send(**res)
 
 
 class SCmd_serfmon(StreamCommand):
@@ -493,6 +510,7 @@ class SCmd_update(StreamCommand):
 
     async def run(self):
         client = self.client
+        tock_seen = client.server.tock_seen
         msg = self.msg
 
         path = msg.get("path", None)
@@ -501,6 +519,7 @@ class SCmd_update(StreamCommand):
         async for msg in self.in_recv_q:
             longer(msg)
             msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok)
+            tock_seen(msg.get('tock', None))
             await msg.entry.apply(msg, dropped=client._dropper)
             n += 1
         await self.send(count=n)
@@ -693,7 +712,7 @@ class ServerClient:
             res["prev"] = entry.data
 
         async with self.server.next_event() as event:
-            await entry.set_data(event, msg.value, dropped=self.server._dropper)
+            await entry.set_data(event, msg.value, dropped=self.server._dropper, tock=self.server.tock)
 
         nchain = msg.get("nchain", 1)
         if nchain > 0:
@@ -758,7 +777,7 @@ class ServerClient:
             if entry.data is not None:
                 async with self.server.next_event() as event:
                     evt = await entry.set_data(
-                        event, None, dropped=self.server._dropper
+                        event, None, dropped=self.server._dropper, tock=self.server.tock
                     )
                     if nchain:
                         r = evt.serialize(
@@ -780,7 +799,7 @@ class ServerClient:
             return {"changed": res}
 
     async def cmd_log(self, msg):
-        await self.server.run_saver(path=msg.path, save_state=msg.get("state", False))
+        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False))
         return True
 
     async def cmd_save(self, msg):
@@ -920,13 +939,13 @@ class Server:
     _ready = None
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
+        self._tock = 0
         if root is None:
-            root = Entry("ROOT", None)
+            root = Entry("ROOT", None, tock=self.tock)
         self.root = root
         self.cfg = combine_dict(cfg, CFG)
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
-        self._tock = 0
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
 
@@ -1168,7 +1187,8 @@ class Server:
 
     def tock_seen(self, tock):
         """Update my current ``tock`` if it's not high enough."""
-        self._tock = max(self._tock, tock)
+        if tock is not None:
+            self._tock = max(self._tock, tock)
 
     async def _send_ping(self):
         """Send a ping message and note when to send the next one,
@@ -1640,6 +1660,7 @@ class Server:
                     m = UpdateEvent.deserialize(
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
+                    self.tock_seen(m.tock)
                     await m.entry.apply(m, local=local, dropped=self._dropper)
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
@@ -1669,7 +1690,7 @@ class Server:
             await self._save(mw, shorter)
 
     async def save_stream(
-        self, path: str = None, stream=None, save_state: bool = False, done: int = None
+        self, path: str = None, stream=None, save_state: bool = False, done: trio.Event = None
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -1712,7 +1733,7 @@ class Server:
         """
         done = trio.Event()
         s = self._saver_prev
-        await self.spawn(self._saver, path=path, stream=stream, done=done)
+        await self.spawn(self._saver, path=path, stream=stream, save_state=save_state, done=done)
         await done.wait()
         if s is not None:
             await s.cancel()
@@ -1803,7 +1824,7 @@ class Server:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
-                    await self.root.set_data(event, self._init)
+                    await self.root.set_data(event, self._init, tock=self.tock)
 
             # send initial ping
             await self.spawn(self.pinger, delay2)

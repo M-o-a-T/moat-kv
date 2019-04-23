@@ -24,7 +24,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
 
     async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
         l = PathLongener(())
-        res = await c.request(action="watch", path=(), iter=True, nchain=9, state=True)
+        res = await c.request(action="watch", path=(), iter=True, nchain=9, fetch=True)
         task_status.started()
         async for m in res:
             l(m)

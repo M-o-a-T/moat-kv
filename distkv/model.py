@@ -294,13 +294,14 @@ class UpdateEvent:
     """
 
     def __init__(
-        self, event: NodeEvent, entry: "Entry", new_value, old_value=_NotGiven
+        self, event: NodeEvent, entry: "Entry", new_value, old_value=_NotGiven, tock=None
     ):
         self.event = event
         self.entry = entry
         self.new_value = new_value
         if old_value is not _NotGiven:
             self.old_value = old_value
+        self.tock = tock
 
     def __repr__(self):
         if self.entry.chain == self.event:
@@ -338,7 +339,7 @@ class UpdateEvent:
         event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
 
-        return UpdateEvent(event, entry, value)
+        return UpdateEvent(event, entry, value, msg.tock)
 
 
 class Entry:
@@ -354,10 +355,11 @@ class Entry:
 
     monitors = None
 
-    def __init__(self, name: str, parent: "Entry"):
+    def __init__(self, name: str, parent: "Entry", tock=None):
         self.name = name
         self._sub = {}
         self.monitors = set()
+        self.tock = tock
 
         if parent is not None:
             parent._add_subnode(self)
@@ -423,7 +425,7 @@ class Entry:
             if child is None:
                 if not create:
                     raise KeyError(name)
-                child = Entry(name, self)
+                child = Entry(name, self, tock=self.tock)
             self = child
         return self
 
@@ -473,7 +475,7 @@ class Entry:
         return self._data
 
     async def set_data(
-        self, event: NodeEvent, data: Any, local: bool = False, dropped=None
+        self, event: NodeEvent, data: Any, local: bool = False, dropped=None, tock=None
     ):
         """This entry is updated by that event.
 
@@ -485,7 +487,7 @@ class Entry:
           The :cls:`UpdateEvent` that has been generated and applied.
         """
         event = event.attach(self.chain, dropped=dropped)
-        evt = UpdateEvent(event, self, data, self._data)
+        evt = UpdateEvent(event, self, data, self._data, tock=tock)
         await self.apply(evt, local=local)
         return evt
 
@@ -517,6 +519,7 @@ class Entry:
             self._data = evt.new_value
         else:
             self._data = evt.value
+
         if dropped is not None and self.chain is not None:
             dropped(evt.event, self.chain)
         self.chain = evt.event
@@ -548,6 +551,7 @@ class Entry:
         res = attrdict(value=self._data)
         if self.chain is not None and nchain > 0:
             res.chain = self.chain.serialize(nchain=nchain)
+        res.tock = self.tock
         if chop_path >= 0:
             path = self.path
             if chop_path > 0:
