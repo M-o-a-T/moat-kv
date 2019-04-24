@@ -24,10 +24,10 @@ class TypeEntry(Entry):
 
     _code = None
 
-    def check_value(self, value, entry=None):
-        self.parent.check_value(value)
+    def check_value(self, value, entry=None, **kv):
+        self.parent.check_value(value, entry=entry, **kv)
         if self._code is not None:
-            self._code(value, entry=entry, data=self._data)
+            self._code(value, entry=entry, data=self._data, **kv)
 
     def _set(self, value):
         code = None
@@ -66,7 +66,7 @@ class TypeRoot(Entry):
         if value is not None:
             raise ValueError("This node can't have data.")
 
-    def check_value(self, value, entry=None):
+    def check_value(self, value, entry=None, **kv):
         pass
 
 
@@ -102,7 +102,7 @@ class MatchRoot(MetaEntry):
         if value is not None:
             raise ValueError("This node can't have data.")
 
-    def check_value(self, value, entry):
+    def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
         p = entry.path
         checks = [(self,0)]
@@ -110,7 +110,7 @@ class MatchRoot(MetaEntry):
         if match is None:
             return
         typ = self.parent['type'].follow(*match._data['type'])
-        return typ.check_value(value, entry=entry, match=match)
+        return typ.check_value(value, entry=entry, match=match, **kv)
 
     def _find_node(self, entry):
         """Search for the most-specific match.
@@ -122,8 +122,10 @@ class MatchRoot(MetaEntry):
         n_p = len(p)
         while checks:
             node,off = checks.pop()
-            if off == n_p and node._data is not None:
-                return node
+            if off == n_p:
+                if node._data is not None:
+                    return node
+                continue
             if '#' in node:
                 nn = node['#']
                 pos = n_p

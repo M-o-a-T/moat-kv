@@ -650,8 +650,8 @@ async def get(obj, path, chain, yaml, verbose, script):
 )
 @click.option("-g","--good", multiple=True, help="Example for passing values")
 @click.option("-b","--bad", multiple=True, help="Example for failing values")
-@click.option("-s","--script", help="File with the script to use")
-@click.option("-y","--yaml", help="load everything from this file")
+@click.option("-s","--script", type=click.File(mode="r"), help="File with the script to use")
+@click.option("-y","--yaml", is_flag=True, help="load everything from this file")
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def set(obj, path, good, bad, verbose, script, yaml):
@@ -660,6 +660,7 @@ async def set(obj, path, good, bad, verbose, script, yaml):
         raise click.UsageError("You need a non-empty path.")
 
     if yaml:
+        import yaml
         msg = yaml.safe_load(script)
     else:
         msg = {}
@@ -677,7 +678,7 @@ async def set(obj, path, good, bad, verbose, script, yaml):
         else:
             script = script.read()
         msg['code'] = script
-    elif script:
+    elif script and not yaml:
         raise click.UsageError("Duplicate script parameter")
 
     res = await obj.client.request(
