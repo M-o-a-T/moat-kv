@@ -709,7 +709,13 @@ class ServerClient:
             root = self.root
         entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
         if root is self.root and 'match' in self.metaroot:
-            self.metaroot['match'].check_value(msg.value, entry)
+            try:
+                self.metaroot['match'].check_value(msg.value, entry)
+            except ClientError:
+                raise
+            except Exception as exc:
+                raise ClientError(repr(exc)) from None
+                # TODO pass exceptions to the client
 
         send_prev = True
         if "prev" in msg:
