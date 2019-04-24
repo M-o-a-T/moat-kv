@@ -370,7 +370,7 @@ async def watch(obj, path, chain, yaml, state):
     if yaml:
         import yaml
     res = await obj.client.request(
-        action="watch", path=path, iter=True, nchain=chain, state=state
+        action="watch", path=path, iter=True, nchain=chain, fetch=state
     )
     pl = PathLongener(path)
     async for r in res:
