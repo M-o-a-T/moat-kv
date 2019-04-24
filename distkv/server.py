@@ -688,8 +688,8 @@ class ServerClient:
 
         if _nulls_ok is None:
             _nulls_ok = self.nulls_ok
-        if _root is None:
-            _root = self.root
+        if root is None:
+            root = self.root
         try:
             entry = root.follow(*msg.path, create=False, nulls_ok=_nulls_ok)
         except KeyError:
