@@ -231,16 +231,8 @@ class StreamedRequest:
                 pass
             return
         state = msg.get("state", "")
-        if state == "":
-            if self._reply_stream is False:
-                raise RuntimeError("Recv state 1", self._reply_stream, msg)
-            elif self._reply_stream is None:
-                self._reply_stream = False
-            await self.send_q.send(outcome.Value(msg))
-            if self._reply_stream is False:
-                await self.send_q.aclose()
 
-        elif state == "start":
+        if state == "start":
             if self._reply_stream is not None:
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
@@ -257,7 +249,17 @@ class StreamedRequest:
             return False
 
         else:
-            logger.warning("Unknown state: %s", msg)
+            if state not in ("","uptodate"):
+                logger.warning("Unknown state: %s", msg)
+
+            if self._reply_stream is False:
+                raise RuntimeError("Recv state 1", self._reply_stream, msg)
+            elif self._reply_stream is None:
+                self._reply_stream = False
+            await self.send_q.send(outcome.Value(msg))
+            if self._reply_stream is False:
+                await self.send_q.aclose()
+
 
     async def get(self):
         """Receive a single reply"""
