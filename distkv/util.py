@@ -155,7 +155,10 @@ class PathLongener:
         self.path = prefix
 
     def __call__(self, res):
-        p = res.pop("path", ())
+        try:
+            p = res.path
+        except AttributeError:
+            return
         d = res.pop("depth", None)
         if d is not None:
             p = self.path[: self.depth + d] + p
