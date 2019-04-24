@@ -51,7 +51,8 @@ async def test_21_load_save(autojump_clock, tmpdir):
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick) == [
+    assert sorted(msgs, key=lambda x: x.chain.tick if 'chain' in x else 0) == [
+        {'state': 'uptodate'},
         {
             "chain": {"node": "test_0", "prev": None, "tick": 1},
             "path": (),
@@ -75,7 +76,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
     ]
 
     msgs = []
-    async with stdtest(run=False) as st:
+    async with stdtest(run=False, tocks=40) as st:
         s, = st.s
         logger.debug("LOAD %s", path)
         await s.load(path, local=True)
@@ -94,7 +95,8 @@ async def test_21_load_save(autojump_clock, tmpdir):
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick) == [
+    assert sorted(msgs, key=lambda x: x.chain.tick if 'chain' in x else 0) == [
+        {'state': 'uptodate'},
         {
             "chain": {"node": "test_0", "prev": None, "tick": 2},
             "path": ("foo",),

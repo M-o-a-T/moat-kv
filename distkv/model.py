@@ -339,6 +339,7 @@ class UpdateEvent:
             res.new_value = self.new_value
         else:
             res.value = self.new_value
+        res.tock = self.entry.tock
         return res
 
     @classmethod
@@ -350,7 +351,7 @@ class UpdateEvent:
         event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
 
-        return UpdateEvent(event, entry, value, msg.tock)
+        return UpdateEvent(event, entry, value, tock=msg.tock)
 
 
 class Entry:
@@ -530,6 +531,7 @@ class Entry:
             self._data = evt.new_value
         else:
             self._data = evt.value
+        self.tock = evt.tock
 
         if dropped is not None and self.chain is not None:
             dropped(evt.event, self.chain)

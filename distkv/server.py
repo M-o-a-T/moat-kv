@@ -715,6 +715,7 @@ class ServerClient:
         nchain = msg.get("nchain", 1)
         if nchain > 0:
             res["chain"] = entry.chain.serialize(nchain=nchain)
+        res["tock"] = entry.tock
         return res
 
     async def cmd_update(self, msg):
@@ -852,7 +853,10 @@ class ServerClient:
 
     async def send_result(self, seq, res):
         res["seq"] = seq
-        res["tock"] = self.server.tock
+        if 'tock' in res:
+            self.server.tock_seen(res["tock"])
+        else:
+            res["tock"] = self.server.tock
         await self.send(res)
 
     async def run(self):
@@ -997,7 +1001,10 @@ class Server:
             old_evt = old_evt.prev
 
     async def _send_event(self, action, msg, coalesce=False):
-        msg["tock"] = self.tock
+        if "tock" not in msg:
+            msg["tock"] = self.tock
+        else:
+            self.tock_seen(msg["tock"])
         if "node" not in msg:
             msg["node"] = self.node.name
         if "tick" not in msg:
@@ -1656,6 +1663,10 @@ class Server:
             async for m in rdr:
                 if "value" in m:
                     longer(m)
+                    if 'tock' in m:
+                        self.tock_seen(m.tock)
+                    else:
+                        m.tock = self.tock
                     m = UpdateEvent.deserialize(
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )

@@ -86,14 +86,17 @@ async def test_11_split1(autojump_clock, tocky):
         s = st.s[1]
         async with st.client(1) as ci:
             assert (await ci.request("get_value", path=())).value == 420
-            await ci.request("set_value", path=("ping",), value="pong")
+            r = await ci.request("set_value", path=("ping",), value="pong")
+            pongtock = r.tock
 
         async def s1(i, *, task_status=trio.TASK_STATUS_IGNORED):
             async with st.client(i) as c:
                 task_status.started()
                 assert (await c.request("get_value", path=())).value == 420
                 await trio.sleep(5)
-                assert (await c.request("get_value", path=("ping",))).value == "pong"
+                r = await c.request("get_value", path=("ping",))
+                assert r.value == "pong"
+                assert r.tock == pongtock
                 await c.request("set_value", path=("foo", i), value=420 + i)
                 pass  # client end
 
@@ -110,14 +113,19 @@ async def test_11_split1(autojump_clock, tocky):
         await trio.sleep(30)
 
         async with st.client(N - 1) as c:
-            await c.request("set_value", path=("ping",), value="pongpang")
+            r = await c.request("set_value", path=("ping",), value="pongpang")
+            pangtock = r.tock
         await trio.sleep(1)
         async with st.client(0) as c:
-            assert (await c.request("get_value", path=("ping",))).value == "pong"
+            r = await c.request("get_value", path=("ping",))
+            assert r.value == "pong"
+            assert r.tock == pongtock
         st.join(N // 2)
         await trio.sleep(20)
         async with st.client(0) as c:
-            assert (await c.request("get_value", path=("ping",))).value == "pongpang"
+            r = await c.request("get_value", path=("ping",))
+            assert r.value == "pongpang"
+            assert r.tock == pangtock
         pass  # server end
 
     # Now make sure that updates are transmitted once
