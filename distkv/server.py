@@ -841,7 +841,8 @@ class ServerClient:
             if self._send_lock is None:
                 return
 
-            msg["tock"] = self.server.tock
+            if 'tock' not in msg:
+                msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
             except trio.BrokenResourceError:
