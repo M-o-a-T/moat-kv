@@ -13,6 +13,7 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
+from .types import RootEntry
 
 # from trio_log import LogStream
 
@@ -518,7 +519,7 @@ class SCmd_update(StreamCommand):
             longer(msg)
             msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok)
             tock_seen(msg.get('tock', None))
-            await msg.entry.apply(msg, dropped=client._dropper)
+            await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
             n += 1
         await self.send(count=n)
 
@@ -535,6 +536,7 @@ class ServerClient:
     def __init__(self, server: "Server", stream: Stream):
         self.server = server
         self.root = server.root
+        self.metaroot = self.root.follow(None, create=True, nulls_ok=True)
         self.stream = stream
         self.seq = 0
         self.tasks = {}
@@ -601,7 +603,7 @@ class ServerClient:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
-                if not isinstance(exc, (KeyError, ClientError)):
+                if not isinstance(exc, ClientError):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
                 await self.send({"error": str(exc), "seq": seq})
 
@@ -666,7 +668,16 @@ class ServerClient:
         self._chroot(msg.path)
         return self.root.serialize(chop_path=self._chop_path)
 
-    async def cmd_get_value(self, msg):
+    async def cmd_get_internal(self, msg):
+        return await self.cmd_get_value(msg, root=self.metaroot)
+
+    async def cmd_set_internal(self, msg):
+        return await self.cmd_set_value(msg, root=self.metaroot)
+
+    async def cmd_delete_internal(self, msg):
+        return await self.cmd_delete_value(msg, root=self.metaroot)
+
+    async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
         """
         if "node" in msg and "path" not in msg:
@@ -675,22 +686,31 @@ class ServerClient:
                 chop_path=self._chop_path, nchain=msg.get("nchain", 0)
             )
 
+        if _nulls_ok is None:
+            _nulls_ok = self.nulls_ok
+        if _root is None:
+            _root = self.root
         try:
-            entry = self.root.follow(*msg.path, create=False, nulls_ok=self.nulls_ok)
+            entry = root.follow(*msg.path, create=False, nulls_ok=_nulls_ok)
         except KeyError:
             entry = {"value": None}
         else:
             entry = entry.serialize(chop_path=-1, nchain=msg.get("nchain", 0))
         return entry
 
-    async def cmd_set_value(self, msg, _nulls_ok=False):
+    async def cmd_set_value(self, msg, root=None, _nulls_ok=False):
         """Set a node's value.
         """
         # TODO drop this as soon as we have server-side user mods
-        if self.user.is_super_root:
+        if self.user.is_super_root and root is None:
             _nulls_ok = 2
 
-        entry = self.root.follow(*msg.path, nulls_ok=_nulls_ok)
+        if root is None:
+            root = self.root
+        entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
+        if root is self.root and 'match' in self.metaroot:
+            self.metaroot['match'].check_value(msg.value, entry)
+
         send_prev = True
         if "prev" in msg:
             if entry.data != msg.prev:
@@ -725,20 +745,20 @@ class ServerClient:
         You usually do this via a stream command.
         """
         msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok)
-        res = await msg.entry.apply(msg, dropped=self._dropper)
+        res = await msg.entry.apply(msg, dropped=self._dropper, root=self.root)
         if res is None:
             return False
         else:
             return res.serialize(chop_path=self._chop_path)
 
-    async def cmd_delete_value(self, msg):
+    async def cmd_delete_value(self, msg, root=None):
         """Delete a node's value.
         Sub-nodes are not affected.
         """
         if "value" in msg:
             raise ClientError("A deleted entry can't have a value")
         msg.value = None
-        return await self.cmd_set_value(msg)
+        return await self.cmd_set_value(msg, root=root)
 
     async def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
@@ -944,9 +964,10 @@ class Server:
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
         self._tock = 0
         if root is None:
-            root = Entry("ROOT", None, tock=self.tock)
+            root = RootEntry(tock=self.tock)
         self.root = root
         self.cfg = combine_dict(cfg, CFG)
+        self.paranoid_root = root if self.cfg['paranoia'] else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
@@ -1057,7 +1078,7 @@ class Server:
     async def user_update(self, msg):
         """Process an update."""
         msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
-        await msg.entry.apply(msg, dropped=self._dropper)
+        await msg.entry.apply(msg, dropped=self._dropper, root=self.paranoid_root)
 
     async def user_info(self, msg):
         """Process info broadcasts.
@@ -1449,7 +1470,7 @@ class Server:
                             r = UpdateEvent.deserialize(
                                 self.root, r, cache=self._nodes, nulls_ok=True
                             )
-                            await r.entry.apply(r, dropped=self._dropper)
+                            await r.entry.apply(r, dropped=self._dropper, root=self.paranoid_root)
                         self.tock_seen(res.end_msg.tock)
 
                         res = await client.request(
@@ -1671,7 +1692,7 @@ class Server:
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
                     self.tock_seen(m.tock)
-                    await m.entry.apply(m, local=local, dropped=self._dropper)
+                    await m.entry.apply(m, local=local, dropped=self._dropper, root=self.paranoid_root)
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:

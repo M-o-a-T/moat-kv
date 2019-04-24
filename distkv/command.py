@@ -1,5 +1,6 @@
 # command line interface
 
+import os
 import sys
 import trio_click as click
 from pprint import pprint
@@ -599,3 +600,125 @@ async def auth_(obj, auth):
     await user.auth(obj.client)
     if obj.debug >= 0:
         print("OK.")
+
+
+@client.group()
+@click.pass_obj
+async def type(obj):
+    """Manage types and type matches. Usage: … type … (may be used more than once for subtypes)"""
+    pass
+
+
+@type.command()
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-s","--script", type=click.File(mode="w", lazy=True), help="Save the script here")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def get(obj, path, chain, yaml, verbose, script):
+    """Read type information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    res = await obj.client.request(
+        action="get_internal", path=("type",)+path, iter=False, nchain = 3 if verbose else 0
+    )
+    if not verbose:
+        res = res.value
+    if yaml:
+        import yaml
+
+        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
+    else:
+        if script:
+            code = res.pop("code", None)
+            if code is not None:
+                print(code, file=script)
+        pprint(res)
+
+
+@type.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-g","--good", multiple=True, help="Example for passing values")
+@click.option("-b","--bad", multiple=True, help="Example for failing values")
+@click.option("-s","--script", help="File with the script to use")
+@click.option("-y","--yaml", help="load everything from this file")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def set(obj, path, good, bad, verbose, script, yaml):
+    """Save type information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    if yaml:
+        msg = yaml.safe_load(script)
+    else:
+        msg = {}
+    msg.setdefault('good', [])
+    msg.setdefault('bad', [])
+    for x in good:
+        msg['good'].append(eval(x))
+    for x in bad:
+        msg['bad'].append(eval(x))
+    if 'code' not in msg:
+        if not script:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to verify 'value'.")
+            script = sys.stdin.read()
+        else:
+            script = script.read()
+        msg['code'] = script
+    elif script:
+        raise click.UsageError("Duplicate script parameter")
+
+    res = await obj.client.request(
+        action="set_internal", value=msg, path=("type",)+path, iter=False, nchain = 3 if verbose else 0
+    )
+    if verbose:
+        print(res.tock)
+
+
+@type.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-t","--type", multiple=True, help="Type to link to. Multiple for subytpes.")
+@click.option("-d","--delete", help="Use to delete this mapping.")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def match(obj, path, type, delete, verbose):
+    """Match a type to a path (read, if no type given)"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    if type and delete:
+        raise click.UsageError("You can't both set and delete a path.")
+
+    if delete:
+        await obj.client.request(action="delete_internal", path=("type",)+path)
+        return
+
+    msg = {'type': type}
+    res = await obj.client.request(
+        action="set_internal", value=msg, path=("match",)+path, iter=False, nchain = 3 if verbose else 0
+    )
+    if type or delete:
+        print(res.tock)
+    elif verbose:
+        pprint(res)
+    else:
+        print(" ".join(res.type))
+
+
+

@@ -14,6 +14,7 @@ CFG = attrdict(
     serf=attrdict(host="localhost", port=7373),
     state=None,  # path to load/save system state
     root=":distkv",  # serf user event prefix. Should start with a colon.
+    paranoia=False, # typecheck server>server updates
     domain=None,  # domain in which to look up nodes
     change=attrdict(length=5),
     ping=attrdict(length=4, clock=5),

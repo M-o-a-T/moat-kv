@@ -364,6 +364,8 @@ class Entry:
     _root: "Entry" = None
     _data: bytes = None
     chain: NodeEvent = None
+    SUBTYPE = None
+    SUBTYPES = {}
 
     monitors = None
 
@@ -437,7 +439,7 @@ class Entry:
             if child is None:
                 if not create:
                     raise KeyError(name)
-                child = Entry(name, self, tock=self.tock)
+                child = self.SUBTYPES.get(name, self.SUBTYPE)(name, self, tock=self.tock)
             self = child
         return self
 
@@ -459,6 +461,9 @@ class Entry:
         root = parent.root()
         self._root = weakref.ref(root)
         return root
+
+    def _set(self, value):
+        self._data = value
 
     @property
     def parent(self):
@@ -503,11 +508,15 @@ class Entry:
         await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None):
+    async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None, root=None):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers (unless ``local`` is set).
         """
+        chk = None
+        if root is not None and None in root:
+            chk = root[None].get('match', None)
+            
         if evt.event == self.chain:
             assert self._data == evt.new_value, (
                 "has:",
@@ -518,19 +527,24 @@ class Entry:
             return
         if self.chain > evt.event:  # already superseded
             return
+
+        if hasattr(evt, "new_value"):
+            evt_val = evt.new_value
+        else:
+            evt_val = evt.value
         if not (self.chain < evt.event):
             logger.warn("*** inconsistency TODO ***")
-            logger.warn("Node: %s", self)
-            logger.warn("Current: %s", self.chain)
-            logger.warn("New: %s", evt.event)
-            return
+            logger.warn("Node: %s", self.path)
+            logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
+            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt_value)
+            if evt.tock < self.tock:
+                return
 
+        if chk is not None:
+            chk.check_value(evt_val, self)
         if not hasattr(evt, "old_value"):
             evt.old_value = self._data
-        if hasattr(evt, "new_value"):
-            self._data = evt.new_value
-        else:
-            self._data = evt.value
+        self._set(evt_val)
         self.tock = evt.tock
 
         if dropped is not None and self.chain is not None:
@@ -602,6 +616,8 @@ class Entry:
     def counter(self):
         self._counter += 1
         return self._counter
+
+Entry.SUBTYPE = Entry
 
 
 class Watcher:
