@@ -437,8 +437,6 @@ class SCmd_watch(StreamCommand):
                         kv = {'max_depth': max_depth, 'min_depth': min_depth}
 
                         async def worker(entry):
-                            if entry.tock is None:
-                                import pdb;pdb.set_trace()
                             if entry.tock < tock:
                                 res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
                                 shorter(res)
