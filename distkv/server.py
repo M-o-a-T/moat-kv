@@ -75,7 +75,7 @@ class StreamCommand:
     Implement the actual command by overriding ``run``.
     Read the next input line by reading ``in_recv_q``.
 
-    This auto-detects whether the command sends multiple lines, by closing
+    This auto-detects whether the client sends multiple lines, by closing
     the incoming channel if there's no state=start in the command.
 
     Selection of outgoing multiline-or-not must be done beforehand,
@@ -184,7 +184,7 @@ class SingleMixin:
 
     async def __call__(self, **kw):
         await self.aclose()
-        await super().__call__(**kw)
+        return await super().__call__(**kw)
 
 
 class SCmd_auth(StreamCommand):
@@ -225,7 +225,7 @@ class SCmd_auth(StreamCommand):
         data = auth.follow(msg.typ, "user", msg.ident, create=False)
 
         cls = loader(msg.typ, "user", server=True)
-        user = await cls.build(data)
+        user = cls.load(data)
         client._user = user
         try:
             await user.auth(self, msg)
@@ -254,7 +254,7 @@ class SCmd_auth_list(StreamCommand):
 
         typ, kind, ident = data.path[-3:]
         cls = loader(typ, kind, server=True, make=False)
-        user = await cls.build(data)
+        user = cls.load(data)
         res = user.info()
         res["typ"] = typ
         res["kind"] = kind
@@ -301,6 +301,7 @@ class SCmd_auth_get(StreamCommand):
     typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
+    chain: change history
 
     plus any other data the client-side manager object sends
     """
@@ -323,10 +324,8 @@ class SCmd_auth_get(StreamCommand):
         auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
         data = auth.follow(msg.typ, kind, msg.ident, create=False)
         cls = loader(msg.typ, kind, server=True, make=True)
-        user = await cls.read(data)
-        res = await user.send(self)
-        if res is not None:
-            await self.send(**res)
+        user = cls.load(data)
+        return await user.send(self)
 
 
 class SCmd_auth_set(StreamCommand):
@@ -337,6 +336,7 @@ class SCmd_auth_set(StreamCommand):
     typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
+    chain: change history
 
     plus any other data the client sends
     """
@@ -362,6 +362,7 @@ class SCmd_auth_set(StreamCommand):
         user = await cls.recv(self, msg)
         msg.value = user.save()
         msg.path = (*root, None, "auth", msg.typ, kind, user.ident)
+        msg.chain = user._chain
         return await client.cmd_set_value(msg, _nulls_ok=True)
 
 

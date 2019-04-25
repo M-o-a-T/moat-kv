@@ -276,11 +276,16 @@ class NodeEvent:
             return None
         msg = msg.get("chain", msg)
         tick = msg.get("tick", None)
-        self = cls(
-            node=Node(msg["node"], tick=tick, cache=cache),
-            tick=tick,
-            check_dup=check_dup,
-        )
+        if 'node' not in msg:
+            assert 'prev' not in msg
+            assert tick is None
+            return None
+        else:
+            self = cls(
+                node=Node(msg["node"], tick=tick, cache=cache),
+                tick=tick,
+                check_dup=check_dup,
+            )
         if "prev" in msg:
             self.prev = cls.deserialize(
                 msg["prev"], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok

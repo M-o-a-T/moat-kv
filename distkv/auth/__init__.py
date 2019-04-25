@@ -42,20 +42,20 @@ The server process is:
 * create a user:
 
   * The server intercepts the write call and uses the data to call
-    :meth:`BaseServerUserMaker.build`.
+    :meth:`BaseServerAuthMaker.build`.
 
   * It calls :meth:`BaseServerMaker.save` and stores the actual result.
 
 * modify a user:
 
-  * the server calls :meth:`BaseServerUser.read` with the stored data,
-    then sends a record created with :meth:`BaseServerUser.save` to the client.
+  * the server calls :meth:`BaseServerAuth.read` with the stored data,
+    then sends a record created with :meth:`BaseServerAuth.save` to the client.
 
 * verify a user:
 
-  * The server calls :meth:`BaseServerUser.read` with the stored data.
+  * The server calls :meth:`BaseServerAuth.read` with the stored data.
 
-  * The server calls :meth:`BaseServerUser.auth` with the record from the client.
+  * The server calls :meth:`BaseServerAuth.auth` with the record from the client.
 
 """
 
@@ -66,18 +66,32 @@ from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one
+from ..util import split_one, attrdict
 from ..exceptions import NoAuthModuleError
 
-NullSchema = {"type": "object", "additionalProperties": False}
+# Empty schema
+null_schema = {"type": "object", "additionalProperties": False}
 
+# Additional schema data for specific types
+add_schema = {
+    'user': {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "conv": {type:"string", 'minLength':1},
+        },
+    },
+}
 
-def loader(method: str, *a, **k):
+def loader(method: str, typ:str, *a, **k):
     m = method
     if "." not in m:
         m = "distkv.auth." + m
-    cls = import_module(m).load(*a, **k)
+    cls = import_module(m).load(typ, *a, **k)
     cls._auth_method = method
+    cls._auth_typ = typ
+    if k.get('make', False):
+        cls.aux_schema = add_schema.get(typ, null_schema)
     return cls
 
 
@@ -125,7 +139,7 @@ async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(stream, user: "BaseClientUser"):
+async def null_client_login(stream, user: "BaseClientAuth"):
     return stream
 
 
@@ -140,32 +154,36 @@ def _load_example(typ: str, make: bool, server: bool):
         raise NotImplementedError("This module only handles users")
     if server:
         if make:
-            return BaseServerUserMaker
+            return BaseServerAuthMaker
         else:
-            return BaseServerUser
+            return BaseServerAuth
     else:
         if make:
-            return BaseClientUserMaker
+            return BaseClientAuthMaker
         else:
-            return BaseClientUser
+            return BaseClientAuth
 
 
-class BaseClientUser:
+class BaseClientAuth:
     """
     This class is used for creating a data record which authenticates a user.
 
     The schema verifies the input to :meth:`build`.
     """
 
-    schema = NullSchema
+    schema = null_schema
+
+    def __init__(self, **data):
+        jsonschema.validate(instance=data, schema=type(self).schema)
+        for k,v in data.items():
+            setattr(self,k,v)
 
     @classmethod
     def build(cls, user):
         """
         Create a user record from the data conforming to this schema.
         """
-        jsonschema.validate(instance=user, schema=cls.schema)
-        return cls()
+        return cls(**user)
 
     @property
     def ident(self):
@@ -176,15 +194,16 @@ class BaseClientUser:
 
     async def auth(self, client: Client, chroot=()):
         """
-        Authorizes this user with the server.
+        Authorizes this record with the server.
         """
         try:
             await client.request(
                 action="auth",
                 typ=self._auth_method,
                 iter=False,
+                chroot=chroot,
                 ident=self.ident,
-                **self.auth_data()
+                data=self.auth_data(),
             )
         except NoData:
             pass
@@ -198,43 +217,56 @@ class BaseClientUser:
         return {}
 
 
-class BaseClientUserMaker:
+class BaseClientAuthMaker:
     """
     This class is used for creating a data record which describes a user record.
 
-    This is not the same as a :class:`BaseClientUser`; this class is used to
-    represent stored user data on the server, while a :class:`BaseClientUser` is used solely
+    This is not the same as a :class:`BaseClientAuth`; this class is used to
+    represent stored user data on the server, while a :class:`BaseClientAuth` is used solely
     for authentication.
 
     The schema verifies the input to :meth:`build`.
     """
 
-    schema = NullSchema
+    schema = null_schema
+    aux_schema = None  # overidden by the loader
+
+    def __init__(self, **data):
+        props = type(self).schema.get('properties',{})
+        aux = data.pop('aux', {})
+
+        jsonschema.validate(instance=data, schema=type(self).schema)
+        jsonschema.validate(instance=aux, schema=type(self).aux_schema)
+        for k,v in data.items():
+            setattr(self,k,v)
+        self._aux = aux
 
     @classmethod
     def build(cls, user):
         """
         Create a user record from the data conforming to this schema.
         """
-        jsonschema.validate(instance=user, schema=cls.schema)
-        return cls()
+        return cls(**user)
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {}
+        return {'aux':self._aux}
 
     @property
     def ident(self):
-        """Some user identifier.
+        """The identifier for this user.
+
         Required so that the server can actually find the record.
         """
         return "*"
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
-        res = await client.request("auth_get", typ=cls._auth_method, kind=_kind)
+        res = await client.request("auth_get", typ=cls._auth_method, kind=_kind, ident=ident)
         """Read this user from the server."""
-        return cls(**res)
+        self = cls()
+        self._chain = res.chain
+        return self
 
     async def send(self, client: Client, _kind="user"):
         """Send this user to the server."""
@@ -244,7 +276,10 @@ class BaseClientUserMaker:
                 iter=False,
                 typ=type(self)._auth_method,
                 kind=_kind,
-                **self.send_data()
+                ident=self.ident,
+                chain=self._chain,
+                aux=self._aux,
+                data=self.send_data(),
             )
         except NoData:
             pass
@@ -253,18 +288,14 @@ class BaseClientUserMaker:
         return {}
 
 
-class BaseServerUser:
+class BaseServerAuth:
     """
     This class is used on the server to represent / verify a user.
 
-    The schema verifies the output of :class:`BaseClientUser`.
-    It does *not* verify the user's data record in DistKV.
-
-    The schema matches the initial client message and thus needs to
-    have additionalProperties set.
+    The schema verifies whatever data the associated ``ClientAuth`` initially sends.
     """
 
-    schema = NullSchema.copy()
+    schema = null_schema.copy()
     schema["additionalProperties"] = True
 
     is_super_root = False
@@ -272,14 +303,20 @@ class BaseServerUser:
     can_auth_read = False
     can_auth_write = False
 
+    def __init__(self, data: dict={}):
+        self._aux = None
+        if data:
+            for k,v in data.items():
+                setattr(self,k,v)
+
     @classmethod
-    async def build(cls, data: Entry):
-        """Create a ServerUser object from existing stored data"""
-        return cls()
+    def load(cls, data: Entry):
+        """Create a ServerAuth object from existing stored data"""
+        return cls(data.data)
 
     async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
-        jsonschema.validate(instance=data, schema=type(self).schema)
+        jsonschema.validate(instance=data.get('data',{}), schema=type(self).schema)
 
     def info(self):
         """
@@ -303,8 +340,10 @@ class BaseServerUser:
         return data
 
 
-class RootServerUser(BaseServerUser):
+class RootServerUser(BaseServerAuth):
     """The default user when no auth is required
+
+    Interim record. TODO: create a separate ACL thing.
     """
 
     is_super_root = True
@@ -313,27 +352,39 @@ class RootServerUser(BaseServerUser):
     can_auth_write = True
 
 
-class BaseServerUserMaker:
+class BaseServerAuthMaker:
     """
-    This class is used on the server to verify the user record and to store it in DistKV.
+    This class is used on the server to verify the transmitted user record and to store it in DistKV.
 
-    The schema verifies the output of :meth:`BaseClientUserMaker.send`.
-    It does *not* verify the user's data record in DistKV.
+    The schema verifies the data from the client.
     """
 
-    schema = NullSchema.copy()
-    schema["additionalProperties"] = True
+    schema = null_schema
+    aux_schema = None  # set by the loader
+
+    def __init__(self, chain=None, data=None, aux=None):
+        self._aux = aux
+        if aux is not None:
+            assert '_aux' not in data
+        if data is not None:
+            for k,v in data.items():
+                setattr(self,k,v)
+        self._chain = chain
 
     @classmethod
-    def build(cls, data: Entry):
+    def load(cls, data: Entry):
         """Read the user data from DistKV"""
-        return cls()
+        return cls(chain=data.chain, data=data.data)
 
     @classmethod
-    async def recv(cls, cmd: StreamCommand, data) -> "BaseServerUserMaker":
+    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":
         """Create a new user by reading the record from the client"""
-        jsonschema.validate(instance=data, schema=cls.schema)
-        return cls()
+        dt = data.get('data', None) or {}
+        ax = data.get('aux', None) or {}
+        jsonschema.validate(instance=dt, schema=cls.schema)
+        jsonschema.validate(instance=ax, schema=cls.aux_schema)
+        self = cls(chain=data.chain, data=dt, aux=ax)
+        return self
 
     @property
     def ident(self):
@@ -342,8 +393,12 @@ class BaseServerUserMaker:
 
     def save(self):
         """Return a record to represent this user, suitable for saving to DistKV"""
-        return {}
+        # does NOT contain "ident" or "chain"!
+        # contains an attribute for "_aux"
+        return {'_aux': self._aux}
 
     async def send(self, cmd: StreamCommand):
-        """Send a record to the client, possibly multi-step secured"""
-        return {}
+        """Send a record to the client, possibly multi-step / secured / whatever"""
+        res = self._aux.copy()
+        res['chain'] = self._chain.serialize() if self._chain else None
+        return res

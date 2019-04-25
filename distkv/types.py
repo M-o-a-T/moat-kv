@@ -1,4 +1,5 @@
 import weakref
+import jsonschema
 
 from .model import Entry
 from .util import make_proc
@@ -23,16 +24,24 @@ class TypeEntry(Entry):
     """
 
     _code = None
+    _schema = None
 
     def check_value(self, value, entry=None, **kv):
         self.parent.check_value(value, entry=entry, **kv)
+        if self._schema is not None:
+            jsonschema.validate(instance=value, schema=self._schema)
         if self._code is not None:
             self._code(value, entry=entry, data=self._data, **kv)
 
     def _set(self, value):
         code = None
-        if value is not None and value.code is not None:
-            code = make_proc(value.code, ("value",), *self.path)
+        schema = None
+        if value is not None and (value.get('code',None) is not None or value.get('schema',None) is not None):
+            schema = value.get('schema',None)
+            if value.get('code',None) is None:
+                code = None
+            else:
+                code = make_proc(value.code, ("value",), *self.path)
             if len(value.good) < 2:
                 raise RuntimeError("Must have check-good values")
             if not value.bad:
@@ -40,13 +49,19 @@ class TypeEntry(Entry):
             for v in value['good']:
                 self.parent.check_value(v)
                 try:
-                    code(value=v, entry=None)
+                    if schema is not None:
+                        jsonschema.validate(instance=v, schema=schema)
+                    if code is not None:
+                        code(value=v, entry=None)
                 except Exception as exc:
                     raise ValueError("failed on %r with %r" % (v, exc))
             for v in value['bad']:
                 self.parent.check_value(v)
                 try:
-                    code(value=v, entry=None)
+                    if schema is not None:
+                        jsonschema.validate(instance=v, schema=schema)
+                    if code is not None:
+                        code(value=v, entry=None)
                 except Exception:
                     pass
                 else:
@@ -54,8 +69,10 @@ class TypeEntry(Entry):
 
         super()._set(value)
         self._code = code
+        self._schema = schema
 
 TypeEntry.SUBTYPE = TypeEntry
+
 
 class TypeRoot(Entry):
     """I am the root of DistKV's type hierarchy.
@@ -73,7 +90,7 @@ class TypeRoot(Entry):
 # MATCH (for types)
 
 class MatchEntry(MetaEntry):
-    """I represent a match form a path to a type.
+    """I represent a match from a path to a type.
 
     My data requires a "type" attribute that's a path in the "type"
     hierarchy that's next to my MatchRoot.
@@ -93,25 +110,7 @@ class MatchEntry(MetaEntry):
 
 MatchEntry.SUBTYPE = MatchEntry
 
-class MatchRoot(MetaEntry):
-    """I am the root of DistKV's type hierarchy.
-    """
-    SUBTYPE = MatchEntry
-
-    def _set(self, value):
-        if value is not None:
-            raise ValueError("This node can't have data.")
-
-    def check_value(self, value, entry, **kv):
-        """Check this value for this entry against my match hierarchy"""
-        p = entry.path
-        checks = [(self,0)]
-        match = self._find_node(entry)
-        if match is None:
-            return
-        typ = self.parent['type'].follow(*match._data['type'])
-        return typ.check_value(value, entry=entry, match=match, **kv)
-
+class MetaPathEntry(MetaEntry):
     def _find_node(self, entry):
         """Search for the most-specific match.
 
@@ -139,11 +138,159 @@ class MatchRoot(MetaEntry):
         return None
 
 
+
+class MatchRoot(MetaPathEntry):
+    """I am the root of DistKV's type hierarchy.
+    """
+    SUBTYPE = MatchEntry
+
+    def _set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+    def check_value(self, value, entry, **kv):
+        """Check this value for this entry against my match hierarchy"""
+        p = entry.path
+        checks = [(self,0)]
+        match = self._find_node(entry)
+        if match is None:
+            return
+        typ = self.parent['type'].follow(*match._data['type'])
+        return typ.check_value(value, entry=entry, match=match, **kv)
+
+class CodecEntry(Entry):
+    """I am a codec.
+    """
+
+    _enc = None
+    _dec = None
+
+    def enc_value(self, value, entry=None, **kv):
+        if self._enc is not None:
+            value = self._enc(value, entry=entry, data=self._data, **kv)
+        return value
+
+    def dec_value(self, value, entry=None, **kv):
+        if self._dec is not None:
+            value = self._dec(value, entry=entry, data=self._data, **kv)
+        return value
+
+    def _set(self, value):
+        enc = None
+        dec = None
+        if value is not None and value.encode is not None:
+            if not value['in']:
+                raise RuntimeError("Must have tests for decoding")
+            dec = make_proc(value.code, ("decode",), *self.path)
+            for v,w in value['in']:
+                try:
+                    r = dec(v)
+                except Exception as exc:
+                    raise ValueError("failed decoder on %r with %r" % (v, exc))
+                else:
+                    if r != w:
+                        raise ValueError("Decoding %r got %r, not %r" % (v,r,w))
+
+        if value is not None and value.decode is not None:
+            if not value['out']:
+                raise RuntimeError("Must have tests for encoding")
+            enc = make_proc(value.encode, ("encode",), *self.path)
+            for v,w in value['out']:
+                try:
+                    r = enc(v)
+                except Exception as exc:
+                    raise ValueError("failed encoder on %r with %r" % (v, exc))
+                else:
+                    if r != w:
+                        raise ValueError("Encoding %r got %r, not %r" % (v,r,w))
+
+        super()._set(value)
+        self._enc = enc
+        self._dec = dec
+
+CodecEntry.SUBTYPE = CodecEntry
+
+
+class CodecRoot(Entry):
+    """I am the root of DistKV's codec hierarchy.
+    """
+    SUBTYPE = CodecEntry
+
+    def _set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+    def check_value(self, value, entry=None, **kv):
+        pass
+
+
+# CONV (for codecs)
+
+class ConvEntry(MetaEntry):
+    """I represent a converter from a path to a type.
+
+    My data requires a "codec" attribute that's a path in the "codecs"
+    hierarchy that's next to my Root.
+    """
+    def _set(self, value):
+        if isinstance(value.type, str):
+            value.type = (value.type,)
+        elif not isinstance(value.type, (list,tuple)):
+            raise ValueError("Codec is not a string or list")
+        try:
+            typ = self.metaroot['codec'].follow(*value.type, create=False)
+        except KeyError:
+            raise ClientError("This codec does not exist")
+        # crashes if nonexistent
+        super()._set(value)
+
+
+ConvEntry.SUBTYPE = ConvEntry
+
+class ConvName(MetaPathEntry):
+    """I am a named tree for conversion entries.
+    """
+    SUBTYPE = ConvEntry
+
+    def _set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+    def enc_value(self, value, entry, **kv):
+        """Check this value for this entry against my converter hierarchy"""
+        p = entry.path
+        checks = [(self,0)]
+        conv = self._find_node(entry)
+        if conv is None:
+            return
+        codec = self.metaroot['codec'].follow(*conv._data['codec'])
+        return codec.enc_value(value, entry=entry, conv=conv, **kv)
+
+    def dec_value(self, value, entry, **kv):
+        """Check this value for this entry against my converter hierarchy"""
+        p = entry.path
+        checks = [(self,0)]
+        conv = self._find_node(entry)
+        if conv is None:
+            return
+        codec = self.metaroot['codec'].follow(*conv._data['codec'])
+        return codec.dec_value(value, entry=entry, conv=conv, **kv)
+
+
+class ConvRoot(MetaEntry):
+    SUBTYPE = ConvName
+
+    def _set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+
 # ROOT
 
 class MetaRootEntry(Entry):  # not MetaEntry
-    """I am the special node off the DistKV root that's named wht "None"."""
-    SUBTYPES = {'type': TypeRoot, 'match': MatchRoot}
+    """I am the special node off the DistKV root that's named ``None``."""
+    SUBTYPES = {'type': TypeRoot, 'match': MatchRoot,
+            'codec': CodecRoot, 'conv': ConvRoot}
 
     def __init__(self, *a,**k):
         super().__init__(*a,**k)

@@ -101,6 +101,7 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
             assert (
                 await c.request("get_value", path=("foo","dud","bar"))
             ).value == 55
+
             pass  # client end
         pass  # server end
 

@@ -4,6 +4,7 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
+import json
 
 from .util import (
     attrdict,
@@ -35,7 +36,12 @@ def cmd():
     try:
         main(standalone_mode=False)
     except click.exceptions.UsageError as exc:
-        print(str(exc), file=sys.stderr)
+        try:
+            s = str(exc)
+        except TypeError:
+            logger.exception(repr(exc), exc_info=exc)
+        else:
+            print(s, file=sys.stderr)
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
@@ -99,31 +105,31 @@ async def pdb(args):  # safe
 
 @main.command()
 @click.option(
-    "-h",
-    "--host",
-    default=None,
-    help="Address to bind to. Default: %s" % (CFG.server.host),
-)
+        "-h",
+        "--host",
+        default=None,
+        help="Address to bind to. Default: %s" % (CFG.server.host),
+        )
 @click.option(
-    "-p",
-    "--port",
-    type=int,
-    default=None,
-    help="Port to bind to. Default: %d" % (CFG.server.port,),
-)
+        "-p",
+        "--port",
+        type=int,
+        default=None,
+        help="Port to bind to. Default: %d" % (CFG.server.port,),
+        )
 @click.option(
-    "-l", "--load", type=click.File("rb"), default=None, help="Event log to preload."
-)
+        "-l", "--load", type=click.File("rb"), default=None, help="Event log to preload."
+        )
 @click.option(
-    "-s", "--save", type=click.File("wb"), default=None, help="Event log to write to."
-)
+        "-s", "--save", type=click.File("wb"), default=None, help="Event log to write to."
+        )
 @click.option(
-    "-i",
-    "--init",
-    default=None,
-    help="Initial value to set the root to. Use only when setting up "
-    "a cluster for the first time!",
-)
+        "-i",
+        "--init",
+        default=None,
+        help="Initial value to set the root to. Use only when setting up "
+        "a cluster for the first time!",
+        )
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
 @click.pass_obj
@@ -153,22 +159,22 @@ async def run(obj, name, host, port, load, save, init, eval):
 
 @main.group()
 @click.option(
-    "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.server.host,)
-)
+        "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.server.host,)
+        )
 @click.option(
-    "-p",
-    "--port",
-    type=int,
-    default=None,
-    help="Port to use. Default: %d" % (CFG.server.port,),
-)
+        "-p",
+        "--port",
+        type=int,
+        default=None,
+        help="Port to use. Default: %d" % (CFG.server.port,),
+        )
 @click.option(
-    "-a",
-    "--auth",
-    type=str,
-    default=None,
-    help="Auth params. =file or 'type param=value…' Default: _anon",
-)
+        "-a",
+        "--auth",
+        type=str,
+        default=None,
+        help="Auth params. =file or 'type param=value…' Default: _anon",
+        )
 @click.pass_context
 async def client(ctx, host, port, auth):
     obj = ctx.obj
@@ -189,40 +195,40 @@ async def client(ctx, host, port, auth):
 
 @client.command()
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
+        "-c",
+        "--chain",
+        type=int,
+        default=0,
+        help="Length of change list to return. Default: 0",
+        )
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
-    "-d",
-    "--as-dict",
-    default=None,
-    help="YAML: structure as dictionary. The argument is the key to use "
-    "for values. Default: return as list",
-)
+        "-d",
+        "--as-dict",
+        default=None,
+        help="YAML: structure as dictionary. The argument is the key to use "
+        "for values. Default: return as list",
+        )
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
+        "-v",
+        "--verbose",
+        is_flag=True,
+        help="Print the complete result. Default: just the value",
+        )
 @click.option(
-    "-m",
-    "--maxdepth",
-    type=int,
-    default=None,
-    help="Limit recursion depth. Default: whole tree",
-)
+        "-m",
+        "--maxdepth",
+        type=int,
+        default=None,
+        help="Limit recursion depth. Default: whole tree",
+        )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=None,
-    help="Starting depth. Default: whole tree",
-)
+        "-M",
+        "--mindepth",
+        type=int,
+        default=None,
+        help="Starting depth. Default: whole tree",
+        )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.argument("path", nargs=-1)
 @click.pass_obj
@@ -235,12 +241,13 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         if mindepth is not None:
             kw["mindepth"] = mindepth
         res = await obj.client.request(
-            action="get_tree", path=path, iter=True, nchain=chain, **kw
-        )
+                action="get_tree", path=path, iter=True, nchain=chain, **kw
+                )
         pl = PathLongener(path)
         y = {} if as_dict is not None else []
         async for r in res:
             pl(r)
+            r.pop("seq", None)
             if yaml:
                 if as_dict is not None:
                     yy = y
@@ -272,8 +279,8 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     res = await obj.client.request(
-        action="get_value", path=path, iter=False, nchain=chain
-    )
+            action="get_value", path=path, iter=False, nchain=chain
+            )
     if not verbose:
         res = res.value
     if yaml:
@@ -288,19 +295,19 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
 @click.option("-v", "--value", help="Value to set. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
+        "-c",
+        "--chain",
+        type=int,
+        default=0,
+        help="Length of change list to return. Default: 0",
+        )
 @click.option(
-    "-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'"
-)
+        "-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'"
+        )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option(
-    "-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python."
-)
+        "-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python."
+        )
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def set(obj, path, value, eval, chain, prev, last, yaml):
@@ -319,8 +326,8 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client.request(
-        action="set_value", value=value, path=path, iter=False, nchain=chain, **args
-    )
+            action="set_value", value=value, path=path, iter=False, nchain=chain, **args
+            )
     if yaml:
         import yaml
 
@@ -332,19 +339,19 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
 @client.command()
 @click.argument("path", nargs=-1)
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
+        "-c",
+        "--chain",
+        type=int,
+        default=0,
+        help="Length of change list to return. Default: 0",
+        )
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.pass_obj
 async def delete(obj, path, chain, recursive):
     """Delete a node."""
     res = await obj.client.request(
-        action="delete_tree" if recursive else "delete_value", path=path, nchain=chain
-    )
+            action="delete_tree" if recursive else "delete_value", path=path, nchain=chain
+            )
     if isinstance(res, StreamedRequest):
         pl = PathLongener(path)
         async for r in res:
@@ -356,12 +363,12 @@ async def delete(obj, path, chain, recursive):
 
 @client.command()
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
+        "-c",
+        "--chain",
+        type=int,
+        default=0,
+        help="Length of change list to return. Default: 0",
+        )
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
@@ -371,8 +378,8 @@ async def watch(obj, path, chain, yaml, state):
     if yaml:
         import yaml
     res = await obj.client.request(
-        action="watch", path=path, iter=True, nchain=chain, fetch=state
-    )
+            action="watch", path=path, iter=True, nchain=chain, fetch=state
+            )
     pl = PathLongener(path)
     async for r in res:
         pl(r)
@@ -387,8 +394,8 @@ async def watch(obj, path, chain, yaml, state):
 @click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
 @click.option(
-    "-i", "--infile", type=click.File("rb"), help="Print as YAML. Default: Python."
-)
+        "-i", "--infile", type=click.File("rb"), help="Print as YAML. Default: Python."
+        )
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def update(obj, path, infile, local, force):
@@ -399,8 +406,8 @@ async def update(obj, path, infile, local, force):
     ps = PathShortener()
     async with MsgReader() as reader:
         with obj.client.stream(
-            action="update", path=path, force=force, local=local
-        ) as sender:
+                action="update", path=path, force=force, local=local
+                ) as sender:
             async for r in reader:
                 ps(r)
                 await sender.send(r)
@@ -432,13 +439,13 @@ async def enum_auth(obj):
         yield obj.auth
         return
     res = await obj.client.request(
-        action="get_tree",
-        path=(None, "auth"),
-        iter=True,
-        nchain=0,
-        mindepth=1,
-        maxdepth=1,
-    )
+            action="get_tree",
+            path=(None, "auth"),
+            iter=True,
+            nchain=0,
+            mindepth=1,
+            maxdepth=1,
+            )
     async for r in res:
         yield r.path[-1]
 
@@ -462,18 +469,18 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
     async for auth in enum_auth(obj):
         if ident is not None:
             res = await obj.client.request(
-                action="auth_list",
-                typ=auth,
-                kind=kind,
-                ident=ident,
-                iter=False,
-                nchain=nchain,
-            )
+                    action="auth_list",
+                    typ=auth,
+                    kind=kind,
+                    ident=ident,
+                    iter=False,
+                    nchain=nchain,
+                    )
             yield res
         else:
             async with obj.client.stream(
-                action="auth_list", typ=auth, kind=kind, nchain=nchain
-            ) as res:
+                    action="auth_list", typ=auth, kind=kind, nchain=nchain
+                    ) as res:
                 async for r in res:
                     yield r
 
@@ -512,15 +519,15 @@ async def user(obj):
 @user.command()
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
+        "-c",
+        "--chain",
+        type=int,
+        default=0,
+        help="Length of change list to return. Default: 0",
+        )
 @click.pass_obj
 async def list(obj, yaml, chain):
-    """List all users."""
+    """List all users (raw data)."""
     if yaml:
         import yaml
     async for r in enum_typ(obj, nchain=chain):
@@ -539,50 +546,58 @@ async def list(obj, yaml, chain):
 @click.argument("ident", nargs=1)
 @click.pass_obj
 async def get(obj, ident):
-    """Retrieve a user."""
+    """Retrieve a user (processed)."""
     lv = loader(await one_auth(obj), "user", make=True, server=False)
     if obj._DEBUG:
         lv._length = 16
-    async for u in enum_typ(obj, ident=ident):
-        u = await lv.load(obj.client, u)
-        print(u.export())
+
+    u = await lv.recv(obj.client, ident)
+    pprint(u.export())
 
 
 @user.command()
+@click.option("-a","--add", multiple=True, help="additional non-method-specific data")
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def add(obj, args):
+async def add(obj, args, add):
     """Add a user."""
-    await add_mod_user(obj, args, None)
+    await add_mod_user(obj, args, None, add)
 
 
 @user.command()
+@click.option("-a","--add", multiple=True, help="additional non-method-specific data")
 @click.argument("ident", nargs=1)
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def mod(obj, ident, args):
+async def mod(obj, ident, args, add):
     """Change a user."""
-    await add_mod_user(obj, args, ident)
+    await add_mod_user(obj, args, ident, add)
 
 
-async def add_mod_user(obj, args, modify):
+async def add_mod_user(obj, args, modify, add):
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
     if obj._DEBUG:
         u._length = 16
-    chain = None
     if modify:
         ou = await u.recv(obj.client, modify)
-        kw = await ou.export()
+        kw = ou.export()
     else:
         kw = {}
     for a in args:
         split_one(a, kw)
+    if add:
+        ax = kw.setdefault('aux',{})
+        for a in add:
+            split_one(a, ax)
+
     u = u.build(kw)
-    if modify is not None and u.ident != modify:
-        chain = None  # new user
+    if modify is None or u.ident != modify:
+        u._chain = None  # new user
+    else:
+        u._chain = ou._chain
     await u.send(obj.client)
-    print("Added" if chain is None else "Modified", u.ident)
+    print("Added" if u._chain is None else "Modified", u.ident)
 
 
 @user.command(name="auth")
@@ -605,7 +620,7 @@ async def auth_(obj, auth):
 @client.group()
 @click.pass_obj
 async def type(obj):
-    """Manage types and type matches. Usage: … type … (may be used more than once for subtypes)"""
+    """Manage types and type matches. Usage: … type …"""
     pass
 
 
@@ -618,10 +633,11 @@ async def type(obj):
     help="Print the complete result. Default: just the value",
 )
 @click.option("-s","--script", type=click.File(mode="w", lazy=True), help="Save the script here")
+@click.option("-S","--schema", type=click.File(mode="w", lazy=True), help="Save the schema here")
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def get(obj, path, chain, yaml, verbose, script):
-    """Read type information"""
+    """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client.request(
@@ -632,12 +648,16 @@ async def get(obj, path, chain, yaml, verbose, script):
     if yaml:
         import yaml
 
+        if schema and res.get('schema', None) is not None:
+            print(yaml.safe_dump(res.pop('schema'), default_flow_style=False), file=schema)
         print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
     else:
         if script:
             code = res.pop("code", None)
             if code is not None:
                 print(code, file=script)
+        if schema and res.get('schema', None) is not None:
+            json.dump(res.pop('schema'), schema)
         pprint(res)
 
 
@@ -650,12 +670,13 @@ async def get(obj, path, chain, yaml, verbose, script):
 )
 @click.option("-g","--good", multiple=True, help="Example for passing values")
 @click.option("-b","--bad", multiple=True, help="Example for failing values")
-@click.option("-s","--script", type=click.File(mode="r"), help="File with the script to use")
+@click.option("-s","--script", type=click.File(mode="r"), help="File with the checking script")
+@click.option("-S","--schema", type=click.File(mode="r"), help="File with the JSON schema")
 @click.option("-y","--yaml", is_flag=True, help="load everything from this file")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, good, bad, verbose, script, yaml):
-    """Save type information"""
+async def set(obj, path, good, bad, verbose, script, schema, yaml):
+    """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
@@ -680,6 +701,15 @@ async def set(obj, path, good, bad, verbose, script, yaml):
         msg['code'] = script
     elif script and not yaml:
         raise click.UsageError("Duplicate script parameter")
+    if 'schema' not in msg:
+        if schema:
+            if yaml:
+                schema = yaml.safe_load(schema)
+            else:
+                schema = json.load(schema)
+            msg['schema'] = schema
+    elif schema:
+        raise click.UsageError("Duplicate schema parameter")
 
     res = await obj.client.request(
         action="set_internal", value=msg, path=("type",)+path, iter=False, nchain = 3 if verbose else 0
@@ -718,6 +748,136 @@ async def match(obj, path, type, delete, verbose):
         print(res.tock)
     elif verbose:
         pprint(res)
+    else:
+        print(" ".join(res.type))
+
+
+
+@client.group()
+@click.pass_obj
+async def codec(obj):
+    """Manage codecs and converters. Usage: … codec …"""
+    pass
+
+
+@codec.command()
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-e","--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here")
+@click.option("-d","--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here")
+@click.option("-s","--script", type=click.File(mode="w", lazy=True), help="Save the data here")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def get(obj, path, chain, yaml, verbose, script, encode, decode):
+    """Read type information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    res = await obj.client.request(
+        action="get_internal", path=("type",)+path, iter=False, nchain = 3 if verbose else 0
+    )
+    if encode and res.get('encode', None) is not None:
+        encode.write(res.pop('encode'))
+    if decode and res.get('decode', None) is not None:
+        decode.write(res.pop('decode'))
+
+    if not verbose:
+        res = res.value
+    if yaml:
+        import yaml
+
+        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
+    else:
+        pprint(res)
+
+
+@codec.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-e","--encode", type=click.File(mode="r"), help="File with the encoder")
+@click.option("-d","--decode", type=click.File(mode="r"), help="File with the decoder")
+@click.option("-s","--script", type=click.File(mode="r"), help="File with the rest")
+@click.option("-y","--yaml", is_flag=True, help="load everything from this file")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def set(obj, path, verbose, encode, decode, script, yaml):
+    """Save codec information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    if yaml:
+        import yaml
+        msg = yaml.safe_load(script)
+    else:
+        msg = {}
+    if 'encode' not in msg:
+        if not encode:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to encode 'value'.")
+            encode = sys.stdin.read()
+        else:
+            encode = encode.read()
+        msg['encode'] = encode
+    elif encode and not yaml:
+        raise click.UsageError("Duplicate encode parameter")
+    if 'decode' not in msg:
+        if not decode:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to decode 'value'.")
+            decode = sys.stdin.read()
+        else:
+            decode = decode.read()
+        msg['decode'] = decode
+    elif decode and not yaml:
+        raise click.UsageError("Duplicate decode parameter")
+
+    res = await obj.client.request(
+        action="set_internal", value=msg, path=("codec",)+path, iter=False, nchain = 3 if verbose else 0
+    )
+    if verbose:
+        pprint(res)
+    elif obj.verbose:
+        print(res.tock)
+
+
+@codec.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-c","--codec", multiple=True, help="Codec to link to. Multiple for hierarchical.")
+@click.option("-d","--delete", help="Use to delete this converter.")
+@click.argument("name", nargs=1)
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def convert(obj, path, codec, name, delete, verbose):
+    """Match a codec to a path (read, if no codec given)"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    if codec and delete:
+        raise click.UsageError("You can't both set and delete a path.")
+
+    if delete:
+        res = await obj.client.request(action="delete_internal", path=("conv",name)+path)
+    else:
+        msg = {'codec': codec}
+        res = await obj.client.request(
+            action="set_internal", value=msg, path=("conv",name)+path, iter=False, nchain = 3 if verbose else 0
+        )
+    if verbose:
+        pprint(res)
+    elif type or delete:
+        print(res.tock)
     else:
         print(" ".join(res.type))
 
