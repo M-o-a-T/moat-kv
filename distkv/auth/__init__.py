@@ -229,6 +229,7 @@ class BaseClientAuthMaker:
 
     schema = null_schema
     aux_schema = None  # overidden by the loader
+    _chain = None
 
     def __init__(self, **data):
         props = type(self).schema.get("properties", {})
@@ -318,6 +319,16 @@ class BaseServerAuth:
     async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data.get("data", {}), schema=type(self).schema)
+
+    def aux_conv(self, root: Entry):
+        from ..types import ConvNull
+        try:
+            conv = self._aux.get('conv')
+            if conv is None:
+                return ConvNull
+            return root.follow(None,'conv',conv, create=False, nulls_ok=True)
+        except (KeyError,AttributeError):
+            return ConvNull
 
     def info(self):
         """

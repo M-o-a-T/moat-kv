@@ -46,7 +46,7 @@ class ServerUserMaker(BaseServerAuthMaker):
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     # Overly-complicated methods of exchanging the user name
 
@@ -56,7 +56,8 @@ class ServerUserMaker(BaseServerAuthMaker):
         msg = await cmd.recv()
         assert msg.step == "HasName"
         self = cls()
-        self._name = msg.name
+        self.name = msg.name
+        self._aux = msg.get("aux")
         self._chain = msg.get("chain")
         return self
 
@@ -64,7 +65,7 @@ class ServerUserMaker(BaseServerAuthMaker):
         await cmd.send(step="SendWant")
         msg = await cmd.recv()
         assert msg.step == "WantName"
-        await cmd.send(step="SendName", name=self._name, chain=self._chain)
+        await cmd.send(step="SendName", name=self.name, chain=self._chain)
         msg = await cmd.recv()
 
     # Annoying methods to read+save the user name from/to KV
@@ -72,7 +73,7 @@ class ServerUserMaker(BaseServerAuthMaker):
     @classmethod
     def load(cls, data):
         self = super().load(data)
-        self._name = data.name
+        self.name = data.name
         return self
 
 
@@ -89,19 +90,14 @@ class ClientUserMaker(BaseClientAuthMaker):
         ),
         required=["name"],
     )
-    _name = None
+    name = None
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     # Overly-complicated methods of exchanging the user name
 
-    @classmethod
-    def build(cls, user):
-        self = super().build(user)
-        self._name = user["name"]
-        return self
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
@@ -121,7 +117,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             assert m.name == ident
 
             self = cls()
-            self._name = m.name
+            self.name = m.name
             self._chain = m.chain
             return self
 
@@ -134,7 +130,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             m = await s.recv()
             assert m.step == "GiveName", m
             await s.send(
-                step="HasName", name=self._name, chain=self._chain, aux=self._aux
+                step="HasName", name=self.name, chain=self._chain, aux=self._aux
             )
             m = await s.recv()
             assert m.changed
@@ -142,7 +138,7 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {"name": self._name}
+        return {"name": self.name}
 
 
 class ClientUser(BaseClientAuth):
@@ -158,10 +154,10 @@ class ClientUser(BaseClientAuth):
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     @classmethod
     def build(cls, user):
         self = super().build(user)
-        self._name = user["name"]
+        self.name = user["name"]
         return self

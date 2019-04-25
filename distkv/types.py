@@ -176,21 +176,29 @@ class CodecEntry(Entry):
 
     def enc_value(self, value, entry=None, **kv):
         if self._enc is not None:
-            value = self._enc(value, entry=entry, data=self._data, **kv)
+            try:
+                value = self._enc(value, entry=entry, data=self._data, **kv)
+            except TypeError:
+                if value is not None:
+                    raise
         return value
 
     def dec_value(self, value, entry=None, **kv):
         if self._dec is not None:
-            value = self._dec(value, entry=entry, data=self._data, **kv)
+            try:
+                value = self._dec(value, entry=entry, data=self._data, **kv)
+            except TypeError:
+                if value is not None:
+                    raise
         return value
 
     def _set(self, value):
         enc = None
         dec = None
-        if value is not None and value.encode is not None:
+        if value is not None and value.decode is not None:
             if not value["in"]:
                 raise RuntimeError("Must have tests for decoding")
-            dec = make_proc(value.code, ("decode",), *self.path)
+            dec = make_proc(value.decode, ("value",), *self.path)
             for v, w in value["in"]:
                 try:
                     r = dec(v)
@@ -200,10 +208,10 @@ class CodecEntry(Entry):
                     if r != w:
                         raise ValueError("Decoding %r got %r, not %r" % (v, r, w))
 
-        if value is not None and value.decode is not None:
+        if value is not None and value.encode is not None:
             if not value["out"]:
                 raise RuntimeError("Must have tests for encoding")
-            enc = make_proc(value.encode, ("encode",), *self.path)
+            enc = make_proc(value.encode, ("value",), *self.path)
             for v, w in value["out"]:
                 try:
                     r = enc(v)
@@ -246,12 +254,12 @@ class ConvEntry(MetaEntry):
     """
 
     def _set(self, value):
-        if isinstance(value.type, str):
-            value.type = (value.type,)
-        elif not isinstance(value.type, (list, tuple)):
+        if isinstance(value.codec, str):
+            value.codec = (value.codec,)
+        elif not isinstance(value.codec, (list, tuple)):
             raise ValueError("Codec is not a string or list")
         try:
-            typ = self.metaroot["codec"].follow(*value.type, create=False)
+            typ = self.metaroot["codec"].follow(*value.codec, create=False)
         except KeyError:
             raise ClientError("This codec does not exist")
         # crashes if nonexistent
@@ -259,6 +267,17 @@ class ConvEntry(MetaEntry):
 
 
 ConvEntry.SUBTYPE = ConvEntry
+
+
+class ConvNull:
+    """I am a dummy translator"""
+    @staticmethod
+    def enc_value(value, **k):
+        return value
+    @staticmethod
+    def dec_value(value, **k):
+        return value
+ConvNull = ConvNull()
 
 
 class ConvName(MetaPathEntry):
@@ -277,7 +296,7 @@ class ConvName(MetaPathEntry):
         checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
-            return
+            return value
         codec = self.metaroot["codec"].follow(*conv._data["codec"])
         return codec.enc_value(value, entry=entry, conv=conv, **kv)
 
@@ -287,7 +306,7 @@ class ConvName(MetaPathEntry):
         checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
-            return
+            return value
         codec = self.metaroot["codec"].follow(*conv._data["codec"])
         return codec.dec_value(value, entry=entry, conv=conv, **kv)
 

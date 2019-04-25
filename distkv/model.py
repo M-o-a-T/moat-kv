@@ -21,6 +21,7 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
+ConvNull = None  # imported later, if/when needed
 
 class Node:
     """Represents one DistKV participant.
@@ -341,25 +342,35 @@ class UpdateEvent:
             "" if self.new_value == self.entry.data else repr(self.old_value),
         )
 
-    def serialize(self, chop_path=0, nchain=2, with_old=False):
+    def serialize(self, chop_path=0, nchain=2, with_old=False, conv=None):
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
         res = self.event.serialize(nchain=nchain)
         res.path = self.entry.path[chop_path:]
         if with_old:
-            res.old_value = self.old_value
-            res.new_value = self.new_value
+            res.old_value = conv.enc_value(self.old_value, entry=self.entry)
+            res.new_value = conv.enc_value(self.new_value, entry=self.entry)
         else:
-            res.value = self.new_value
+            res.value = conv.enc_value(self.new_value, entry=self.entry)
         res.tock = self.entry.tock
         return res
 
     @classmethod
-    def deserialize(cls, root, msg, cache, nulls_ok=False):
-        if "value" in msg:
-            value = msg.value
-        else:
-            value = msg.new_value
-        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+    def deserialize(cls, root, msg, cache, nulls_ok=False, conv=None):
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
+        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        if "value" in msg:
+            value = conv.dec_value(msg.value, entry=entry)
+        else:
+            value = conv.dec_value(msg.new_value, entry=entry)
 
         return UpdateEvent(event, entry, value, tock=msg.tock)
 
@@ -581,7 +592,7 @@ class Entry:
         for v in list(self._sub.values()):
             await v.walk(proc, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
-    def serialize(self, chop_path=0, nchain=2):
+    def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.
 
         Args:
@@ -589,7 +600,12 @@ class Entry:
                          Otherwise, do, but remove the first N entries.
           ``nchain``: how many change events to include.
         """
-        res = attrdict(value=self._data)
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
+        res = attrdict(value=conv.enc_value(self._data, entry=self))
         if self.chain is not None and nchain > 0:
             res.chain = self.chain.serialize(nchain=nchain)
         res.tock = self.tock
