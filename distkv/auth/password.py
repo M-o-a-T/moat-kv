@@ -84,7 +84,6 @@ class ServerUserMaker(BaseServerAuthMaker):
         return self
 
     async def send(self, cmd):
-        import pdb;pdb.set_trace()
         return  # nothing to do, we don't share the hash
 
     # Annoying methods to read+save the user name from/to KV
@@ -102,7 +101,6 @@ class ServerUserMaker(BaseServerAuthMaker):
 
 
 class ServerUser(RootServerUser):
-
     @classmethod
     def load(cls, data: Entry):
         """Create a ServerUser object from existing stored data"""
