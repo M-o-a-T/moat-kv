@@ -28,7 +28,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
         task_status.started()
         async for m in res:
             l(m)
-            if m.get('value',None) is not None:
+            if m.get("value", None) is not None:
                 msgs.append(m)
 
     async with stdtest(args={"init": 234}, tocks=30) as st:
@@ -52,7 +52,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick if 'chain' in x else 0) == [
+    assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
         {
             "chain": {"node": "test_0", "prev": None, "tick": 1},
             "path": (),
@@ -95,7 +95,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick if 'chain' in x else 0) == [
+    assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
         {
             "chain": {"node": "test_0", "prev": None, "tick": 2},
             "path": ("foo",),

@@ -426,23 +426,27 @@ class SCmd_watch(StreamCommand):
         client = self.client
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
         nchain = msg.get("nchain", 0)
-        max_depth = msg.get('max_depth', -1)
-        min_depth = msg.get('min_depth', 0)
+        max_depth = msg.get("max_depth", -1)
+        min_depth = msg.get("min_depth", 0)
 
         async with Watcher(entry) as watcher:
             async with trio.open_nursery() as n:
                 tock = client.server.tock
                 shorter = PathShortener(entry.path)
                 if msg.get("fetch", False):
+
                     async def orig_state(task_status=trio.TASK_STATUS_IGNORED):
                         task_status.started()
-                        kv = {'max_depth': max_depth, 'min_depth': min_depth}
+                        kv = {"max_depth": max_depth, "min_depth": min_depth}
 
                         async def worker(entry):
                             if entry.tock < tock:
-                                res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
+                                res = entry.serialize(
+                                    chop_path=client._chop_path, nchain=nchain
+                                )
                                 shorter(res)
                                 await self.send(**res)
+
                         await entry.walk(worker, **kv)
                         await self.send(state="uptodate")
 
@@ -519,7 +523,7 @@ class SCmd_update(StreamCommand):
         async for msg in self.in_recv_q:
             longer(msg)
             msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok)
-            tock_seen(msg.get('tock', None))
+            tock_seen(msg.get("tock", None))
             await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
             n += 1
         await self.send(count=n)
@@ -709,9 +713,9 @@ class ServerClient:
         if root is None:
             root = self.root
         entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
-        if root is self.root and 'match' in self.metaroot:
+        if root is self.root and "match" in self.metaroot:
             try:
-                self.metaroot['match'].check_value(msg.value, entry)
+                self.metaroot["match"].check_value(msg.value, entry)
             except ClientError:
                 raise
             except Exception as exc:
@@ -737,7 +741,9 @@ class ServerClient:
             res["prev"] = entry.data
 
         async with self.server.next_event() as event:
-            await entry.set_data(event, msg.value, dropped=self.server._dropper, tock=self.server.tock)
+            await entry.set_data(
+                event, msg.value, dropped=self.server._dropper, tock=self.server.tock
+            )
 
         nchain = msg.get("nchain", 1)
         if nchain > 0:
@@ -869,7 +875,7 @@ class ServerClient:
             if self._send_lock is None:
                 return
 
-            if 'tock' not in msg:
+            if "tock" not in msg:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
@@ -880,7 +886,7 @@ class ServerClient:
 
     async def send_result(self, seq, res):
         res["seq"] = seq
-        if 'tock' in res:
+        if "tock" in res:
             self.server.tock_seen(res["tock"])
         else:
             res["tock"] = self.server.tock
@@ -974,7 +980,7 @@ class Server:
             root = RootEntry(tock=self.tock)
         self.root = root
         self.cfg = combine_dict(cfg, CFG)
-        self.paranoid_root = root if self.cfg['paranoia'] else None
+        self.paranoid_root = root if self.cfg["paranoia"] else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
@@ -1477,7 +1483,9 @@ class Server:
                             r = UpdateEvent.deserialize(
                                 self.root, r, cache=self._nodes, nulls_ok=True
                             )
-                            await r.entry.apply(r, dropped=self._dropper, root=self.paranoid_root)
+                            await r.entry.apply(
+                                r, dropped=self._dropper, root=self.paranoid_root
+                            )
                         self.tock_seen(res.end_msg.tock)
 
                         res = await client.request(
@@ -1691,7 +1699,7 @@ class Server:
             async for m in rdr:
                 if "value" in m:
                     longer(m)
-                    if 'tock' in m:
+                    if "tock" in m:
                         self.tock_seen(m.tock)
                     else:
                         m.tock = self.tock
@@ -1699,7 +1707,9 @@ class Server:
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
                     self.tock_seen(m.tock)
-                    await m.entry.apply(m, local=local, dropped=self._dropper, root=self.paranoid_root)
+                    await m.entry.apply(
+                        m, local=local, dropped=self._dropper, root=self.paranoid_root
+                    )
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:
@@ -1728,7 +1738,11 @@ class Server:
             await self._save(mw, shorter)
 
     async def save_stream(
-        self, path: str = None, stream=None, save_state: bool = False, done: trio.Event = None
+        self,
+        path: str = None,
+        stream=None,
+        save_state: bool = False,
+        done: trio.Event = None,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -1771,7 +1785,9 @@ class Server:
         """
         done = trio.Event()
         s = self._saver_prev
-        await self.spawn(self._saver, path=path, stream=stream, save_state=save_state, done=done)
+        await self.spawn(
+            self._saver, path=path, stream=stream, save_state=save_state, done=done
+        )
         await done.wait()
         if s is not None:
             await s.cancel()

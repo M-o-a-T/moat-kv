@@ -276,8 +276,8 @@ class NodeEvent:
             return None
         msg = msg.get("chain", msg)
         tick = msg.get("tick", None)
-        if 'node' not in msg:
-            assert 'prev' not in msg
+        if "node" not in msg:
+            assert "prev" not in msg
             assert tick is None
             return None
         else:
@@ -310,7 +310,12 @@ class UpdateEvent:
     """
 
     def __init__(
-        self, event: NodeEvent, entry: "Entry", new_value, old_value=_NotGiven, tock=None
+        self,
+        event: NodeEvent,
+        entry: "Entry",
+        new_value,
+        old_value=_NotGiven,
+        tock=None,
     ):
         self.event = event
         self.entry = entry
@@ -444,7 +449,9 @@ class Entry:
             if child is None:
                 if not create:
                     raise KeyError(name)
-                child = self.SUBTYPES.get(name, self.SUBTYPE)(name, self, tock=self.tock)
+                child = self.SUBTYPES.get(name, self.SUBTYPE)(
+                    name, self, tock=self.tock
+                )
             self = child
         return self
 
@@ -513,15 +520,17 @@ class Entry:
         await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None, root=None):
+    async def apply(
+        self, evt: UpdateEvent, local: bool = False, dropped=None, root=None
+    ):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers (unless ``local`` is set).
         """
         chk = None
         if root is not None and None in root:
-            chk = root[None].get('match', None)
-            
+            chk = root[None].get("match", None)
+
         if evt.event == self.chain:
             assert self._data == evt.new_value, (
                 "has:",
@@ -621,6 +630,7 @@ class Entry:
     def counter(self):
         self._counter += 1
         return self._counter
+
 
 Entry.SUBTYPE = Entry
 

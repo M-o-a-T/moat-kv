@@ -6,6 +6,7 @@ Does not limit anything, allows everything.
 """
 
 import logging
+
 log = logging.getLogger(__name__)
 
 from . import (
@@ -56,7 +57,7 @@ class ServerUserMaker(BaseServerAuthMaker):
         assert msg.step == "HasName"
         self = cls()
         self._name = msg.name
-        self._chain = msg.get('chain')
+        self._chain = msg.get("chain")
         return self
 
     async def send(self, cmd):
@@ -132,7 +133,9 @@ class ClientUserMaker(BaseClientAuthMaker):
             # we could initially send the ident but don't here, for testing
             m = await s.recv()
             assert m.step == "GiveName", m
-            await s.send(step="HasName", name=self._name, chain=self._chain, aux=self._aux)
+            await s.send(
+                step="HasName", name=self._name, chain=self._chain, aux=self._aux
+            )
             m = await s.recv()
             assert m.changed
             assert m.chain.prev is None

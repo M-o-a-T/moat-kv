@@ -8,9 +8,10 @@ from .exceptions import ClientError
 
 # TYPES
 
+
 class MetaEntry(Entry):
-    def __init__(self, *a,**k):
-        super().__init__(*a,**k)
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
         self._metaroot = self.parent._metaroot
 
     @property
@@ -36,9 +37,11 @@ class TypeEntry(Entry):
     def _set(self, value):
         code = None
         schema = None
-        if value is not None and (value.get('code',None) is not None or value.get('schema',None) is not None):
-            schema = value.get('schema',None)
-            if value.get('code',None) is None:
+        if value is not None and (
+            value.get("code", None) is not None or value.get("schema", None) is not None
+        ):
+            schema = value.get("schema", None)
+            if value.get("code", None) is None:
                 code = None
             else:
                 code = make_proc(value.code, ("value",), *self.path)
@@ -46,7 +49,7 @@ class TypeEntry(Entry):
                 raise RuntimeError("Must have check-good values")
             if not value.bad:
                 raise RuntimeError("Must have check-bad values")
-            for v in value['good']:
+            for v in value["good"]:
                 self.parent.check_value(v)
                 try:
                     if schema is not None:
@@ -55,7 +58,7 @@ class TypeEntry(Entry):
                         code(value=v, entry=None)
                 except Exception as exc:
                     raise ValueError("failed on %r with %r" % (v, exc))
-            for v in value['bad']:
+            for v in value["bad"]:
                 self.parent.check_value(v)
                 try:
                     if schema is not None:
@@ -71,12 +74,14 @@ class TypeEntry(Entry):
         self._code = code
         self._schema = schema
 
+
 TypeEntry.SUBTYPE = TypeEntry
 
 
 class TypeRoot(Entry):
     """I am the root of DistKV's type hierarchy.
     """
+
     SUBTYPE = TypeEntry
 
     def _set(self, value):
@@ -89,19 +94,21 @@ class TypeRoot(Entry):
 
 # MATCH (for types)
 
+
 class MatchEntry(MetaEntry):
     """I represent a match from a path to a type.
 
     My data requires a "type" attribute that's a path in the "type"
     hierarchy that's next to my MatchRoot.
     """
+
     def _set(self, value):
         if isinstance(value.type, str):
             value.type = (value.type,)
-        elif not isinstance(value.type, (list,tuple)):
+        elif not isinstance(value.type, (list, tuple)):
             raise ValueError("Type is not a list")
         try:
-            typ = self.metaroot['type'].follow(*value.type, create=False)
+            typ = self.metaroot["type"].follow(*value.type, create=False)
         except KeyError:
             raise ClientError("This type does not exist")
         # crashes if nonexistent
@@ -110,6 +117,7 @@ class MatchEntry(MetaEntry):
 
 MatchEntry.SUBTYPE = MatchEntry
 
+
 class MetaPathEntry(MetaEntry):
     def _find_node(self, entry):
         """Search for the most-specific match.
@@ -117,31 +125,31 @@ class MetaPathEntry(MetaEntry):
         Match entries whose values are missing are not considered.
         """
         p = entry.path
-        checks = [(self,0)]
+        checks = [(self, 0)]
         n_p = len(p)
         while checks:
-            node,off = checks.pop()
+            node, off = checks.pop()
             if off == n_p:
                 if node._data is not None:
                     return node
                 continue
-            if '#' in node:
-                nn = node['#']
+            if "#" in node:
+                nn = node["#"]
                 pos = n_p
                 while pos > off:
-                    checks.append((nn,pos))
+                    checks.append((nn, pos))
                     pos -= 1
-            if '+' in node:
-                checks.append((node['+'],off+1))
+            if "+" in node:
+                checks.append((node["+"], off + 1))
             if p[off] in node:
-                checks.append((node[p[off]],off+1))
+                checks.append((node[p[off]], off + 1))
         return None
-
 
 
 class MatchRoot(MetaPathEntry):
     """I am the root of DistKV's type hierarchy.
     """
+
     SUBTYPE = MatchEntry
 
     def _set(self, value):
@@ -151,12 +159,13 @@ class MatchRoot(MetaPathEntry):
     def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
         p = entry.path
-        checks = [(self,0)]
+        checks = [(self, 0)]
         match = self._find_node(entry)
         if match is None:
             return
-        typ = self.parent['type'].follow(*match._data['type'])
+        typ = self.parent["type"].follow(*match._data["type"])
         return typ.check_value(value, entry=entry, match=match, **kv)
+
 
 class CodecEntry(Entry):
     """I am a codec.
@@ -179,34 +188,35 @@ class CodecEntry(Entry):
         enc = None
         dec = None
         if value is not None and value.encode is not None:
-            if not value['in']:
+            if not value["in"]:
                 raise RuntimeError("Must have tests for decoding")
             dec = make_proc(value.code, ("decode",), *self.path)
-            for v,w in value['in']:
+            for v, w in value["in"]:
                 try:
                     r = dec(v)
                 except Exception as exc:
                     raise ValueError("failed decoder on %r with %r" % (v, exc))
                 else:
                     if r != w:
-                        raise ValueError("Decoding %r got %r, not %r" % (v,r,w))
+                        raise ValueError("Decoding %r got %r, not %r" % (v, r, w))
 
         if value is not None and value.decode is not None:
-            if not value['out']:
+            if not value["out"]:
                 raise RuntimeError("Must have tests for encoding")
             enc = make_proc(value.encode, ("encode",), *self.path)
-            for v,w in value['out']:
+            for v, w in value["out"]:
                 try:
                     r = enc(v)
                 except Exception as exc:
                     raise ValueError("failed encoder on %r with %r" % (v, exc))
                 else:
                     if r != w:
-                        raise ValueError("Encoding %r got %r, not %r" % (v,r,w))
+                        raise ValueError("Encoding %r got %r, not %r" % (v, r, w))
 
         super()._set(value)
         self._enc = enc
         self._dec = dec
+
 
 CodecEntry.SUBTYPE = CodecEntry
 
@@ -214,6 +224,7 @@ CodecEntry.SUBTYPE = CodecEntry
 class CodecRoot(Entry):
     """I am the root of DistKV's codec hierarchy.
     """
+
     SUBTYPE = CodecEntry
 
     def _set(self, value):
@@ -226,19 +237,21 @@ class CodecRoot(Entry):
 
 # CONV (for codecs)
 
+
 class ConvEntry(MetaEntry):
     """I represent a converter from a path to a type.
 
     My data requires a "codec" attribute that's a path in the "codecs"
     hierarchy that's next to my Root.
     """
+
     def _set(self, value):
         if isinstance(value.type, str):
             value.type = (value.type,)
-        elif not isinstance(value.type, (list,tuple)):
+        elif not isinstance(value.type, (list, tuple)):
             raise ValueError("Codec is not a string or list")
         try:
-            typ = self.metaroot['codec'].follow(*value.type, create=False)
+            typ = self.metaroot["codec"].follow(*value.type, create=False)
         except KeyError:
             raise ClientError("This codec does not exist")
         # crashes if nonexistent
@@ -247,9 +260,11 @@ class ConvEntry(MetaEntry):
 
 ConvEntry.SUBTYPE = ConvEntry
 
+
 class ConvName(MetaPathEntry):
     """I am a named tree for conversion entries.
     """
+
     SUBTYPE = ConvEntry
 
     def _set(self, value):
@@ -259,21 +274,21 @@ class ConvName(MetaPathEntry):
     def enc_value(self, value, entry, **kv):
         """Check this value for this entry against my converter hierarchy"""
         p = entry.path
-        checks = [(self,0)]
+        checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
             return
-        codec = self.metaroot['codec'].follow(*conv._data['codec'])
+        codec = self.metaroot["codec"].follow(*conv._data["codec"])
         return codec.enc_value(value, entry=entry, conv=conv, **kv)
 
     def dec_value(self, value, entry, **kv):
         """Check this value for this entry against my converter hierarchy"""
         p = entry.path
-        checks = [(self,0)]
+        checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
             return
-        codec = self.metaroot['codec'].follow(*conv._data['codec'])
+        codec = self.metaroot["codec"].follow(*conv._data["codec"])
         return codec.dec_value(value, entry=entry, conv=conv, **kv)
 
 
@@ -287,27 +302,33 @@ class ConvRoot(MetaEntry):
 
 # ROOT
 
+
 class MetaRootEntry(Entry):  # not MetaEntry
     """I am the special node off the DistKV root that's named ``None``."""
-    SUBTYPES = {'type': TypeRoot, 'match': MatchRoot,
-            'codec': CodecRoot, 'conv': ConvRoot}
 
-    def __init__(self, *a,**k):
-        super().__init__(*a,**k)
+    SUBTYPES = {
+        "type": TypeRoot,
+        "match": MatchRoot,
+        "codec": CodecRoot,
+        "conv": ConvRoot,
+    }
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
         self._metaroot = weakref.ref(self)
 
 
 Entry.SUBTYPES[None] = MetaRootEntry
 
+
 class RootEntry(Entry):
     """I am the root of the DistKV data tree."""
 
-    def __init__(self, *a,**k):
-        super().__init__("ROOT", None, *a,**k)
+    def __init__(self, *a, **k):
+        super().__init__("ROOT", None, *a, **k)
 
     SUBTYPES = {None: MetaRootEntry}
 
 
 def check_type(value, *path):
     """Verify that this type works."""
-

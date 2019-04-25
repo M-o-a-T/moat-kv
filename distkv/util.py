@@ -417,14 +417,15 @@ def make_proc(code, vars, *path, use_async=False):
     hdr = """\
 def proc(%s **kw):
     locals().update(kw)
-    """ % (vars,)
+    """ % (
+        vars,
+    )
 
     if use_async:
         hdr = "async " + hdr
-    code = hdr + code.replace("\n","\n\t")
+    code = hdr + code.replace("\n", "\n\t")
     code = compile(code, ".".join(str(x) for x in path), "exec")
     d = {}
     eval(code, d)
-    code = d['proc']
+    code = d["proc"]
     return code
-    

@@ -74,23 +74,22 @@ null_schema = {"type": "object", "additionalProperties": False}
 
 # Additional schema data for specific types
 add_schema = {
-    'user': {
+    "user": {
         "type": "object",
         "additionalProperties": False,
-        "properties": {
-            "conv": {type:"string", 'minLength':1},
-        },
-    },
+        "properties": {"conv": {type: "string", "minLength": 1}},
+    }
 }
 
-def loader(method: str, typ:str, *a, **k):
+
+def loader(method: str, typ: str, *a, **k):
     m = method
     if "." not in m:
         m = "distkv.auth." + m
     cls = import_module(m).load(typ, *a, **k)
     cls._auth_method = method
     cls._auth_typ = typ
-    if k.get('make', False):
+    if k.get("make", False):
         cls.aux_schema = add_schema.get(typ, null_schema)
     return cls
 
@@ -175,8 +174,8 @@ class BaseClientAuth:
 
     def __init__(self, **data):
         jsonschema.validate(instance=data, schema=type(self).schema)
-        for k,v in data.items():
-            setattr(self,k,v)
+        for k, v in data.items():
+            setattr(self, k, v)
 
     @classmethod
     def build(cls, user):
@@ -232,13 +231,13 @@ class BaseClientAuthMaker:
     aux_schema = None  # overidden by the loader
 
     def __init__(self, **data):
-        props = type(self).schema.get('properties',{})
-        aux = data.pop('aux', {})
+        props = type(self).schema.get("properties", {})
+        aux = data.pop("aux", {})
 
         jsonschema.validate(instance=data, schema=type(self).schema)
         jsonschema.validate(instance=aux, schema=type(self).aux_schema)
-        for k,v in data.items():
-            setattr(self,k,v)
+        for k, v in data.items():
+            setattr(self, k, v)
         self._aux = aux
 
     @classmethod
@@ -250,7 +249,7 @@ class BaseClientAuthMaker:
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {'aux':self._aux}
+        return {"aux": self._aux}
 
     @property
     def ident(self):
@@ -262,7 +261,9 @@ class BaseClientAuthMaker:
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
-        res = await client.request("auth_get", typ=cls._auth_method, kind=_kind, ident=ident)
+        res = await client.request(
+            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
+        )
         """Read this user from the server."""
         self = cls()
         self._chain = res.chain
@@ -303,11 +304,11 @@ class BaseServerAuth:
     can_auth_read = False
     can_auth_write = False
 
-    def __init__(self, data: dict={}):
+    def __init__(self, data: dict = {}):
         self._aux = None
         if data:
-            for k,v in data.items():
-                setattr(self,k,v)
+            for k, v in data.items():
+                setattr(self, k, v)
 
     @classmethod
     def load(cls, data: Entry):
@@ -316,7 +317,7 @@ class BaseServerAuth:
 
     async def auth(self, cmd: StreamCommand, data):
         """Verify that @data authenticates this user."""
-        jsonschema.validate(instance=data.get('data',{}), schema=type(self).schema)
+        jsonschema.validate(instance=data.get("data", {}), schema=type(self).schema)
 
     def info(self):
         """
@@ -365,10 +366,10 @@ class BaseServerAuthMaker:
     def __init__(self, chain=None, data=None, aux=None):
         self._aux = aux
         if aux is not None:
-            assert '_aux' not in data
+            assert "_aux" not in data
         if data is not None:
-            for k,v in data.items():
-                setattr(self,k,v)
+            for k, v in data.items():
+                setattr(self, k, v)
         self._chain = chain
 
     @classmethod
@@ -379,8 +380,8 @@ class BaseServerAuthMaker:
     @classmethod
     async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":
         """Create a new user by reading the record from the client"""
-        dt = data.get('data', None) or {}
-        ax = data.get('aux', None) or {}
+        dt = data.get("data", None) or {}
+        ax = data.get("aux", None) or {}
         jsonschema.validate(instance=dt, schema=cls.schema)
         jsonschema.validate(instance=ax, schema=cls.aux_schema)
         self = cls(chain=data.chain, data=dt, aux=ax)
@@ -395,10 +396,10 @@ class BaseServerAuthMaker:
         """Return a record to represent this user, suitable for saving to DistKV"""
         # does NOT contain "ident" or "chain"!
         # contains an attribute for "_aux"
-        return {'_aux': self._aux}
+        return {"_aux": self._aux}
 
     async def send(self, cmd: StreamCommand):
         """Send a record to the client, possibly multi-step / secured / whatever"""
         res = self._aux.copy()
-        res['chain'] = self._chain.serialize() if self._chain else None
+        res["chain"] = self._chain.serialize() if self._chain else None
         return res

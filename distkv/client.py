@@ -249,7 +249,7 @@ class StreamedRequest:
             return False
 
         else:
-            if state not in ("","uptodate"):
+            if state not in ("", "uptodate"):
                 logger.warning("Unknown state: %s", msg)
 
             if self._reply_stream is False:
@@ -259,7 +259,6 @@ class StreamedRequest:
             await self.send_q.send(outcome.Value(msg))
             if self._reply_stream is False:
                 await self.send_q.aclose()
-
 
     async def get(self):
         """Receive a single reply"""
