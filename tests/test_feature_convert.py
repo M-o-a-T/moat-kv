@@ -1,7 +1,7 @@
 import pytest
 import trio
 
-# from .mock_serf import stdtest
+from .mock_serf import stdtest
 # from .run import run
 # from functools import partial
 
