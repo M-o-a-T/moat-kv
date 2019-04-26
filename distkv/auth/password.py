@@ -8,10 +8,10 @@ Does not limit anything, allows everything.
 import nacl.secret
 
 from . import (
-    BaseServerUserMaker,
+    BaseServerAuthMaker,
     RootServerUser,
-    BaseClientUserMaker,
-    BaseClientUser,
+    BaseClientAuthMaker,
+    BaseClientAuth,
     null_server_login,
     null_client_login,
 )
@@ -64,7 +64,7 @@ async def unpack_pwd(client, password):
     # TODO check with Argon2
 
 
-class ServerUserMaker(BaseServerUserMaker):
+class ServerUserMaker(BaseServerAuthMaker):
     _name = None
 
     @property
@@ -80,7 +80,7 @@ class ServerUserMaker(BaseServerUserMaker):
         pwd = await unpack_pwd(cmd.client, data.password)
 
         # TODO use Argon2 to re-hash this
-        self._password = pwd
+        self.password = pwd
         return self
 
     async def send(self, cmd):
@@ -89,30 +89,23 @@ class ServerUserMaker(BaseServerUserMaker):
     # Annoying methods to read+save the user name from/to KV
 
     @classmethod
-    def build(cls, data):
-        self = super().build(data)
+    def load(cls, data):
+        self = super().load(data)
         self._name = data.path[-1]
-        self._password = data["password"]
         return self
 
     def save(self):
         res = super().save()
-        res["password"] = self._password
+        res["password"] = self.password
         return res
 
 
 class ServerUser(RootServerUser):
-    is_super_root = True
-    can_create_subtree = True
-    can_auth_read = True
-    can_auth_write = True
-
     @classmethod
-    async def build(cls, data: Entry):
+    def load(cls, data: Entry):
         """Create a ServerUser object from existing stored data"""
-        self = await super().build(data)
-        self._name = data.path[-1]
-        self._password = data.data["password"]
+        self = super().load(data)
+        self._name = data.name
         return self
 
     async def auth(self, cmd: StreamCommand, data):
@@ -120,14 +113,14 @@ class ServerUser(RootServerUser):
         await super().auth(cmd, data)
 
         pwd = await unpack_pwd(cmd.client, data.password)
-        if pwd != self._password:
+        if pwd != self.password:
             raise AuthFailedError("Password hashes do not match", self._name)
 
 
-class ClientUserMaker(BaseClientUserMaker):
+class ClientUserMaker(BaseClientAuthMaker):
     schema = dict(
         type="object",
-        additionalProperties=False,
+        additionalProperties=True,
         properties=dict(
             name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
             password=dict(type="string", minLength=5),
@@ -161,9 +154,10 @@ class ClientUserMaker(BaseClientUserMaker):
         # There's no reason to send the password hash back
         self = cls()
         self._name = m.name
+        self._chain = m.chain
         return self
 
-    async def send(self, client: Client, _kind="user"):
+    async def send(self, client: Client, _kind="user", **msg):
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 
@@ -173,6 +167,7 @@ class ClientUserMaker(BaseClientUserMaker):
             typ=type(self)._auth_method,
             kind=_kind,
             password=pw,
+            chain=self._chain,
         )
 
     def export(self):
@@ -180,10 +175,10 @@ class ClientUserMaker(BaseClientUserMaker):
         return {"name": self._name}
 
 
-class ClientUser(BaseClientUser):
+class ClientUser(BaseClientAuth):
     schema = dict(
         type="object",
-        additionalProperties=False,
+        additionalProperties=True,
         properties=dict(
             name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$"),
             password=dict(type="string", minLength=5),

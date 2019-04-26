@@ -1,10 +1,19 @@
 # command line interface
 
+import os
 import sys
 import trio_click as click
 from pprint import pprint
+import json
 
-from .util import attrdict, combine_dict, PathLongener, MsgReader, PathShortener, split_one
+from .util import (
+    attrdict,
+    combine_dict,
+    PathLongener,
+    MsgReader,
+    PathShortener,
+    split_one,
+)
 from .client import open_client, StreamedRequest
 from .default import CFG
 from .server import Server
@@ -27,7 +36,12 @@ def cmd():
     try:
         main(standalone_mode=False)
     except click.exceptions.UsageError as exc:
-        print(str(exc), file=sys.stderr)
+        try:
+            s = str(exc)
+        except TypeError:
+            logger.exception(repr(exc), exc_info=exc)
+        else:
+            print(s, file=sys.stderr)
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
@@ -113,8 +127,8 @@ async def pdb(args):  # safe
     "-i",
     "--init",
     default=None,
-    help="Initial value to set the root to. Use only when setting up " \
-         "a cluster for the first time!",
+    help="Initial value to set the root to. Use only when setting up "
+    "a cluster for the first time!",
 )
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
@@ -181,15 +195,19 @@ async def client(ctx, host, port, auth):
 
 @client.command()
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-d",
     "--as-dict",
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use " \
-         "for values. Default: return as list",
+    help="YAML: structure as dictionary. The argument is the key to use "
+    "for values. Default: return as list",
 )
 @click.option(
     "-v",
@@ -229,6 +247,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         y = {} if as_dict is not None else []
         async for r in res:
             pl(r)
+            r.pop("seq", None)
             if yaml:
                 if as_dict is not None:
                     yy = y
@@ -276,7 +295,11 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
 @click.option("-v", "--value", help="Value to set. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option(
     "-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'"
@@ -316,7 +339,11 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
 @client.command()
 @click.argument("path", nargs=-1)
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.pass_obj
@@ -339,7 +366,7 @@ async def delete(obj, path, chain, recursive):
     "-c",
     "--chain",
     type=int,
-    default=None,
+    default=0,
     help="Length of change list to return. Default: 0",
 )
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
@@ -351,7 +378,7 @@ async def watch(obj, path, chain, yaml, state):
     if yaml:
         import yaml
     res = await obj.client.request(
-        action="watch", path=path, iter=True, nchain=chain, state=state
+        action="watch", path=path, iter=True, nchain=chain, fetch=state
     )
     pl = PathLongener(path)
     async for r in res:
@@ -492,11 +519,15 @@ async def user(obj):
 @user.command()
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
-    "-c", "--chain", default=0, help="Length of change list to return. Default: 0"
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
 )
 @click.pass_obj
 async def list(obj, yaml, chain):
-    """List all users."""
+    """List all users (raw data)."""
     if yaml:
         import yaml
     async for r in enum_typ(obj, nchain=chain):
@@ -515,50 +546,58 @@ async def list(obj, yaml, chain):
 @click.argument("ident", nargs=1)
 @click.pass_obj
 async def get(obj, ident):
-    """Retrieve a user."""
+    """Retrieve a user (processed)."""
     lv = loader(await one_auth(obj), "user", make=True, server=False)
     if obj._DEBUG:
         lv._length = 16
-    async for u in enum_typ(obj, ident=ident):
-        u = await lv.load(obj.client, u)
-        print(u.export())
+
+    u = await lv.recv(obj.client, ident)
+    pprint(u.export())
 
 
 @user.command()
+@click.option("-a", "--add", multiple=True, help="additional non-method-specific data")
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def add(obj, args):
+async def add(obj, args, add):
     """Add a user."""
-    await add_mod_user(obj, args, None)
+    await add_mod_user(obj, args, None, add)
 
 
 @user.command()
+@click.option("-a", "--add", multiple=True, help="additional non-method-specific data")
 @click.argument("ident", nargs=1)
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def mod(obj, ident, args):
+async def mod(obj, ident, args, add):
     """Change a user."""
-    await add_mod_user(obj, args, ident)
+    await add_mod_user(obj, args, ident, add)
 
 
-async def add_mod_user(obj, args, modify):
+async def add_mod_user(obj, args, modify, add):
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
     if obj._DEBUG:
         u._length = 16
-    chain = None
     if modify:
         ou = await u.recv(obj.client, modify)
-        kw = await ou.export()
+        kw = ou.export()
     else:
         kw = {}
     for a in args:
         split_one(a, kw)
+    if add:
+        ax = kw.setdefault("aux", {})
+        for a in add:
+            split_one(a, ax)
+
     u = u.build(kw)
-    if modify is not None and u.ident != modify:
-        chain = None  # new user
+    if modify is None or u.ident != modify:
+        u._chain = None  # new user
+    else:
+        u._chain = ou._chain
     await u.send(obj.client)
-    print("Added" if chain is None else "Modified", u.ident)
+    print("Added" if u._chain is None else "Modified", u.ident)
 
 
 @user.command(name="auth")
@@ -576,3 +615,313 @@ async def auth_(obj, auth):
     await user.auth(obj.client)
     if obj.debug >= 0:
         print("OK.")
+
+
+@client.group()
+@click.pass_obj
+async def type(obj):
+    """Manage types and type matches. Usage: … type …"""
+    pass
+
+
+@type.command()
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option(
+    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the script here"
+)
+@click.option(
+    "-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here"
+)
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def get(obj, path, chain, yaml, verbose, script):
+    """Read type checker information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    res = await obj.client.request(
+        action="get_internal",
+        path=("type",) + path,
+        iter=False,
+        nchain=3 if verbose else 0,
+    )
+    if not verbose:
+        res = res.value
+    if yaml:
+        import yaml
+
+        if schema and res.get("schema", None) is not None:
+            print(
+                yaml.safe_dump(res.pop("schema"), default_flow_style=False), file=schema
+            )
+        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
+    else:
+        if script:
+            code = res.pop("code", None)
+            if code is not None:
+                print(code, file=script)
+        if schema and res.get("schema", None) is not None:
+            json.dump(res.pop("schema"), schema)
+        pprint(res)
+
+
+@type.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-g", "--good", multiple=True, help="Example for passing values")
+@click.option("-b", "--bad", multiple=True, help="Example for failing values")
+@click.option(
+    "-s", "--script", type=click.File(mode="r"), help="File with the checking script"
+)
+@click.option(
+    "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
+)
+@click.option("-y", "--yaml", is_flag=True, help="load everything from this file")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def set(obj, path, good, bad, verbose, script, schema, yaml):
+    """Write type checker information."""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    if yaml:
+        import yaml
+
+        msg = yaml.safe_load(script)
+    else:
+        msg = {}
+    msg.setdefault("good", [])
+    msg.setdefault("bad", [])
+    for x in good:
+        msg["good"].append(eval(x))
+    for x in bad:
+        msg["bad"].append(eval(x))
+    if "code" not in msg:
+        if not script:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to verify 'value'.")
+            script = sys.stdin.read()
+        else:
+            script = script.read()
+        msg["code"] = script
+    elif script and not yaml:
+        raise click.UsageError("Duplicate script parameter")
+    if "schema" not in msg:
+        if schema:
+            if yaml:
+                schema = yaml.safe_load(schema)
+            else:
+                schema = json.load(schema)
+            msg["schema"] = schema
+    elif schema:
+        raise click.UsageError("Duplicate schema parameter")
+
+    res = await obj.client.request(
+        action="set_internal",
+        value=msg,
+        path=("type",) + path,
+        iter=False,
+        nchain=3 if verbose else 0,
+    )
+    if verbose:
+        print(res.tock)
+
+
+@type.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option(
+    "-t", "--type", multiple=True, help="Type to link to. Multiple for subytpes."
+)
+@click.option("-d", "--delete", help="Use to delete this mapping.")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def match(obj, path, type, delete, verbose):
+    """Match a type to a path (read, if no type given)"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    if type and delete:
+        raise click.UsageError("You can't both set and delete a path.")
+
+    if delete:
+        await obj.client.request(action="delete_internal", path=("type",) + path)
+        return
+
+    msg = {"type": type}
+    res = await obj.client.request(
+        action="set_internal",
+        value=msg,
+        path=("match",) + path,
+        iter=False,
+        nchain=3 if verbose else 0,
+    )
+    if type or delete:
+        print(res.tock)
+    elif verbose:
+        pprint(res)
+    else:
+        print(" ".join(res.type))
+
+
+@client.group()
+@click.pass_obj
+async def codec(obj):
+    """Manage codecs and converters. Usage: … codec …"""
+    pass
+
+
+@codec.command()
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option(
+    "-e", "--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here"
+)
+@click.option(
+    "-d", "--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here"
+)
+@click.option(
+    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here"
+)
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def get(obj, path, chain, yaml, verbose, script, encode, decode):
+    """Read type information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    res = await obj.client.request(
+        action="get_internal",
+        path=("type",) + path,
+        iter=False,
+        nchain=3 if verbose else 0,
+    )
+    if encode and res.get("encode", None) is not None:
+        encode.write(res.pop("encode"))
+    if decode and res.get("decode", None) is not None:
+        decode.write(res.pop("decode"))
+
+    if not verbose:
+        res = res.value
+    if yaml:
+        import yaml
+
+        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
+    else:
+        pprint(res)
+
+
+@codec.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option("-e", "--encode", type=click.File(mode="r"), help="File with the encoder")
+@click.option("-d", "--decode", type=click.File(mode="r"), help="File with the decoder")
+@click.option("-s", "--script", type=click.File(mode="r"), help="File with the rest")
+@click.option("-y", "--yaml", is_flag=True, help="load everything from this file")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def set(obj, path, verbose, encode, decode, script, yaml):
+    """Save codec information"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    if yaml:
+        import yaml
+
+        msg = yaml.safe_load(script)
+    else:
+        msg = {}
+    if "encode" not in msg:
+        if not encode:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to encode 'value'.")
+            encode = sys.stdin.read()
+        else:
+            encode = encode.read()
+        msg["encode"] = encode
+    elif encode and not yaml:
+        raise click.UsageError("Duplicate encode parameter")
+    if "decode" not in msg:
+        if not decode:
+            if os.isatty(sys.stdin.fileno()):
+                print("Enter the Python script to decode 'value'.")
+            decode = sys.stdin.read()
+        else:
+            decode = decode.read()
+        msg["decode"] = decode
+    elif decode and not yaml:
+        raise click.UsageError("Duplicate decode parameter")
+
+    res = await obj.client.request(
+        action="set_internal",
+        value=msg,
+        path=("codec",) + path,
+        iter=False,
+        nchain=3 if verbose else 0,
+    )
+    if verbose:
+        pprint(res)
+    elif obj.verbose:
+        print(res.tock)
+
+
+@codec.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
+@click.option(
+    "-c", "--codec", multiple=True, help="Codec to link to. Multiple for hierarchical."
+)
+@click.option("-d", "--delete", help="Use to delete this converter.")
+@click.argument("name", nargs=1)
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def convert(obj, path, codec, name, delete, verbose):
+    """Match a codec to a path (read, if no codec given)"""
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+    if codec and delete:
+        raise click.UsageError("You can't both set and delete a path.")
+
+    if delete:
+        res = await obj.client.request(
+            action="delete_internal", path=("conv", name) + path
+        )
+    else:
+        msg = {"codec": codec}
+        res = await obj.client.request(
+            action="set_internal",
+            value=msg,
+            path=("conv", name) + path,
+            iter=False,
+            nchain=3 if verbose else 0,
+        )
+    if verbose:
+        pprint(res)
+    elif type or delete:
+        print(res.tock)
+    else:
+        print(" ".join(res.type))

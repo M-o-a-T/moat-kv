@@ -12,11 +12,7 @@ setup(
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
     packages=find_packages(),
-    setup_requires=[
-        "setuptools_scm",
-        "pytest-runner",
-        "trustme >= 0.5",
-    ],
+    setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
         "trio_click",
         "trio >= 0.11",
@@ -29,11 +25,7 @@ setup(
         "PyNaCl >= 1.3",
         "diffiehellman",
     ],
-    tests_require=[
-        "trustme >= 0.5",
-        "pytest",
-        "flake8 >= 3.7",
-    ],
+    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[

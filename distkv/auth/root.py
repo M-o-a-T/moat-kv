@@ -6,10 +6,10 @@ Does not limit anything, allows everything.
 """
 
 from . import (
-    BaseServerUserMaker,
+    BaseServerAuthMaker,
+    BaseClientAuthMaker,
+    BaseClientAuth,
     RootServerUser,
-    BaseClientUserMaker,
-    BaseClientUser,
     null_server_login,
     null_client_login,
 )
@@ -35,20 +35,21 @@ def load(typ: str, *, make: bool = False, server: bool):
             return ClientUser
 
 
-class ServerUserMaker(BaseServerUserMaker):
-    pass
+class ServerUserMaker(BaseServerAuthMaker):
+    schema = {"type": "object", "additionalProperties": False}
 
 
 class ServerUser(RootServerUser):
-    pass
+    schema = {"type": "object", "additionalProperties": False}
 
 
-class ClientUserMaker(BaseClientUserMaker):
-    def send_data(self):
-        res = super().send_data()
-        res["ident"] = "*"
-        return res
+class ClientUserMaker(BaseClientAuthMaker):
+    schema = {"type": "object", "additionalProperties": False}
+
+    @property
+    def ident(self):
+        return "*"
 
 
-class ClientUser(BaseClientUser):
-    pass
+class ClientUser(BaseClientAuth):
+    schema = {"type": "object", "additionalProperties": False}

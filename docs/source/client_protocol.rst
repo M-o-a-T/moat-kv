@@ -253,9 +253,13 @@ watch
 
 Monitor changes to this node (and those below it). Replies look like those from ``get_tree``.
 
-The recommended way to start a ``watch`` call, then fetch the current state
-via ``get_tree``. The code processing the latter call should skip entries
-that you already have. This way you won't lose any changes.
+The recommended way to run the ``watch`` call with ``fetch=True``. This
+fetches the current state and guarantees that no updates are lost. To mark
+the end of the static data, the server sends a ``state=uptodate`` message.
+This process will not send stale data after an update, so your code may
+safely replace an old entry's state with new data.
+
+This task obeys ``min_depth`` and ``max_depth`` restrictions.
 
 save
 ----
@@ -267,8 +271,8 @@ log
 ---
 
 Instruct the server to continuously write change entries to the given ``path``
-(a string with a filename). If ``state`` is set, the server will also write 
-its current state to that file.
+(a string with a filename). If ``fetch`` is ``True``, the server will also
+write its current state to that file.
 
 This command returns after the new file has been opened and the initial
 state has been written, if so requested. If there was an old log stream,

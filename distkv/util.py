@@ -107,7 +107,8 @@ class PathShortener:
         1 i
         0 j
 
-    where the initial number is the passed-in depth.
+    where the initial number is the passed-in ``depth``, assuming the
+    PathShortener is initialized with ``('a','b')``.
 
     Usage::
 
@@ -134,7 +135,7 @@ class PathShortener:
                 "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
             )
 
-        p = res["path"][self.depth:]
+        p = res["path"][self.depth :]
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
@@ -147,7 +148,8 @@ class PathShortener:
 
 
 class PathLongener:
-    """This reverts the operation of a PathShortener.
+    """This reverts the operation of a PathShortener. You need to pass the
+    same prefix in.
     """
 
     def __init__(self, prefix):
@@ -155,7 +157,10 @@ class PathLongener:
         self.path = prefix
 
     def __call__(self, res):
-        p = res.pop("path", ())
+        try:
+            p = res.path
+        except AttributeError:
+            return
         d = res.pop("depth", None)
         if d is not None:
             p = self.path[: self.depth + d] + p
@@ -393,3 +398,34 @@ def split_one(p, kw):
         except ValueError:
             pass
     kw[k] = v
+
+
+def make_proc(code, vars, *path, use_async=False):
+    """Compile this code block to a procedure.
+    
+    Args:
+        code: the code block to execute
+        vars: variable names to pass into the code
+        path: the location where the code is / shall be stored
+    Returns:
+        the procedure to call. All keyval arguments will be in the local
+        dict.
+    """
+    vars = ",".join(vars)
+    if vars:
+        vars += ","
+    hdr = """\
+def proc(%s **kw):
+    locals().update(kw)
+    """ % (
+        vars,
+    )
+
+    if use_async:
+        hdr = "async " + hdr
+    code = hdr + code.replace("\n", "\n\t")
+    code = compile(code, ".".join(str(x) for x in path), "exec")
+    d = {}
+    eval(code, d)
+    code = d["proc"]
+    return code

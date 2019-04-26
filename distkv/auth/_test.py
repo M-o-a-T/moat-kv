@@ -5,11 +5,15 @@ Test auth method.
 Does not limit anything, allows everything.
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 from . import (
-    BaseServerUserMaker,
+    BaseServerAuthMaker,
     RootServerUser,
-    BaseClientUserMaker,
-    BaseClientUser,
+    BaseClientAuthMaker,
+    BaseClientAuth,
     null_server_login,
     null_client_login,
 )
@@ -37,12 +41,12 @@ def load(typ: str, *, make: bool = False, server: bool):
             return ClientUser
 
 
-class ServerUserMaker(BaseServerUserMaker):
+class ServerUserMaker(BaseServerAuthMaker):
     _name = None
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     # Overly-complicated methods of exchanging the user name
 
@@ -52,35 +56,32 @@ class ServerUserMaker(BaseServerUserMaker):
         msg = await cmd.recv()
         assert msg.step == "HasName"
         self = cls()
-        self._name = msg.name
+        self.name = msg.name
+        self._aux = msg.get("aux")
+        self._chain = msg.get("chain")
         return self
 
     async def send(self, cmd):
         await cmd.send(step="SendWant")
         msg = await cmd.recv()
         assert msg.step == "WantName"
-        await cmd.send(step="SendName", name=self._name)
+        await cmd.send(step="SendName", name=self.name, chain=self._chain)
         msg = await cmd.recv()
 
     # Annoying methods to read+save the user name from/to KV
 
     @classmethod
-    def build(cls, data):
-        self = super().build(data)
-        self._name = data["UserName"]
+    def load(cls, data):
+        self = super().load(data)
+        self.name = data.name
         return self
-
-    def save(self):
-        res = super().save()
-        res["UserName"] = self._name
-        return res
 
 
 class ServerUser(RootServerUser):
     pass
 
 
-class ClientUserMaker(BaseClientUserMaker):
+class ClientUserMaker(BaseClientAuthMaker):
     schema = dict(
         type="object",
         additionalProperties=False,
@@ -89,19 +90,14 @@ class ClientUserMaker(BaseClientUserMaker):
         ),
         required=["name"],
     )
-    _name = None
+    name = None
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     # Overly-complicated methods of exchanging the user name
 
-    @classmethod
-    def build(cls, user):
-        self = super().build(user)
-        self._name = user["name"]
-        return self
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
@@ -117,10 +113,12 @@ class ClientUserMaker(BaseClientUserMaker):
             assert m.step == "SendWant", m
             await s.send(step="WantName")
             m = await s.recv()
+            assert m.step == "SendName", m
             assert m.name == ident
 
             self = cls()
-            self._name = m.name
+            self.name = m.name
+            self._chain = m.chain
             return self
 
     async def send(self, client: Client, _kind="user"):
@@ -131,17 +129,19 @@ class ClientUserMaker(BaseClientUserMaker):
             # we could initially send the ident but don't here, for testing
             m = await s.recv()
             assert m.step == "GiveName", m
-            await s.send(step="HasName", name=self._name)
+            await s.send(
+                step="HasName", name=self.name, chain=self._chain, aux=self._aux
+            )
             m = await s.recv()
             assert m.changed
-            assert m.prev is None
+            assert m.chain.prev is None
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {"name": self._name}
+        return {"name": self.name}
 
 
-class ClientUser(BaseClientUser):
+class ClientUser(BaseClientAuth):
     schema = dict(
         type="object",
         additionalProperties=False,
@@ -154,10 +154,10 @@ class ClientUser(BaseClientUser):
 
     @property
     def ident(self):
-        return self._name
+        return self.name
 
     @classmethod
     def build(cls, user):
         self = super().build(user)
-        self._name = user["name"]
+        self.name = user["name"]
         return self

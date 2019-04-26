@@ -13,6 +13,8 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
+from .types import RootEntry, ConvNull
+
 # from trio_log import LogStream
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
@@ -73,7 +75,7 @@ class StreamCommand:
     Implement the actual command by overriding ``run``.
     Read the next input line by reading ``in_recv_q``.
 
-    This auto-detects whether the command sends multiple lines, by closing
+    This auto-detects whether the client sends multiple lines, by closing
     the incoming channel if there's no state=start in the command.
 
     Selection of outgoing multiline-or-not must be done beforehand,
@@ -182,7 +184,7 @@ class SingleMixin:
 
     async def __call__(self, **kw):
         await self.aclose()
-        await super().__call__(**kw)
+        return await super().__call__(**kw)
 
 
 class SCmd_auth(StreamCommand):
@@ -223,7 +225,7 @@ class SCmd_auth(StreamCommand):
         data = auth.follow(msg.typ, "user", msg.ident, create=False)
 
         cls = loader(msg.typ, "user", server=True)
-        user = await cls.build(data)
+        user = cls.load(data)
         client._user = user
         try:
             await user.auth(self, msg)
@@ -231,6 +233,8 @@ class SCmd_auth(StreamCommand):
             if client.user is None:
                 client._chroot(root)
                 client.user = user
+
+                client.conv = user.aux_conv(client.root)
         finally:
             client._user = None
 
@@ -252,7 +256,7 @@ class SCmd_auth_list(StreamCommand):
 
         typ, kind, ident = data.path[-3:]
         cls = loader(typ, kind, server=True, make=False)
-        user = await cls.build(data)
+        user = cls.load(data)
         res = user.info()
         res["typ"] = typ
         res["kind"] = kind
@@ -299,6 +303,7 @@ class SCmd_auth_get(StreamCommand):
     typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
+    chain: change history
 
     plus any other data the client-side manager object sends
     """
@@ -321,10 +326,8 @@ class SCmd_auth_get(StreamCommand):
         auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
         data = auth.follow(msg.typ, kind, msg.ident, create=False)
         cls = loader(msg.typ, kind, server=True, make=True)
-        user = await cls.read(data)
-        res = await user.send(self)
-        if res is not None:
-            await self.send(**res)
+        user = cls.load(data)
+        return await user.send(self)
 
 
 class SCmd_auth_set(StreamCommand):
@@ -335,6 +338,7 @@ class SCmd_auth_set(StreamCommand):
     typ: auth method (root)
     kind: type of data to read('user')
     ident: user identifier (foo)
+    chain: change history
 
     plus any other data the client sends
     """
@@ -360,6 +364,7 @@ class SCmd_auth_set(StreamCommand):
         user = await cls.recv(self, msg)
         msg.value = user.save()
         msg.path = (*root, None, "auth", msg.typ, kind, user.ident)
+        msg.chain = user._chain
         return await client.cmd_set_value(msg, _nulls_ok=True)
 
 
@@ -379,14 +384,17 @@ class SCmd_get_tree(StreamCommand):
 
     async def run(self):
         msg = self.msg
-        entry = self.client.root.follow(
-            *msg.path, create=False, nulls_ok=self.client.nulls_ok
+        client = self.client
+        entry = client.root.follow(
+            *msg.path, create=False, nulls_ok=client.nulls_ok
         )
 
         kw = {}
         nchain = msg.get("nchain", 0)
         ps = PathShortener(entry.path)
         maxdepth = msg.get("maxdepth", None)
+        conv = client.conv
+
         if maxdepth is not None:
             kw["max_depth"] = maxdepth
         mindepth = msg.get("mindepth", None)
@@ -396,7 +404,7 @@ class SCmd_get_tree(StreamCommand):
         async def send_sub(entry):
             if entry.data is None:
                 return
-            res = entry.serialize(chop_path=self.client._chop_path, nchain=nchain)
+            res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
             ps(res)
             await self.send(**res)
 
@@ -421,24 +429,44 @@ class SCmd_watch(StreamCommand):
     async def run(self):
         msg = self.msg
         client = self.client
+        conv = client.conv
         entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
         nchain = msg.get("nchain", 0)
+        max_depth = msg.get("max_depth", -1)
+        min_depth = msg.get("min_depth", 0)
 
         async with Watcher(entry) as watcher:
-            shorter = PathShortener(entry.path)
-            if msg.get("state", False):
+            async with trio.open_nursery() as n:
+                tock = client.server.tock
+                shorter = PathShortener(entry.path)
+                if msg.get("fetch", False):
 
-                async def worker(entry):
-                    res = entry.serialize(chop_path=client._chop_path, nchain=nchain)
+                    async def orig_state(task_status=trio.TASK_STATUS_IGNORED):
+                        task_status.started()
+                        kv = {"max_depth": max_depth, "min_depth": min_depth}
+
+                        async def worker(entry):
+                            if entry.tock < tock:
+                                res = entry.serialize(
+                                    chop_path=client._chop_path, nchain=nchain, conv=conv
+                                )
+                                shorter(res)
+                                await self.send(**res)
+
+                        await entry.walk(worker, **kv)
+                        await self.send(state="uptodate")
+
+                    await n.start(orig_state)
+
+                async for m in watcher:
+                    ml = len(m.entry.path) - len(msg.path)
+                    if ml < min_depth:
+                        continue
+                    if max_depth > 0 and ml > max_depth:
+                        continue
+                    res = m.entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
                     shorter(res)
                     await self.send(**res)
-
-                await entry.walk(worker)
-
-            async for msg in watcher:
-                res = msg.entry.serialize(chop_path=client._chop_path, nchain=nchain)
-                shorter(res)
-                await self.send(**res)
 
 
 class SCmd_serfmon(StreamCommand):
@@ -492,6 +520,8 @@ class SCmd_update(StreamCommand):
 
     async def run(self):
         client = self.client
+        conv = client.conv
+        tock_seen = client.server.tock_seen
         msg = self.msg
 
         path = msg.get("path", None)
@@ -499,8 +529,9 @@ class SCmd_update(StreamCommand):
         n = 0
         async for msg in self.in_recv_q:
             longer(msg)
-            msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok)
-            await msg.entry.apply(msg, dropped=client._dropper)
+            msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok, conv=conv)
+            tock_seen(msg.get("tock", None))
+            await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
             n += 1
         await self.send(count=n)
 
@@ -513,10 +544,12 @@ class ServerClient:
     _user = None  # user during auth
     user = None  # authorized user
     _dh_key = None
+    conv = ConvNull
 
-    def __init__(self, server: 'Server', stream: Stream):
+    def __init__(self, server: "Server", stream: Stream):
         self.server = server
         self.root = server.root
+        self.metaroot = self.root.follow(None, create=True, nulls_ok=True)
         self.stream = stream
         self.seq = 0
         self.tasks = {}
@@ -583,7 +616,7 @@ class ServerClient:
                 logger.error("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
-                if not isinstance(exc, (KeyError, ClientError)):
+                if not isinstance(exc, ClientError):
                     logger.exception("ERR%d: %s", self._client_nr, repr(msg))
                 await self.send({"error": str(exc), "seq": seq})
 
@@ -646,33 +679,57 @@ class ServerClient:
         """Change to a sub-tree.
         """
         self._chroot(msg.path)
-        return self.root.serialize(chop_path=self._chop_path)
+        return self.root.serialize(chop_path=self._chop_path, conv=self.conv)
 
-    async def cmd_get_value(self, msg):
+    async def cmd_get_internal(self, msg):
+        return await self.cmd_get_value(msg, root=self.metaroot)
+
+    async def cmd_set_internal(self, msg):
+        return await self.cmd_set_value(msg, root=self.metaroot)
+
+    async def cmd_delete_internal(self, msg):
+        return await self.cmd_delete_value(msg, root=self.metaroot)
+
+    async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
         """
         if "node" in msg and "path" not in msg:
             n = Node(msg.node, cache=self.server._nodes, create=False)
             return n[msg.tick].serialize(
-                chop_path=self._chop_path, nchain=msg.get("nchain", 0)
+                chop_path=self._chop_path, nchain=msg.get("nchain", 0), conv=self.conv
             )
 
+        if _nulls_ok is None:
+            _nulls_ok = self.nulls_ok
+        if root is None:
+            root = self.root
         try:
-            entry = self.root.follow(*msg.path, create=False, nulls_ok=self.nulls_ok)
+            entry = root.follow(*msg.path, create=False, nulls_ok=_nulls_ok)
         except KeyError:
             entry = {"value": None}
         else:
-            entry = entry.serialize(chop_path=-1, nchain=msg.get("nchain", 0))
+            entry = entry.serialize(chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv)
         return entry
 
-    async def cmd_set_value(self, msg, _nulls_ok=False):
+    async def cmd_set_value(self, msg, root=None, _nulls_ok=False):
         """Set a node's value.
         """
         # TODO drop this as soon as we have server-side user mods
-        if self.user.is_super_root:
+        if self.user.is_super_root and root is None:
             _nulls_ok = 2
 
-        entry = self.root.follow(*msg.path, nulls_ok=_nulls_ok)
+        if root is None:
+            root = self.root
+        entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
+        if root is self.root and "match" in self.metaroot:
+            try:
+                self.metaroot["match"].check_value(msg.value, entry)
+            except ClientError:
+                raise
+            except Exception as exc:
+                raise ClientError(repr(exc)) from None
+                # TODO pass exceptions to the client
+
         send_prev = True
         if "prev" in msg:
             if entry.data != msg.prev:
@@ -692,11 +749,14 @@ class ServerClient:
             res["prev"] = entry.data
 
         async with self.server.next_event() as event:
-            await entry.set_data(event, msg.value, dropped=self.server._dropper)
+            await entry.set_data(
+                event, self.conv.dec_value(msg.value, entry=entry), dropped=self.server._dropper, tock=self.server.tock
+            )
 
         nchain = msg.get("nchain", 1)
         if nchain > 0:
             res["chain"] = entry.chain.serialize(nchain=nchain)
+        res["tock"] = entry.tock
         return res
 
     async def cmd_update(self, msg):
@@ -705,21 +765,21 @@ class ServerClient:
 
         You usually do this via a stream command.
         """
-        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok)
-        res = await msg.entry.apply(msg, dropped=self._dropper)
+        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv)
+        res = await msg.entry.apply(msg, dropped=self._dropper, root=self.root)
         if res is None:
             return False
         else:
-            return res.serialize(chop_path=self._chop_path)
+            return res.serialize(chop_path=self._chop_path, conv=self.conv)
 
-    async def cmd_delete_value(self, msg):
+    async def cmd_delete_value(self, msg, root=None):
         """Delete a node's value.
         Sub-nodes are not affected.
         """
         if "value" in msg:
             raise ClientError("A deleted entry can't have a value")
         msg.value = None
-        return await self.cmd_set_value(msg)
+        return await self.cmd_set_value(msg, root=root)
 
     async def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
@@ -757,11 +817,11 @@ class ServerClient:
             if entry.data is not None:
                 async with self.server.next_event() as event:
                     evt = await entry.set_data(
-                        event, None, dropped=self.server._dropper
+                        event, None, dropped=self.server._dropper, tock=self.server.tock
                     )
                     if nchain:
                         r = evt.serialize(
-                            chop_path=self._chop_path, nchain=nchain, with_old=True
+                            chop_path=self._chop_path, nchain=nchain, with_old=True, conv=self.conv
                         )
                         r["seq"] = seq
                         del r["new_value"]  # always None
@@ -779,7 +839,7 @@ class ServerClient:
             return {"changed": res}
 
     async def cmd_log(self, msg):
-        await self.server.run_saver(path=msg.path, save_state=msg.get("state", False))
+        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False))
         return True
 
     async def cmd_save(self, msg):
@@ -823,7 +883,8 @@ class ServerClient:
             if self._send_lock is None:
                 return
 
-            msg["tock"] = self.server.tock
+            if "tock" not in msg:
+                msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
             except trio.BrokenResourceError:
@@ -833,7 +894,10 @@ class ServerClient:
 
     async def send_result(self, seq, res):
         res["seq"] = seq
-        res["tock"] = self.server.tock
+        if "tock" in res:
+            self.server.tock_seen(res["tock"])
+        else:
+            res["tock"] = self.server.tock
         await self.send(res)
 
     async def run(self):
@@ -870,6 +934,7 @@ class ServerClient:
                 msg["auth"] = auths
             if a is None:
                 from .auth import RootServerUser
+
                 self.user = RootServerUser()
             await self.send(msg)
 
@@ -918,13 +983,14 @@ class Server:
     _ready = None
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
+        self._tock = 0
         if root is None:
-            root = Entry("ROOT", None)
+            root = RootEntry(tock=self.tock)
         self.root = root
         self.cfg = combine_dict(cfg, CFG)
+        self.paranoid_root = root if self.cfg["paranoia"] else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
-        self._tock = 0
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
 
@@ -977,7 +1043,10 @@ class Server:
             old_evt = old_evt.prev
 
     async def _send_event(self, action, msg, coalesce=False):
-        msg["tock"] = self.tock
+        if "tock" not in msg:
+            msg["tock"] = self.tock
+        else:
+            self.tock_seen(msg["tock"])
         if "node" not in msg:
             msg["node"] = self.node.name
         if "tick" not in msg:
@@ -1030,7 +1099,7 @@ class Server:
     async def user_update(self, msg):
         """Process an update."""
         msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
-        await msg.entry.apply(msg, dropped=self._dropper)
+        await msg.entry.apply(msg, dropped=self._dropper, root=self.paranoid_root)
 
     async def user_info(self, msg):
         """Process info broadcasts.
@@ -1154,7 +1223,10 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
+                        resp.payload,
+                        object_pairs_hook=attrdict,
+                        raw=False,
+                        use_list=False,
                     )
                     self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
@@ -1163,7 +1235,8 @@ class Server:
 
     def tock_seen(self, tock):
         """Update my current ``tock`` if it's not high enough."""
-        self._tock = max(self._tock, tock)
+        if tock is not None:
+            self._tock = max(self._tock, tock)
 
     async def _send_ping(self):
         """Send a ping message and note when to send the next one,
@@ -1406,6 +1479,7 @@ class Server:
                 try:
                     host, port = await self._get_host_port(node)
                     async with distkv_client.open_client(host, port) as client:
+                        # TODO auth this client
 
                         res = await client.request(
                             "get_tree",
@@ -1418,7 +1492,9 @@ class Server:
                             r = UpdateEvent.deserialize(
                                 self.root, r, cache=self._nodes, nulls_ok=True
                             )
-                            await r.entry.apply(r, dropped=self._dropper)
+                            await r.entry.apply(
+                                r, dropped=self._dropper, root=self.paranoid_root
+                            )
                         self.tock_seen(res.end_msg.tock)
 
                         res = await client.request(
@@ -1632,10 +1708,17 @@ class Server:
             async for m in rdr:
                 if "value" in m:
                     longer(m)
+                    if "tock" in m:
+                        self.tock_seen(m.tock)
+                    else:
+                        m.tock = self.tock
                     m = UpdateEvent.deserialize(
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
-                    await m.entry.apply(m, local=local, dropped=self._dropper)
+                    self.tock_seen(m.tock)
+                    await m.entry.apply(
+                        m, local=local, dropped=self._dropper, root=self.paranoid_root
+                    )
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:
@@ -1664,7 +1747,11 @@ class Server:
             await self._save(mw, shorter)
 
     async def save_stream(
-        self, path: str = None, stream=None, save_state: bool = False, done: int = None
+        self,
+        path: str = None,
+        stream=None,
+        save_state: bool = False,
+        done: trio.Event = None,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -1707,7 +1794,9 @@ class Server:
         """
         done = trio.Event()
         s = self._saver_prev
-        await self.spawn(self._saver, path=path, stream=stream, done=done)
+        await self.spawn(
+            self._saver, path=path, stream=stream, save_state=save_state, done=done
+        )
         await done.wait()
         if s is not None:
             await s.cancel()
@@ -1798,7 +1887,7 @@ class Server:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
-                    await self.root.set_data(event, self._init)
+                    await self.root.set_data(event, self._init, tock=self.tock)
 
             # send initial ping
             await self.spawn(self.pinger, delay2)

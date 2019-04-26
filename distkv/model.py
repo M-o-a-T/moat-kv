@@ -21,6 +21,7 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
+ConvNull = None  # imported later, if/when needed
 
 class Node:
     """Represents one DistKV participant.
@@ -141,7 +142,7 @@ class NodeEvent:
     """
 
     def __init__(
-        self, node: Node, tick: int = None, prev: 'NodeEvent' = None, check_dup=True
+        self, node: Node, tick: int = None, prev: "NodeEvent" = None, check_dup=True
     ):
         self.node = node
         if tick is None:
@@ -154,6 +155,7 @@ class NodeEvent:
             self.prev = prev
 
     def __len__(self):
+        """Length of this chain"""
         if self.prev is None:
             return 1
         return 1 + len(self.prev)
@@ -188,6 +190,9 @@ class NodeEvent:
             return self.prev.equals(other.prev)
 
     def __lt__(self, other):
+        """Check whether this node precedes ``other``, i.e. "other" is an
+        event that is based on this.
+        """
         if other is None:
             return False
         if self == other:
@@ -199,6 +204,9 @@ class NodeEvent:
         return self.tick <= other.tick
 
     def __gt__(self, other):
+        """Check whether this node succedes ``other``, i.e. this event is
+        based on it.
+        """
         if other is None:
             return True
         if self == other:
@@ -219,7 +227,11 @@ class NodeEvent:
         return self.find(node) is not None
 
     def find(self, node):
-        """Return the position of a node in the node chain."""
+        """Return the position of a node in this chain.
+        Zero if the first entry matches.
+        
+        Returns ``None`` if not present.
+        """
         res = 0
         while self is not None:
             if self.node == node:
@@ -231,7 +243,7 @@ class NodeEvent:
     def filter(self, node, dropped=None):
         """Return an event chain without the given node.
 
-        If the node is not in the chain, the result is not a copy.
+        If the node is not in the chain, the result is *not* a copy.
         """
         if self.node == node:
             if dropped is not None:
@@ -249,7 +261,7 @@ class NodeEvent:
 
     def serialize(self, nchain=100) -> dict:
         if not nchain:
-            raise RuntimeError("A chopped NodeEvent must not be set at all")
+            raise RuntimeError("A chopped-off NodeEvent must not be sent")
         res = attrdict(node=self.node.name)
         if self.tick is not None:
             res.tick = self.tick
@@ -265,18 +277,23 @@ class NodeEvent:
             return None
         msg = msg.get("chain", msg)
         tick = msg.get("tick", None)
-        self = cls(
-            node=Node(msg["node"], tick=tick, cache=cache),
-            tick=tick,
-            check_dup=check_dup,
-        )
+        if "node" not in msg:
+            assert "prev" not in msg
+            assert tick is None
+            return None
+        else:
+            self = cls(
+                node=Node(msg["node"], tick=tick, cache=cache),
+                tick=tick,
+                check_dup=check_dup,
+            )
         if "prev" in msg:
             self.prev = cls.deserialize(
                 msg["prev"], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok
             )
         return self
 
-    def attach(self, prev: 'NodeEvent' = None, dropped=None):
+    def attach(self, prev: "NodeEvent" = None, dropped=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
             prev = prev.filter(self.node, dropped=dropped)
@@ -293,12 +310,20 @@ class UpdateEvent:
     """Represents an event which updates something.
     """
 
-    def __init__(self, event: NodeEvent, entry: 'Entry', new_value, old_value=_NotGiven):
+    def __init__(
+        self,
+        event: NodeEvent,
+        entry: "Entry",
+        new_value,
+        old_value=_NotGiven,
+        tock=None,
+    ):
         self.event = event
         self.entry = entry
         self.new_value = new_value
         if old_value is not _NotGiven:
             self.old_value = old_value
+        self.tock = tock
 
     def __repr__(self):
         if self.entry.chain == self.event:
@@ -317,51 +342,65 @@ class UpdateEvent:
             "" if self.new_value == self.entry.data else repr(self.old_value),
         )
 
-    def serialize(self, chop_path=0, nchain=2, with_old=False):
+    def serialize(self, chop_path=0, nchain=2, with_old=False, conv=None):
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
         res = self.event.serialize(nchain=nchain)
         res.path = self.entry.path[chop_path:]
         if with_old:
-            res.old_value = self.old_value
-            res.new_value = self.new_value
+            res.old_value = conv.enc_value(self.old_value, entry=self.entry)
+            res.new_value = conv.enc_value(self.new_value, entry=self.entry)
         else:
-            res.value = self.new_value
+            res.value = conv.enc_value(self.new_value, entry=self.entry)
+        res.tock = self.entry.tock
         return res
 
     @classmethod
-    def deserialize(cls, root, msg, cache, nulls_ok=False):
-        if "value" in msg:
-            value = msg.value
-        else:
-            value = msg.new_value
-        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+    def deserialize(cls, root, msg, cache, nulls_ok=False, conv=None):
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
+        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        if "value" in msg:
+            value = conv.dec_value(msg.value, entry=entry)
+        else:
+            value = conv.dec_value(msg.new_value, entry=entry)
 
-        return UpdateEvent(event, entry, value)
+        return UpdateEvent(event, entry, value, tock=msg.tock)
 
 
 class Entry:
     """This class represents one key/value pair
     """
 
-    _parent: 'Entry' = None
+    _parent: "Entry" = None
     name: str = None
     _path: List[str] = None
-    _root: 'Entry' = None
+    _root: "Entry" = None
     _data: bytes = None
     chain: NodeEvent = None
+    SUBTYPE = None
+    SUBTYPES = {}
 
     monitors = None
 
-    def __init__(self, name: str, parent: 'Entry'):
+    def __init__(self, name: str, parent: "Entry", tock=None):
         self.name = name
         self._sub = {}
         self.monitors = set()
+        self.tock = tock
 
         if parent is not None:
             parent._add_subnode(self)
             self._parent = weakref.ref(parent)
 
-    def _add_subnode(self, child: 'Entry'):
+    def _add_subnode(self, child: "Entry"):
         self._sub[child.name] = child
 
     def __hash__(self):
@@ -421,7 +460,9 @@ class Entry:
             if child is None:
                 if not create:
                     raise KeyError(name)
-                child = Entry(name, self)
+                child = self.SUBTYPES.get(name, self.SUBTYPE)(
+                    name, self, tock=self.tock
+                )
             self = child
         return self
 
@@ -443,6 +484,9 @@ class Entry:
         root = parent.root()
         self._root = weakref.ref(root)
         return root
+
+    def _set(self, value):
+        self._data = value
 
     @property
     def parent(self):
@@ -471,7 +515,7 @@ class Entry:
         return self._data
 
     async def set_data(
-        self, event: NodeEvent, data: Any, local: bool = False, dropped=None
+        self, event: NodeEvent, data: Any, local: bool = False, dropped=None, tock=None
     ):
         """This entry is updated by that event.
 
@@ -483,15 +527,21 @@ class Entry:
           The :cls:`UpdateEvent` that has been generated and applied.
         """
         event = event.attach(self.chain, dropped=dropped)
-        evt = UpdateEvent(event, self, data, self._data)
+        evt = UpdateEvent(event, self, data, self._data, tock=tock)
         await self.apply(evt, local=local)
         return evt
 
-    async def apply(self, evt: UpdateEvent, local: bool = False, dropped=None):
+    async def apply(
+        self, evt: UpdateEvent, local: bool = False, dropped=None, root=None
+    ):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers (unless ``local`` is set).
         """
+        chk = None
+        if root is not None and None in root:
+            chk = root[None].get("match", None)
+
         if evt.event == self.chain:
             assert self._data == evt.new_value, (
                 "has:",
@@ -502,19 +552,26 @@ class Entry:
             return
         if self.chain > evt.event:  # already superseded
             return
+
+        if hasattr(evt, "new_value"):
+            evt_val = evt.new_value
+        else:
+            evt_val = evt.value
         if not (self.chain < evt.event):
             logger.warn("*** inconsistency TODO ***")
-            logger.warn("Node: %s", self)
-            logger.warn("Current: %s", self.chain)
-            logger.warn("New: %s", evt.event)
-            return
+            logger.warn("Node: %s", self.path)
+            logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
+            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt_value)
+            if evt.tock < self.tock:
+                return
 
+        if chk is not None:
+            chk.check_value(evt_val, self)
         if not hasattr(evt, "old_value"):
             evt.old_value = self._data
-        if hasattr(evt, "new_value"):
-            self._data = evt.new_value
-        else:
-            self._data = evt.value
+        self._set(evt_val)
+        self.tock = evt.tock
+
         if dropped is not None and self.chain is not None:
             dropped(evt.event, self.chain)
         self.chain = evt.event
@@ -535,7 +592,7 @@ class Entry:
         for v in list(self._sub.values()):
             await v.walk(proc, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
-    def serialize(self, chop_path=0, nchain=2):
+    def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.
 
         Args:
@@ -543,9 +600,15 @@ class Entry:
                          Otherwise, do, but remove the first N entries.
           ``nchain``: how many change events to include.
         """
-        res = attrdict(value=self._data)
+        if conv is None:
+            global ConvNull
+            if ConvNull is None:
+                from .types import ConvNull
+            conv = ConvNull
+        res = attrdict(value=conv.enc_value(self._data, entry=self))
         if self.chain is not None and nchain > 0:
             res.chain = self.chain.serialize(nchain=nchain)
+        res.tock = self.tock
         if chop_path >= 0:
             path = self.path
             if chop_path > 0:
@@ -583,6 +646,9 @@ class Entry:
     def counter(self):
         self._counter += 1
         return self._counter
+
+
+Entry.SUBTYPE = Entry
 
 
 class Watcher:
