@@ -1,7 +1,10 @@
 import pytest
 import trio
 
-from .mock_serf import stdtest
+#from .mock_serf import stdtest
+#from .run import run
+#from functools import partial
+
 from distkv.auth import loader
 from distkv.client import ServerError
 from distkv.util import PathLongener
@@ -86,6 +89,10 @@ async def test_71_basic(autojump_clock):
             assert r.value == "10"
             r = await c.request("get_value", path=("inty", "yep", "yepyepyep"))
             assert r.value == "13"
+
+            #run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+            #await run_c("-a","_test name=std", "get", "-yrd_", do_stdout=False)
+
 
         assert recv == [
             {"path": ("inty", "ten"), "value": 10},
