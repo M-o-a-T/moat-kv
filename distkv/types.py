@@ -271,12 +271,16 @@ ConvEntry.SUBTYPE = ConvEntry
 
 class ConvNull:
     """I am a dummy translator"""
+
     @staticmethod
     def enc_value(value, **k):
         return value
+
     @staticmethod
     def dec_value(value, **k):
         return value
+
+
 ConvNull = ConvNull()
 
 

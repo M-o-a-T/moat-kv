@@ -98,7 +98,6 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     # Overly-complicated methods of exchanging the user name
 
-
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""

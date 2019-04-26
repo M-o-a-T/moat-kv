@@ -322,12 +322,13 @@ class BaseServerAuth:
 
     def aux_conv(self, root: Entry):
         from ..types import ConvNull
+
         try:
-            conv = self._aux.get('conv')
+            conv = self._aux.get("conv")
             if conv is None:
                 return ConvNull
-            return root.follow(None,'conv',conv, create=False, nulls_ok=True)
-        except (KeyError,AttributeError):
+            return root.follow(None, "conv", conv, create=False, nulls_ok=True)
+        except (KeyError, AttributeError):
             return ConvNull
 
     def info(self):

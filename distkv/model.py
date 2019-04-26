@@ -21,7 +21,9 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
+
 ConvNull = None  # imported later, if/when needed
+
 
 class Node:
     """Represents one DistKV participant.
