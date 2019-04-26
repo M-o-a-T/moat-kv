@@ -16,7 +16,7 @@ Data types
 ++++++++++
 
 Chains
-------
+++++++
 
 A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
 
@@ -66,7 +66,7 @@ The default chain length should be two larger than the maximum of
   matter of fact, e.g. a measurement system, and one for any manual intercession.
 
 ticks
------
+++++++
 
 All tick values are 63-bit unsigned integers. As this space requires 20 mio
 years to wrap around, assuming ten messages per millisecond (which is way
@@ -74,7 +74,7 @@ above the capacity of a typical Serf network), this protocol does not
 specify what shall happen if this value overflows.
 
 Ranges
-------
+++++++
 
 Tick ranges are used to signal known (or missing) messages. They are
 transmitted as sorted lists which contain either single elements or
@@ -82,7 +82,7 @@ transmitted as sorted lists which contain either single elements or
 but ``end`` is not).
 
 Path
-----
+++++
 
 Every entry is associated with a path, i.e. a list of names leading to it.
 Names may be UTF-8 strings, byte strings, or numbers. The empty UTF-8 and
@@ -91,6 +91,33 @@ byte strings are considered equivalent, any other values are not.
 ++++++++++++
 Common items
 ++++++++++++
+
+Bidirectional
++++++++++++++
+
+path
+----
+
+The path to the entry you're accessing. This is a list. The contents of
+that list may be anything hashable, i.e. strings, integers,
+``True``/``False``/``None``.
+
+.. note:
+
+    ``None`` is DistKV's special name for its meta hierarchy, i.e. data
+    about itself (user IDs, file conversion code, …). As such it is not
+    directly accessible.
+
+value
+-----
+
+A node's value. This can be anything that ``msgpack`` can work with: you do
+not need to encode your values to binary strings, and in fact you should
+not because some of DistKV's features (like type checking) would no longer
+work, or be much more awkward to use.
+
+Replies
++++++++
 
 node
 ----
@@ -197,6 +224,9 @@ node was pinged previously.
 ++++++++++++++++++++++
 Timing and concurrency
 ++++++++++++++++++++++
+
+Server to Server
+++++++++++++++++
 
 Ping sequence
 -------------
