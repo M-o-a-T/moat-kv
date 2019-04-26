@@ -1,12 +1,7 @@
 import pytest
 import trio
-import mock
-from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
-from .run import run
-from distkv.client import ServerError
 import asyncserf
 import msgpack
 from distkv.util import attrdict
@@ -83,7 +78,6 @@ async def test_11_split1(autojump_clock, tocky):
                     i.s()
 
         await st.tg.start(watch)
-        s = st.s[1]
         async with st.client(1) as ci:
             assert (await ci.request("get_value", path=())).value == 420
             r = await ci.request("set_value", path=("ping",), value="pong")

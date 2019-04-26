@@ -1,13 +1,7 @@
 import pytest
 import trio
-import mock
-from time import time
-import io
-from functools import partial
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
-from .run import run
 from distkv.auth import loader
 from distkv.client import ServerError
 from distkv.util import PathLongener

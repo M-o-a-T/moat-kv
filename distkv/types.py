@@ -108,7 +108,7 @@ class MatchEntry(MetaEntry):
         elif not isinstance(value.type, (list, tuple)):
             raise ValueError("Type is not a list")
         try:
-            typ = self.metaroot["type"].follow(*value.type, create=False)
+            self.metaroot["type"].follow(*value.type, create=False)
         except KeyError:
             raise ClientError("This type does not exist")
         # crashes if nonexistent
@@ -158,8 +158,6 @@ class MatchRoot(MetaPathEntry):
 
     def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
-        p = entry.path
-        checks = [(self, 0)]
         match = self._find_node(entry)
         if match is None:
             return
@@ -259,7 +257,7 @@ class ConvEntry(MetaEntry):
         elif not isinstance(value.codec, (list, tuple)):
             raise ValueError("Codec is not a string or list")
         try:
-            typ = self.metaroot["codec"].follow(*value.codec, create=False)
+            self.metaroot["codec"].follow(*value.codec, create=False)
         except KeyError:
             raise ClientError("This codec does not exist")
         # crashes if nonexistent
@@ -296,8 +294,6 @@ class ConvName(MetaPathEntry):
 
     def enc_value(self, value, entry, **kv):
         """Check this value for this entry against my converter hierarchy"""
-        p = entry.path
-        checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
             return value
@@ -306,8 +302,6 @@ class ConvName(MetaPathEntry):
 
     def dec_value(self, value, entry, **kv):
         """Check this value for this entry against my converter hierarchy"""
-        p = entry.path
-        checks = [(self, 0)]
         conv = self._find_node(entry)
         if conv is None:
             return value

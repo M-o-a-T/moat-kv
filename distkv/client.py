@@ -66,7 +66,7 @@ class ClientEntry:
     @property
     def subpath(self):
         """Return the path, starting with the root."""
-        return self.path[len(self.root.path) :]
+        return self.path[len(self.root.path) :]  # noqa: E203
 
     def __getitem__(self, k):
         try:

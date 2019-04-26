@@ -1,15 +1,10 @@
 import pytest
-import trio
-import mock
 import jsonschema
-from time import time
 from functools import partial
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
-from distkv.util import PathLongener
 from distkv.exceptions import ClientAuthRequiredError, ClientAuthMethodError
 from distkv.auth import gen_auth
 

@@ -231,7 +231,7 @@ class NodeEvent:
     def find(self, node):
         """Return the position of a node in this chain.
         Zero if the first entry matches.
-        
+
         Returns ``None`` if not present.
         """
         res = 0
@@ -563,7 +563,7 @@ class Entry:
             logger.warn("*** inconsistency TODO ***")
             logger.warn("Node: %s", self.path)
             logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt_value)
+            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
             if evt.tock < self.tock:
                 return
 

@@ -1,13 +1,7 @@
 import pytest
 import trio
-import mock
-from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
-from .run import run
-from distkv.client import ServerError
-from distkv.util import PathLongener
 
 import logging
 
@@ -47,7 +41,7 @@ async def test_52_passthru_bin(autojump_clock):
             async def mon():
                 async with c.stream("serfmon", type="foo", raw=True) as q:
                     async for m in q:
-                        assert not "data" in m
+                        assert "data" not in m
                         recv.append(m.raw)
 
             await s.spawn(mon)

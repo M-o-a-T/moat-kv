@@ -640,7 +640,7 @@ async def type(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, yaml, verbose, script):
+async def get(obj, path, chain, yaml, verbose, script, schema):
     """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")

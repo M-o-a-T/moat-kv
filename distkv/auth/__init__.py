@@ -232,7 +232,6 @@ class BaseClientAuthMaker:
     _chain = None
 
     def __init__(self, **data):
-        props = type(self).schema.get("properties", {})
         aux = data.pop("aux", {})
 
         jsonschema.validate(instance=data, schema=type(self).schema)
@@ -367,7 +366,8 @@ class RootServerUser(BaseServerAuth):
 
 class BaseServerAuthMaker:
     """
-    This class is used on the server to verify the transmitted user record and to store it in DistKV.
+    This class is used on the server to verify the transmitted user record
+    and to store it in DistKV.
 
     The schema verifies the data from the client.
     """

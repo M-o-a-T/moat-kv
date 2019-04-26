@@ -1,9 +1,6 @@
 import pytest
 import trio
-import mock
-from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
@@ -23,11 +20,11 @@ async def test_21_load_save(autojump_clock, tmpdir):
     s = None
 
     async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
-        l = PathLongener(())
+        lg = PathLongener(())
         res = await c.request(action="watch", path=(), iter=True, nchain=9, fetch=True)
         task_status.started()
         async for m in res:
-            l(m)
+            lg(m)
             if m.get("value", None) is not None:
                 msgs.append(m)
 
@@ -37,9 +34,9 @@ async def test_21_load_save(autojump_clock, tmpdir):
             assert (await c.request("get_value", path=())).value == 234
             await c.tg.start(watch_changes, c)
 
-            r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
-            r = await c.request("set_value", path=("foo", "bar"), value="baz", nchain=3)
-            r = await c.request("set_value", path=(), value=2345, nchain=3)
+            await c.request("set_value", path=("foo",), value="hello", nchain=3)
+            await c.request("set_value", path=("foo", "bar"), value="baz", nchain=3)
+            await c.request("set_value", path=(), value=2345, nchain=3)
             await trio.sleep(1)  # allow the writer to write
             pass  # client end
 

@@ -7,9 +7,7 @@ import trio
 import mock
 import attr
 import copy
-import trio
 import time
-from pprint import pformat
 from functools import partial
 
 from distkv.client import open_client
@@ -90,7 +88,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         await old()
 
     async def mock_get_host_port(st, node):
-        i = int(node.name[node.name.rindex("_") + 1 :])
+        i = int(node.name[node.name.rindex("_") + 1 :])  # noqa: E203
         s = st.s[i]
         await s.is_serving
         return s.ports[0][0:2]
@@ -145,7 +143,6 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             is_started = IsStarted(n)
             for i in range(n):
                 if kw.get("run_" + str(i), run):
-                    r = trio.Event()
                     tg.start_soon(partial(st.s[i].serve, task_status=is_started))
                 else:
                     is_started.started()  # mock me

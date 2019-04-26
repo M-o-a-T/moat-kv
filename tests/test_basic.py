@@ -1,9 +1,7 @@
 import pytest
 import trio
-import mock
 from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
@@ -12,6 +10,7 @@ from distkv.util import PathLongener
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 # This is a basic Trio test which we keep around to check that
 # (a) the autojump clock works as advertised
@@ -70,7 +69,6 @@ async def test_01_basic(autojump_clock):
                 {"path": ("foo",), "value": "hello"},
                 {"path": ("foo", "bar"), "value": "baz"},
             ]
-            res = []
             async with c.stream("get_tree", path=(), maxdepth=2) as rr:
                 r = await collect(rr)
             assert r == exp
