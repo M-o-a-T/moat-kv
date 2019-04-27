@@ -251,7 +251,7 @@ class SCmd_auth_list(StreamCommand):
 
     multiline = True
 
-    async def send_one(self, data, nchain=2):
+    async def send_one(self, data, nchain=-1):
         from .auth import loader
 
         typ, kind, ident = data.path[-3:]
@@ -1499,7 +1499,7 @@ class Server:
                             "get_tree",
                             iter=True,
                             from_server=self.node.name,
-                            nchain=999,
+                            nchain=-1,
                             path=(),
                         )
                         async for r in res:
@@ -1739,7 +1739,7 @@ class Server:
                     logger.warn("Unknown message in stream: %s", repr(m))
         logger.info("Loading finished.")
 
-    async def _save(self, writer, shorter, nchain=99):
+    async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
 
         TODO: Add code for snapshotting.

@@ -261,7 +261,7 @@ class NodeEvent:
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
 
-    def serialize(self, nchain=100) -> dict:
+    def serialize(self, nchain=-1) -> dict:
         if not nchain:
             raise RuntimeError("A chopped-off NodeEvent must not be sent")
         res = attrdict(node=self.node.name)
@@ -269,7 +269,7 @@ class NodeEvent:
             res.tick = self.tick
         if self.prev is None:
             res.prev = None
-        elif nchain > 1:
+        elif nchain != 0:
             res.prev = self.prev.serialize(nchain - 1)
         return res
 
@@ -344,7 +344,7 @@ class UpdateEvent:
             "" if self.new_value == self.entry.data else repr(self.old_value),
         )
 
-    def serialize(self, chop_path=0, nchain=2, with_old=False, conv=None):
+    def serialize(self, chop_path=0, nchain=-1, with_old=False, conv=None):
         if conv is None:
             global ConvNull
             if ConvNull is None:
