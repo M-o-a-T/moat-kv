@@ -742,7 +742,9 @@ class ServerClient:
                 raise ClientError("Data is %s" % (repr(entry.data),))
             send_prev = False
         if "chain" in msg:
-            if entry.chain is not None:
+            if msg.chain is None and entry.data is None:
+                pass
+            elif entry.chain is not None:
                 if msg.chain is None:
                     raise ClientError("This entry already exists")
                 if entry.chain != msg.chain:
