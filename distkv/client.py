@@ -84,7 +84,7 @@ class ClientEntry:
 
         This is a coroutine.
         """
-        await self.client.request(
+        await self.client._request(
             "set_value", chain=self.chain, path=self.path, value=value
         )
         self.value = value
@@ -127,7 +127,7 @@ class ClientRoot(ClientEntry):
             self._nursery = n
 
             async def monitor(task_status=trio.TASK_STATUS_IGNORED):
-                async with self.client.stream("watch", nchain=3, path=self.path) as w:
+                async with self.client._stream("watch", nchain=3, path=self.path) as w:
                     task_status.started()
                     async for r in w:
                         entry = self
@@ -159,7 +159,7 @@ class ClientRoot(ClientEntry):
                             c = c.get("prev", None)
 
             await n.start(monitor)
-            async with self.client.stream("get_tree", nchain=3, path=self.path) as w:
+            async with self.client._stream("get_tree", nchain=3, path=self.path) as w:
                 async for r in w:
                     entry = self
                     for p in r.path:
@@ -178,7 +178,7 @@ class ClientRoot(ClientEntry):
         """Stop the monitor"""
         self._nursery.cancel_scope.cancel()
 
-    async def _wait_chain(self, chain):
+    async def wait_chain(self, chain):
         """Wait for a tree update containing this tick."""
         try:
             if chain.tick <= self._seen[chain.node]:
@@ -296,7 +296,7 @@ class StreamedRequest:
             params["state"] = "start"
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
-        await self._client.send(seq=self.seq, **params)
+        await self._client._send(seq=self.seq, **params)
 
     async def recv(self):
         return await self.__anext__()
@@ -308,14 +308,14 @@ class StreamedRequest:
     async def aclose(self, timeout=0.2):
         await self.send_q.aclose()
         if self._stream == 2:
-            await self._client.send(seq=self.seq, state="end")
+            await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
                 with trio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
                         return
-            req = await self._client.request(action="stop", task=self.seq, _async=True)
+            req = await self._client._request(action="stop", task=self.seq, _async=True)
             return await req.get()
 
 
@@ -397,7 +397,7 @@ class Client:
                 return k
 
             k = await trio.run_sync_in_worker_thread(gen_key)
-            res = await self.request(
+            res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
             await trio.run_sync_in_worker_thread(
@@ -406,7 +406,7 @@ class Client:
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
-    async def send(self, **params):
+    async def _send(self, **params):
         async with self._send_lock:
             await self._socket.send_all(_packer(params))
 
@@ -447,7 +447,7 @@ class Client:
                     except trio.ClosedResourceError:
                         pass
 
-    async def request(self, action, iter=None, seq=None, _async=False, **params):
+    async def _request(self, action, iter=None, seq=None, _async=False, **params):
         """Send a request. Wait for a reply.
 
         Args:
@@ -480,7 +480,7 @@ class Client:
         self._handlers[seq] = res
 
         # logger.debug("Send %s", params)
-        await self.send(**params)
+        await self._send(**params)
         if _async:
             return res
 
@@ -503,7 +503,7 @@ class Client:
         return res
 
     @asynccontextmanager
-    async def stream(self, action, stream=False, **params):
+    async def _stream(self, action, stream=False, **params):
         """Send and receive a multi-message request.
 
         Args:
@@ -514,16 +514,16 @@ class Client:
 
         This is a context manager. Use it like this::
 
-            async with client.stream("update", path="private storage".split(), stream=True) as req:
+            async with client._stream("update", path="private storage".split(), stream=True) as req:
                 with MsgReader("/tmp/msgs.pack") as f:
                     for msg in f:
                         await req.send(msg)
             # … or …
-            async with client.stream("get_tree", path="private storage".split()) as req:
+            async with client._stream("get_tree", path="private storage".split()) as req:
                 for msg in req:
                     await process_entry(msg)
             # … or maybe … (auth does this)
-            async with client.stream("interactive_thing", path=(None,"foo")) as req:
+            async with client._stream("interactive_thing", path=(None,"foo")) as req:
                 msg = await req.recv()
                 while msg.get(s,"")=="more":
                     await foo.send(s="more",value="some data")
@@ -549,15 +549,6 @@ class Client:
             raise
         finally:
             await res.aclose()
-
-    def mirror(self, *path, **kw):
-        """An async context manager that affords an update-able mirror
-        of part of a DistKV store.
-
-        Returns: the root of this tree.
-        """
-        root = ClientRoot(self, *path, **kw)
-        return root.run()
 
     async def _run_auth(self, auth=None):
         hello = self._server_init
@@ -617,3 +608,24 @@ class Client:
                     await self._socket.aclose()
                     self._socket = None
                 self.tg = None
+
+    def mirror(self, *path, **kw):
+        """An async context manager that affords an update-able mirror
+        of part of a DistKV store.
+
+        Returns: the root of this tree.
+
+        Usage::
+            async with distkv.open_client() as c:
+                async with c.mirror("foo", "bar", need_wait=True) as foobar:
+                    r = await c.set_value("foo", "bar", "baz", value="test")
+                    foobar.wait_chain(r.chain)
+                    assert foobar['baz'].value == "test"
+
+        This call is intended for mirroring a DistKV hierarchy on the
+        client. 
+
+        """
+        root = ClientRoot(self, *path, **kw)
+        return root.run()
+

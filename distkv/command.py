@@ -240,7 +240,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             kw["maxdepth"] = maxdepth
         if mindepth is not None:
             kw["mindepth"] = mindepth
-        res = await obj.client.request(
+        res = await obj.client._request(
             action="get_tree", path=path, iter=True, nchain=chain, **kw
         )
         pl = PathLongener(path)
@@ -278,7 +278,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         return
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="get_value", path=path, iter=False, nchain=chain
     )
     if not verbose:
@@ -325,7 +325,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
         else:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="set_value", value=value, path=path, iter=False, nchain=chain, **args
     )
     if yaml:
@@ -349,7 +349,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
 @click.pass_obj
 async def delete(obj, path, chain, recursive):
     """Delete a node."""
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="delete_tree" if recursive else "delete_value", path=path, nchain=chain
     )
     if isinstance(res, StreamedRequest):
@@ -377,7 +377,7 @@ async def watch(obj, path, chain, yaml, state):
     """Watch a DistKV subtree"""
     if yaml:
         import yaml
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="watch", path=path, iter=True, nchain=chain, fetch=state
     )
     pl = PathLongener(path)
@@ -405,7 +405,7 @@ async def update(obj, path, infile, local, force):
 
     ps = PathShortener()
     async with MsgReader() as reader:
-        with obj.client.stream(
+        with obj.client._stream(
             action="update", path=path, force=force, local=local
         ) as sender:
             async for r in reader:
@@ -420,7 +420,7 @@ async def update(obj, path, infile, local, force):
 @click.pass_obj
 async def auth(obj, method):
     """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
-    a = await obj.client.request(action="get_value", path=(None, "auth"))
+    a = await obj.client._request(action="get_value", path=(None, "auth"))
     a = a.value
     if a is not None:
         a = a["current"]
@@ -438,7 +438,7 @@ async def enum_auth(obj):
     if obj.get("auth", None) is not None:
         yield obj.auth
         return
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="get_tree",
         path=(None, "auth"),
         iter=True,
@@ -468,7 +468,7 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
     """List all known auth entries of a kind."""
     async for auth in enum_auth(obj):
         if ident is not None:
-            res = await obj.client.request(
+            res = await obj.client._request(
                 action="auth_list",
                 typ=auth,
                 kind=kind,
@@ -478,7 +478,7 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
             )
             yield res
         else:
-            async with obj.client.stream(
+            async with obj.client._stream(
                 action="auth_list", typ=auth, kind=kind, nchain=nchain
             ) as res:
                 async for r in res:
@@ -501,7 +501,7 @@ async def init(obj, switch):
     if obj.auth_current is not None and not switch:
         raise click.UsageError("Authentication is already set up")
 
-    await obj.client.request(action="set_auth_typ", typ=obj.auth)
+    await obj.client._request(action="set_auth_typ", typ=obj.auth)
     if obj.debug >= 0:
         if obj.auth:
             print("Authorization switched to", obj.auth)
@@ -644,7 +644,7 @@ async def get(obj, path, chain, yaml, verbose, script, schema):
     """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="get_internal",
         path=("type",) + path,
         iter=False,
@@ -725,7 +725,7 @@ async def set(obj, path, good, bad, verbose, script, schema, yaml):
     elif schema:
         raise click.UsageError("Duplicate schema parameter")
 
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="set_internal",
         value=msg,
         path=("type",) + path,
@@ -757,11 +757,11 @@ async def match(obj, path, type, delete, verbose):
         raise click.UsageError("You can't both set and delete a path.")
 
     if delete:
-        await obj.client.request(action="delete_internal", path=("type",) + path)
+        await obj.client._request(action="delete_internal", path=("type",) + path)
         return
 
     msg = {"type": type}
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="set_internal",
         value=msg,
         path=("match",) + path,
@@ -806,7 +806,7 @@ async def get(obj, path, chain, yaml, verbose, script, encode, decode):
     """Read type information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="get_internal",
         path=("type",) + path,
         iter=False,
@@ -872,7 +872,7 @@ async def set(obj, path, verbose, encode, decode, script, yaml):
     elif decode and not yaml:
         raise click.UsageError("Duplicate decode parameter")
 
-    res = await obj.client.request(
+    res = await obj.client._request(
         action="set_internal",
         value=msg,
         path=("codec",) + path,
@@ -907,12 +907,12 @@ async def convert(obj, path, codec, name, delete, verbose):
         raise click.UsageError("You can't both set and delete a path.")
 
     if delete:
-        res = await obj.client.request(
+        res = await obj.client._request(
             action="delete_internal", path=("conv", name) + path
         )
     else:
         msg = {"codec": codec}
-        res = await obj.client.request(
+        res = await obj.client._request(
             action="set_internal",
             value=msg,
             path=("conv", name) + path,

@@ -196,7 +196,7 @@ class BaseClientAuth:
         Authorizes this record with the server.
         """
         try:
-            await client.request(
+            await client._request(
                 action="auth",
                 typ=self._auth_method,
                 iter=False,
@@ -261,7 +261,7 @@ class BaseClientAuthMaker:
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
-        res = await client.request(
+        res = await client._request(
             "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
         """Read this user from the server."""
@@ -272,7 +272,7 @@ class BaseClientAuthMaker:
     async def send(self, client: Client, _kind="user"):
         """Send this user to the server."""
         try:
-            await client.request(
+            await client._request(
                 "auth_set",
                 iter=False,
                 typ=type(self)._auth_method,

@@ -1495,7 +1495,7 @@ class Server:
                     async with distkv_client.open_client(host, port) as client:
                         # TODO auth this client
 
-                        res = await client.request(
+                        res = await client._request(
                             "get_tree",
                             iter=True,
                             from_server=self.node.name,
@@ -1511,7 +1511,7 @@ class Server:
                             )
                         self.tock_seen(res.end_msg.tock)
 
-                        res = await client.request(
+                        res = await client._request(
                             "get_state",
                             nodes=True,
                             from_server=self.node.name,
