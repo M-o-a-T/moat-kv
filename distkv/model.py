@@ -341,7 +341,7 @@ class UpdateEvent:
             else ""
             if self.new_value == self.entry.data
             else repr(self.old_value),
-            "" if self.new_value == self.entry.data else repr(self.old_value),
+            repr(self.new_value),
         )
 
     def serialize(self, chop_path=0, nchain=-1, with_old=False, conv=None):
