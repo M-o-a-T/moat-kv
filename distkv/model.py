@@ -269,7 +269,7 @@ class NodeEvent:
             res.tick = self.tick
         if self.prev is None:
             res.prev = None
-        elif nchain != 0:
+        elif nchain != 1:
             res.prev = self.prev.serialize(nchain - 1)
         return res
 
