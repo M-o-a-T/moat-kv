@@ -128,12 +128,12 @@ async def test_71_basic(autojump_clock):
                 value={"type": ("int", "percent")},
             )
 
-            await c._request("set_value", path=("one", "x", "two"), value=99)
+            await c.set("one", "x", "two", value=99)
             with pytest.raises(ServerError):
-                await c._request("set_value", path=("one", "y", "two"), value=9.9)
+                await c.set("one", "y", "two", value=9.9)
             with pytest.raises(ServerError):
-                await c._request("set_value", path=("one", "y", "two"), value="zoz")
-            await c._request("set_value", path=("one", "y"), value="zoz")
+                await c.set("one", "y", "two", value="zoz")
+            await c.set("one", "y", value="zoz")
 
             pass  # client end
         pass  # server end
@@ -213,9 +213,7 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
                 await rr("set", "-ev", "5.5", "foo", "dud", "bar")
             await rr("set", "-ev", "55", "foo", "dud", "bar")
 
-            assert (
-                await c._request("get_value", path=("foo", "dud", "bar"))
-            ).value == 55
+            assert (await c.get("foo", "dud", "bar")).value == 55
 
             pass  # client end
         pass  # server end

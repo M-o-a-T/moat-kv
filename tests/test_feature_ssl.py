@@ -25,14 +25,14 @@ async def test_41_ssl_basic(autojump_clock):
     async with stdtest(ssl=True, args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c._request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
-            r = await c._request("set_value", path=("foo",), value="hello", nchain=3)
-            r = await c._request("set_value", path=("foo", "bar"), value="baz", nchain=3)
-            r = await c._request("get_value", path=())
+            r = await c.set("foo", value="hello", nchain=3)
+            r = await c.set("foo", "bar", value="baz", nchain=3)
+            r = await c.get()
             assert r.value == 123
 
-            r = await c._request("get_value", path=("foo",))
+            r = await c.get("foo")
             assert r.value == "hello"
 
             exp = [
@@ -54,7 +54,7 @@ async def test_41_ssl_basic(autojump_clock):
                 r = await collect(rr)
             assert r == exp
 
-            r = await c._request("get_value", path=("foo", "bar"))
+            r = await c.get("foo", "bar")
             assert r.value == "baz"
 
             r = await c._request(
@@ -75,7 +75,7 @@ async def test_41_ssl_basic(autojump_clock):
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c._request("set_value", path=(), value=1234, nchain=3)
+            r = await c.set(value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 

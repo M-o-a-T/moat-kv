@@ -2,6 +2,7 @@ import pytest
 import trio
 
 from .mock_serf import stdtest
+
 # from .run import run
 # from functools import partial
 
@@ -70,24 +71,20 @@ async def test_71_basic(autojump_clock):
         await s.spawn(mon, evt)
         await evt.wait()
         async with st.client(auth=um.build({"name": "con"})) as c:
-            await c._request("set_value", path=("inty", "ten"), value="10")
+            await c.set("inty", "ten", value="10")
             with pytest.raises(ServerError):
-                await c._request("set_value", path=("inty", "nope"), value=11)
-            await c._request("set_value", path=("inty", "yep", "yepyepyep"), value="13")
+                await c.set("inty", "nope", value=11)
+            await c.set("inty", "yep", "yepyepyep", value="13")
             with pytest.raises(ServerError):
-                await c._request(
-                    "set_value", path=("inty", "nope", "nopenope"), value=12
-                )
-            await c._request(
-                "set_value", path=("inty", "yep", "yepyepyep", "yep"), value="99"
-            )
-            await c._request("set_value", path=("inty",), value="hello")
+                await c.set("inty", "nope", "nopenope", value=12)
+            await c.set("inty", "yep", "yepyepyep", "yep", value="99")
+            await c.set("inty", value="hello")
 
-            r = await c._request("get_value", path=("inty",))
+            r = await c.get("inty")
             assert r.value == "hello"
-            r = await c._request("get_value", path=("inty", "ten"))
+            r = await c.get("inty", "ten")
             assert r.value == "10"
-            r = await c._request("get_value", path=("inty", "yep", "yepyepyep"))
+            r = await c.get("inty", "yep", "yepyepyep")
             assert r.value == "13"
 
             # run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])

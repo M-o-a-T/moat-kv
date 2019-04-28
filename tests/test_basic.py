@@ -53,15 +53,15 @@ async def test_01_basic(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c._request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
-            r = await c._request("set_value", path=("foo",), value="hello", nchain=3)
-            r = await c._request("set_value", path=("foo", "bar"), value="baz", nchain=3)
+            r = await c.set("foo", value="hello", nchain=3)
+            r = await c.set("foo", "bar", value="baz", nchain=3)
             bart = r.tock
-            r = await c._request("get_value", path=())
+            r = await c.get()
             assert r.value == 123
 
-            r = await c._request("get_value", path=("foo",))
+            r = await c.get("foo")
             assert r.value == "hello"
 
             exp = [
@@ -83,7 +83,7 @@ async def test_01_basic(autojump_clock):
                 r = await collect(rr)
             assert r == exp
 
-            r = await c._request("get_value", path=("foo", "bar"))
+            r = await c.get("foo", "bar")
             assert r.value == "baz"
             assert r.tock == bart
 
@@ -105,7 +105,7 @@ async def test_01_basic(autojump_clock):
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c._request("set_value", path=(), value=1234, nchain=3)
+            r = await c.set(value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 
@@ -118,7 +118,7 @@ async def test_01_basic(autojump_clock):
             # works
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
-            r = await c._request("set_value", path=("foo", "bar"), value="bazz")
+            r = await c.set("foo", "bar", value="bazz")
             assert r.tock > bart
             bart = r.tock
 
@@ -134,10 +134,10 @@ async def test_01_basic(autojump_clock):
                 "remote_missing": {},
             }
 
-            r = await c._request("delete_value", path=("foo",))
+            r = await c.delete("foo")
             assert r.tock > bart
 
-            r = await c._request("get_value", path=("foo", "bar"))
+            r = await c.get("foo", "bar")
             assert r.value == "bazz"
             assert r.tock == bart
 
@@ -150,7 +150,7 @@ async def test_02_cmd(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c._request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
             r = await run(
                 "client",

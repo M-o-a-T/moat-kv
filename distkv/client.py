@@ -48,7 +48,8 @@ async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
 
 
 class ClientEntry:
-    """A helper class that represents a server entry on the client.
+    """A helper class that represents a node on the server, as returned by
+    :meth:`Client.mirror`.
     """
 
     def __init__(self, parent, name=None):
@@ -356,6 +357,12 @@ class _SingleReply:
 
 
 class Client:
+    """
+    The client side of a DistKV connection.
+
+    Use :func:`open_client` to use this class.
+    """
+
     _server_init = None  # Server greeting
     _dh_key = None
 
@@ -514,7 +521,8 @@ class Client:
 
         This is a context manager. Use it like this::
 
-            async with client._stream("update", path="private storage".split(), stream=True) as req:
+            async with client._stream("update", path="private storage".split(),
+                    stream=True) as req:
                 with MsgReader("/tmp/msgs.pack") as f:
                     for msg in f:
                         await req.send(msg)
@@ -609,6 +617,136 @@ class Client:
                     self._socket = None
                 self.tg = None
 
+    # externally visible interface ##########################
+
+    def get(self, *path, nchain=0):
+        """
+        Retrieve the data at a particular subtree position.
+
+        Usage::
+            res = await client.get("foo","bar")
+
+        If you want to update this value, you should retrieve its change chain entry
+        so that a competing update can be detected::
+
+            res = await client.get("foo","bar", nchain=-1)
+            res = await client.set("foo","bar", value=res.value+1, chain=res.chain)
+
+        For lower overhead and set-directly-after-get change, nchain may be 1 or 2.
+        """
+        return self._request(action="get_value", path=path, iter=False, nchain=nchain)
+
+    def set(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+        """
+        Set or update a value.
+
+        Usage::
+            await client.set("foo","bar", value="baz", chain=None)
+
+        Arguments:
+            value: the value to set. Duh. ;-)
+            chain: the previous value's change chain. Use ``None`` for new values.
+            prev: the previous value. Discouraged; use ``chain`` instead.
+            nchain: set to retrieve the node's chain tag, for further updates.
+        """
+        if value is NoData:
+            raise RuntimeError("You need to supply a value")
+
+        kw = {}
+        if prev is not NoData:
+            kw["prev"] = prev
+        if chain is not NoData:
+            kw["chain"] = chain
+
+        return self._request(
+            action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
+        )
+
+    def delete(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+        """
+        Delete a node.
+
+        Usage::
+            await client.delete("foo","bar")
+
+        Arguments:
+            chain: the previous value's change chain.
+            prev: the previous value. Discouraged; use ``chain`` instead.
+            nchain: set to retrieve the node's chain, for setting a new value.
+        """
+        kw = {}
+        if prev is not NoData:
+            kw["prev"] = prev
+        if chain is not NoData:
+            kw["chain"] = chain
+
+        return self._request(
+            action="delete_value", path=path, iter=False, nchain=nchain, **kw
+        )
+
+    def get_tree(self, *path, **kw):
+        """
+        Retrieve a complete DistKV subtree.
+
+        This call results in a stream of tree nodes. Storage of these nodes,
+        if required, is up to the caller. Also, the server does not
+        take a snapshot for you, thus the data may be inconsistent.
+
+        Use :meth:`mirror` if you want this tree to be kept up-to-date or
+        if you need a consistent snapshot.
+
+        Args:
+            nchain: Length of change chain to add to the results, for updating.
+            min_depth, max_depth: level of nodes to retrieve.
+
+        """
+        return self._request(action="get_tree", path=path, iter=True, **kw)
+
+    def delete_tree(self, *path, nchain=0):
+        """
+        Delete a whole subtree.
+
+        If you set ``nchain``, this call will return an async iterator over
+        the deleted nodes; if not, the single return value only contains the
+        number of deleted nodes.
+        """
+        return self._request(action="delete_tree", path=path, nchain=nchain)
+
+    def stop(self, seq: int):
+        """End this stream or request.
+
+        Args:
+            seq: the sequence number of the request in question.
+
+        TODO: DistKV doesn't do per-command flow control yet, so you should
+        call this method from a different task if you don't want to risk a
+        deadlock.
+        """
+        return self._request(task=seq)
+
+    def watch(self, *path, fetch=False, nchain=0):
+        """
+        Return a stream of changes to a subtree.
+
+        Args:
+            fetch: if ``True``, also send the currect state. Be aware that
+                   this may overlap with processing changes: you may get
+                   updates before the current state is completely
+                   transmitted.
+            nchain: add the nodes' change chains.
+
+        The result should be passed through a :cls:`distkv.util.PathLongener`.
+
+        If ``fetch`` is set, a ``state="uptodate"`` message will be sent
+        as soon as sending the current state is completed.
+
+        DistKV will not send stale data, so you may always replace a path's
+        old cached state with the newly-arrived data.
+        """
+        return self._request(
+            action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
+        )
+
     def mirror(self, *path, **kw):
         """An async context manager that affords an update-able mirror
         of part of a DistKV store.
@@ -621,11 +759,10 @@ class Client:
                     r = await c.set_value("foo", "bar", "baz", value="test")
                     foobar.wait_chain(r.chain)
                     assert foobar['baz'].value == "test"
-
-        This call is intended for mirroring a DistKV hierarchy on the
-        client. 
+                pass
+                # At this point you can still access the tree's data
+                # via ``foobar``, but they will no longer be kept up-to-date.
 
         """
         root = ClientRoot(self, *path, **kw)
         return root.run()
-

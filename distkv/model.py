@@ -544,28 +544,34 @@ class Entry:
         if root is not None and None in root:
             chk = root[None].get("match", None)
 
-        if evt.event == self.chain:
-            assert self._data == evt.new_value, (
-                "has:",
-                self._data,
-                "but should have:",
-                evt.new_value,
-            )
-            return
-        if self.chain > evt.event:  # already superseded
-            return
+        if evt.event is None and self.chain is None:
+            pass
+        else:
+            if evt.event == self.chain:
+                assert self._data == evt.new_value, (
+                    "has:",
+                    self._data,
+                    "but should have:",
+                    evt.new_value,
+                )
+                return
+            if self.chain > evt.event:  # already superseded
+                return
+
+            if not (self.chain < evt.event):
+                logger.warn("*** inconsistency ***")
+                logger.warn("Node: %s", self.path)
+                logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
+                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
+                if evt.tock < self.tock:
+                    logger.warn("New value ignored")
+                    return
+                logger.warn("New value used")
 
         if hasattr(evt, "new_value"):
             evt_val = evt.new_value
         else:
             evt_val = evt.value
-        if not (self.chain < evt.event):
-            logger.warn("*** inconsistency TODO ***")
-            logger.warn("Node: %s", self.path)
-            logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
-            if evt.tock < self.tock:
-                return
 
         if chk is not None:
             chk.check_value(evt_val, self)

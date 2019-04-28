@@ -240,9 +240,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             kw["maxdepth"] = maxdepth
         if mindepth is not None:
             kw["mindepth"] = mindepth
-        res = await obj.client._request(
-            action="get_tree", path=path, iter=True, nchain=chain, **kw
-        )
+        res = await obj.client.get_tree(*path, nchain=chain, **kw)
         pl = PathLongener(path)
         y = {} if as_dict is not None else []
         async for r in res:
@@ -278,9 +276,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         return
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
-    res = await obj.client._request(
-        action="get_value", path=path, iter=False, nchain=chain
-    )
+    res = await obj.client.get(*path, nchain=chain)
     if not verbose:
         res = res.value
     if yaml:
@@ -325,9 +321,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
         else:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client._request(
-        action="set_value", value=value, path=path, iter=False, nchain=chain, **args
-    )
+    res = await obj.client.set(*path, value=value, nchain=chain, **args)
     if yaml:
         import yaml
 
@@ -377,9 +371,7 @@ async def watch(obj, path, chain, yaml, state):
     """Watch a DistKV subtree"""
     if yaml:
         import yaml
-    res = await obj.client._request(
-        action="watch", path=path, iter=True, nchain=chain, fetch=state
-    )
+    res = await obj.client.watch(*path, nchain=chain, fetch=state)
     pl = PathLongener(path)
     async for r in res:
         pl(r)
@@ -420,7 +412,7 @@ async def update(obj, path, infile, local, force):
 @click.pass_obj
 async def auth(obj, method):
     """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
-    a = await obj.client._request(action="get_value", path=(None, "auth"))
+    a = await obj.client.get(None, "auth")
     a = a.value
     if a is not None:
         a = a["current"]
@@ -438,6 +430,7 @@ async def enum_auth(obj):
     if obj.get("auth", None) is not None:
         yield obj.auth
         return
+    # TODO create a method for this
     res = await obj.client._request(
         action="get_tree",
         path=(None, "auth"),
