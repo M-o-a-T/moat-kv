@@ -608,7 +608,7 @@ class Entry:
                 from .types import ConvNull
             conv = ConvNull
         res = attrdict(value=conv.enc_value(self._data, entry=self))
-        if self.chain is not None and nchain > 0:
+        if self.chain is not None and nchain != 0:
             res.chain = self.chain.serialize(nchain=nchain)
         res.tock = self.tock
         if chop_path >= 0:

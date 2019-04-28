@@ -261,7 +261,7 @@ class SCmd_auth_list(StreamCommand):
         res["typ"] = typ
         res["kind"] = kind
         res["ident"] = ident
-        if data.chain is not None and nchain > 0:
+        if data.chain is not None and nchain != 0:
             res["chain"] = data.chain.serialize(nchain=nchain)
 
         await self.send(**res)
@@ -765,7 +765,7 @@ class ServerClient:
             )
 
         nchain = msg.get("nchain", 1)
-        if nchain > 0:
+        if nchain != 0:
             res["chain"] = entry.chain.serialize(nchain=nchain)
         res["tock"] = entry.tock
         return res
