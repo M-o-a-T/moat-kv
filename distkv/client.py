@@ -726,7 +726,7 @@ class Client:
 
     def watch(self, *path, fetch=False, nchain=0):
         """
-        Return a stream of changes to a subtree.
+        Return an async iterator of changes to a subtree.
 
         Args:
             fetch: if ``True``, also send the currect state. Be aware that
@@ -743,7 +743,7 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._request(
+        return self._stream(
             action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
         )
 
