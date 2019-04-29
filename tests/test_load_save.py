@@ -1,9 +1,6 @@
 import pytest
 import trio
-import mock
-from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
@@ -23,23 +20,23 @@ async def test_21_load_save(autojump_clock, tmpdir):
     s = None
 
     async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
-        l = PathLongener(())
-        res = await c.request(action="watch", path=(), iter=True, nchain=9, fetch=True)
+        lg = PathLongener(())
+        res = await c.watch(nchain=3, fetch=True)
         task_status.started()
         async for m in res:
-            l(m)
+            lg(m)
             if m.get("value", None) is not None:
                 msgs.append(m)
 
     async with stdtest(args={"init": 234}, tocks=30) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c.request("get_value", path=())).value == 234
+            assert (await c.get()).value == 234
             await c.tg.start(watch_changes, c)
 
-            r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
-            r = await c.request("set_value", path=("foo", "bar"), value="baz", nchain=3)
-            r = await c.request("set_value", path=(), value=2345, nchain=3)
+            await c.set("foo", value="hello", nchain=3)
+            await c.set("foo", "bar", value="baz", nchain=3)
+            await c.set(value=2345, nchain=3)
             await trio.sleep(1)  # allow the writer to write
             pass  # client end
 
@@ -87,10 +84,10 @@ async def test_21_load_save(autojump_clock, tmpdir):
         async with st.client() as c:
             await c.tg.start(watch_changes, c)
 
-            await c.request("set_value", path=("foof",), value="again")
-            assert (await c.request("get_value", path=("foo",))).value == "hello"
-            assert (await c.request("get_value", path=("foo", "bar"))).value == "baz"
-            assert (await c.request("get_value", path=(()))).value == 2345
+            await c.set("foof", value="again")
+            assert (await c.get("foo")).value == "hello"
+            assert (await c.get("foo", "bar")).value == "baz"
+            assert (await c.get()).value == 2345
             await trio.sleep(1)  # allow the writer to write
     for m in msgs:
         m.pop("tock", None)
@@ -125,7 +122,7 @@ async def test_02_cmd(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c.request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
             r = await run(
                 "client",
@@ -164,7 +161,7 @@ async def test_02_cmd(autojump_clock):
             )
             assert r.stdout == "'baz'\n"
 
-            r = await c.request(
+            r = await c._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True
             )
             del r["tock"]
@@ -176,26 +173,26 @@ async def test_02_cmd(autojump_clock):
                 "remote_missing": {},
             }
 
-            assert (await c.request("get_value", node="test_0", tick=1)).value == 123
+            assert (await c._request("get_value", node="test_0", tick=1)).value == 123
             assert (
-                await c.request("get_value", node="test_0", tick=2)
+                await c._request("get_value", node="test_0", tick=2)
             ).value == "hello"
-            assert (await c.request("get_value", node="test_0", tick=3)).value == "baz"
+            assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c.request("set_value", path=(), value=1234, nchain=3)
+            r = await c._request("set_value", path=(), value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 
             # does not yet exist
             with pytest.raises(ServerError):
-                await c.request("get_value", node="test_0", tick=8)
+                await c._request("get_value", node="test_0", tick=8)
             # has been superseded
             with pytest.raises(ServerError):
-                await c.request("get_value", node="test_0", tick=1)
+                await c._request("get_value", node="test_0", tick=1)
             # works
-            assert (await c.request("get_value", node="test_0", tick=4)).value == 1234
+            assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
-            r = await c.request(
+            r = await c._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True
             )
             del r["tock"]
@@ -215,9 +212,9 @@ async def test_03_three(autojump_clock):
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
         s, si = st.s
         async with st.client(1) as ci:
-            assert (await ci.request("get_value", path=())).value == 125
+            assert (await ci.get()).value == 125
 
-            r = await ci.request(
+            r = await ci._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True
             )
             del r["tock"]
@@ -266,7 +263,7 @@ async def test_03_three(autojump_clock):
             async with st.client(0) as c:
 
                 # At this point ci shall be fully integrated, and test_1 shall know this (mostly).
-                r = await ci.request(
+                r = await ci._request(
                     "get_state",
                     nodes=True,
                     known=True,
@@ -287,9 +284,9 @@ async def test_03_three(autojump_clock):
                     "remote_missing": {},
                 }
 
-                assert (await c.request("get_value", path=())).value == 125
+                assert (await c.get()).value == 125
 
-                r = await c.request("set_value", path=(), value=126, nchain=3)
+                r = await c.set(value=126, nchain=3)
                 assert r.prev == 125
                 assert r.chain.tick == 1
                 assert r.chain.node == "test_0"
@@ -301,7 +298,7 @@ async def test_03_three(autojump_clock):
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
                 await trio.sleep(1)
-                r = await ci.request("set_value", path=(), value=127, nchain=3)
+                r = await ci.set(value=127, nchain=3)
                 assert r.prev == 126
                 assert r.chain.tick == 2
                 assert r.chain.node == "test_1"
@@ -311,13 +308,13 @@ async def test_03_three(autojump_clock):
                 assert r.chain.prev.prev is None
 
                 with pytest.raises(ServerError):
-                    await c.request("get_value", node="test_1", tick=1)
+                    await c._request("get_value", node="test_1", tick=1)
                 with pytest.raises(ServerError):
-                    await ci.request("get_value", node="test_1", tick=1)
+                    await ci._request("get_value", node="test_1", tick=1)
 
                 # Now test that the internal states match.
                 await trio.sleep(1)
-                r = await c.request(
+                r = await c._request(
                     "get_state",
                     nodes=True,
                     known=True,
@@ -334,7 +331,7 @@ async def test_03_three(autojump_clock):
                 }
                 pass  # client2 end
 
-            r = await ci.request(
+            r = await ci._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True
             )
             del r["tock"]

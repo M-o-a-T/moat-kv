@@ -98,11 +98,10 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     # Overly-complicated methods of exchanging the user name
 
-
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
-        async with client.stream(
+        async with client._stream(
             action="auth_get",
             typ=cls._auth_method,
             kind=_kind,
@@ -123,7 +122,7 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     async def send(self, client: Client, _kind="user"):
         """Send a record representing this user to the server."""
-        async with client.stream(
+        async with client._stream(
             action="auth_set", typ=type(self)._auth_method, kind=_kind, stream=True
         ) as s:
             # we could initially send the ident but don't here, for testing

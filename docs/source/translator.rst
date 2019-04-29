@@ -150,6 +150,7 @@ of 2-tuples with that conversion's source value and its result. "in"
 corresponds to decoding, "out" to encoding – much like Python's binary
 codecs.
 
+.. autofunction:: distkv.util.combine_dict
 
 Converters
 ==========
@@ -166,8 +167,54 @@ pointing attribute is named ``codec`` instead of ``type``.
 Putting it all together
 =======================
 
-Given this data structure, the user "*" will only be able to store
-binary values under the "here be bytes" key::
+Given the following data structure, the user "conv" will only be able to
+write stringified integers under keys below the "inty" key, which will be
+stored as integers::
 
 
+    null:
+      auth:
+        _:
+          current: _test
+        _test:
+          user:
+            con:
+              _:
+                _aux:
+                  conv: foo
+            std:
+              _:
+                _aux: {}
+      codec:
+        int:
+          _:
+            decode: assert isinstance(value,str); return int(value)
+            encode: return str(value)
+            in:
+            - [ '1', 1 ]
+            - [ '2', 2 ]
+            - [ '3', 3 ]
+            out:
+            - [ 1, '1' ]
+            - [ 2, '2' ]
+            - [ -3, '-3' ]
+      conv:
+        foo:
+          inty:
+            '#':
+              _:
+                codec:
+                - int
+    inty:
+      _: hello
+      ten:
+        _: 10
+      yep:
+        yepyepyep:
+          _: 13
+          yep:
+            _: 99
+    
 
+The above is the content at the enf of the testcase
+``tests/test_feature_convert.py::test_71_basic``.

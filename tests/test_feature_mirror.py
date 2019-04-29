@@ -1,13 +1,6 @@
 import pytest
-import trio
-import mock
-from time import time
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
-from .run import run
-from distkv.client import ServerError
-from distkv.util import PathLongener
 
 import logging
 
@@ -20,13 +13,11 @@ async def test_61_basic(autojump_clock):
         s, = st.s
         async with st.client() as c:
             async with c.mirror("foo", need_wait=True) as m:
-                assert (await c.request("get_value", path=())).value == 123
+                assert (await c.get()).value == 123
 
-                r = await c.request("set_value", path=("foo",), value="hello", nchain=3)
-                r = await c.request(
-                    "set_value", path=("foo", "bar"), value="baz", nchain=3
-                )
-                await m._wait_chain(r.chain)
+                r = await c.set("foo", value="hello", nchain=3)
+                r = await c.set("foo", "bar", value="baz", nchain=3)
+                await m.wait_chain(r.chain)
                 assert m.value == "hello"
                 assert m["bar"].value == "baz"
 

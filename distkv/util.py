@@ -135,7 +135,7 @@ class PathShortener:
                 "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
             )
 
-        p = res["path"][self.depth :]
+        p = res["path"][self.depth :]  # noqa: E203
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
@@ -402,7 +402,7 @@ def split_one(p, kw):
 
 def make_proc(code, vars, *path, use_async=False):
     """Compile this code block to a procedure.
-    
+
     Args:
         code: the code block to execute
         vars: variable names to pass into the code

@@ -147,7 +147,7 @@ class ClientUserMaker(BaseClientAuthMaker):
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
-        m = client.request(
+        m = client._request(
             action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
         # just to verify that the user exists
@@ -161,7 +161,7 @@ class ClientUserMaker(BaseClientAuthMaker):
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 
-        await client.request(
+        await client._request(
             action="auth_set",
             ident=self._name,
             typ=type(self)._auth_method,
@@ -206,7 +206,7 @@ class ClientUser(BaseClientAuth):
         """
         try:
             pw = await pack_pwd(client, self._pass, self._length)
-            await client.request(
+            await client._request(
                 action="auth",
                 typ=self._auth_method,
                 iter=False,

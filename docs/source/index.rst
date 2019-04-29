@@ -70,6 +70,7 @@ an etcd2 compatibility service yet.
    client_protocol.rst
    server_protocol.rst
    auth.rst
+   translator.rst
    history.rst
 
 ====================

@@ -1,15 +1,10 @@
 import pytest
-import trio
-import mock
 import jsonschema
-from time import time
 from functools import partial
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
-from distkv.util import PathLongener
 from distkv.exceptions import ClientAuthRequiredError, ClientAuthMethodError
 from distkv.auth import gen_auth
 
@@ -25,7 +20,7 @@ async def test_22_auth_basic(autojump_clock):
         run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
 
         async with st.client() as c:
-            assert (await c.request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
         r = await run_c("get")
         assert r.stdout == "123\n"
@@ -41,14 +36,14 @@ async def test_22_auth_basic(autojump_clock):
             await run_c("get")
         with pytest.raises(ClientAuthRequiredError):
             async with st.client() as c:
-                assert (await c.request("get_value", path=())).value == 123
+                assert (await c.get()).value == 123
 
         r = await run_c("-a", "root", "get")
         assert r.stdout == "123\n"
 
         anull = gen_auth("root")
         async with st.client(auth=anull) as c:
-            assert (await c.request("get_value", path=())).value == 123
+            assert (await c.get()).value == 123
 
         r = await run_c("-a", "root", "auth", "user", "list")
         assert r.stdout == "*\n"

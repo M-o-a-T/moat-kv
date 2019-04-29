@@ -48,7 +48,8 @@ async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
 
 
 class ClientEntry:
-    """A helper class that represents a server entry on the client.
+    """A helper class that represents a node on the server, as returned by
+    :meth:`Client.mirror`.
     """
 
     def __init__(self, parent, name=None):
@@ -66,7 +67,7 @@ class ClientEntry:
     @property
     def subpath(self):
         """Return the path, starting with the root."""
-        return self.path[len(self.root.path) :]
+        return self.path[len(self.root.path) :]  # noqa: E203
 
     def __getitem__(self, k):
         try:
@@ -84,7 +85,7 @@ class ClientEntry:
 
         This is a coroutine.
         """
-        await self.client.request(
+        await self.client._request(
             "set_value", chain=self.chain, path=self.path, value=value
         )
         self.value = value
@@ -127,7 +128,7 @@ class ClientRoot(ClientEntry):
             self._nursery = n
 
             async def monitor(task_status=trio.TASK_STATUS_IGNORED):
-                async with self.client.stream("watch", nchain=3, path=self.path) as w:
+                async with self.client._stream("watch", nchain=3, path=self.path) as w:
                     task_status.started()
                     async for r in w:
                         entry = self
@@ -159,7 +160,7 @@ class ClientRoot(ClientEntry):
                             c = c.get("prev", None)
 
             await n.start(monitor)
-            async with self.client.stream("get_tree", nchain=3, path=self.path) as w:
+            async with self.client._stream("get_tree", nchain=3, path=self.path) as w:
                 async for r in w:
                     entry = self
                     for p in r.path:
@@ -178,7 +179,7 @@ class ClientRoot(ClientEntry):
         """Stop the monitor"""
         self._nursery.cancel_scope.cancel()
 
-    async def _wait_chain(self, chain):
+    async def wait_chain(self, chain):
         """Wait for a tree update containing this tick."""
         try:
             if chain.tick <= self._seen[chain.node]:
@@ -296,7 +297,7 @@ class StreamedRequest:
             params["state"] = "start"
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
-        await self._client.send(seq=self.seq, **params)
+        await self._client._send(seq=self.seq, **params)
 
     async def recv(self):
         return await self.__anext__()
@@ -308,14 +309,14 @@ class StreamedRequest:
     async def aclose(self, timeout=0.2):
         await self.send_q.aclose()
         if self._stream == 2:
-            await self._client.send(seq=self.seq, state="end")
+            await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
                 with trio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
                         return
-            req = await self._client.request(action="stop", task=self.seq, _async=True)
+            req = await self._client._request(action="stop", task=self.seq, _async=True)
             return await req.get()
 
 
@@ -356,6 +357,12 @@ class _SingleReply:
 
 
 class Client:
+    """
+    The client side of a DistKV connection.
+
+    Use :func:`open_client` to use this class.
+    """
+
     _server_init = None  # Server greeting
     _dh_key = None
 
@@ -397,7 +404,7 @@ class Client:
                 return k
 
             k = await trio.run_sync_in_worker_thread(gen_key)
-            res = await self.request(
+            res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
             await trio.run_sync_in_worker_thread(
@@ -406,7 +413,7 @@ class Client:
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
-    async def send(self, **params):
+    async def _send(self, **params):
         async with self._send_lock:
             await self._socket.send_all(_packer(params))
 
@@ -447,7 +454,7 @@ class Client:
                     except trio.ClosedResourceError:
                         pass
 
-    async def request(self, action, iter=None, seq=None, _async=False, **params):
+    async def _request(self, action, iter=None, seq=None, _async=False, **params):
         """Send a request. Wait for a reply.
 
         Args:
@@ -480,7 +487,7 @@ class Client:
         self._handlers[seq] = res
 
         # logger.debug("Send %s", params)
-        await self.send(**params)
+        await self._send(**params)
         if _async:
             return res
 
@@ -503,7 +510,7 @@ class Client:
         return res
 
     @asynccontextmanager
-    async def stream(self, action, stream=False, **params):
+    async def _stream(self, action, stream=False, **params):
         """Send and receive a multi-message request.
 
         Args:
@@ -514,16 +521,17 @@ class Client:
 
         This is a context manager. Use it like this::
 
-            async with client.stream("update", path="private storage".split(), stream=True) as req:
+            async with client._stream("update", path="private storage".split(),
+                    stream=True) as req:
                 with MsgReader("/tmp/msgs.pack") as f:
                     for msg in f:
                         await req.send(msg)
             # … or …
-            async with client.stream("get_tree", path="private storage".split()) as req:
+            async with client._stream("get_tree", path="private storage".split()) as req:
                 for msg in req:
                     await process_entry(msg)
             # … or maybe … (auth does this)
-            async with client.stream("interactive_thing", path=(None,"foo")) as req:
+            async with client._stream("interactive_thing", path=(None,"foo")) as req:
                 msg = await req.recv()
                 while msg.get(s,"")=="more":
                     await foo.send(s="more",value="some data")
@@ -549,15 +557,6 @@ class Client:
             raise
         finally:
             await res.aclose()
-
-    def mirror(self, *path, **kw):
-        """An async context manager that affords an update-able mirror
-        of part of a DistKV store.
-
-        Returns: the root of this tree.
-        """
-        root = ClientRoot(self, *path, **kw)
-        return root.run()
 
     async def _run_auth(self, auth=None):
         hello = self._server_init
@@ -617,3 +616,153 @@ class Client:
                     await self._socket.aclose()
                     self._socket = None
                 self.tg = None
+
+    # externally visible interface ##########################
+
+    def get(self, *path, nchain=0):
+        """
+        Retrieve the data at a particular subtree position.
+
+        Usage::
+            res = await client.get("foo","bar")
+
+        If you want to update this value, you should retrieve its change chain entry
+        so that a competing update can be detected::
+
+            res = await client.get("foo","bar", nchain=-1)
+            res = await client.set("foo","bar", value=res.value+1, chain=res.chain)
+
+        For lower overhead and set-directly-after-get change, nchain may be 1 or 2.
+        """
+        return self._request(action="get_value", path=path, iter=False, nchain=nchain)
+
+    def set(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+        """
+        Set or update a value.
+
+        Usage::
+            await client.set("foo","bar", value="baz", chain=None)
+
+        Arguments:
+            value: the value to set. Duh. ;-)
+            chain: the previous value's change chain. Use ``None`` for new values.
+            prev: the previous value. Discouraged; use ``chain`` instead.
+            nchain: set to retrieve the node's chain tag, for further updates.
+        """
+        if value is NoData:
+            raise RuntimeError("You need to supply a value")
+
+        kw = {}
+        if prev is not NoData:
+            kw["prev"] = prev
+        if chain is not NoData:
+            kw["chain"] = chain
+
+        return self._request(
+            action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
+        )
+
+    def delete(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+        """
+        Delete a node.
+
+        Usage::
+            await client.delete("foo","bar")
+
+        Arguments:
+            chain: the previous value's change chain.
+            prev: the previous value. Discouraged; use ``chain`` instead.
+            nchain: set to retrieve the node's chain, for setting a new value.
+        """
+        kw = {}
+        if prev is not NoData:
+            kw["prev"] = prev
+        if chain is not NoData:
+            kw["chain"] = chain
+
+        return self._request(
+            action="delete_value", path=path, iter=False, nchain=nchain, **kw
+        )
+
+    def get_tree(self, *path, **kw):
+        """
+        Retrieve a complete DistKV subtree.
+
+        This call results in a stream of tree nodes. Storage of these nodes,
+        if required, is up to the caller. Also, the server does not
+        take a snapshot for you, thus the data may be inconsistent.
+
+        Use :meth:`mirror` if you want this tree to be kept up-to-date or
+        if you need a consistent snapshot.
+
+        Args:
+            nchain: Length of change chain to add to the results, for updating.
+            min_depth, max_depth: level of nodes to retrieve.
+
+        """
+        return self._request(action="get_tree", path=path, iter=True, **kw)
+
+    def delete_tree(self, *path, nchain=0):
+        """
+        Delete a whole subtree.
+
+        If you set ``nchain``, this call will return an async iterator over
+        the deleted nodes; if not, the single return value only contains the
+        number of deleted nodes.
+        """
+        return self._request(action="delete_tree", path=path, nchain=nchain)
+
+    def stop(self, seq: int):
+        """End this stream or request.
+
+        Args:
+            seq: the sequence number of the request in question.
+
+        TODO: DistKV doesn't do per-command flow control yet, so you should
+        call this method from a different task if you don't want to risk a
+        deadlock.
+        """
+        return self._request(task=seq)
+
+    def watch(self, *path, fetch=False, nchain=0):
+        """
+        Return a stream of changes to a subtree.
+
+        Args:
+            fetch: if ``True``, also send the currect state. Be aware that
+                   this may overlap with processing changes: you may get
+                   updates before the current state is completely
+                   transmitted.
+            nchain: add the nodes' change chains.
+
+        The result should be passed through a :cls:`distkv.util.PathLongener`.
+
+        If ``fetch`` is set, a ``state="uptodate"`` message will be sent
+        as soon as sending the current state is completed.
+
+        DistKV will not send stale data, so you may always replace a path's
+        old cached state with the newly-arrived data.
+        """
+        return self._request(
+            action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
+        )
+
+    def mirror(self, *path, **kw):
+        """An async context manager that affords an update-able mirror
+        of part of a DistKV store.
+
+        Returns: the root of this tree.
+
+        Usage::
+            async with distkv.open_client() as c:
+                async with c.mirror("foo", "bar", need_wait=True) as foobar:
+                    r = await c.set_value("foo", "bar", "baz", value="test")
+                    foobar.wait_chain(r.chain)
+                    assert foobar['baz'].value == "test"
+                pass
+                # At this point you can still access the tree's data
+                # via ``foobar``, but they will no longer be kept up-to-date.
+
+        """
+        root = ClientRoot(self, *path, **kw)
+        return root.run()

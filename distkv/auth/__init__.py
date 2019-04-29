@@ -196,7 +196,7 @@ class BaseClientAuth:
         Authorizes this record with the server.
         """
         try:
-            await client.request(
+            await client._request(
                 action="auth",
                 typ=self._auth_method,
                 iter=False,
@@ -232,7 +232,6 @@ class BaseClientAuthMaker:
     _chain = None
 
     def __init__(self, **data):
-        props = type(self).schema.get("properties", {})
         aux = data.pop("aux", {})
 
         jsonschema.validate(instance=data, schema=type(self).schema)
@@ -262,7 +261,7 @@ class BaseClientAuthMaker:
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
-        res = await client.request(
+        res = await client._request(
             "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
         """Read this user from the server."""
@@ -273,7 +272,7 @@ class BaseClientAuthMaker:
     async def send(self, client: Client, _kind="user"):
         """Send this user to the server."""
         try:
-            await client.request(
+            await client._request(
                 "auth_set",
                 iter=False,
                 typ=type(self)._auth_method,
@@ -322,12 +321,13 @@ class BaseServerAuth:
 
     def aux_conv(self, root: Entry):
         from ..types import ConvNull
+
         try:
-            conv = self._aux.get('conv')
+            conv = self._aux.get("conv")
             if conv is None:
                 return ConvNull
-            return root.follow(None,'conv',conv, create=False, nulls_ok=True)
-        except (KeyError,AttributeError):
+            return root.follow(None, "conv", conv, create=False, nulls_ok=True)
+        except (KeyError, AttributeError):
             return ConvNull
 
     def info(self):
@@ -366,7 +366,8 @@ class RootServerUser(BaseServerAuth):
 
 class BaseServerAuthMaker:
     """
-    This class is used on the server to verify the transmitted user record and to store it in DistKV.
+    This class is used on the server to verify the transmitted user record
+    and to store it in DistKV.
 
     The schema verifies the data from the client.
     """

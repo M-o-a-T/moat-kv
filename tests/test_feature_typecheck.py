@@ -1,11 +1,7 @@
 import pytest
-import trio
-import mock
-from time import time
 import io
 from functools import partial
 
-from trio_click.testing import CliRunner
 from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
@@ -33,7 +29,7 @@ async def test_71_basic(autojump_clock):
         s, = st.s
         async with st.client() as c:
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int"),
                     value={
@@ -43,7 +39,7 @@ async def test_71_basic(autojump_clock):
                     },
                 )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int"),
                     value={
@@ -53,7 +49,7 @@ async def test_71_basic(autojump_clock):
                     },
                 )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int"),
                     value={
@@ -63,7 +59,7 @@ async def test_71_basic(autojump_clock):
                     },
                 )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int"),
                     value={
@@ -73,7 +69,7 @@ async def test_71_basic(autojump_clock):
                     },
                 )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int"),
                     value={
@@ -82,7 +78,7 @@ async def test_71_basic(autojump_clock):
                         "code": "if not isinstance(value,int): raise ValueError('not an int')",
                     },
                 )
-            await c.request(
+            await c._request(
                 "set_internal",
                 path=("type", "int"),
                 value={
@@ -92,7 +88,7 @@ async def test_71_basic(autojump_clock):
                 },
             )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int", "percent"),
                     value={
@@ -102,7 +98,7 @@ async def test_71_basic(autojump_clock):
                     },
                 )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("type", "int", "percent"),
                     value={
@@ -111,7 +107,7 @@ async def test_71_basic(autojump_clock):
                         "code": "if not 0<=value<=100: raise ValueError('not a percentage')",
                     },
                 )
-            await c.request(
+            await c._request(
                 "set_internal",
                 path=("type", "int", "percent"),
                 value={
@@ -121,23 +117,23 @@ async def test_71_basic(autojump_clock):
                 },
             )
             with pytest.raises(ServerError):
-                await c.request(
+                await c._request(
                     "set_internal",
                     path=("match", "one", "+", "two"),
                     value={"tope": ("int", "percent")},
                 )
-            await c.request(
+            await c._request(
                 "set_internal",
                 path=("match", "one", "+", "two"),
                 value={"type": ("int", "percent")},
             )
 
-            await c.request("set_value", path=("one", "x", "two"), value=99)
+            await c.set("one", "x", "two", value=99)
             with pytest.raises(ServerError):
-                await c.request("set_value", path=("one", "y", "two"), value=9.9)
+                await c.set("one", "y", "two", value=9.9)
             with pytest.raises(ServerError):
-                await c.request("set_value", path=("one", "y", "two"), value="zoz")
-            await c.request("set_value", path=("one", "y"), value="zoz")
+                await c.set("one", "y", "two", value="zoz")
+            await c.set("one", "y", value="zoz")
 
             pass  # client end
         pass  # server end
@@ -217,9 +213,7 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
                 await rr("set", "-ev", "5.5", "foo", "dud", "bar")
             await rr("set", "-ev", "55", "foo", "dud", "bar")
 
-            assert (
-                await c.request("get_value", path=("foo", "dud", "bar"))
-            ).value == 55
+            assert (await c.get("foo", "dud", "bar")).value == 55
 
             pass  # client end
         pass  # server end

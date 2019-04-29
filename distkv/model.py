@@ -21,7 +21,9 @@ class NodeDataSkipped(Exception):
     def __repr__(self):
         return "<%s:%s>" % (self.__class__.__name__, self.node)
 
+
 ConvNull = None  # imported later, if/when needed
+
 
 class Node:
     """Represents one DistKV participant.
@@ -229,7 +231,7 @@ class NodeEvent:
     def find(self, node):
         """Return the position of a node in this chain.
         Zero if the first entry matches.
-        
+
         Returns ``None`` if not present.
         """
         res = 0
@@ -259,7 +261,7 @@ class NodeEvent:
             return self
         return NodeEvent(node=self.node, tick=self.tick, prev=prev)
 
-    def serialize(self, nchain=100) -> dict:
+    def serialize(self, nchain=-1) -> dict:
         if not nchain:
             raise RuntimeError("A chopped-off NodeEvent must not be sent")
         res = attrdict(node=self.node.name)
@@ -267,7 +269,7 @@ class NodeEvent:
             res.tick = self.tick
         if self.prev is None:
             res.prev = None
-        elif nchain > 1:
+        elif nchain != 1:
             res.prev = self.prev.serialize(nchain - 1)
         return res
 
@@ -339,10 +341,10 @@ class UpdateEvent:
             else ""
             if self.new_value == self.entry.data
             else repr(self.old_value),
-            "" if self.new_value == self.entry.data else repr(self.old_value),
+            repr(self.new_value),
         )
 
-    def serialize(self, chop_path=0, nchain=2, with_old=False, conv=None):
+    def serialize(self, chop_path=0, nchain=-1, with_old=False, conv=None):
         if conv is None:
             global ConvNull
             if ConvNull is None:
@@ -542,28 +544,34 @@ class Entry:
         if root is not None and None in root:
             chk = root[None].get("match", None)
 
-        if evt.event == self.chain:
-            assert self._data == evt.new_value, (
-                "has:",
-                self._data,
-                "but should have:",
-                evt.new_value,
-            )
-            return
-        if self.chain > evt.event:  # already superseded
-            return
+        if evt.event is None and self.chain is None:
+            pass
+        else:
+            if evt.event == self.chain:
+                assert self._data == evt.new_value, (
+                    "has:",
+                    self._data,
+                    "but should have:",
+                    evt.new_value,
+                )
+                return
+            if self.chain > evt.event:  # already superseded
+                return
+
+            if not (self.chain < evt.event):
+                logger.warn("*** inconsistency ***")
+                logger.warn("Node: %s", self.path)
+                logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
+                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
+                if evt.tock < self.tock:
+                    logger.warn("New value ignored")
+                    return
+                logger.warn("New value used")
 
         if hasattr(evt, "new_value"):
             evt_val = evt.new_value
         else:
             evt_val = evt.value
-        if not (self.chain < evt.event):
-            logger.warn("*** inconsistency TODO ***")
-            logger.warn("Node: %s", self.path)
-            logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-            logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt_value)
-            if evt.tock < self.tock:
-                return
 
         if chk is not None:
             chk.check_value(evt_val, self)
@@ -606,7 +614,7 @@ class Entry:
                 from .types import ConvNull
             conv = ConvNull
         res = attrdict(value=conv.enc_value(self._data, entry=self))
-        if self.chain is not None and nchain > 0:
+        if self.chain is not None and nchain != 0:
             res.chain = self.chain.serialize(nchain=nchain)
         res.tock = self.tock
         if chop_path >= 0:

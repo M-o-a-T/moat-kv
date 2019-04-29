@@ -251,7 +251,7 @@ class SCmd_auth_list(StreamCommand):
 
     multiline = True
 
-    async def send_one(self, data, nchain=2):
+    async def send_one(self, data, nchain=-1):
         from .auth import loader
 
         typ, kind, ident = data.path[-3:]
@@ -261,7 +261,7 @@ class SCmd_auth_list(StreamCommand):
         res["typ"] = typ
         res["kind"] = kind
         res["ident"] = ident
-        if data.chain is not None and nchain > 0:
+        if data.chain is not None and nchain != 0:
             res["chain"] = data.chain.serialize(nchain=nchain)
 
         await self.send(**res)
@@ -385,9 +385,7 @@ class SCmd_get_tree(StreamCommand):
     async def run(self):
         msg = self.msg
         client = self.client
-        entry = client.root.follow(
-            *msg.path, create=False, nulls_ok=client.nulls_ok
-        )
+        entry = client.root.follow(*msg.path, create=False, nulls_ok=client.nulls_ok)
 
         kw = {}
         nchain = msg.get("nchain", 0)
@@ -448,7 +446,9 @@ class SCmd_watch(StreamCommand):
                         async def worker(entry):
                             if entry.tock < tock:
                                 res = entry.serialize(
-                                    chop_path=client._chop_path, nchain=nchain, conv=conv
+                                    chop_path=client._chop_path,
+                                    nchain=nchain,
+                                    conv=conv,
                                 )
                                 shorter(res)
                                 await self.send(**res)
@@ -464,7 +464,9 @@ class SCmd_watch(StreamCommand):
                         continue
                     if max_depth > 0 and ml > max_depth:
                         continue
-                    res = m.entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
+                    res = m.entry.serialize(
+                        chop_path=client._chop_path, nchain=nchain, conv=conv
+                    )
                     shorter(res)
                     await self.send(**res)
 
@@ -529,7 +531,9 @@ class SCmd_update(StreamCommand):
         n = 0
         async for msg in self.in_recv_q:
             longer(msg)
-            msg = UpdateEvent.deserialize(client.root, msg, nulls_ok=client.nulls_ok, conv=conv)
+            msg = UpdateEvent.deserialize(
+                client.root, msg, nulls_ok=client.nulls_ok, conv=conv
+            )
             tock_seen(msg.get("tock", None))
             await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
             n += 1
@@ -708,7 +712,9 @@ class ServerClient:
         except KeyError:
             entry = {"value": None}
         else:
-            entry = entry.serialize(chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv)
+            entry = entry.serialize(
+                chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv
+            )
         return entry
 
     async def cmd_set_value(self, msg, root=None, _nulls_ok=False):
@@ -736,7 +742,9 @@ class ServerClient:
                 raise ClientError("Data is %s" % (repr(entry.data),))
             send_prev = False
         if "chain" in msg:
-            if entry.chain is not None:
+            if msg.chain is None and entry.data is None:
+                pass
+            elif entry.chain is not None:
                 if msg.chain is None:
                     raise ClientError("This entry already exists")
                 if entry.chain != msg.chain:
@@ -750,11 +758,14 @@ class ServerClient:
 
         async with self.server.next_event() as event:
             await entry.set_data(
-                event, self.conv.dec_value(msg.value, entry=entry), dropped=self.server._dropper, tock=self.server.tock
+                event,
+                self.conv.dec_value(msg.value, entry=entry),
+                dropped=self.server._dropper,
+                tock=self.server.tock,
             )
 
         nchain = msg.get("nchain", 1)
-        if nchain > 0:
+        if nchain != 0:
             res["chain"] = entry.chain.serialize(nchain=nchain)
         res["tock"] = entry.tock
         return res
@@ -765,7 +776,9 @@ class ServerClient:
 
         You usually do this via a stream command.
         """
-        msg = UpdateEvent.deserialize(self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv)
+        msg = UpdateEvent.deserialize(
+            self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv
+        )
         res = await msg.entry.apply(msg, dropped=self._dropper, root=self.root)
         if res is None:
             return False
@@ -821,7 +834,10 @@ class ServerClient:
                     )
                     if nchain:
                         r = evt.serialize(
-                            chop_path=self._chop_path, nchain=nchain, with_old=True, conv=self.conv
+                            chop_path=self._chop_path,
+                            nchain=nchain,
+                            with_old=True,
+                            conv=self.conv,
                         )
                         r["seq"] = seq
                         del r["new_value"]  # always None
@@ -1481,11 +1497,11 @@ class Server:
                     async with distkv_client.open_client(host, port) as client:
                         # TODO auth this client
 
-                        res = await client.request(
+                        res = await client._request(
                             "get_tree",
                             iter=True,
                             from_server=self.node.name,
-                            nchain=999,
+                            nchain=-1,
                             path=(),
                         )
                         async for r in res:
@@ -1497,7 +1513,7 @@ class Server:
                             )
                         self.tock_seen(res.end_msg.tock)
 
-                        res = await client.request(
+                        res = await client._request(
                             "get_state",
                             nodes=True,
                             from_server=self.node.name,
@@ -1725,7 +1741,7 @@ class Server:
                     logger.warn("Unknown message in stream: %s", repr(m))
         logger.info("Loading finished.")
 
-    async def _save(self, writer, shorter, nchain=99):
+    async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
 
         TODO: Add code for snapshotting.
