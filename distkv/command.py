@@ -237,9 +237,9 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     if recursive:
         kw = {}
         if maxdepth is not None:
-            kw["maxdepth"] = maxdepth
+            kw["max_depth"] = maxdepth
         if mindepth is not None:
-            kw["mindepth"] = mindepth
+            kw["min_depth"] = mindepth
         res = await obj.client.get_tree(*path, nchain=chain, **kw)
         pl = PathLongener(path)
         y = {} if as_dict is not None else []
@@ -436,8 +436,8 @@ async def enum_auth(obj):
         path=(None, "auth"),
         iter=True,
         nchain=0,
-        mindepth=1,
-        maxdepth=1,
+        min_depth=1,
+        max_depth=1,
     )
     async for r in res:
         yield r.path[-1]

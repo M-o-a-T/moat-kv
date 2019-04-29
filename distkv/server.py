@@ -373,8 +373,8 @@ class SCmd_get_tree(StreamCommand):
     Get a subtree.
 
     path: position to start to enumerate.
-    mindepth: tree depth at which to start returning results. Default 0=path location.
-    maxdepth: tree depth at which to not go deeper. Default +inf=everything.
+    min_depth: tree depth at which to start returning results. Default 0=path location.
+    max_depth: tree depth at which to not go deeper. Default +inf=everything.
     nchain: number of change chain entries to return. Default 0=don't send chain data.
 
     The returned data is PathShortened.
@@ -390,14 +390,14 @@ class SCmd_get_tree(StreamCommand):
         kw = {}
         nchain = msg.get("nchain", 0)
         ps = PathShortener(entry.path)
-        maxdepth = msg.get("maxdepth", None)
+        max_depth = msg.get("max_depth", None)
         conv = client.conv
 
-        if maxdepth is not None:
-            kw["max_depth"] = maxdepth
-        mindepth = msg.get("mindepth", None)
-        if mindepth is not None:
-            kw["min_depth"] = mindepth
+        if max_depth is not None:
+            kw["max_depth"] = max_depth
+        min_depth = msg.get("min_depth", None)
+        if min_depth is not None:
+            kw["min_depth"] = min_depth
 
         async def send_sub(entry):
             if entry.data is None:
