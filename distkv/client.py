@@ -766,3 +766,43 @@ class Client:
         """
         root = ClientRoot(self, *path, **kw)
         return root.run()
+
+    def serf_mon(self, tag: str, raw: bool = False):
+        """
+        Return an async iterator of tunneled Serf messages. This receives
+        all messages sent using :meth_`serf_send` using the same tag.
+
+        Args:
+            tag: the "user:" tag to monitor.
+                 The first character may not be '+'.
+                 Do not include Serf's "user:" prefix.
+            raw: If ``True``, will not try to msgpack-decode incoming
+                 messages.
+
+        Returns: a dict.
+            data: decoded data. Not present when ``raw`` is set or the
+                  decoder raised an exception.
+            raw: un-decoded data. Not present when '`raw`` is not set and
+                 decoding succeeded.
+            error: Error message. Not present when ``raw`` is set or
+                   ``data`` is present.
+        """
+        return self._stream(action="serfmon", type=tag, raw=raw)
+
+    def serf_send(self, tag: str, data = None, raw: bytes = None):
+        """
+        Tunnel a user-tagged message through Serf. This sends the message
+        to all active callers of :meth:`serf_send` using the same tag.
+
+        Args:
+            tag: the "user:" tag to send to.
+                 The first character may not be '+'.
+                 Do not include Serf's "user:" prefix.
+            data: to-be-encoded data (anything ``msgpack`` can process).
+            raw: raw binary data to send, mutually exclusive with ``data``.
+        """
+        if raw is None:
+            return self._request(action="serfsend", type=tag, data=data)
+        else:
+            return self._request(action="serfsend", type=tag, raw=raw)
+
