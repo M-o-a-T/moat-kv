@@ -770,7 +770,7 @@ class Client:
     def serf_mon(self, tag: str, raw: bool = False):
         """
         Return an async iterator of tunneled Serf messages. This receives
-        all messages sent using :meth_`serf_send` using the same tag.
+        all messages sent using :meth:`serf_send` with the same tag.
 
         Args:
             tag: the "user:" tag to monitor.
@@ -786,13 +786,19 @@ class Client:
                  decoding succeeded.
             error: Error message. Not present when ``raw`` is set or
                    ``data`` is present.
+        usage::
+            async with client.serf_mon("test") as cl:
+                async for msg in cl:
+                    if 'error' in msg:
+                        raise RuntimeError(msg.error)
+                    await process_test(msg.data)
         """
         return self._stream(action="serfmon", type=tag, raw=raw)
 
     def serf_send(self, tag: str, data = None, raw: bytes = None):
         """
         Tunnel a user-tagged message through Serf. This sends the message
-        to all active callers of :meth:`serf_send` using the same tag.
+        to all active callers of :meth:`serf_mon` which use the same tag.
 
         Args:
             tag: the "user:" tag to send to.
