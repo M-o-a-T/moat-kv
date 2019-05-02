@@ -155,7 +155,7 @@ class StreamCommand:
                     await self.send(**res)
             except Exception as exc:
                 if not isinstance(exc, SerfCancelledError):
-                    logger.exception("ERS%d: %r", self.seq, self.msg)
+                    self.client.logger.exception("ERS%d: %r", self.seq, self.msg)
                 await self.send(error=repr(exc))
             finally:
                 await self.send(state="end")
@@ -565,7 +565,8 @@ class ServerClient:
         global _client_nr
         _client_nr += 1
         self._client_nr = _client_nr
-        logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
+        self.logger = server.logger
+        self.logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
 
     @property
     def nulls_ok(self):
@@ -618,11 +619,11 @@ class ServerClient:
                 await fn()
 
             except BrokenPipeError as exc:
-                logger.error("ERR%d: %s", self._client_nr, repr(exc))
+                self.logger.error("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
-                    logger.exception("ERR%d: %s", self._client_nr, repr(msg))
+                    self.logger.exception("ERR%d: %s", self._client_nr, repr(msg))
                 await self.send({"error": str(exc), "seq": seq})
 
             finally:
@@ -893,7 +894,7 @@ class ServerClient:
         return await self.cmd_set_value(msg, _nulls_ok=True)
 
     async def send(self, msg):
-        logger.debug("OUT%d: %s", self._client_nr, msg)
+        self.logger.debug("OUT%d: %s", self._client_nr, msg)
         if self._send_lock is None:
             return
         async with self._send_lock:
@@ -905,7 +906,7 @@ class ServerClient:
             try:
                 await self.stream.send_all(_packer(msg))
             except trio.BrokenResourceError:
-                logger.error("Trying to send %r", msg)
+                self.logger.error("Trying to send %d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
 
@@ -959,7 +960,7 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        logger.debug("IN %d: %s", self._client_nr, msg)
+                        self.logger.debug("IN %d: %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -974,7 +975,7 @@ class ServerClient:
                             await self.tg.start(self.process, msg)
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
-                            logger.exception(
+                            self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
                             )
                         msg = {"error": str(exc)}
@@ -1010,7 +1011,7 @@ class Server:
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
-        self.logger = logging.getLogger("Server."+name)
+        self.logger = logging.getLogger("distv.server."+name)
 
         self._evt_lock = trio.Lock()
         self._clients = set()
@@ -1143,13 +1144,13 @@ class Server:
             # if the sender is in our part of the split, 
             if self._recover_event1 is not None:
                 if msg.node in self._recover_local_history:
-                    logger.debug(
+                    self.logger.debug(
                         "Step1 %s: triggered by %s",
                         self.node.name,
                         msg.node)
                     self._recover_event1.set()
                 else:
-                    logger.debug("Step1 %s: not in %r", self.node.name, self._recover_local_history)
+                    self.logger.debug("Step1 %s: not in %r", self.node.name, self._recover_local_history)
 
         # Step 2
         missing = msg.get("missing", None)
@@ -1254,11 +1255,11 @@ class Server:
     async def do_send_missing(self):
         """Task to periodically send "missing …" messages
         """
-        logger.debug("send-missing %s started", self.node.name)
+        self.logger.debug("send-missing started")
         clock = self.cfg["ping"]["gap"]
         while self.fetch_missing:
             if self.fetch_running is not False:
-                logger.debug("send-missing %s halted", self.node.name)
+                self.logger.debug("send-missing halted")
                 return
             clock *= self.random / 2 + 1
             await trio.sleep(clock)
@@ -1286,7 +1287,7 @@ class Server:
             msg = attrdict(missing=msg)
             await self._send_event("info", msg)
 
-        logger.debug("send-missing %s ended", self.node.name)
+        self.logger.debug("send-missing ended")
         if self.node.tick is None:
             self.node.tick = 0
             await self._check_ticked()
@@ -1341,7 +1342,7 @@ class Server:
             ):
                 raise
             except Exception:
-                logger.exception("Unable to connect to %s" % (nodes,))
+                self.logger.exception("Unable to connect to %s" % (nodes,))
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
@@ -1383,7 +1384,7 @@ class Server:
         if self._ready is None:
             return
         if self.node.tick is not None:
-            logger.debug("Ready %s", self.node.name)
+            self.logger.debug("Ready")
             self._ready.set()
             await self._set_tock()
 
@@ -1549,8 +1550,8 @@ class Server:
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:
-                    logger.warn("Unknown message in stream: %s", repr(m))
-        logger.info("Loading finished.")
+                    self.logger.warn("Unknown message in stream: %s", repr(m))
+        self.logger.info("Loading finished.")
 
     async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
@@ -1733,7 +1734,7 @@ class Server:
                 self.ports = server.ports
                 task_status.started(server)
 
-                logger.debug("S %s: opened %s", self.node.name, self.ports)
+                self.logger.debug("S: opened %s", self.ports)
                 self._ready2.set()
                 async for client in server:
                     if ssl_ctx:
@@ -1754,7 +1755,7 @@ class Server:
             if isinstance(exc, trio.MultiError):
                 exc = exc.filter(trio.Cancelled)
             if exc is not None:
-                logger.exception("Client connection killed", exc_info=exc)
+                self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 with trio.move_on_after(2) as cs:
                     cs.shield = True
