@@ -17,5 +17,5 @@ CFG = attrdict(
     paranoia=False,  # typecheck server>server updates
     domain=None,  # domain in which to look up nodes
     change=attrdict(length=5),
-    ping=attrdict(length=4, clock=5),
+    ping=attrdict(cycle=5, gap=2),  # asyncserf.Actor config
 )

@@ -5,11 +5,13 @@ DistKV's server protocol
 DistKV instances broadcast messages via `Serf <http://serf.io>`.
 The payload is encoded with `msgpack
 <https://github.com/msgpack/msgpack/blob/master/spec.md>` (Serf does not
-pass arbitrary payload objects) and sent as ``user`` events with a name of
-``distkv.XXX`` ("XXX" being the action's type). The ``coalesce`` flag must
-always be ``False``.
+pass arbitrary payload objects) and sent as ``user`` events with a
+configurable name that defaults to name of ``distkv.XXX`` ("XXX" being the
+action's type). The ``coalesce`` flag must always be ``False``.
 
 All strings are required to be UTF-8 encoded.
+
+TODO: investigate whether replicating Serf in Python would make sense.
 
 ++++++++++
 Data types
@@ -249,24 +251,28 @@ winning message becomes the basis for the next cycle.
 
 This protocol assumes that the ``prev`` chains of any colliding ticks are
 identical. If they are not, there was at least one network split that is
-now healed. In this case, the nodes mentioned in the messages' chains send
-``info`` messages containing ``ticks`` for all nodes they know. The
-non-topmost nodes will delay this message by ``clock/ping.length``
+now healed. When this is detected, the nodes mentioned in the messages'
+chains send ``info`` messages containing ``ticks`` for all nodes they know.
+The non-topmost nodes will delay this message by ``clock/ping.length``
 (times their position in the chain) seconds and not send their message if
 they see a previous node's message first. Resolution of which chain is the
 "real" one shall proceed as above.
 
 ``clock`` is configurable (``ping.clock``); the default is ``5``. It must be at
-least twice the time Serf requires to delivers a message to each node.
+least twice the time Serf requires to delivers a message to all nodes.
 
 The length of the ping chain is likewise configurable (``ping.length``).
 It should be larger than the number of possible network partitions; the
 default is 4.
 
+TODO: Currently, this protocol does not tolerate overloaded Serf networks
+well, if at all.
+
+
 Startup
 -------
 
-When starting up, a node sends a ``ping`` query with an empty ``prev``
+When starting up, a new node sends a ``ping`` query with an empty ``prev``
 chain, every ``3*clock`` seconds. The initial ``tick`` value shall be zero;
 the first message shall be delayed by a random interval between ``clock/2``
 and ``clock`` seconds.
@@ -284,16 +290,20 @@ answering client queries. If a new node does already know a (possibly
 outdated) set of messages and there is no authoritative chain, it shall
 broadcast them in a series of ``update`` messages.
 
-The first node that initials a new network shall send an ``update`` event
-for the root node (with any value, including ``null`` – this is application
-specific). It is of course immediately able to answer client queries and
-shall be preferred to any other zero-tick nodes, when other new nodes
-connect.
+The first node that initiates a new network shall send an ``update`` event
+for the root node (with any value). A chain is not authoritative if it only
+contains nodes with zero ``tick`` values. Nodes with zero ticks shall not
+send a ``ping`` when the first half of the chain does not contain a
+non-zero-tick node (unless the second half doesn't contain any such nodes
+either).
 
-A chain is not authoritative if it only contains nodes with a non-zero
-``tick`` value. Nodes with zero ticks shall not send a ``ping`` when the
-first half of the chain does not contain a non-zero-tick node (unless the
-second half doesn't contain any such nodes either).
+The practical effect of this is that when a network is restarted,
+fast-starting empty nodes will quickly agree on a ``ping`` sequence. A node
+with recovered data, which presumably takes longer to start up since it has
+to load the data first, will then take over as soon as it is operational;
+it will not be booted from the chain by nodes that don't yet have recovered
+the data store.
+
 
 Event recovery
 --------------
@@ -307,7 +317,7 @@ First step: Send an ``info`` message with a ``ticks`` element, so that any
 node that has been restarted knows which tick value they are supposed to
 continue with.
 
-Second step (after half a clock tick): Send a message with ``missing`` elements
+Second step (after half a tick): Send a message with ``missing`` elements
 that describe which events you do not yet know about.
 
 Third step: Nodes retransmit missing events, followed by a ``known``
@@ -322,11 +332,11 @@ This protocol assumes that new nodes connect to an existing non-split
 network. If new nodes first form their own little club before being
 reconnected to the "real" network (or a branch of it), this would force a
 long list of events to be retransmitted. Therefore, nodes with zero ticks
-are to be passive. They shall open a client connection to any on-chain node
-and download its state. If a node has received a non-zero tick in a
-``known`` message, it may participate only after it has received a complete
-download, and may allow client connections only if its list of missing
-events is empty.
+must initially be passive. They shall open a client connection to any
+on-chain node and download its state. If a node has received a non-zero
+tick for itself in a ``known`` message, it may participate only after it
+has received a complete download, and must not allow client connections
+before its list of missing events is empty.
 
 All of these steps are to be performed by the first nodes in the pre-joined
 chains. If these messages are not seen after ``clock/2`` seconds (counting

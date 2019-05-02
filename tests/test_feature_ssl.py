@@ -40,17 +40,17 @@ async def test_41_ssl_basic(autojump_clock):
                 {"path": ("foo",), "value": "hello"},
                 {"path": ("foo", "bar"), "value": "baz"},
             ]
-            async with c._stream("get_tree", path=(), maxdepth=2) as rr:
+            async with c._stream("get_tree", path=(), max_depth=2) as rr:
                 r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            async with c._stream("get_tree", path=(), iter=True, maxdepth=1) as rr:
+            async with c._stream("get_tree", path=(), iter=True, max_depth=1) as rr:
                 r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            async with c._stream("get_tree", path=(), iter=True, maxdepth=0) as rr:
+            async with c._stream("get_tree", path=(), iter=True, max_depth=0) as rr:
                 r = await collect(rr)
             assert r == exp
 

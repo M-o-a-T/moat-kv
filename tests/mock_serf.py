@@ -83,12 +83,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             logger.debug("Split: join %d", s)
             self.splits.remove(s)
 
-    async def mock_send_ping(self, old):
-        assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
-        await old()
-
-    async def mock_get_host_port(st, node):
-        i = int(node.name[node.name.rindex("_") + 1 :])  # noqa: E203
+    async def mock_get_host_port(st, host):
+        i = int(host[host.rindex("_") + 1 :])  # noqa: E203
         s = st.s[i]
         await s.is_serving
         return s.ports[0][0:2]
@@ -118,11 +114,11 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                         args["cfg"]["server"] = args["cfg"]["server"].copy()
                         args["cfg"]["server"]["ssl"] = server_ctx
                 s = Server(name, **args)
-                ex.enter_context(
-                    mock.patch.object(
-                        s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
-                    )
-                )
+#               ex.enter_context(
+#                   mock.patch.object(
+#                       s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
+#                   )
+#               )
                 ex.enter_context(
                     mock.patch.object(
                         s, "_get_host_port", new=partial(mock_get_host_port, st)
@@ -209,6 +205,25 @@ class MockServ:
                     for s in sl:
                         await s.q.put(payload)
 
+    def serf_mon(self, typ):
+        if "," in typ:
+            raise RuntimeError("not supported")
+        s = MockSerfStream(self, "user:"+typ)
+        return s
+
+    async def serf_send(self, typ, data):
+        # logger.debug("SERF:%s: %r", typ, data)
+
+        for s in list(self._master.serfs):
+            for x in self._master.splits:
+                if (s.cfg.get("i", 0) < x) != (self.cfg.get("i", 0) < x):
+                    break
+            else:
+                sl = s.streams.get(typ, None)
+                if sl is not None:
+                    for s in sl:
+                        await s.q.put(data)
+
 
 class MockSerfStream:
     def __init__(self, serf, typ):
@@ -232,4 +247,4 @@ class MockSerfStream:
 
     async def __anext__(self):
         res = await self.q.get()
-        return attrdict(payload=res)
+        return attrdict(data=res)

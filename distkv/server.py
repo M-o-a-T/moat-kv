@@ -13,6 +13,7 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
+from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
 from .types import RootEntry, ConvNull
 
 # from trio_log import LogStream
@@ -154,7 +155,7 @@ class StreamCommand:
                     await self.send(**res)
             except Exception as exc:
                 if not isinstance(exc, SerfCancelledError):
-                    logger.exception("ERS%d: %r", self.seq, self.msg)
+                    self.client.logger.exception("ERS%d: %r", self.seq, self.msg)
                 await self.send(error=repr(exc))
             finally:
                 await self.send(state="end")
@@ -373,8 +374,8 @@ class SCmd_get_tree(StreamCommand):
     Get a subtree.
 
     path: position to start to enumerate.
-    mindepth: tree depth at which to start returning results. Default 0=path location.
-    maxdepth: tree depth at which to not go deeper. Default +inf=everything.
+    min_depth: tree depth at which to start returning results. Default 0=path location.
+    max_depth: tree depth at which to not go deeper. Default +inf=everything.
     nchain: number of change chain entries to return. Default 0=don't send chain data.
 
     The returned data is PathShortened.
@@ -390,14 +391,14 @@ class SCmd_get_tree(StreamCommand):
         kw = {}
         nchain = msg.get("nchain", 0)
         ps = PathShortener(entry.path)
-        maxdepth = msg.get("maxdepth", None)
+        max_depth = msg.get("max_depth", None)
         conv = client.conv
 
-        if maxdepth is not None:
-            kw["max_depth"] = maxdepth
-        mindepth = msg.get("mindepth", None)
-        if mindepth is not None:
-            kw["min_depth"] = mindepth
+        if max_depth is not None:
+            kw["max_depth"] = max_depth
+        min_depth = msg.get("min_depth", None)
+        if min_depth is not None:
+            kw["min_depth"] = min_depth
 
         async def send_sub(entry):
             if entry.data is None:
@@ -497,17 +498,17 @@ class SCmd_serfmon(StreamCommand):
             async for resp in stream:
                 res = attrdict(type=msg.type)
                 if raw:
-                    res["raw"] = resp.payload
+                    res["raw"] = resp.data
                 else:
                     try:
                         res["data"] = msgpack.unpackb(
-                            resp.payload,
+                            resp.data,
                             object_pairs_hook=attrdict,
                             raw=False,
                             use_list=False,
                         )
                     except Exception as exc:
-                        res["raw"] = resp.payload
+                        res["raw"] = resp.data
                         res["error"] = repr(exc)
 
                 await self.send(**res)
@@ -534,7 +535,7 @@ class SCmd_update(StreamCommand):
             msg = UpdateEvent.deserialize(
                 client.root, msg, nulls_ok=client.nulls_ok, conv=conv
             )
-            tock_seen(msg.get("tock", None))
+            await tock_seen(msg.get("tock", None))
             await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
             n += 1
         await self.send(count=n)
@@ -564,7 +565,8 @@ class ServerClient:
         global _client_nr
         _client_nr += 1
         self._client_nr = _client_nr
-        logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
+        self.logger = server.logger
+        self.logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
 
     @property
     def nulls_ok(self):
@@ -617,11 +619,11 @@ class ServerClient:
                 await fn()
 
             except BrokenPipeError as exc:
-                logger.error("ERR%d: %s", self._client_nr, repr(exc))
+                self.logger.error("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
-                    logger.exception("ERR%d: %s", self._client_nr, repr(msg))
+                    self.logger.exception("ERR%d: %s", self._client_nr, repr(msg))
                 await self.send({"error": str(exc), "seq": seq})
 
             finally:
@@ -892,7 +894,7 @@ class ServerClient:
         return await self.cmd_set_value(msg, _nulls_ok=True)
 
     async def send(self, msg):
-        logger.debug("OUT%d: %s", self._client_nr, msg)
+        self.logger.debug("OUT%d: %s", self._client_nr, msg)
         if self._send_lock is None:
             return
         async with self._send_lock:
@@ -904,14 +906,14 @@ class ServerClient:
             try:
                 await self.stream.send_all(_packer(msg))
             except trio.BrokenResourceError:
-                logger.error("Trying to send %r", msg)
+                self.logger.error("Trying to send %d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
 
     async def send_result(self, seq, res):
         res["seq"] = seq
         if "tock" in res:
-            self.server.tock_seen(res["tock"])
+            await self.server.tock_seen(res["tock"])
         else:
             res["tock"] = self.server.tock
         await self.send(res)
@@ -958,7 +960,7 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        logger.debug("IN %d: %s", self._client_nr, msg)
+                        self.logger.debug("IN %d: %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -973,7 +975,7 @@ class ServerClient:
                             await self.tg.start(self.process, msg)
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
-                            logger.exception(
+                            self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
                             )
                         msg = {"error": str(exc)}
@@ -994,9 +996,69 @@ class ServerClient:
                 unpacker.feed(buf)
 
 
+class _RecoverControl:
+    def __init__(self, server, scope, prio, local_history, sources):
+        self.server = server
+        self.scope = scope
+        self.prio = prio
+        self.local_history = local_history
+        self.sources = sources
+        self.tock = server.tock
+
+        self._waiters = {}
+
+    async def _start(self):
+        chk = set()
+        rt = self.server._recover_tasks
+        for node in self.local_history:
+            xrc = rt.get(node,None)
+            if xrc is not None:
+                chk.add(xrc)
+            self.server._recover_tasks[node] = self
+        for t in chk:
+            await t._check()
+
+    async def _check(self):
+        lh = []
+        rt = self.server._recover_tasks
+        for n in self.local_history:
+            if rt.get(n, None) is self:
+                lh.append(n)
+            self.local_history = lh
+            if not lh:
+                await self.cancel()
+
+    def __hash__(self):
+        return id(self)
+
+    async def cancel(self):
+        self.scope.cancel()
+        rt = self.server._recover_tasks
+        for node in self.local_history:
+            if rt.get(node, None) is self:
+                del rt[node]
+        self.local_history = ()
+        for evt in list(self._waiters.values()):
+            evt.set()
+
+    async def set(self, n):
+        evt = self._waiters.get(n, None)
+        if evt is None:
+            evt = trio.Event()
+            self._waiters[n] = evt
+        evt.set()
+
+    async def wait(self, n):
+        evt = self._waiters.get(n, None)
+        if evt is None:
+            evt = trio.Event()
+            self._waiters[n] = evt
+        await evt.wait()
+
 class Server:
     serf = None
     _ready = None
+    _actor = None
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
         self._tock = 0
@@ -1009,9 +1071,9 @@ class Server:
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
+        self.logger = logging.getLogger("distv.server."+name)
 
         self._evt_lock = trio.Lock()
-        self._random = Random()
         self._clients = set()
 
     @asynccontextmanager
@@ -1024,8 +1086,10 @@ class Server:
         async with self._evt_lock:
             self.node.tick += 1
             self._tock += 1
+            await self._set_tock()
             yield NodeEvent(self.node)
             self._tock += 1
+            await self._set_tock()
 
     @property
     def tock(self):
@@ -1035,10 +1099,16 @@ class Server:
         self._tock += 1
         return self._tock
 
-    @property
-    def random(self):
-        """An attribute that generates a random fraction in ``[0,1)``."""
-        return self._random.random()
+    async def tock_seen(self, value):
+        if value is None:
+            return
+        if self._tock < value:
+            self._tock = value
+            await self._set_tock()
+
+    async def _set_tock(self):
+        if self._actor is not None and self._ready.is_set():
+            await self._actor.set_value((self._tock, self.node.tick))
 
     def _dropper(self, evt, old_evt=_NotGiven):
         """Drop either one event, or any event that is in ``old_evt`` but not in
@@ -1062,7 +1132,7 @@ class Server:
         if "tock" not in msg:
             msg["tock"] = self.tock
         else:
-            self.tock_seen(msg["tock"])
+            await self.tock_seen(msg["tock"])
         if "node" not in msg:
             msg["node"] = self.node.name
         if "tick" not in msg:
@@ -1125,50 +1195,19 @@ class Server:
         if msg.node == self.node.name:
             return  # ignore our own message
 
-        # 'reason' is the ping chain from the node that triggered this info
-        # message. If we're on "our" chain but not on the "other", then we
-        # also need to start recovery. Also, if the "other" chain is better,
-        # we need to replace ours.
-        # This happens when, immediately after a split, our ping is
-        # rejected by the remote side. Instead of sending a ping of their
-        # own immediately, they send their chain as reason with
-        # replace=True.
-        r = msg.get("reason", None)
-        if r is not None and self._recover_task is None:
-            replace = r.get("replace", False)
-            pos = self.last_ping_evt.find(self.node)
-            rev = NodeEvent.deserialize(
-                r, cache=self._nodes, check_dup=False, nulls_ok=True
-            )
-            if replace:
-                r.tock = msg.tock
-                self.last_ping = r
-                self.last_ping_evt = rev
-            if pos is not None:
-                self.sane_ping = self.last_ping_evt
-                await self.spawn(self.recover_split, pos)
-
         # Step 1
         ticks = msg.get("ticks", None)
         if ticks is not None:
             for n, t in ticks.items():
                 n = Node(n, cache=self._nodes)
                 n.tick = max_n(n.tick, t)
-            if self._recover_event1 is not None and (
-                self.sane_ping is None or self.node in self.sane_ping
-            ):
-                logger.debug(
-                    "Step1 %s: triggered by %s",
-                    self.node.name,
-                    self.sane_ping.serialize() if self.sane_ping else "-",
-                )
-                self._recover_event1.set()
-            elif self._recover_event1 is not None:
-                logger.debug(
-                    "Step1 %s: not in %s", self.node.name, self.sane_ping.serialize()
-                )
-        #           else:
-        #               logger.debug("Step1 %s: no event", self.node.name)
+
+            rec = self._recover_tasks.get(msg.node, None)
+            if rec is not None:
+                await rec.set(1)
+                self.logger.debug("Step1: %r triggered by %s", rec, msg.node)
+            else:
+                self.logger.debug("Step1: %s not known", msg.node)
 
         # Step 2
         missing = msg.get("missing", None)
@@ -1179,30 +1218,24 @@ class Server:
                 r = RangeSet()
                 r.__setstate__(k)
                 nn += len(r)
-                n.reported_missing(r)
+                n.report_missing(r)
+
+                # add to the node's seen_missing
                 mr = self.seen_missing.get(n, None)
                 if mr is None:
                     self.seen_missing[n] = r
                 else:
                     mr += r
-            if self._recover_event2 is not None and (
-                self.sane_ping is None or self.node in self.sane_ping
-            ):
-                logger.debug(
-                    "Step2 %s: triggered by %s",
-                    self.node.name,
-                    self.sane_ping.serialize() if self.sane_ping else "-",
-                )
-                self._recover_event2.set()
-            elif self._recover_event2 is not None:
-                logger.debug(
-                    "Step2 %s: not in %s", self.node.name, self.sane_ping.serialize()
-                )
-            #           else:
-            #               logger.debug("Step2 %s: no event", self.node.name)
+
+            rec = self._recover_tasks.get(msg.node, None)
+            if rec is not None:
+                await rec.set(2)
+                self.logger.debug("Step2: %r triggered by %s", rec, msg.node)
+            else:
+                self.logger.debug("Step2: %s not known", msg.node)
 
             if nn > 0:
-                await self._run_send_missing()
+                await self._run_send_missing(None)
 
         # Step 3
         known = msg.get("known", None)
@@ -1211,14 +1244,7 @@ class Server:
                 n = Node(n, cache=self._nodes)
                 r = RangeSet()
                 r.__setstate__(k)
-                n.reported_known(r)
-
-    async def user_ping(self, msg):
-        """Process ping broadcasts.
-
-        Just queue them for the ``pinger`` task to handle.
-        """
-        await self.ping_q.put(msg)
+                n.report_known(r)
 
     async def monitor(self, action: str, delay: trio.Event = None):
         """The task that hooks to Serf's event stream for receiving messages.
@@ -1239,80 +1265,15 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.payload,
+                        resp.data,
                         object_pairs_hook=attrdict,
                         raw=False,
                         use_list=False,
                     )
-                    self.tock_seen(msg.get("tock", 0))
+                    await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
         except (CancelledError, SerfCancelledError):
             pass
-
-    def tock_seen(self, tock):
-        """Update my current ``tock`` if it's not high enough."""
-        if tock is not None:
-            self._tock = max(self._tock, tock)
-
-    async def _send_ping(self):
-        """Send a ping message and note when to send the next one,
-        assuming that no intervening ping arrives.
-        """
-        msg = NodeEvent(self.node, prev=self.last_ping_evt)
-        # This skips "nothing happened" entries
-        if self.last_ping_evt != msg:
-            self.last_ping_evt = msg
-        else:
-            msg = self.last_ping_evt
-        self.last_ping = msg = msg.serialize(self.cfg["ping"]["length"])
-        await self._send_event("ping", msg)
-
-        t = time.time()
-        self.next_ping = t + self._time_to_next_ping() * self.cfg["ping"]["clock"]
-
-    def _time_to_next_ping(self):
-        """Calculates the time until sending the next ping is a good idea,
-        assuming that none arrive in the meantime, in clocks."""
-        if self.last_ping_evt.node == self.node:
-            # we transmitted the last ping. If no other ping arrives we are
-            # the only node.
-            return 3
-        # check whether the first half of the ping chain contains nonzero ticks
-        # so that if we're not fully up yet, the chain doesn't only consist of
-        # nodes that don't work.
-        c = self.last_ping_evt.prev
-        p = s = 0
-        lv = 1
-        while c is not None:
-            if c.tick is not None and c.tick > 0 and p == 0:
-                p = lv
-            if c.node == self.node:
-                s = lv
-            lv += 1
-            c = c.prev
-        if not self._ready.is_set():
-            if p > lv // 2:
-                # No it does not. Do not participate.
-                return 3
-
-        if s > 0:
-            # We are on the chain. Send ping depending on our position.
-            return 2 - (s - 1) / lv
-            # this will never be 1 because we need to leave some time for
-            # interlopers, below. Otherwise we could divide by l-1, as
-            # l must be at least 2. s must also be at least 1.
-
-        if lv < self.cfg["ping"]["length"] - 1:
-            # the chain is too short. Try harder to get onto it.
-            f = 3
-        else:
-            f = 10
-        if self.random < 1 / f / len(self._nodes):
-            # send early (try getting onto the chain)
-            return 1 + self.random / len(self._nodes)
-        else:
-            # send late (fallback)
-            return 2.5 + self.random / 2
 
     async def pinger(self, delay: trio.Event):
         """
@@ -1327,109 +1288,32 @@ class Server:
           ``delay``: an event to set after the initial ping message has
                      been sent.
         """
-        clock = self.cfg["ping"]["clock"]
+        cfg = self.cfg["ping"]
+        async with Actor(client=self.serf, prefix=self.cfg["root"] + ".ping", name=self.node.name, cfg=cfg) as actor:
+            self._actor = actor
+            await self._check_ticked()
+            delay.set()
+            async for msg in actor:
+                if isinstance(msg,RecoverEvent):
+                    await self.spawn(self.recover_split, msg.prio, msg.replace, msg.local_nodes, msg.remote_nodes)
+                elif isinstance(msg,GoodNodeEvent):
+                    await self.spawn(self.fetch_data, msg.nodes)
+                elif isinstance(msg,RawPingEvent):
+                    msg = msg.msg
+                    msg_node = msg['node'] if 'node' in msg else msg['history'][0]
+                    val = msg['value']
+                    if val is not None:
+                        await self.tock_seen(val[0])
+                        val = val[1]
+                    else:
+                        val = 0
+                    Node(msg_node, val, cache=self._nodes)
 
-        # initial delay: anywhere from clock/2 to clock seconds
-        await trio.sleep((self.random / 2 + 0.5) * clock)
-        await self._send_ping()
-        delay.set()
 
-        while True:
-            msg = None
-            t = max(self.next_ping - time.time(), 0)
-            # logger.debug("S %s: wait %s", self.node.name, t)
-            with trio.move_on_after(t):
-                msg = await self.ping_q.get()
-            if msg is None:
-                await self._send_ping()
-                continue
-
-            # Handle incoming ping
-            event = NodeEvent.deserialize(
-                msg, cache=self._nodes, check_dup=False, nulls_ok=True
-            )
-
-            if self.node == event.node:
-                # my own message, returned
-                continue
-
-            if event.prev is not None and self.last_ping_evt.equals(event.prev):
-                # valid "next" ping
-                self.last_ping = msg
-                self.last_ping_evt = event
-                self.next_ping = time.time() + clock * self._time_to_next_ping()
-                continue
-
-            saved_ping = self.last_ping_evt
-            # colliding pings.
-            #
-            # This while loop is only used as a "goto forward".
-            # ``break`` == "the new ping is better"
-            # ``pass``  == "the last ping I saw is better"
-            while True:
-                if event.tick is None and self._ready.is_set():
-                    # always prefer our ping
-                    break
-                if event.tick is not None and not self._ready.is_set():
-                    # always prefer the other ping
-                    pass
-                else:
-                    if msg.tock < self.last_ping.tock:
-                        break
-                    if msg.tock == self.last_ping.tock:
-                        if cmp_n(event.tick, self.last_ping_evt.tick) < 0:
-                            break
-                        if cmp_n(event.tick, self.last_ping_evt.tick) == 0:
-                            if event.node.name < self.last_ping_evt.node.name:
-                                break
-                            assert event.node.name != self.last_ping_evt.node.name
-
-                # If we get here, the other ping is "better".
-                logger.debug("Coll Ack %s: %s", self.node.name, msg)
-                self.last_ping = msg
-                self.last_ping_evt = event
-                t = time.time()
-                self.next_ping = time.time() + clock * self._time_to_next_ping()
-                break  # always terminate the loop
-
-            if event.prev is not None and event.prev.equals(self.last_ping_evt):
-                # These pings refer to the same previous ping. Good.
-                logger.debug("Coll PRE %s: %s", self.node.name, msg)
-                continue
-
-            if self.last_ping is not msg:
-                logger.debug("Coll NO  %s: %s", self.node.name, msg)
-
-            # We either have a healed network split (bad) or are new (oh well).
-            if self._ready.is_set():
-                # otherwise I have nothing to say
-
-                if event.tick is None:
-                    # The colliding node does not have data. Ignore.
-                    continue
-
-                if saved_ping.tick is None:
-                    # The node sending the last ping had no data, so
-                    # there's no collision now.
-                    continue
-
-                pos = saved_ping.find(self.node)
-                if pos is not None:
-                    if self._recover_task is None:
-                        # await self._recover_task.cancel()
-                        if self.sane_ping is None:
-                            self.sane_ping = saved_ping
-                        await self.spawn(
-                            self.recover_split, pos, self.last_ping is not msg
-                        )
-            elif self.fetch_running is None and self.last_ping_evt.tick is not None:
-                await self.spawn(self.fetch_data)
-
-    async def _get_host_port(self, node):
+    async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
         port = self.cfg["server"]["port"]
         domain = self.cfg["domain"]
-        host = node.name
         if domain is not None:
             host += "." + domain
         return (host, port)
@@ -1437,13 +1321,13 @@ class Server:
     async def do_send_missing(self):
         """Task to periodically send "missing …" messages
         """
-        logger.debug("send-missing %s started", self.node.name)
-        clock = self.cfg["ping"]["clock"] / 2
+        self.logger.debug("send-missing started")
+        clock = self.cfg["ping"]["gap"]
         while self.fetch_missing:
             if self.fetch_running is not False:
-                logger.debug("send-missing %s halted", self.node.name)
+                self.logger.debug("send-missing halted")
                 return
-            clock *= self.random / 2 + 1
+            clock *= self._actor.random / 2 + 1
             await trio.sleep(clock)
 
             n = 0
@@ -1469,13 +1353,13 @@ class Server:
             msg = attrdict(missing=msg)
             await self._send_event("info", msg)
 
-        logger.debug("send-missing %s ended", self.node.name)
+        self.logger.debug("send-missing ended")
         if self.node.tick is None:
             self.node.tick = 0
             await self._check_ticked()
         self.fetch_running = None
 
-    async def fetch_data(self):
+    async def fetch_data(self, nodes):
         """
         We are newly started and don't have any data.
 
@@ -1484,71 +1368,67 @@ class Server:
         if self.fetch_running is not None:
             return
         self.fetch_running = True
-        while True:
-            n = self.last_ping_evt
-            while n is not None:
-                node = n.node
-                n = n.prev
-                if node.tick is None:  # not ready
-                    continue
+        for n in nodes:
+            try:
+                host, port = await self._get_host_port(n)
+                async with distkv_client.open_client(host, port) as client:
+                    # TODO auth this client
 
-                try:
-                    host, port = await self._get_host_port(node)
-                    async with distkv_client.open_client(host, port) as client:
-                        # TODO auth this client
-
-                        res = await client._request(
-                            "get_tree",
-                            iter=True,
-                            from_server=self.node.name,
-                            nchain=-1,
-                            path=(),
+                    res = await client._request(
+                        "get_tree",
+                        iter=True,
+                        from_server=self.node.name,
+                        nchain=-1,
+                        path=(),
+                    )
+                    async for r in res:
+                        r = UpdateEvent.deserialize(
+                            self.root, r, cache=self._nodes, nulls_ok=True
                         )
-                        async for r in res:
-                            r = UpdateEvent.deserialize(
-                                self.root, r, cache=self._nodes, nulls_ok=True
-                            )
-                            await r.entry.apply(
-                                r, dropped=self._dropper, root=self.paranoid_root
-                            )
-                        self.tock_seen(res.end_msg.tock)
-
-                        res = await client._request(
-                            "get_state",
-                            nodes=True,
-                            from_server=self.node.name,
-                            known=True,
-                            iter=False,
+                        await r.entry.apply(
+                            r, dropped=self._dropper, root=self.paranoid_root
                         )
-                        await self._process_info(res)
+                    await self.tock_seen(res.end_msg.tock)
 
-                except (
-                    AttributeError,
-                    KeyError,
-                    ValueError,
-                    AssertionError,
-                    TypeError,
-                ):
-                    raise
-                except Exception:
-                    logger.exception("Unable to connect to %s" % (node,))
+                    res = await client._request(
+                        "get_state",
+                        nodes=True,
+                        from_server=self.node.name,
+                        known=True,
+                        iter=False,
+                    )
+                    await self._process_info(res)
+
+            except (
+                AttributeError,
+                KeyError,
+                ValueError,
+                AssertionError,
+                TypeError,
+            ):
+                raise
+            except Exception:
+                self.logger.exception("Unable to connect to %s" % (nodes,))
+            else:
+                # At this point we successfully cloned some other
+                # node's state, so we now need to find whatever that
+                # node didn't have.
+
+                for n in self._nodes.values():
+                    if n.tick and len(n.local_missing):
+                        self.fetch_missing.add(n)
+                if len(self.fetch_missing):
+                    self.fetch_running = False
+                    await self.spawn(self.do_send_missing)
                 else:
-                    # At this point we successfully cloned some other
-                    # node's state, so we now need to find whatever that
-                    # node didn't have.
-
-                    for n in self._nodes.values():
-                        if n.tick and len(n.local_missing):
-                            self.fetch_missing.add(n)
-                    if len(self.fetch_missing):
-                        self.fetch_running = False
-                        await self.spawn(self.do_send_missing)
-                    else:
+                    if self.node.tick is None:
                         self.node.tick = 0
-                        self.fetch_running = None
-                        await self._check_ticked()
-                    return
-            await trio.sleep(self.cfg["ping"]["clock"] * 1.1)
+                    self.fetch_running = None
+                    await self._check_ticked()
+                return
+
+        self.fetch_running = None
+            
 
     async def _process_info(self, msg):
         for nn, t in msg.get("nodes", {}).items():
@@ -1558,65 +1438,63 @@ class Server:
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.reported_known(r, local=True)
+            nn.report_known(r, local=True)
         for nn, k in msg.get("remote_missing", {}).items():
             # used when loading data from a state file
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.reported_missing(r)
+            nn.report_missing(r)
 
     async def _check_ticked(self):
         if self._ready is None:
             return
         if self.node.tick is not None:
-            logger.debug("Ready %s", self.node.name)
+            self.logger.debug("Ready")
             self._ready.set()
+            await self._set_tock()
 
-    async def recover_split(self, pos, replace=False):
+    async def recover_split(self, prio, replace, local_history, sources):
         """
         Recover from a network split.
         """
-        clock = self.cfg["ping"]["clock"]
-        tock = self.tock
-        self._recover_tock = tock
-        self._recover_event1 = trio.Event()
-        self._recover_event2 = trio.Event()
-        logger.info("SplitRecover %s: %s @%d", self.node.name, pos, tock)
-
-        with trio.CancelScope() as s:
-            self._recover_task = s
-
+        with trio.CancelScope() as scope:
+            self.logger.info("SplitRecover: start %d %s local=%r remote=%r", prio, replace, local_history, sources)
+            for node in sources:
+                if node not in self._recover_tasks:
+                    break
+            else:
+                return
+            t = _RecoverControl(self, scope, prio, local_history, sources)
             try:
+                await t._start()
+                clock = self.cfg["ping"]["cycle"]
+                tock = self.tock
+                self.logger.info("SplitRecover: %s @%d", prio, tock)
+
                 # Step 1: send an info/ticks message
-                # for pos=0 this fires immediately. That's intentional.
-                with trio.move_on_after(clock * (1 - 1 / (1 << pos)) / 2) as x:
-                    await self._recover_event1.wait()
-                if self.sane_ping is None:
-                    logger.info("SplitRecover %s: no sane 1", self.node.name)
-                    return
+                # for prio=0 this fires immediately. That's intentional.
+                with trio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
+                    await t.wait(1)
                 if x.cancel_called:
-                    logger.info("SplitRecover %s: no signal 1", self.node.name)
+                    self.logger.info("SplitRecover: no signal 1")
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
-                    msg.reason = self.sane_ping.serialize()
-                    msg.reason.replace = replace
-
                     await self._send_event("info", msg)
 
                 # Step 2: send an info/missing message
-                # for pos=0 this fires after clock/2, so that we get a
+                # for prio=0 this fires after clock/2, so that we get a
                 # chance to wait for other info/ticks messages. We can't
                 # trigger on them because there may be more than one, for a
                 # n-way merge.
-                with trio.move_on_after(clock * (2 - 1 / (1 << pos)) / 2) as x:
-                    await self._recover_event2.wait()
+                with trio.move_on_after(clock * (2 - 1 / (1 << prio)) / 2) as x:
+                    await t.wait(2)
 
                 if x.cancel_called:
-                    logger.info("SplitRecover %s: no signal 2", self.node.name)
+                    self.logger.info("SplitRecover: no signal 2")
                     msg = dict()
-                    for n in self._nodes.values():
+                    for n in list(self._nodes.values()):
                         if not n.tick:
                             continue
                         m = n.local_missing
@@ -1635,53 +1513,46 @@ class Server:
                     await self._send_event("info", msg)
 
                 # wait a bit more before continuing. Again this depends on
-                # `pos` so that there won't be two nodes that send the same
+                # `prio` so that there won't be two nodes that send the same
                 # data at the same time, hopefully.
-                await trio.sleep(clock * (1 - 1 / (1 << pos)))
+                await trio.sleep(clock * (1 - 1 / (1 << prio)))
 
                 # Step 3: start a task that sends stuff
-                await self._run_send_missing()
+                await self._run_send_missing(prio)
 
             finally:
                 # Protect against cleaning up when another recovery task has
                 # been started (because we saw another merge)
-                if self._recover_tock != tock:
-                    logger.info("SplitRecover %s: canceled @%d", self.node.name, tock)
-                    return
-                logger.info("SplitRecover %s: finished @%d", self.node.name, tock)
-                self._recover_tock = 0
-                self._recover_task = None
-                self._recover_event1 = None
-                self._recover_event2 = None
-                self.sane_ping = None
+                self.logger.info("SplitRecover: finished @%d", t.tock)
                 self.seen_missing = {}
+                await t.cancel()
 
-    async def _run_send_missing(self):
+
+    async def _run_send_missing(self, prio):
         """Start :meth:`_send_missing_data` if it's not running"""
 
-        pos = (self.sane_ping or self.last_ping_evt).find(self.node)
         if self.sending_missing is None:
             self.sending_missing = True
-            await self.spawn(self._send_missing_data, pos)
+            await self.spawn(self._send_missing_data, prio)
         elif not self.sending_missing:
             self.sending_missing = True
 
-    async def _send_missing_data(self, pos):
+    async def _send_missing_data(self, prio):
         """Step 3 of the re-join protocol.
         For each node, collect events that somebody has reported as missing,
         and re-broadcast them. If the event is unavailable, send a "known"
         message.
         """
-        clock = self.cfg["ping"]["clock"]
-        if pos is None:
-            await trio.sleep(clock * (1 / 2 + self.random / 5))
+        clock = self.cfg["ping"]["cycle"]
+        if prio is None:
+            await trio.sleep(clock * (1 + self._actor.random / 3))
         else:
-            await trio.sleep(clock * (1 - 1 / (1 << pos)) / 2)
+            await trio.sleep(clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5))
 
         while self.sending_missing:
             self.sending_missing = False
             nodes = list(self._nodes.values())
-            self._random.shuffle(nodes)
+            self._actor._rand.shuffle(nodes)
             known = {}
             for n in nodes:
                 k = RangeSet()
@@ -1689,7 +1560,7 @@ class Server:
                     for t in range(*r):
                         if t not in n.remote_missing:
                             # some other node could have sent this while we worked
-                            await trio.sleep(self.cfg["ping"]["clock"] / 10)
+                            await trio.sleep(self.cfg["ping"]["gap"] / 3)
                             continue
                         if t in n:
                             msg = n[t].serialize()
@@ -1725,21 +1596,21 @@ class Server:
                 if "value" in m:
                     longer(m)
                     if "tock" in m:
-                        self.tock_seen(m.tock)
+                        await self.tock_seen(m.tock)
                     else:
                         m.tock = self.tock
                     m = UpdateEvent.deserialize(
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
-                    self.tock_seen(m.tock)
+                    await self.tock_seen(m.tock)
                     await m.entry.apply(
                         m, local=local, dropped=self._dropper, root=self.paranoid_root
                     )
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:
-                    logger.warn("Unknown message in stream: %s", repr(m))
-        logger.info("Loading finished.")
+                    self.logger.warn("Unknown message in stream: %s", repr(m))
+        self.logger.info("Loading finished.")
 
     async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
@@ -1861,25 +1732,16 @@ class Server:
             self.serf = serf
             self.spawn = serf.spawn
 
-            # Queue for processing incoming ping broadcasts
-            self.ping_q = Queue(self.cfg["ping"]["length"] + 2)
-
-            # Last "reasonable" ping seen
-            self.last_ping = None
-            self.last_ping_evt = None
-            self.last_sent_ping = None
-
-            # Last ping on "our" branch when a network split is healed
-            self.sane_ping = None
-
             # Sync recovery steps so that only one node per branch answers
             self._recover_event1 = None
             self._recover_event2 = None
 
+            # local and remote node lists
+            self._recover_sources = None
+
             # Cancel scope; if :meth:`recover_split` is running, use that
             # to cancel
-            self._recover_task = None
-            self._recover_tock = 0
+            self._recover_tasks = {}
 
             # used to sync starting up everything so no messages get either
             # lost, or processed prematurely
@@ -1907,11 +1769,12 @@ class Server:
 
             # send initial ping
             await self.spawn(self.pinger, delay2)
-            await delay2.wait()
+
 
             await trio.sleep(0.1)
             delay.set()
             await self._check_ticked()  # when _init is set
+            await delay2.wait()
 
             cfg_s = self.cfg["server"].copy()
             cfg_s.setdefault("host", "localhost")
@@ -1925,7 +1788,7 @@ class Server:
                 self.ports = server.ports
                 task_status.started(server)
 
-                logger.debug("S %s: opened %s", self.node.name, self.ports)
+                self.logger.debug("S: opened %s", self.ports)
                 self._ready2.set()
                 async for client in server:
                     if ssl_ctx:
@@ -1946,7 +1809,7 @@ class Server:
             if isinstance(exc, trio.MultiError):
                 exc = exc.filter(trio.Cancelled)
             if exc is not None:
-                logger.exception("Client connection killed", exc_info=exc)
+                self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 with trio.move_on_after(2) as cs:
                     cs.shield = True

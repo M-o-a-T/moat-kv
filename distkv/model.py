@@ -99,7 +99,7 @@ class Node:
         """
         self.entries.pop(tick, None)
 
-    def reported_known(self, range, local=False):
+    def report_known(self, range, local=False):
         """Some node said that these entries may have been superseded.
 
         Args:
@@ -111,17 +111,17 @@ class Node:
         if not local:
             self._reported -= range
 
-    def reported_missing(self, range):
+    def report_missing(self, range):
         self._reported += range
 
     @property
     def local_known(self):
-        """Values I have seen"""
+        """Values I have seen: they either exist or I know they've been superseded"""
         return self._known
 
     @property
     def local_missing(self):
-        """Values I have not seen"""
+        """Values I have not seen, the inverse of :meth:`local_known`"""
         assert self.tick
         r = RangeSet(((1, self.tick + 1),))
         r -= self._known

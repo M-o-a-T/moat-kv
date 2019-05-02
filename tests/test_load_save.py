@@ -21,12 +21,12 @@ async def test_21_load_save(autojump_clock, tmpdir):
 
     async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
         lg = PathLongener(())
-        res = await c.watch(nchain=3, fetch=True)
-        task_status.started()
-        async for m in res:
-            lg(m)
-            if m.get("value", None) is not None:
-                msgs.append(m)
+        async with c.watch(nchain=3, fetch=True) as res:
+            task_status.started()
+            async for m in res:
+                lg(m)
+                if m.get("value", None) is not None:
+                    msgs.append(m)
 
     async with stdtest(args={"init": 234}, tocks=30) as st:
         s, = st.s

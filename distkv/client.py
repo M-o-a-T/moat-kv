@@ -726,7 +726,7 @@ class Client:
 
     def watch(self, *path, fetch=False, nchain=0):
         """
-        Return a stream of changes to a subtree.
+        Return an async iterator of changes to a subtree.
 
         Args:
             fetch: if ``True``, also send the currect state. Be aware that
@@ -743,7 +743,7 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._request(
+        return self._stream(
             action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
         )
 
@@ -766,3 +766,49 @@ class Client:
         """
         root = ClientRoot(self, *path, **kw)
         return root.run()
+
+    def serf_mon(self, tag: str, raw: bool = False):
+        """
+        Return an async iterator of tunneled Serf messages. This receives
+        all messages sent using :meth:`serf_send` with the same tag.
+
+        Args:
+            tag: the "user:" tag to monitor.
+                 The first character may not be '+'.
+                 Do not include Serf's "user:" prefix.
+            raw: If ``True``, will not try to msgpack-decode incoming
+                 messages.
+
+        Returns: a dict.
+            data: decoded data. Not present when ``raw`` is set or the
+                  decoder raised an exception.
+            raw: un-decoded data. Not present when '`raw`` is not set and
+                 decoding succeeded.
+            error: Error message. Not present when ``raw`` is set or
+                   ``data`` is present.
+        usage::
+            async with client.serf_mon("test") as cl:
+                async for msg in cl:
+                    if 'error' in msg:
+                        raise RuntimeError(msg.error)
+                    await process_test(msg.data)
+        """
+        return self._stream(action="serfmon", type=tag, raw=raw)
+
+    def serf_send(self, tag: str, data = None, raw: bytes = None):
+        """
+        Tunnel a user-tagged message through Serf. This sends the message
+        to all active callers of :meth:`serf_mon` which use the same tag.
+
+        Args:
+            tag: the "user:" tag to send to.
+                 The first character may not be '+'.
+                 Do not include Serf's "user:" prefix.
+            data: to-be-encoded data (anything ``msgpack`` can process).
+            raw: raw binary data to send, mutually exclusive with ``data``.
+        """
+        if raw is None:
+            return self._request(action="serfsend", type=tag, data=data)
+        else:
+            return self._request(action="serfsend", type=tag, raw=raw)
+
