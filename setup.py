@@ -18,7 +18,7 @@ setup(
         "trio >= 0.11",
         "range_set >= 0.2",
         "attrs >= 18.2",
-        "asyncserf >= 0.5",
+        "asyncserf >= 0.7.1",
         "jsonschema >= 2.5",
         "pyyaml >= 3",
         # "argon2 >= 18.3",
