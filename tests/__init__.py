@@ -34,3 +34,9 @@ def load_cfg(cfg):
 
 
 cfg = load_cfg(os.environ.get("LOG_CFG", "logging.cfg"))
+
+
+import trio._core._run as tcr
+if "PYTHONHASHSEED" in os.environ:
+    tcr._ALLOW_DETERMINISTIC_SCHEDULING = True
+    tcr._r.seed(os.environ["PYTHONHASHSEED"])
