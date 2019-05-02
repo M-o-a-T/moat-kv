@@ -7,8 +7,6 @@ from async_generator import asynccontextmanager
 import msgpack
 import asyncserf
 from typing import Any
-from random import Random
-import time
 from range_set import RangeSet
 import io
 from functools import partial
@@ -26,7 +24,6 @@ from .util import (
     PathLongener,
     MsgWriter,
     MsgReader,
-    Queue,
     combine_dict,
     create_tcp_server,
     gen_ssl,

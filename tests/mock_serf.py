@@ -114,11 +114,11 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                         args["cfg"]["server"] = args["cfg"]["server"].copy()
                         args["cfg"]["server"]["ssl"] = server_ctx
                 s = Server(name, **args)
-                #               ex.enter_context(
-                #                   mock.patch.object(
-                #                       s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
-                #                   )
-                #               )
+                # ex.enter_context(
+                #     mock.patch.object(
+                #         s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
+                #     )
+                # )
                 ex.enter_context(
                     mock.patch.object(
                         s, "_get_host_port", new=partial(mock_get_host_port, st)
