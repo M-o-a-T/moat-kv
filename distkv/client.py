@@ -1,4 +1,8 @@
-# dist-kv client
+"""
+Client code.
+
+Main entry point: :func:`open_client`.
+"""
 
 import trio
 import outcome
@@ -39,6 +43,11 @@ class ManyData(ValueError):
 
 @asynccontextmanager
 async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
+    """
+    This async context manager returns an opened client connection.
+
+    There is no attempt to reconnect if the Serf connection should fail.
+    """
     client = Client(host, port, ssl=ssl)
     async with trio.open_nursery() as tg:
         async with client._connected(

@@ -1457,7 +1457,7 @@ class Server:
         Recover from a network split.
         """
         with trio.CancelScope() as scope:
-            self.logger.info(
+            self.logger.debug(
                 "SplitRecover: start %d %s local=%r remote=%r",
                 prio,
                 replace,
@@ -1474,14 +1474,14 @@ class Server:
                 await t._start()
                 clock = self.cfg["ping"]["cycle"]
                 tock = self.tock
-                self.logger.info("SplitRecover: %s @%d", prio, tock)
+                self.logger.debug("SplitRecover: %s @%d", prio, tock)
 
                 # Step 1: send an info/ticks message
                 # for prio=0 this fires immediately. That's intentional.
                 with trio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
                     await t.wait(1)
                 if x.cancel_called:
-                    self.logger.info("SplitRecover: no signal 1")
+                    self.logger.debug("SplitRecover: no signal 1")
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
@@ -1496,7 +1496,7 @@ class Server:
                     await t.wait(2)
 
                 if x.cancel_called:
-                    self.logger.info("SplitRecover: no signal 2")
+                    self.logger.debug("SplitRecover: no signal 2")
                     msg = dict()
                     for n in list(self._nodes.values()):
                         if not n.tick:
@@ -1527,7 +1527,7 @@ class Server:
             finally:
                 # Protect against cleaning up when another recovery task has
                 # been started (because we saw another merge)
-                self.logger.info("SplitRecover: finished @%d", t.tock)
+                self.logger.debug("SplitRecover: finished @%d", t.tock)
                 self.seen_missing = {}
                 await t.cancel()
 

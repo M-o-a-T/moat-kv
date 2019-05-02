@@ -1,4 +1,8 @@
-# DistKV's data model
+"""
+This module contains DistKV's basic data model.
+
+TODO: message chains should be refactored to arrays: much lower overhead.
+"""
 
 from __future__ import annotations
 

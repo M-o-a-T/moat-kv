@@ -1,3 +1,6 @@
+"""
+This module contains various helper functions and classes.
+"""
 import trio
 from getpass import getpass
 from collections.abc import Mapping
@@ -47,7 +50,7 @@ class attrdict(dict):
 
     def __getattr__(self, a):
         if a.startswith("_"):
-            return super(attrdict, self).__getattr__(a)
+            return object.__getattr__(self, a)
         try:
             return self[a]
         except KeyError:
@@ -68,16 +71,16 @@ from yaml.representer import SafeRepresenter
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
-def count(iter):
+def count(it):
     n = 0
-    for _ in iter:
+    for _ in it:
         n += 1
     return n
 
 
-async def acount(iter):
+async def acount(it):
     n = 0
-    async for _ in iter:  # noqa: F841
+    async for _ in it:  # noqa: F841
         n += 1
     return n
 
@@ -169,6 +172,8 @@ class PathLongener:
 
 
 class _MsgRW:
+    _mode = None
+
     def __init__(self, path=None, stream=None):
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
