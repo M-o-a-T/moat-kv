@@ -1188,7 +1188,7 @@ class Server:
                 n = Node(n, cache=self._nodes)
                 r = RangeSet()
                 r.__setstate__(k)
-                n.reported_known(r)
+                n.report_known(r)
 
     async def monitor(self, action: str, delay: trio.Event = None):
         """The task that hooks to Serf's event stream for receiving messages.
@@ -1371,13 +1371,13 @@ class Server:
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.reported_known(r, local=True)
+            nn.report_known(r, local=True)
         for nn, k in msg.get("remote_missing", {}).items():
             # used when loading data from a state file
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.reported_missing(r)
+            nn.report_missing(r)
 
     async def _check_ticked(self):
         if self._ready is None:
