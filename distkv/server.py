@@ -13,7 +13,7 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
-from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent
+from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
 from .types import RootEntry, ConvNull
 
 # from trio_log import LogStream
@@ -996,9 +996,69 @@ class ServerClient:
                 unpacker.feed(buf)
 
 
+class _RecoverControl:
+    def __init__(self, server, scope, prio, local_history, sources):
+        self.server = server
+        self.scope = scope
+        self.prio = prio
+        self.local_history = local_history
+        self.sources = sources
+        self.tock = server.tock
+
+        self._waiters = {}
+
+    async def _start(self):
+        chk = set()
+        rt = self.server._recover_tasks
+        for node in self.local_history:
+            xrc = rt.get(node,None)
+            if xrc is not None:
+                chk.add(xrc)
+            self.server._recover_tasks[node] = self
+        for t in chk:
+            await t._check()
+
+    async def _check(self):
+        lh = []
+        rt = self.server._recover_tasks
+        for n in self.local_history:
+            if rt.get(n, None) is self:
+                lh.append(n)
+            self.local_history = lh
+            if not lh:
+                await self.cancel()
+
+    def __hash__(self):
+        return id(self)
+
+    async def cancel(self):
+        self.scope.cancel()
+        rt = self.server._recover_tasks
+        for node in self.local_history:
+            if rt.get(node, None) is self:
+                del rt[node]
+        self.local_history = ()
+        for evt in list(self._waiters.values()):
+            evt.set()
+
+    async def set(self, n):
+        evt = self._waiters.get(n, None)
+        if evt is None:
+            evt = trio.Event()
+            self._waiters[n] = evt
+        evt.set()
+
+    async def wait(self, n):
+        evt = self._waiters.get(n, None)
+        if evt is None:
+            evt = trio.Event()
+            self._waiters[n] = evt
+        await evt.wait()
+
 class Server:
     serf = None
     _ready = None
+    _actor = None
 
     def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
         self._tock = 0
@@ -1141,16 +1201,13 @@ class Server:
             for n, t in ticks.items():
                 n = Node(n, cache=self._nodes)
                 n.tick = max_n(n.tick, t)
-            # if the sender is in our part of the split, 
-            if self._recover_event1 is not None:
-                if msg.node in self._recover_local_history:
-                    self.logger.debug(
-                        "Step1 %s: triggered by %s",
-                        self.node.name,
-                        msg.node)
-                    self._recover_event1.set()
-                else:
-                    self.logger.debug("Step1 %s: not in %r", self.node.name, self._recover_local_history)
+
+            rec = self._recover_tasks.get(msg.node, None)
+            if rec is not None:
+                await rec.set(1)
+                self.logger.debug("Step1: %r triggered by %s", rec, msg.node)
+            else:
+                self.logger.debug("Step1: %s not known", msg.node)
 
         # Step 2
         missing = msg.get("missing", None)
@@ -1161,26 +1218,24 @@ class Server:
                 r = RangeSet()
                 r.__setstate__(k)
                 nn += len(r)
-                n.reported_missing(r)
+                n.report_missing(r)
+
+                # add to the node's seen_missing
                 mr = self.seen_missing.get(n, None)
                 if mr is None:
                     self.seen_missing[n] = r
                 else:
                     mr += r
-            if self._recover_event2 is not None:
-                if msg.node in self._recover_local_history:
-                    logger.debug(
-                        "Step2 %s: triggered by %r",
-                        self.node.name,
-                        msg.node)
-                    self._recover_event2.set()
-                else:
-                    logger.debug("Step2 %s: not in %r", self.node.name, self._recover_local_history)
-            #           else:
-            #               logger.debug("Step2 %s: no event", self.node.name)
+
+            rec = self._recover_tasks.get(msg.node, None)
+            if rec is not None:
+                await rec.set(2)
+                self.logger.debug("Step2: %r triggered by %s", rec, msg.node)
+            else:
+                self.logger.debug("Step2: %s not known", msg.node)
 
             if nn > 0:
-                await self._run_send_missing()
+                await self._run_send_missing(None)
 
         # Step 3
         known = msg.get("known", None)
@@ -1239,10 +1294,21 @@ class Server:
             await self._check_ticked()
             delay.set()
             async for msg in actor:
-                if isinstance(msg,RecoverEvent) and self._recover_task is None:
+                if isinstance(msg,RecoverEvent):
                     await self.spawn(self.recover_split, msg.prio, msg.replace, msg.local_nodes, msg.remote_nodes)
                 elif isinstance(msg,GoodNodeEvent):
                     await self.spawn(self.fetch_data, msg.nodes)
+                elif isinstance(msg,RawPingEvent):
+                    msg = msg.msg
+                    msg_node = msg['node'] if 'node' in msg else msg['history'][0]
+                    val = msg['value']
+                    if val is not None:
+                        await self.tock_seen(val[0])
+                        val = val[1]
+                    else:
+                        val = 0
+                    Node(msg_node, val, cache=self._nodes)
+
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
@@ -1261,7 +1327,7 @@ class Server:
             if self.fetch_running is not False:
                 self.logger.debug("send-missing halted")
                 return
-            clock *= self.random / 2 + 1
+            clock *= self._actor.random / 2 + 1
             await trio.sleep(clock)
 
             n = 0
@@ -1392,108 +1458,101 @@ class Server:
         """
         Recover from a network split.
         """
-        clock = self.cfg["ping"]["cycle"]
-        tock = self.tock
-        self._recover_sources = sources
-        self._recover_tock = tock
-        self._recover_local_history = local_history
-        self._recover_event1 = trio.Event()
-        self._recover_event2 = trio.Event()
-        logger.info("SplitRecover %s: %s @%d", self.node.name, prio, tock)
-
-        try:
-            # Step 1: send an info/ticks message
-            # for prio=0 this fires immediately. That's intentional.
-            with trio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
-                await self._recover_event1.wait()
-            if not self._recover_sources is None:
-                logger.info("SplitRecover %s: no sane 1", self.node.name)
+        with trio.CancelScope() as scope:
+            self.logger.info("SplitRecover: start %d %s local=%r remote=%r", prio, replace, local_history, sources)
+            for node in sources:
+                if node not in self._recover_tasks:
+                    break
+            else:
                 return
-            if x.cancel_called:
-                logger.info("SplitRecover %s: no signal 1", self.node.name)
-                msg = dict((x.name, x.tick) for x in self._nodes.values())
+            t = _RecoverControl(self, scope, prio, local_history, sources)
+            try:
+                await t._start()
+                clock = self.cfg["ping"]["cycle"]
+                tock = self.tock
+                self.logger.info("SplitRecover: %s @%d", prio, tock)
 
-                msg = attrdict(ticks=msg)
-                await self._send_event("info", msg)
+                # Step 1: send an info/ticks message
+                # for prio=0 this fires immediately. That's intentional.
+                with trio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
+                    await t.wait(1)
+                if x.cancel_called:
+                    self.logger.info("SplitRecover: no signal 1")
+                    msg = dict((x.name, x.tick) for x in self._nodes.values())
 
-            # Step 2: send an info/missing message
-            # for prio=0 this fires after clock/2, so that we get a
-            # chance to wait for other info/ticks messages. We can't
-            # trigger on them because there may be more than one, for a
-            # n-way merge.
-            with trio.move_on_after(clock * (2 - 1 / (1 << prio)) / 2) as x:
-                await self._recover_event2.wait()
+                    msg = attrdict(ticks=msg)
+                    await self._send_event("info", msg)
 
-            if x.cancel_called:
-                logger.info("SplitRecover %s: no signal 2", self.node.name)
-                msg = dict()
-                for n in self._nodes.values():
-                    if not n.tick:
-                        continue
-                    m = n.local_missing
-                    mr = self.seen_missing.get(n.name, None)
-                    if mr is not None:
-                        m -= mr
-                    if len(m) == 0:
-                        continue
-                    msg[n.name] = m.__getstate__()
-                    if mr is None:
-                        self.seen_missing[n.name] = m
-                    else:
-                        mr += m
+                # Step 2: send an info/missing message
+                # for prio=0 this fires after clock/2, so that we get a
+                # chance to wait for other info/ticks messages. We can't
+                # trigger on them because there may be more than one, for a
+                # n-way merge.
+                with trio.move_on_after(clock * (2 - 1 / (1 << prio)) / 2) as x:
+                    await t.wait(2)
 
-                msg = attrdict(missing=msg)
-                await self._send_event("info", msg)
+                if x.cancel_called:
+                    self.logger.info("SplitRecover: no signal 2")
+                    msg = dict()
+                    for n in list(self._nodes.values()):
+                        if not n.tick:
+                            continue
+                        m = n.local_missing
+                        mr = self.seen_missing.get(n.name, None)
+                        if mr is not None:
+                            m -= mr
+                        if len(m) == 0:
+                            continue
+                        msg[n.name] = m.__getstate__()
+                        if mr is None:
+                            self.seen_missing[n.name] = m
+                        else:
+                            mr += m
 
-            # wait a bit more before continuing. Again this depends on
-            # `prio` so that there won't be two nodes that send the same
-            # data at the same time, hopefully.
-            await trio.sleep(clock * (1 - 1 / (1 << prio)))
+                    msg = attrdict(missing=msg)
+                    await self._send_event("info", msg)
 
-            # Step 3: start a task that sends stuff
-            await self._run_send_missing()
+                # wait a bit more before continuing. Again this depends on
+                # `prio` so that there won't be two nodes that send the same
+                # data at the same time, hopefully.
+                await trio.sleep(clock * (1 - 1 / (1 << prio)))
 
-        finally:
-            # Protect against cleaning up when another recovery task has
-            # been started (because we saw another merge)
-            if self._recover_tock != tock:
-                logger.info("SplitRecover %s: canceled @%d", self.node.name, tock)
-                return
-            logger.info("SplitRecover %s: finished @%d", self.node.name, tock)
-            self._recover_tock = 0
-            self._recover_task = None
-            self._recover_event1 = None
-            self._recover_event2 = None
-            self._recover_sources = None
-            self.seen_missing = {}
+                # Step 3: start a task that sends stuff
+                await self._run_send_missing(prio)
 
-    async def _run_send_missing(self):
+            finally:
+                # Protect against cleaning up when another recovery task has
+                # been started (because we saw another merge)
+                self.logger.info("SplitRecover: finished @%d", t.tock)
+                self.seen_missing = {}
+                await t.cancel()
+
+
+    async def _run_send_missing(self, prio):
         """Start :meth:`_send_missing_data` if it's not running"""
 
         if self.sending_missing is None:
             self.sending_missing = True
-            await self.spawn(self._send_missing_data)
+            await self.spawn(self._send_missing_data, prio)
         elif not self.sending_missing:
             self.sending_missing = True
 
-    async def _send_missing_data(self, pos):
+    async def _send_missing_data(self, prio):
         """Step 3 of the re-join protocol.
         For each node, collect events that somebody has reported as missing,
         and re-broadcast them. If the event is unavailable, send a "known"
         message.
         """
         clock = self.cfg["ping"]["cycle"]
-        try:
-            pos = self._recover_local_history.index(self.node.name)
-        except ValueError:
-            await trio.sleep(clock * (1 + self.random / 3))
+        if prio is None:
+            await trio.sleep(clock * (1 + self._actor.random / 3))
         else:
-            await trio.sleep(clock * (1 - 1 / (1 << pos)) / 2)
+            await trio.sleep(clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5))
 
         while self.sending_missing:
             self.sending_missing = False
             nodes = list(self._nodes.values())
-            self._random.shuffle(nodes)
+            self._actor._rand.shuffle(nodes)
             known = {}
             for n in nodes:
                 k = RangeSet()
@@ -1673,21 +1732,16 @@ class Server:
             self.serf = serf
             self.spawn = serf.spawn
 
-            # Actor for pings
-            self._actor = None
-
             # Sync recovery steps so that only one node per branch answers
             self._recover_event1 = None
             self._recover_event2 = None
 
             # local and remote node lists
-            self._recover_local_history = None
             self._recover_sources = None
 
             # Cancel scope; if :meth:`recover_split` is running, use that
             # to cancel
-            self._recover_task = None
-            self._recover_tock = 0
+            self._recover_tasks = {}
 
             # used to sync starting up everything so no messages get either
             # lost, or processed prematurely
