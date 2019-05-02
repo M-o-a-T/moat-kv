@@ -1615,7 +1615,7 @@ class Server:
                     await self._process_info(m)
                 else:
                     self.logger.warn("Unknown message in stream: %s", repr(m))
-        self.logger.info("Loading finished.")
+        self.logger.debug("Loading finished.")
 
     async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
