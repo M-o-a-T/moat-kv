@@ -1011,7 +1011,7 @@ class _RecoverControl:
         chk = set()
         rt = self.server._recover_tasks
         for node in self.local_history:
-            xrc = rt.get(node,None)
+            xrc = rt.get(node, None)
             if xrc is not None:
                 chk.add(xrc)
             self.server._recover_tasks[node] = self
@@ -1055,6 +1055,7 @@ class _RecoverControl:
             self._waiters[n] = evt
         await evt.wait()
 
+
 class Server:
     serf = None
     _ready = None
@@ -1071,7 +1072,7 @@ class Server:
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
-        self.logger = logging.getLogger("distv.server."+name)
+        self.logger = logging.getLogger("distv.server." + name)
 
         self._evt_lock = trio.Lock()
         self._clients = set()
@@ -1265,10 +1266,7 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.data,
-                        object_pairs_hook=attrdict,
-                        raw=False,
-                        use_list=False,
+                        resp.data, object_pairs_hook=attrdict, raw=False, use_list=False
                     )
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
@@ -1289,26 +1287,36 @@ class Server:
                      been sent.
         """
         cfg = self.cfg["ping"]
-        async with Actor(client=self.serf, prefix=self.cfg["root"] + ".ping", name=self.node.name, cfg=cfg) as actor:
+        async with Actor(
+            client=self.serf,
+            prefix=self.cfg["root"] + ".ping",
+            name=self.node.name,
+            cfg=cfg,
+        ) as actor:
             self._actor = actor
             await self._check_ticked()
             delay.set()
             async for msg in actor:
-                if isinstance(msg,RecoverEvent):
-                    await self.spawn(self.recover_split, msg.prio, msg.replace, msg.local_nodes, msg.remote_nodes)
-                elif isinstance(msg,GoodNodeEvent):
+                if isinstance(msg, RecoverEvent):
+                    await self.spawn(
+                        self.recover_split,
+                        msg.prio,
+                        msg.replace,
+                        msg.local_nodes,
+                        msg.remote_nodes,
+                    )
+                elif isinstance(msg, GoodNodeEvent):
                     await self.spawn(self.fetch_data, msg.nodes)
-                elif isinstance(msg,RawPingEvent):
+                elif isinstance(msg, RawPingEvent):
                     msg = msg.msg
-                    msg_node = msg['node'] if 'node' in msg else msg['history'][0]
-                    val = msg['value']
+                    msg_node = msg["node"] if "node" in msg else msg["history"][0]
+                    val = msg["value"]
                     if val is not None:
                         await self.tock_seen(val[0])
                         val = val[1]
                     else:
                         val = 0
                     Node(msg_node, val, cache=self._nodes)
-
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
@@ -1399,13 +1407,7 @@ class Server:
                     )
                     await self._process_info(res)
 
-            except (
-                AttributeError,
-                KeyError,
-                ValueError,
-                AssertionError,
-                TypeError,
-            ):
+            except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
                 self.logger.exception("Unable to connect to %s" % (nodes,))
@@ -1428,7 +1430,6 @@ class Server:
                 return
 
         self.fetch_running = None
-            
 
     async def _process_info(self, msg):
         for nn, t in msg.get("nodes", {}).items():
@@ -1459,7 +1460,13 @@ class Server:
         Recover from a network split.
         """
         with trio.CancelScope() as scope:
-            self.logger.info("SplitRecover: start %d %s local=%r remote=%r", prio, replace, local_history, sources)
+            self.logger.info(
+                "SplitRecover: start %d %s local=%r remote=%r",
+                prio,
+                replace,
+                local_history,
+                sources,
+            )
             for node in sources:
                 if node not in self._recover_tasks:
                     break
@@ -1527,7 +1534,6 @@ class Server:
                 self.seen_missing = {}
                 await t.cancel()
 
-
     async def _run_send_missing(self, prio):
         """Start :meth:`_send_missing_data` if it's not running"""
 
@@ -1547,7 +1553,9 @@ class Server:
         if prio is None:
             await trio.sleep(clock * (1 + self._actor.random / 3))
         else:
-            await trio.sleep(clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5))
+            await trio.sleep(
+                clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5)
+            )
 
         while self.sending_missing:
             self.sending_missing = False
@@ -1769,7 +1777,6 @@ class Server:
 
             # send initial ping
             await self.spawn(self.pinger, delay2)
-
 
             await trio.sleep(0.1)
             delay.set()

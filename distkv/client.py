@@ -795,7 +795,7 @@ class Client:
         """
         return self._stream(action="serfmon", type=tag, raw=raw)
 
-    def serf_send(self, tag: str, data = None, raw: bytes = None):
+    def serf_send(self, tag: str, data=None, raw: bytes = None):
         """
         Tunnel a user-tagged message through Serf. This sends the message
         to all active callers of :meth:`serf_mon` which use the same tag.
@@ -811,4 +811,3 @@ class Client:
             return self._request(action="serfsend", type=tag, data=data)
         else:
             return self._request(action="serfsend", type=tag, raw=raw)
-
