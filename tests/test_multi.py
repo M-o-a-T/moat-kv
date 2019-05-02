@@ -39,9 +39,9 @@ async def test_10_many(autojump_clock):
 
         await trio.sleep(1)
         NN = min(N - 1, 3)
-        for j in [0] + s._random.sample(range(1, N), NN):
+        for j in [0] + s._actor._rand.sample(range(1, N), NN):
             async with st.client(j) as c:
-                for i in s._random.sample(range(1, N), NN):
+                for i in s._actor._rand.sample(range(1, N), NN):
                     assert (await c.get("foo", i)).value == 420 + i
 
         # await trio.sleep(100)
@@ -65,7 +65,7 @@ async def test_11_split1(autojump_clock, tocky):
                     task_status.started()
                     async for r in sr:
                         msg = msgpack.unpackb(
-                            r.payload,
+                            r.data,
                             object_pairs_hook=attrdict,
                             raw=False,
                             use_list=False,
