@@ -10,6 +10,7 @@ import msgpack
 import socket
 import weakref
 import heapq
+import random
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
@@ -381,13 +382,20 @@ class Client:
     _server_init = None  # Server greeting
     _dh_key = None
 
-    def __init__(self, host, port, ssl=False):
+    def __init__(self, host, port, ssl=False, name=None):
         self.host = host
         self.port = port
         self._seq = 0
         self._handlers = {}
         self._send_lock = trio.Lock()
         self.ssl = gen_ssl(ssl, server=False)
+        if name is None:
+            name = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz",k=9))
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
 
     async def _handle_msg(self, msg):
         try:
