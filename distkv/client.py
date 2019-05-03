@@ -393,7 +393,7 @@ class Client:
         self.ssl = gen_ssl(ssl, server=False)
         self._helpers = {}
         if name is None:
-            name = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz",k=9))
+            name = ''.join(random.choices("abcdefghjkmnopqrstuvwxyz23456789",k=9))
         self._name = name
 
     @property
