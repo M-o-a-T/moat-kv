@@ -400,6 +400,11 @@ class Client:
     def name(self):
         return self._name
 
+    async def get_tock(self):
+        """Fetch the next tock value from the server."""
+        m = await self.get()
+        return m.tock
+
     async def unique_helper(self, name, factory):
         h = self._helpers.get(name, None)
         if h is None:
