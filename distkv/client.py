@@ -746,8 +746,9 @@ class Client:
         if you need a consistent snapshot.
 
         Args:
-            nchain: Length of change chain to add to the results, for updating.
-            min_depth, max_depth: level of nodes to retrieve.
+          nchain (int): Length of change chain to add to the results, for updating.
+          min_depth (int): min level of nodes to retrieve.
+          max_depth (int): max level of nodes to retrieve.
 
         """
         return self._request(action="get_tree", path=path, iter=True, **kw)
@@ -774,16 +775,17 @@ class Client:
         """
         return self._request(task=seq)
 
-    def watch(self, *path, fetch=False, nchain=0):
+    def watch(self, *path, fetch=False, **kw):
         """
         Return an async iterator of changes to a subtree.
 
         Args:
-            fetch: if ``True``, also send the currect state. Be aware that
-                   this may overlap with processing changes: you may get
-                   updates before the current state is completely
-                   transmitted.
-            nchain: add the nodes' change chains.
+          fetch (bool): if ``True``, also send the currect state. Be aware
+            that this may overlap with processing changes: you may get
+            updates before the current state is completely transmitted.
+          nchain: add the nodes' change chains.
+          min_depth (int): min level of nodes to retrieve.
+          max_depth (int): max level of nodes to retrieve.
 
         The result should be passed through a :cls:`distkv.util.PathLongener`.
 
@@ -793,9 +795,7 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._stream(
-            action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
-        )
+        return self._stream(action="watch", path=path, iter=True, **kw)
 
     def mirror(self, *path, **kw):
         """An async context manager that affords an update-able mirror
