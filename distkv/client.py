@@ -10,7 +10,13 @@ import msgpack
 import socket
 import weakref
 import heapq
-from async_generator import asynccontextmanager
+
+try:
+    from contextlib import asynccontextmanager, AsyncExitStack
+except ImportError:
+    from async_generator import asynccontextmanager
+    from async_exit_stack import AsyncExitStack
+
 from asyncserf.util import ValueEvent
 from .util import attrdict, gen_ssl, num2byte, byte2num
 from .exceptions import (
