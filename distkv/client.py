@@ -400,6 +400,10 @@ class Client:
     def name(self):
         return self._name
 
+    @property
+    def node(self):
+        return self._server_init['node']
+
     async def get_tock(self):
         """Fetch the next tock value from the server."""
         m = await self.get()
