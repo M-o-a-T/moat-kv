@@ -693,6 +693,9 @@ class ServerClient:
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
 
+    async def cmd_get_tock(self, msg):
+        return {"tock": self.server.tock}
+
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
         """

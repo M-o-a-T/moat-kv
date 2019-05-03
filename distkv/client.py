@@ -406,7 +406,7 @@ class Client:
 
     async def get_tock(self):
         """Fetch the next tock value from the server."""
-        m = await self.get()
+        m = await self._request("get_tock")
         return m.tock
 
     async def unique_helper(self, name, factory):
