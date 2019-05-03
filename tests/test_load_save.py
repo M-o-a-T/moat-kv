@@ -1,5 +1,6 @@
 import pytest
 import trio
+import anyio
 
 from .mock_serf import stdtest
 from .run import run
@@ -19,11 +20,12 @@ async def test_21_load_save(autojump_clock, tmpdir):
     msgs = []
     s = None
 
-    async def watch_changes(c, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def watch_changes(c, evt):
         lg = PathLongener(())
         async with c.watch(nchain=3, fetch=True) as res:
-            task_status.started()
+            await evt.set()
             async for m in res:
+                logger.info(m)
                 lg(m)
                 if m.get("value", None) is not None:
                     msgs.append(m)
@@ -32,7 +34,9 @@ async def test_21_load_save(autojump_clock, tmpdir):
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 234
-            await c.tg.start(watch_changes, c)
+            evt = anyio.create_event()
+            await c.tg.spawn(watch_changes, c, evt)
+            await evt.wait()
 
             await c.set("foo", value="hello", nchain=3)
             await c.set("foo", "bar", value="baz", nchain=3)
@@ -82,7 +86,9 @@ async def test_21_load_save(autojump_clock, tmpdir):
         logger.debug("RUNNING")
 
         async with st.client() as c:
-            await c.tg.start(watch_changes, c)
+            evt = anyio.create_event()
+            await c.tg.spawn(watch_changes, c, evt)
+            await evt.wait()
 
             await c.set("foof", value="again")
             assert (await c.get("foo")).value == "hello"
@@ -123,13 +129,16 @@ async def test_02_cmd(autojump_clock):
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
+            for h,p,*_ in s.ports:
+                if h[0] != ':':
+                    break
 
             r = await run(
                 "client",
                 "-h",
-                s.ports[0][0],
+                h,
                 "-p",
-                s.ports[0][1],
+                p,
                 "set",
                 "-v",
                 "hello",
@@ -138,9 +147,9 @@ async def test_02_cmd(autojump_clock):
             r = await run(
                 "client",
                 "-h",
-                s.ports[0][0],
+                h,
                 "-p",
-                s.ports[0][1],
+                p,
                 "set",
                 "-ev",
                 "'baz'",
@@ -148,16 +157,16 @@ async def test_02_cmd(autojump_clock):
                 "bar",
             )
 
-            r = await run("client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get")
+            r = await run("client", "-h", h, "-p", p, "get")
             assert r.stdout == "123\n"
 
             r = await run(
-                "client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get", "foo"
+                "client", "-h", h, "-p", p, "get", "foo"
             )
             assert r.stdout == "'hello'\n"
 
             r = await run(
-                "client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get", "foo", "bar"
+                "client", "-h", h, "-p", p, "get", "foo", "bar"
             )
             assert r.stdout == "'baz'\n"
 

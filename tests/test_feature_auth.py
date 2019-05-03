@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 async def test_22_auth_basic(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
-        run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+        for h,p,*_ in s.ports:
+            if h[0] != ':':
+                break
+        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
 
         async with st.client() as c:
             assert (await c.get()).value == 123
@@ -64,7 +67,10 @@ typ: root
 async def test_23_auth_test(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
-        run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+        for h,p,*_ in s.ports:
+            if h[0] != ':':
+                break
+        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
         await run_c("set", "-v", "there", "hello")
 
         await run_c("auth", "-m", "root", "user", "add")
@@ -104,7 +110,10 @@ async def test_24_auth_password(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         autojump_clock.autojump_threshold = 1
-        run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+        for h,p,*_ in s.ports:
+            if h[0] != ':':
+                break
+        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
         await run_c("set", "-v", "42", "answers", "life etc.")
 
         await run_c("auth", "-m", "root", "user", "add")

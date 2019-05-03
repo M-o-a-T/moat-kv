@@ -4,7 +4,6 @@ Client code.
 Main entry point: :func:`open_client`.
 """
 
-import trio
 import anyio
 import outcome
 import msgpack
@@ -29,8 +28,6 @@ from .exceptions import (
     ServerError,
     CancelledError,
 )
-
-# from trio_log import LogStream
 
 import logging
 
@@ -57,7 +54,7 @@ async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
     There is no attempt to reconnect if the Serf connection should fail.
     """
     client = Client(host, port, ssl=ssl)
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         async with client._connected(
             tg, init_timeout=init_timeout, auth=auth
         ) as client:
@@ -138,15 +135,15 @@ class ClientRoot(ClientEntry):
         return self
 
     @asynccontextmanager
-    async def run(self, task_status=trio.TASK_STATUS_IGNORED):
+    async def run(self, sevt = None):
         """A coroutine that fetches, and continually updates, a subtree.
         """
-        async with trio.open_nursery() as n:
-            self._nursery = n
+        async with anyio.create_task_group() as tg:
+            self._tg = tg
 
-            async def monitor(task_status=trio.TASK_STATUS_IGNORED):
+            async def monitor():
                 async with self.client._stream("watch", nchain=3, path=self.path) as w:
-                    task_status.started()
+                    await evt.set()
                     async for r in w:
                         entry = self
                         for p in r.path:
@@ -173,10 +170,13 @@ class ClientRoot(ClientEntry):
                                 pass
                             else:
                                 while w[0][0] <= c.node:
-                                    heapq.heappop(w)[1].set()
+                                    await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            await n.start(monitor)
+            evt = anyio.create_event()
+            await tg.spawn(monitor)
+            await evt.wait()
+
             async with self.client._stream("get_tree", nchain=3, path=self.path) as w:
                 async for r in w:
                     entry = self
@@ -186,15 +186,16 @@ class ClientRoot(ClientEntry):
                         entry.value = r.value
                         entry.chain = r.chain
 
-            task_status.started()
+            if sevt is not None:
+                await sevt.set()
             try:
                 yield self
             finally:
-                n.cancel_scope.cancel()
+                await tg.cancel_scope.cancel()
 
     async def cancel(self):
         """Stop the monitor"""
-        self._nursery.cancel_scope.cancel()
+        await self._tg.cancel_scope.cancel()
 
     async def wait_chain(self, chain):
         """Wait for a tree update containing this tick."""
@@ -204,7 +205,7 @@ class ClientRoot(ClientEntry):
         except KeyError:
             pass
         w = self._waiters.setdefault(chain.node, [])
-        e = trio.Event()
+        e = anyio.create_event()
         heapq.heappush(w, (chain.tick, e))
         await w.wait()
 
@@ -232,7 +233,7 @@ class StreamedRequest:
         self._client = client
         self.seq = seq
         self._stream = stream
-        self.send_q, self.recv_q = trio.open_memory_channel(100)
+        self.q = anyio.create_queue(100)
         self._client._handlers[seq] = self
         self._reply_stream = None
         self.n_msg = 0
@@ -243,10 +244,8 @@ class StreamedRequest:
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
         if "error" in msg:
-            try:
-                await self.send_q.send(outcome.Error(ServerError(msg.error)))
-            except trio.ClosedResourceError:
-                pass
+            if self.q is not None:
+                await self.q.put(outcome.Error(ServerError(msg.error)))
             return
         state = msg.get("state", "")
 
@@ -256,14 +255,16 @@ class StreamedRequest:
             self._reply_stream = True
             self.start_msg = msg
             if self._report_start:
-                await self.send_q.send(outcome.Value(msg))
+                await self.q.put(outcome.Value(msg))
 
         elif state == "end":
             if self._reply_stream is not True:
                 raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
             self.end_msg = msg
-            await self.send_q.aclose()
+            if self.q is not None:
+                await self.q.put(None)
+                self.q = None
             return False
 
         else:
@@ -274,9 +275,10 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
-            await self.send_q.send(outcome.Value(msg))
+            await self.q.put(outcome.Value(msg))
             if self._reply_stream is False:
-                await self.send_q.aclose()
+                await self.q.put(None)
+                self.q = None
 
     async def get(self):
         """Receive a single reply"""
@@ -297,11 +299,15 @@ class StreamedRequest:
         return self
 
     async def __anext__(self):
-        try:
-            res = await self.recv_q.receive()
-        except trio.EndOfChannel:
+        if self.q is None:
             raise StopAsyncIteration
-        return res.unwrap()
+        res = await self.q.get()
+        if res is None:
+            raise StopAsyncIteration
+        try:
+            return res.unwrap()
+        except CancelledError:
+            raise StopAsyncIteration
 
     async def send(self, **params):
         # logger.debug("Send %s", params)
@@ -320,15 +326,18 @@ class StreamedRequest:
         return await self.__anext__()
 
     async def cancel(self):
-        await self.send_q.send(outcome.Error(CancelledError()))
+        if self.q is not None:
+            await self.q.put(outcome.Error(CancelledError()))
         await self.aclose()
 
     async def aclose(self, timeout=0.2):
-        await self.send_q.aclose()
+        if self.q is not None:
+            await self.q.put(None)
+            self.q = None
         if self._stream == 2:
             await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
-                with trio.move_on_after(timeout):
+                async with anyio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
@@ -389,7 +398,7 @@ class Client:
         self.port = port
         self._seq = 0
         self._handlers = {}
-        self._send_lock = trio.Lock()
+        self._send_lock = anyio.create_lock()
         self.ssl = gen_ssl(ssl, server=False)
         self._helpers = {}
         if name is None:
@@ -450,11 +459,11 @@ class Client:
                 k.generate_public_key()
                 return k
 
-            k = await trio.run_sync_in_worker_thread(gen_key)
+            k = await anyio.run_in_thread(gen_key)
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            await trio.run_sync_in_worker_thread(
+            await anyio.run_in_thread(
                 k.generate_shared_secret, byte2num(res.pubkey)
             )
             self._dh_key = num2byte(k.shared_secret)[0:32]
@@ -464,29 +473,30 @@ class Client:
         async with self._send_lock:
             await self._socket.send_all(_packer(params))
 
-    async def _reader(self, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def _reader(self, *, evt=None):
         """Main loop for reading
         """
         unpacker = msgpack.Unpacker(
             object_pairs_hook=attrdict, raw=False, use_list=False
         )
 
-        with trio.CancelScope(shield=True) as s:
-            task_status.started(s)
+        async with anyio.open_cancel_scope() as s:
+            if evt is not None:
+                await evt.set()
             try:
                 while True:
                     for msg in unpacker:
                         # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
-                        except trio.ClosedResourceError:
+                        except anyio.exceptions.ClosedResourceError:
                             raise RuntimeError(msg)
 
                     if self._socket is None:
                         break
                     try:
                         buf = await self._socket.receive_some(4096)
-                    except trio.ClosedResourceError:
+                    except anyio.exceptions.ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.
                         raise ServerClosedError("Connection closed by peer")
@@ -494,12 +504,12 @@ class Client:
 
             finally:
                 hdl, self._handlers = self._handlers, None
-                with trio.CancelScope(shield=True):
-                    try:
-                        for m in hdl.values():
+                async with anyio.open_cancel_scope(shield=True):
+                    for m in hdl.values():
+                        try:
                             await m.cancel()
-                    except trio.ClosedResourceError:
-                        pass
+                        except anyio.exceptions.ClosedResourceError:
+                            pass
 
     async def _request(self, action, iter=None, seq=None, _async=False, **params):
         """Send a request. Wait for a reply.
@@ -519,7 +529,7 @@ class Client:
                                        otherwise return directly
         """
         if self._handlers is None:
-            raise trio.ClosedResourceError()
+            raise anyio.ClosedResourceError()
         if seq is None:
             act = "action"
             self._seq += 1
@@ -594,6 +604,8 @@ class Client:
         seq = self._seq
 
         # logger.debug("Send %s", params)
+        if self._handlers is None:
+            raise anyio.exceptions.ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
         await res.send(action=action, **params)
         try:
@@ -637,19 +649,16 @@ class Client:
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
-            sock = await ex.enter_async_context(await trio.open_tcp_stream(self.host, self.port))
+            sock = await ex.enter_async_context(await anyio.connect_tcp(self.host, self.port, ssl_context=self.ssl))
 
             if self.ssl:
-                # sock = LogStream(sock,"CL")
-                sock = trio.SSLStream(sock, self.ssl, server_side=False)
-                # sock = LogStream(sock,"CH")
-                await sock.do_handshake()
+                await sock.start_tls()
             # logger.debug("ConnDone %s %s",self.host,self.port)
             try:
                 self.tg = tg
                 self._socket = sock
-                await self.tg.start(self._reader)
-                with trio.fail_after(init_timeout):
+                await self.tg.spawn(self._reader)
+                async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                     await self._run_auth(auth)
                 yield self
@@ -660,12 +669,15 @@ class Client:
                 # cancelling the nursey causes open_client() to
                 # exit without a yield which triggers an async error,
                 # which masks the exception
-                self.tg.cancel_scope.cancel()
+                pass
             finally:
-                if self._socket is not None:
-                    await self._socket.aclose()
-                    self._socket = None
-                self.tg = None
+                async with anyio.open_cancel_scope(shield=True):
+                    await self.tg.cancel_scope.cancel()
+                    if self._socket is not None:
+                        async with self._send_lock:
+                            await self._socket.close()
+                        self._socket = None
+                    self.tg = None
 
     # externally visible interface ##########################
 
@@ -775,7 +787,7 @@ class Client:
         """
         return self._request(task=seq)
 
-    def watch(self, *path, fetch=False, **kw):
+    def watch(self, *path, **kw):
         """
         Return an async iterator of changes to a subtree.
 

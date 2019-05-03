@@ -8,6 +8,7 @@ import mock
 import attr
 import copy
 import time
+import socket
 from functools import partial
 
 from distkv.client import open_client
@@ -35,7 +36,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         import trustme
 
         ca = trustme.CA()
-        cert = ca.issue_server_cert(u"test.distkv.m-o-a-t.org")
+        cert = ca.issue_server_cert(u"127.0.0.1")
         server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         ca.configure_trust(client_ctx)
@@ -70,9 +71,16 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         async def client(self, i: int = 0, **kv):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
-            host, port = st.s[i].ports[0][0:2]
-            async with open_client(host=host, port=port, ssl=client_ctx, **kv) as c:
-                yield c
+            for host, port, *_ in st.s[i].ports:
+                if host[0] == ':':
+                    continue
+                try:
+                    async with open_client(host=host, port=port, ssl=client_ctx, **kv) as c:
+                        yield c
+                        return
+                except socket.gaierror:
+                    pass
+            raise RuntimeError("Duh? no connection")
 
         def split(self, s):
             assert s not in self.splits
@@ -87,7 +95,9 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         i = int(host[host.rindex("_") + 1 :])  # noqa: E203
         s = st.s[i]
         await s.is_serving
-        return s.ports[0][0:2]
+        for host, port, *_ in s.ports:
+            if host[0] != ':':
+                return host, port
 
     def tm():
         try:

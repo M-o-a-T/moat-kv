@@ -60,6 +60,7 @@ async def test_01_basic(autojump_clock):
             bart = r.tock
             r = await c.get()
             assert r.value == 123
+            assert r.tock < await c.get_tock()
 
             r = await c.get("foo")
             assert r.value == "hello"
@@ -151,13 +152,16 @@ async def test_02_cmd(autojump_clock):
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
+            for h,p,*_ in s.ports:
+                if h[0] != ':':
+                    break
 
             r = await run(
                 "client",
                 "-h",
-                s.ports[0][0],
+                h,
                 "-p",
-                s.ports[0][1],
+                p,
                 "set",
                 "-v",
                 "hello",
@@ -166,9 +170,9 @@ async def test_02_cmd(autojump_clock):
             r = await run(
                 "client",
                 "-h",
-                s.ports[0][0],
+                h,
                 "-p",
-                s.ports[0][1],
+                p,
                 "set",
                 "-ev",
                 "'baz'",
@@ -176,16 +180,16 @@ async def test_02_cmd(autojump_clock):
                 "bar",
             )
 
-            r = await run("client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get")
+            r = await run("client", "-h", h, "-p", p, "get")
             assert r.stdout == "123\n"
 
             r = await run(
-                "client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get", "foo"
+                "client", "-h", h, "-p", p, "get", "foo"
             )
             assert r.stdout == "'hello'\n"
 
             r = await run(
-                "client", "-h", s.ports[0][0], "-p", s.ports[0][1], "get", "foo", "bar"
+                "client", "-h", h, "-p", p, "get", "foo", "bar"
             )
             assert r.stdout == "'baz'\n"
 

@@ -1706,7 +1706,7 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_stream=None, task_status=trio.TASK_STATUS_IGNORED):
+    async def serve(self, log_stream=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
@@ -1794,6 +1794,8 @@ class Server:
             async with create_tcp_server(**cfg_s) as server:
                 self.ports = server.ports
                 task_status.started(server)
+                if ready_evt is not None:
+                    await ready_evt.set()
 
                 self.logger.debug("S: opened %s", self.ports)
                 self._ready2.set()

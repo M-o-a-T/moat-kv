@@ -144,8 +144,11 @@ async def test_72_cmd(autojump_clock, tmpdir):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
+            for h,p,*_ in s.ports:
+                if h[0] != ':':
+                    break
             rr = partial(
-                run, "client", "-h", s.ports[0][0], "-p", s.ports[0][1], do_stdout=False
+                run, "client", "-h", h, "-p", p, do_stdout=False
             )
             path = tmpdir.join("foo")
             with io.open(path, "w") as f:
