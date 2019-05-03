@@ -5,6 +5,7 @@ Main entry point: :func:`open_client`.
 """
 
 import trio
+import anyio
 import outcome
 import msgpack
 import socket
@@ -381,6 +382,7 @@ class Client:
 
     _server_init = None  # Server greeting
     _dh_key = None
+    exit_stack = None
 
     def __init__(self, host, port, ssl=False, name=None):
         self.host = host
@@ -389,6 +391,7 @@ class Client:
         self._handlers = {}
         self._send_lock = trio.Lock()
         self.ssl = gen_ssl(ssl, server=False)
+        self._helpers = {}
         if name is None:
             name = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz",k=9))
         self._name = name
@@ -396,6 +399,18 @@ class Client:
     @property
     def name(self):
         return self._name
+
+    async def unique_helper(self, name, factory):
+        h = self._helpers.get(name, None)
+        if h is None:
+            h = anyio.create_lock()
+            self._helpers[name] = h
+        if isinstance(h,anyio.abc.Lock):
+            async with h:
+                h = await factory()
+                h = await self.exit_stack.enter_async_context(h)
+                self._helpers[name] = h
+        return h
 
     async def _handle_msg(self, msg):
         try:
@@ -611,7 +626,10 @@ class Client:
         self._handlers[0] = hello
 
         # logger.debug("Conn %s %s",self.host,self.port)
-        async with await trio.open_tcp_stream(self.host, self.port) as sock:
+        async with AsyncExitStack() as ex:
+            self.exit_stack = ex
+            sock = await ex.enter_async_context(await trio.open_tcp_stream(self.host, self.port))
+
             if self.ssl:
                 # sock = LogStream(sock,"CL")
                 sock = trio.SSLStream(sock, self.ssl, server_side=False)
