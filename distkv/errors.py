@@ -3,7 +3,7 @@ This module implements a way to store error messages in DistKV,
 and of course to remove or disable them when the error is gone.
 
 Errors are implemented by storing relevant information at ``(*PREFIX,node,tock)``.
-The prefix defaults to ``("errors",)``; subsystems may want to create their
+The prefix defaults to ``("error",)``; subsystems may want to create their
 own list.
 
 Each error is stored as a record with these arguments:
@@ -77,14 +77,12 @@ from collections import defaultdict, deque
 from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
-from .util import PathLongener
+from.client import AttrClientEntry, ClientEntry, ClientRoot
+from .util import PathLongener, Cache
 
 CFG = dict (
         prefix=("error",),
     )
-
-SAVED = "path subsystem severity resolved created count last_seen message".split()
-SAVED_DETAIL = "seen tock trace str data".split()
 
 async def get_error_handler(client, cfg={}):
     """Return the error handler for this client.
@@ -94,67 +92,72 @@ async def get_error_handler(client, cfg={}):
     c = {}
     c.update(CFG)
     c.update(cfg)
-    async def make():
-        return Errors(client, c)
+    def make():
+        return client.mirror(*c['prefix'], root_type=ErrorRoot)
 
-    return await client.unique_helper(c['prefix'], make)
+    return await client.unique_helper(*c['prefix'], factory=make)
 
 
-class ErrorEntry:
+class ErrorSubEntry(AttrClientEntry):
+    ATTRS = "seen tock trace str data".split()
+
+    @classmethod
+    def child_type(cls, name):
+        logger.warning("Unknown entry type at %r: %s", self._path, name)
+        return ClientEntry
+
+class ErrorEntry(AttrClientEntry):
+    ATTRS = "path subsystem severity resolved created count last_seen message".split()
     deleted = False
     resolved = None  # bool; if None, no details yet
+    count = 0
 
-    def __init__(self, store, node, tock):
-        self._store = store
-        self._node = node
-        self._tock = tock
-        self._details = {}
-        self._seen = anyio.create_event()
-        self.count = 0
-        self.created = time()
+    @classmethod
+    def child_type(cls, name):
+        return ErrorSubEntry
 
-    async def wait_seen(self):
-        """
-        """
-        if self._seen is None:
-            return
-        await self._seen.wait()
-        self._seen = None
-
-    async def save(self):
-        """Save myself to storage.
-        
-        We ignore collisions, as they don't matter: the only "problem" is
-        that the count might be too low.
-        """
-        res = {}
-        for attr in SAVED:
-            try:
-                v = getattr(self, attr)
-            except AttributeError:
-                pass
-            else:
-                res[attr] = v
-        await self._store._client.set(*(self._store._path + (self.subsystem, self._tock)), value=res)
+    async def update(self, value):
+        raise RuntimeError("Nope. Set attributes and call '.save()'.")
 
     async def resolve(self):
+        """
+        Record that this error has been resolved.
+        """
         self.resolved = True
         await self.save()
 
     async def add_exc(self, node, exc, data):
         """
-        Store this exception detail record. It'll come back to us, thus we
-        don't save it locally. One per node, so we don't try to avoid
-        collisions.
+        Store a detail record for this error.
+
+        One per node, so we don't try to avoid collisions.
+
+        Arguments:
+          node (str): The node the error occurred in.
+          exc (Exception): The actual exception
+          data (dict): any relevant data to reproduce the problem.
         """
         res = dict(
                 seen=time(),
-                tock=await self._store._client.get_tock(),
+                tock=await self.root.client.get_tock(),
                 trace=traceback.format_exception(type(exc), exc, exc.__traceback__),
                 str=repr(exc), 
                 data=data,
             )
-        await self._store._client.set(*self._store._path, self._tock, node, value=res)
+        await self.root.client.set(*self._path, node, value=res)
+
+    async def add_comment(self, node, comment, data):
+        """
+        Store this comment, typically used when something resumes working.
+        One per node, so we don't try to avoid collisions.
+        """
+        res = dict(
+                seen=time(),
+                tock=await self._store._client.get_tock(),
+                str=comment,
+                data=data,
+            )
+        await self.root.client.set(*self._path, self._tock, node, value=res)
 
 
     async def delete(self):
@@ -164,42 +167,64 @@ class ErrorEntry:
         This doesn't do anything locally, the watcher will get it.
         """
         await self._store._client.set(*self._store._path, self._tock, value=None)
+        for node in list(self._details.keys()):
+            await self._store._client.set(*self._store._path, value=None)
         
 
-    async def _set(self, val):
+    async def update(self, val):
         """Error data arrives"""
+        await super().update(val)
+
         if val is None:
             self.deleted = True
-            self._store._drop(self)
+            self.resolved = True
+            self.root._drop(self)
             return
-        for k,v in val.items():
-            setattr(self,k,v)
-        self._store._update(self)
+        self.delete = False
 
-        if self._seen is not None:
-            await self._seen.set()
-            self._seen = None
-
-    def _add(self, node, val):
-        """An error entry from this node arrives"""
-        if val is None:
-            self._details.pop(node, None)
-            return
-        self._details[node] = val
+        for k in SAVED:
+            if k in val:
+                setattr(self,k,val[k])
+        self.root._update(self)
 
 
-class Errors:
-    def __init__(self, client, cfg={}):
-        self._client = client
-        self._name = client.name
-        self._path = cfg['prefix']
-        self._cfg = cfg
+    async def set_value(self, val):
+        os = getattr(self,'subsystem',None)
+        op = getattr(self,'path',None)
+        ox = getattr(self,'resolved',None)
+
+        await super().set_value(val)
+
+        ns = getattr(self,'subsystem',None)
+        np = getattr(self,'path',None)
+        nx = getattr(self,'resolved',None)
+
+        if os != ns or op != np or ox != nx:
+            if os is not None and op is not None:
+                s = self.root._pop(os,op,ox)
+            self.root._push(self)
+
+class ErrorStep(ErrorEntry):
+    """
+    Errors are stored at /tock/node; this represents the /tock part
+    """
+    @classmethod
+    def child_type(cls, name):
+        return ErrorEntry
+
+class ErrorRoot(ClientRoot):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self._name = self.client.name
         self._loaded = anyio.create_event()
         self._errors = defaultdict(dict)  # node > tock > Entry
         self._active = defaultdict(dict)  # subsystem > path > Entry
         self._done = defaultdict(WeakValueDictionary)  # subsystem > path > Entry
-        self._latest = deque()
-        self._latest_len = 10
+        self._latest = Cache(100)
+
+    @classmethod
+    def child_type(cls, name):
+        return ErrorStep
 
     def all_errors(self, subsystem=None):
         """
@@ -209,15 +234,14 @@ class Errors:
         Arguments:
           subsystem (str): The subsystem to filter for.
         """
-        def _all_errors():
+
+        if subsystem is None:
             for s in list(self._active.values()):
-                yield from s.values()
+                yield from iter(s.values())
+        else:
+            yield from iter(self._active[subsystem].values())
 
-        if subsystem is not None:
-            return list(self._active[subsystem].values())
-        return _all_errors()
-
-    async def get_error_record(self, subsystem, *path):
+    async def get_error_record(self, subsystem, *path, create=True):
         """Retrieve or generate an error record for a particular subsystem
         and path.
         
@@ -230,15 +254,55 @@ class Errors:
         err = self._done[subsystem].get(path, None)
         if err is not None:
             return err
-        tock = await self._client.get_tock()
-        return ErrorEntry(self, self._name, tock)
+        if not create:
+            return None
+        tock = await self.client.get_tock()
+        return self.follow(self._name, tock)
+
+    async def record_working(self, subsystem, *path, comment=None, data={}, force=False):
+        """This exception has been fixed.
+        
+        Arguments:
+          subsystem (str): The subsystem with the error.
+          *path: the path to the no-longer-offending entry.
+          comment (str): text to enter
+          data (dict): any relevant data
+          force (bool): create an entry even if no error is open.
+        """
+        rec = await self.get_error_record(subsystem, *path, create=False)
+        if rec is None:
+            return
+        if not rec.resolved:
+            rec.resolved = time()
+            await rec.save()
+        if comment or data:
+            rec.add_comment(self._name, comment, data)
+        return rec
 
     async def record_exc(self, subsystem, *path, exc=None, reason=None,
-            data={}, severity=0, message=None):
+            data={}, severity=0, message=None, force: bool = False):
+        """An exception has occurred for this subtype and path.
+        
+        Arguments:
+          subsystem (str): The subsystem with the error.
+          *path: the path to the no-longer-offending entry.
+          exc (Exception): The exception in question.
+          data (dict): any relevant data
+          severity (int): error gravity.
+          force (bool): Flag whether a low-priority exception should
+            override a high-prio one.
+          message (str): some human-readable text to add to the error.
+        """
         if message is None:
             message = repr(exc)
 
         rec = await self.get_error_record(subsystem, *path)
+        try:
+            if not force and rec.severity < severity:
+                return
+        except AttributeError:
+            pass
+
         rec.severity = severity
         rec.subsystem = subsystem
         rec.path = path
@@ -248,69 +312,25 @@ class Errors:
         rec.last_seen = time()
 
         await rec.save()
-        await rec.add_exc(self._client.node, exc, data)
+        await rec.add_exc(self._name, exc, data)
         return rec
 
-    def _update(self, entry):
-        if not hasattr(entry,'subsystem'):
+    def _pop(self, subsystem, path, resolved):
+        """Override to deal with entry changes"""
+        if subsystem is None or path is None:
             return
+        if resolved:
+            self._done[subsystem].pop(path, None)
+        else:
+            self._active[subsystem].pop(path, None)
 
-        s = self._active[entry.subsystem].pop(entry.path, None)
-        if s is None:
-            s = self._done[entry.subsystem].pop(entry.path, None)
+    def _push(self, entry):
+        if entry.subsystem is None or entry.path is None:
+            return
 
         if entry.resolved:
             self._done[entry.subsystem][entry.path] = entry
+            self._latest.keep(entry)
         else:
             self._active[entry.subsystem][entry.path] = entry
-
-    def _drop(self, entry):
-        """
-        Mark this entry as deleted.
-
-        It will still be accessible via the "._done" list for some time.
-        """
-        if not hasattr(entry,'subsystem'):
-            return
-
-        entry.resolved = True
-        self._latest.append(entry)
-        if len(self._latest) > self._latest_len:
-            self._latest.popleft()
-        self._active[entry.subsystem].pop(entry.path, None)
-        self._done[entry.subsystem][entry.path] = entry
-
-    async def __aenter__(self):
-        await self._client.tg.spawn(self._run)
-        # We do not wait for that to signal, because we set _loaded when
-        # the data is there, and wait for that in individual ops
-        # await self._loaded.wait()
-        return self
-
-    async def __aexit__(self, *tb):
-        # Nothing to do, because the client will shut down the taskgroup
-        # when it exits
-        pass
-
-    async def wait_loaded(self):
-        await self._loaded.wait()
-
-    async def _run(self):
-        pl = PathLongener(())
-        async with self._client.watch(*self._path, fetch=True, nchain=0, min_depth=2, max_depth=3) as watcher:
-            async for msg in watcher:
-                if msg.get('state', "") == "uptodate":
-                    await self._loaded.set()
-                    continue
-                pl(msg)
-                await self._run_one(msg)
-
-    async def _run_one(self, msg):
-        err = self._errors[msg.path[0]].get(msg.path[1], None)
-        if err is None:
-            err = ErrorEntry(self, *msg.path[0:2])
-        if len(msg.path) == 2:
-            await err._set(msg.value)
-        else:
-            err._add(msg.path[2], msg.value)
 

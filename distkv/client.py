@@ -19,7 +19,7 @@ except ImportError:
     from async_exit_stack import AsyncExitStack
 
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num
+from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -68,11 +68,18 @@ class ClientEntry:
 
     def __init__(self, parent, name=None):
         self._children = dict()
-        self.path = parent.path + (name,)
+        self._path = parent._path + (name,)
         self.value = None
         self.chain = None
         self._root = weakref.ref(parent.root)
         self.client = parent.client
+
+    @classmethod
+    def child_type(cls, name):
+        """Given a node, return the type which the child with that name should have.
+        The default is "same as this".
+        """
+        return cls
 
     @property
     def root(self):
@@ -81,15 +88,18 @@ class ClientEntry:
     @property
     def subpath(self):
         """Return the path, starting with the root."""
-        return self.path[len(self.root.path) :]  # noqa: E203
+        return self._path[len(self.root._path) :]  # noqa: E203
 
-    def __getitem__(self, k):
+    def get(self, k):
         try:
             c = self._children[k]
         except KeyError:
-            c = ClientEntry(self, k)
+            c = self.child_type(k)(self, k)
             self._children[k] = c
         return c
+
+    def __getitem__(self, k):
+        return self._children[k]
 
     def __in__(self, k):
         return k in self._children
@@ -99,11 +109,18 @@ class ClientEntry:
 
         This is a coroutine.
         """
-        await self.client._request(
-            "set_value", chain=self.chain, path=self.path, value=value
-        )
+        await self.client.set(chain=self.chain, path=self._path, value=value)
         self.value = value
 
+    async def set_value(self, value):
+        """Callback to set the value when data has arrived.
+        
+        This method is strictly for overriding.
+        Don't call me, I'll call you.
+
+        This is async for ease of integration.
+        """
+        self.value = value
 
 def _node_gt(self, other):
     if other is None:
@@ -117,46 +134,116 @@ def _node_gt(self, other):
     return self["tick"] >= other["tick"]
 
 
+class AttrClientEntry(ClientEntry):
+    """A ClientEntry which expects a dict as value and sets (some of) the clients'
+    attributes appropriately.
+
+    Set the classvar ``ATTRS`` to a list of the attrs you want saved. Note
+    that these are not inherited: when you subclass, copy and extend the
+    ``ATTRS`` of your superclass.
+    """
+
+    ATTRS = ()
+    
+    async def update(self,val):
+        raise RuntimeError("Nope. Set attributes and call '.save()'.")
+
+    async def set_value(self, val):
+        """Callback to set the value when data has arrived.
+
+        This method sets the actual attributes.
+
+        This method is strictly for overriding.
+        Don't call me, I'll call you.
+        """
+        await super().set_value(val)
+        if val is None:
+            return      
+        for k in self.ATTRS:
+            if k in val:
+                setattr(self,k,val[k])
+
+    async def save(self):
+        """Save myself to storage, by copying ATTRS to a new value.
+        """
+        res = {}
+        for attr in type(self).ATTRS:
+            try:
+                v = getattr(self, attr)
+            except AttributeError:
+                pass
+            else:   
+                res[attr] = v
+        await self.root.client.set(*self._path, value=res)
+
+
 class ClientRoot(ClientEntry):
     """A helper class that represents the root of a server entry list."""
 
     def __init__(self, client, *path, need_wait=False):
         self._children = dict()
         self.client = client
-        self.path = path
+        self._path = path
         self.value = None
         self._need_wait = need_wait
+        self._loaded = anyio.create_event()
+
         if need_wait:
             self._waiters = dict()
             self._seen = dict()
+
+    @classmethod
+    def child_type(cls, name):
+        """Given a node, return the type which the child with that name should have.
+        The default is :cls:`ClientEntry`.
+        """
+        return ClientEntry
 
     @property
     def root(self):
         return self
 
+    def follow(self, *path, create=True):
+        """Look up a sub-entry.
+        
+        Arguments:
+          create (bool): Create the entries. Default ``True``. If
+            ``False``, raise ` KeyError`` if an entry does not exist.
+        """
+        node = self
+        for elem in path:
+            if create:
+                node = node.get(elem)
+            else:
+                node = node[elem]
+        return node
+
     @asynccontextmanager
-    async def run(self, sevt = None):
+    async def run(self):
         """A coroutine that fetches, and continually updates, a subtree.
         """
         async with anyio.create_task_group() as tg:
             self._tg = tg
 
             async def monitor():
-                async with self.client._stream("watch", nchain=3, path=self.path) as w:
-                    await evt.set()
+                pl = PathLongener(())
+                async with self.client._stream("watch", nchain=3, path=self._path, fetch=True) as w:
                     async for r in w:
-                        entry = self
-                        for p in r.path:
-                            entry = entry[p]
+                        if 'path' not in r:
+                            if r.get('state', "") == "uptodate":
+                                await self._loaded.set()
+                            continue
+                        pl(r)
+                        entry = self.follow(*r.path, create=True)
                         try:
                             assert _node_gt(r.chain, entry.chain)
                         except AttributeError:
                             pass
-                        entry.value = r.value
-                        entry.chain = r.chain
+                        await entry.set_value(r.value)
+                        entry.chain = r.get('chain', None)
 
                         if not self._need_wait:
-                            return
+                            continue
                         c = r.chain
                         while c is not None:
                             try:
@@ -173,21 +260,7 @@ class ClientRoot(ClientEntry):
                                     await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            evt = anyio.create_event()
             await tg.spawn(monitor)
-            await evt.wait()
-
-            async with self.client._stream("get_tree", nchain=3, path=self.path) as w:
-                async for r in w:
-                    entry = self
-                    for p in r.path:
-                        entry = entry[p]
-                    if entry.value is None:
-                        entry.value = r.value
-                        entry.chain = r.chain
-
-            if sevt is not None:
-                await sevt.set()
             try:
                 yield self
             finally:
@@ -196,6 +269,10 @@ class ClientRoot(ClientEntry):
     async def cancel(self):
         """Stop the monitor"""
         await self._tg.cancel_scope.cancel()
+
+    async def wait_loaded(self):
+        """Wait for the tree to be loaded completely."""
+        await self._loaded.wait()
 
     async def wait_chain(self, chain):
         """Wait for a tree update containing this tick."""
@@ -209,6 +286,8 @@ class ClientRoot(ClientEntry):
         heapq.heappush(w, (chain.tick, e))
         await w.wait()
 
+    def spawn(self, *a, **kw):
+        return self._tg.spawn(*a, **kw)
 
 class StreamedRequest:
     """
@@ -275,10 +354,11 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
-            await self.q.put(outcome.Value(msg))
-            if self._reply_stream is False:
-                await self.q.put(None)
-                self.q = None
+            if self.q is not None:
+                await self.q.put(outcome.Value(msg))
+                if self._reply_stream is False:
+                    await self.q.put(None)
+                    self.q = None
 
     async def get(self):
         """Receive a single reply"""
@@ -418,16 +498,29 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, name, factory):
-        h = self._helpers.get(name, None)
+    async def unique_helper(self, *path, factory=None):
+        """
+        Run a (single) async context manager on that path.
+
+        """
+        h = self._helpers.get(path, None)
         if h is None:
             h = anyio.create_lock()
-            self._helpers[name] = h
+            self._helpers[path] = h
         if isinstance(h,anyio.abc.Lock):
             async with h:
-                h = await factory()
-                h = await self.exit_stack.enter_async_context(h)
-                self._helpers[name] = h
+                async def _run(factory, evt):
+                    async with factory() as f:
+                        nonlocal h
+                        h = f
+                        await evt.set()
+                        while True:
+                            await anyio.sleep(99999)
+
+                evt = anyio.create_event()
+                await self.tg.spawn(_run,factory,evt)
+                await evt.wait()
+                self._helpers[path] = h
         return h
 
     async def _handle_msg(self, msg):
@@ -809,9 +902,13 @@ class Client:
         """
         return self._stream(action="watch", path=path, iter=True, **kw)
 
-    def mirror(self, *path, **kw):
+    def mirror(self, *path, root_type=ClientRoot, **kw):
         """An async context manager that affords an update-able mirror
         of part of a DistKV store.
+
+        Arguments:
+          root_type (type): The class to use for the root. Must be
+            :cls:`ClientRoot` or a subclass.
 
         Returns: the root of this tree.
 
@@ -819,14 +916,14 @@ class Client:
             async with distkv.open_client() as c:
                 async with c.mirror("foo", "bar", need_wait=True) as foobar:
                     r = await c.set_value("foo", "bar", "baz", value="test")
-                    foobar.wait_chain(r.chain)
+                    await foobar.wait_chain(r.chain)
                     assert foobar['baz'].value == "test"
                 pass
                 # At this point you can still access the tree's data
                 # via ``foobar``, but they will no longer be kept up-to-date.
 
         """
-        root = ClientRoot(self, *path, **kw)
+        root = root_type(self, *path, **kw)
         return root.run()
 
     def serf_mon(self, tag: str, raw: bool = False):
