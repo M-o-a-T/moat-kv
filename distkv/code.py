@@ -19,7 +19,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 CFG = {
-        'prefix': ("code",),
+        'prefix': (".distkv","code","proc",),
+        }
+
+CFGM = {
+        'prefix': (".distkv","code","module",),
         }
 
 class EmptyCode(Exception):
@@ -35,13 +39,28 @@ class ModuleRoot(ClientRoot):
 
     The module code is stored textually. Content that is not UTF-8 is TODO.
     """
-    async def run(self, *a):
-        self.errors = await self.client.unique_helper(("error",))
-        await super().run(*a)
-
     @classmethod
     def child_type(cls, name):
         return ModuleEntry
+
+    async def run_starting(self):
+        from .errors import get_error_handler
+        self._err = await get_error_handler(self.client)
+        await super().run_starting()
+
+    async def add(self, *path, code=None):
+        """
+        Add or replace this code at this location.
+        """
+        # test-compile the code for validity
+        if code is None:
+            return await self.remove(*path)
+
+        make_module(code, *path)
+
+        r = await self.client.set(*(self._path+path), value=dict(code=code),
+            nchain=2)
+        await self.wait_chain(r.chain)
 
 class ModuleEntry(ClientEntry):
     @property
@@ -52,19 +71,25 @@ class ModuleEntry(ClientEntry):
         await super().set_value(value)
         if value is None:
             self._module = None
-            del sys.modules[self.name]
+            try:
+                del sys.modules[self.name]
+            except KeyError:
+                pass
             return
 
         try:
-            if not isinstance(self.value, str):
+            c = self.value.code
+            if not isinstance(c, str):
                 raise RuntimeError("Not a string, cannot compile")
-            m = make_module(self.value, *self.subpath)
+            m = make_module(c, *self.subpath)
         except Exception as exc:
+            self._module = None
             logger.warn("Could not compile @%r", self.subpath)
-            await self.root.errors.record_exc("compile", *self.subpath,
+            await self.root._err.record_exc("compile", *self.subpath,
                     exc=exc, reason="compilation", message="compiler error")
         else:
-            await self.root.errors.record_working("compile", *self.subpath)
+            await self.root._err.record_working("compile", *self.subpath)
+            self._module = m
 
 
 class ProcRoot(ClientRoot):
@@ -140,7 +165,6 @@ class ProcEntry(ClientEntry):
             c = v['code']
             p = make_proc(c, v.get('vars',()), *self.subpath,
                     use_async=v.get('is_async', False))
-            self._code = p
         except Exception as exc:
             logger.warning("Could not compile @%r", self.subpath)
             await self.root._err.record_exc("compile", *self.subpath,
@@ -148,6 +172,7 @@ class ProcEntry(ClientEntry):
             self._code = None
         else:
             await self.root._err.record_working("compile", *self.subpath)
+            self._code = p
 
     def __call__(self, *a,**kw):
         if self._code is None:
@@ -165,6 +190,21 @@ async def get_code_handler(client, cfg={}):
     c.update(cfg)
     def make():
         return client.mirror(*c['prefix'], root_type=ProcRoot,
+                need_wait=True)
+
+    return await client.unique_helper(*c['prefix'], factory=make)
+
+
+async def get_module_handler(client, cfg={}):
+    """Return the code handler for this client.
+    
+    The handler is created if it doesn't exist.
+    """
+    c = {}
+    c.update(CFGM)
+    c.update(cfg)
+    def make():
+        return client.mirror(*c['prefix'], root_type=ModuleRoot,
                 need_wait=True)
 
     return await client.unique_helper(*c['prefix'], factory=make)

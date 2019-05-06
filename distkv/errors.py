@@ -81,7 +81,7 @@ from.client import AttrClientEntry, ClientEntry, ClientRoot
 from .util import PathLongener, Cache
 
 CFG = dict (
-        prefix=("error",),
+        prefix=(".distkv","error"),
     )
 
 async def get_error_handler(client, cfg={}):
