@@ -3,6 +3,7 @@ This module contains various helper functions and classes.
 """
 import trio
 from getpass import getpass
+from collections import deque
 from collections.abc import Mapping
 
 import logging
@@ -434,3 +435,44 @@ def proc(%s **kw):
     eval(code, d)
     code = d["proc"]
     return code
+
+
+class Cache:
+    """
+    A quick-and-dirty cache that keeps the last N entries of anything
+    in memory so that ref and WeakValueDictionary don't lose them.
+
+    Entries get refreshed when they're in the last third of the cache; as
+    they're not removed, the actual cache size might only be 2/3rd of SIZE.
+    """
+
+    def __init__(self, size, attr="_cache_pos"):
+        self._size = size
+        self._head = 0
+        self._tail = 0
+        self._attr = attr
+        self._q = deque()
+
+    def keep(self, entry):
+        if getattr(entry, self._attr, -1) > self._tail+self._size/3:
+            return
+        self._head += 1
+        setattr(entry, self._attr, self._head)
+        self._q.append(entry)
+        self._flush()
+
+    def _flush(self):
+        while self._head-self._tail > self._size:
+            self._q.popleft()
+            self._tail += 1
+
+    def resize(self, size):
+        """Change the size of this cache.
+        """
+        self._size = size
+        self._flush()
+
+    def clear(self):
+        while self._head > self._tail:
+            self._q.popleft()
+            self._tail += 1
