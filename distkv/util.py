@@ -5,6 +5,9 @@ import trio
 from getpass import getpass
 from collections import deque
 from collections.abc import Mapping
+from types import ModuleType
+from functools import partial
+import sys
 
 import logging
 
@@ -406,13 +409,19 @@ def split_one(p, kw):
     kw[k] = v
 
 
+def _call_proc(code, *a, **kw):
+    d = {}
+    eval(code, d)
+    code = d["_proc"]
+    return code(*a, **kw)
+
 def make_proc(code, vars, *path, use_async=False):
     """Compile this code block to a procedure.
 
     Args:
         code: the code block to execute
         vars: variable names to pass into the code
-        path: the location where the code is / shall be stored
+        path: the location where the code is stored
     Returns:
         the procedure to call. All keyval arguments will be in the local
         dict.
@@ -420,21 +429,41 @@ def make_proc(code, vars, *path, use_async=False):
     vars = ",".join(vars)
     if vars:
         vars += ","
-    hdr = """\
-def proc(%s **kw):
-    locals().update(kw)
+    hdr = """
+def _proc(%s **kw):
     """ % (
         vars,
     )
 
     if use_async:
         hdr = "async " + hdr
-    code = hdr + code.replace("\n", "\n\t")
+    code = hdr + code.replace("\n", "\n    ")
     code = compile(code, ".".join(str(x) for x in path), "exec")
-    d = {}
-    eval(code, d)
-    code = d["proc"]
-    return code
+
+    return partial(_call_proc, code)
+
+class Module(ModuleType):
+    def __repr__(self):
+        return "<Module %s>" % (self.__name__,)
+
+def make_module(code, *path):
+    """Compile this code block to something module-ish.
+
+    Args:
+        code: the code block to execute
+        path: the location where the code is / shall be stored
+    Returns:
+        the procedure to call. All keyval arguments will be in the local
+        dict.
+    """
+    name = ".".join(str(x) for x in path)
+    code = compile(code, name, "exec")
+    om = m = sys.modules.get(name, None)
+    if m is None:
+        m = ModuleType(name)
+    eval(code, m.__dict__)
+    sys.modules[name] = m
+    return m
 
 
 class Cache:

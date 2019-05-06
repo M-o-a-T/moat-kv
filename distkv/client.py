@@ -109,7 +109,7 @@ class ClientEntry:
 
         This is a coroutine.
         """
-        await self.client.set(chain=self.chain, path=self._path, value=value)
+        await self.client.set(*self._path, chain=self.chain, value=value)
         self.value = value
 
     async def set_value(self, value):
@@ -218,6 +218,14 @@ class ClientRoot(ClientEntry):
                 node = node[elem]
         return node
 
+    async def run_starting(self):
+        """Hook for 'about to start reading'"""
+        pass
+
+    async def running(self):
+        """Hook for 'done reading current state'"""
+        await self._loaded.set()
+
     @asynccontextmanager
     async def run(self):
         """A coroutine that fetches, and continually updates, a subtree.
@@ -227,11 +235,13 @@ class ClientRoot(ClientEntry):
 
             async def monitor():
                 pl = PathLongener(())
+                await self.run_starting()
                 async with self.client._stream("watch", nchain=3, path=self._path, fetch=True) as w:
+
                     async for r in w:
                         if 'path' not in r:
                             if r.get('state', "") == "uptodate":
-                                await self._loaded.set()
+                                await self.running()
                             continue
                         pl(r)
                         entry = self.follow(*r.path, create=True)
@@ -242,7 +252,7 @@ class ClientRoot(ClientEntry):
                         await entry.set_value(r.value)
                         entry.chain = r.get('chain', None)
 
-                        if not self._need_wait:
+                        if not self._need_wait or 'chain' not in r:
                             continue
                         c = r.chain
                         while c is not None:
@@ -256,7 +266,7 @@ class ClientRoot(ClientEntry):
                             except KeyError:
                                 pass
                             else:
-                                while w[0][0] <= c.node:
+                                while w and w[0][0] <= c.tick:
                                     await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
@@ -284,7 +294,7 @@ class ClientRoot(ClientEntry):
         w = self._waiters.setdefault(chain.node, [])
         e = anyio.create_event()
         heapq.heappush(w, (chain.tick, e))
-        await w.wait()
+        await e.wait()
 
     def spawn(self, *a, **kw):
         return self._tg.spawn(*a, **kw)
