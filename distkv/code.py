@@ -163,6 +163,7 @@ class ProcRoot(ClientRoot):
 
 class ProcEntry(ClientEntry):
     _code = None
+    is_async = None
 
     @property
     def name(self):
@@ -177,8 +178,8 @@ class ProcEntry(ClientEntry):
         try:
             v = self.value
             c = v['code']
-            p = make_proc(c, v.get('vars',()), *self.subpath,
-                    use_async=v.get('is_async', False))
+            a = v.get('is_async', None)
+            p = make_proc(c, v.get('vars',()), *self.subpath, use_async=a)
         except Exception as exc:
             logger.warning("Could not compile @%r", self.subpath)
             await self.root._err.record_exc("compile", *self.subpath,
@@ -187,10 +188,16 @@ class ProcEntry(ClientEntry):
         else:
             await self.root._err.record_working("compile", *self.subpath)
             self._code = p
+            self.is_async = a
 
     def __call__(self, *a,**kw):
         if self._code is None:
             raise EmptyCode(self._path)
+        if self.is_async is False:
+            proc = self._code
+            if kw:
+                proc = partial(proc, **kw)
+            return anyio.run_in_thread(proc, *a, **kw)
         return self._code(*a, **kw)
 
 
