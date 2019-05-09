@@ -263,19 +263,34 @@ class ClientRoot(ClientEntry):
     def root(self):
         return self
 
-    def follow(self, *path, create=True):
+    def follow(self, *path, create=True, unsafe=False):
         """Look up a sub-entry.
         
         Arguments:
+          *path (str): the path elements to follow.
           create (bool): Create the entries. Default ``True``. If
             ``False``, raise ` KeyError`` if an entry does not exist.
+          unsafe (bool): Allow a single path element that's a tuple.
+            This usually indicates a mistake by the caller. Defaults to
+            ``False``. Please try not to need this.
+
+        The path may not be empty. It also must not be a one-element list,
+        because that indicates that you called ``.follow(path)`` instead of
+        ``.follow(*path)``. To allow that, set ``unsafe``, though a better
+        idea is to structure your data that this is not necessary.
         """
+        if not unsafe and len(path) == 1 and isinstance(path, (list,tuple)):
+            raise RuntimeError("You seem to have used 'path' instead of '*path'.")
+
         node = self
         for elem in path:
             if create:
                 node = node.get(elem)
             else:
                 node = node[elem]
+
+        if not unsafe and node is self:
+            raise RuntimeError("Empty path")
         return node
 
     async def run_starting(self):
@@ -304,7 +319,7 @@ class ClientRoot(ClientEntry):
                                 await self.running()
                             continue
                         pl(r)
-                        entry = self.follow(*r.path, create=True)
+                        entry = self.follow(*r.path, create=True, unsafe=True)
                         try:
                             assert _node_gt(r.chain, entry.chain)
                         except AttributeError:
