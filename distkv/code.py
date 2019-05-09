@@ -94,20 +94,34 @@ class ModuleEntry(ClientEntry):
 
 class ProcRoot(ClientRoot):
     """
-    Single procedures are stored at ``(*PREFIX,*name)``.
+    This class represents the root of a code storage hierarchy. Ideally
+    there should only be one, but you can configure more.
+
+    You typically don't create this class directly; instead, call
+    :meth:`CodeRoot.as_handler`::
+
+        errs = await CodeRoot.as_handler(client, your_config.get("error-handler",{})                        
+
     The prefix defaults to ``("code","proc")``.
+
+    Configuration:
+
+    Arguments:
+      prefix (list): Where to store the code in DtsiKV.
+        The default is ``('.distkv','code','proc')``. 
 
     The code is stored as a dict.
 
-    Internally the code is prefixed with "def proc()".
-
     Arguments:
-      code: the actual code to run.
+      code: the actual code to run. It is parsed as a function body; be
+        aware that multi-line strings will be indented more than you'd like.
       async: flag whether the code should run asynchronously.
+        True: yes, None (default): no, False: run in a separate thread.
       vars: array of names to be used as named arguments.
 
     All arguments are mandatory and should be named.
     Extra arguments will be available in the "kw" dict.
+
     """
 
     @classmethod
@@ -123,10 +137,10 @@ class ProcRoot(ClientRoot):
         """
         Add or replace this code at this location.
         """
-        # test-compile the code for validity
         if code is None:
             return await self.remove(*path)
 
+        # test-compile the code for validity
         make_proc(code, vars, *path, use_async=is_async)
 
         r = await self.client.set(*(self._path+path), value=dict(code=code,

@@ -99,6 +99,9 @@ async def get_error_handler(client, cfg={}):
 
 
 class ErrorSubEntry(AttrClientEntry):
+    """
+    Tracks the latest occurrence of an error, per node.
+    """
     ATTRS = "seen tock trace str data".split()
 
     @classmethod
@@ -107,6 +110,10 @@ class ErrorSubEntry(AttrClientEntry):
         return ClientEntry
 
 class ErrorEntry(AttrClientEntry):
+    """
+    A specific error. While it's recorded per node+tock, for uniqueness,
+    the error is really unique per subsystem and path.
+    """
     ATTRS = "path subsystem severity resolved created count last_seen message".split()
     deleted = False
     resolved = None  # bool; if None, no details yet
@@ -213,6 +220,21 @@ class ErrorStep(ErrorEntry):
         return ErrorEntry
 
 class ErrorRoot(ClientRoot):
+    """
+    This class represents the root of an error handling hierarchy. Ideally
+    there should only be one, but you can use more if necessary.
+
+    You typically don't create this class directly; instead, call
+    :meth:`ClientRoot.as_handler`::
+
+        errs = await ErrorRoot.as_handler(client, your_config.get("error-handler",{})
+
+    Configuration:
+
+    Arguments:
+      prefix (list): Where to store the error data in DistKV.
+        The default is ``('.distkv','error')``.
+    """
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self._name = self.client.name

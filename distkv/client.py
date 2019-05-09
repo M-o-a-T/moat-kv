@@ -79,7 +79,7 @@ class ClientEntry:
     @classmethod
     def child_type(cls, name):
         """Given a node, return the type which the child with that name should have.
-        The default is "same as this".
+        The default is "same as this class".
         """
         return cls
 
@@ -89,7 +89,7 @@ class ClientEntry:
 
     @property
     def subpath(self):
-        """Return the path, starting with the root."""
+        """Return the path to this entry, starting with its :class:`ClientRoot` base."""
         return self._path[len(self.root._path) :]  # noqa: E203
 
     @property
@@ -157,7 +157,7 @@ class ClientEntry:
         This method is strictly for overriding.
         Don't call me, I'll call you.
 
-        This is async for ease of integration.
+        This is a coroutine, for ease of integration.
         """
         self.value = value
 
@@ -180,6 +180,9 @@ class AttrClientEntry(ClientEntry):
     Set the classvar ``ATTRS`` to a list of the attrs you want saved. Note
     that these are not inherited: when you subclass, copy and extend the
     ``ATTRS`` of your superclass.
+
+    If the entry is deleted (value set to ``None``, the attributes listed in
+    ``ATTRS`` will be deleted too, or revert to the class values.
     """
 
     ATTRS = ()
@@ -261,6 +264,7 @@ class ClientRoot(ClientEntry):
 
     @property
     def root(self):
+        """Returns this instance."""
         return self
 
     def follow(self, *path, create=True, unsafe=False):
