@@ -16,7 +16,8 @@ from distkv.default import CFG
 from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict, Queue
+from distkv.util import attrdict
+from anyio import create_queue
 
 import logging
 
@@ -243,7 +244,7 @@ class MockSerfStream:
 
     async def __aenter__(self):
         logger.debug("SERF:MON START:%s", self.typ)
-        self.q = Queue(100)
+        self.q = create_queue(100)
         self.serf.streams.setdefault(self.typ, []).append(self)
         return self
 

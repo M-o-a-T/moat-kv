@@ -291,20 +291,6 @@ class TimeOnlyFormatter(logging.Formatter):
     default_msec_format = "%s.%03d"
 
 
-class Queue:
-    def __init__(self, len):
-        self._send, self._recv = trio.open_memory_channel(len)
-
-    async def get(self):
-        return await self._recv.receive()
-
-    async def put(self, msg):
-        await self._send.send(msg)
-
-    async def aclose(self):
-        await self._send.aclose()
-
-
 class _Server:
     _servers = None
     _q = None

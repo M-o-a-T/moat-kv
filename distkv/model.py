@@ -11,7 +11,8 @@ from range_set import RangeSet
 
 from typing import List, Any
 
-from .util import attrdict, Queue
+from .util import attrdict
+from anyio import create_queue
 
 from logging import getLogger
 
@@ -682,7 +683,7 @@ class Watcher:
     async def __aenter__(self):
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
-        self.q = Queue(self.q_len)
+        self.q = create_queue(self.q_len)
         self.q._distkv__free = self.q_len
         self.root.monitors.add(self.q)
         return self
