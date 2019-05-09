@@ -441,11 +441,7 @@ def make_proc(code, vars, *path, use_async=False):
     vars = ",".join(vars)
     if vars:
         vars += ","
-    hdr = """
-def _proc(%s **kw):
-    """ % (
-        vars,
-    )
+    hdr = "def _proc(%s **kw):\n    " % (vars,)
 
     if use_async:
         hdr = "async " + hdr
