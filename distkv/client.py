@@ -19,7 +19,7 @@ except ImportError:
     from async_exit_stack import AsyncExitStack
 
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener
+from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -73,6 +73,7 @@ class ClientEntry:
         self.chain = None
         self._root = weakref.ref(parent.root)
         self.client = parent.client
+        self._lock = anyio.create_lock()  # for saving etc.
 
     @classmethod
     def child_type(cls, name):
@@ -104,13 +105,15 @@ class ClientEntry:
     def __in__(self, k):
         return k in self._children
 
-    async def update(self, value):
+    async def update(self, value, _locked=False, nchain=0):
         """Update this node's value.
 
         This is a coroutine.
         """
-        await self.client.set(*self._path, chain=self.chain, value=value)
-        self.value = value
+        async with NoLock if _locked else self._lock:
+            r = await self.root.client.set(*self._path, chain=self.chain, value=value, nchain=nchain)
+            self.value = value
+            return r
 
     async def set_value(self, value):
         """Callback to set the value when data has arrived.
@@ -167,14 +170,16 @@ class AttrClientEntry(ClientEntry):
         """Save myself to storage, by copying ATTRS to a new value.
         """
         res = {}
-        for attr in type(self).ATTRS:
-            try:
-                v = getattr(self, attr)
-            except AttributeError:
-                pass
-            else:   
-                res[attr] = v
-        await self.root.client.set(*self._path, value=res)
+        async with self._lock:
+            for attr in type(self).ATTRS:
+                try:
+                    v = getattr(self, attr)
+                except AttributeError:
+                    pass
+                else:   
+                    res[attr] = v
+            await super().update(value=res, _locked=True)
+            return r
 
 
 class ClientRoot(ClientEntry):
