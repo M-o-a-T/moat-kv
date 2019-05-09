@@ -1820,7 +1820,7 @@ class Server:
         except BaseException as exc:
             if isinstance(exc, trio.MultiError):
                 exc = exc.filter(trio.Cancelled)
-            if exc is not None:
+            if exc is not None and type(exc) is not trio.Cancelled:
                 self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 with trio.move_on_after(2) as cs:
