@@ -513,3 +513,19 @@ class Cache:
         while self._head > self._tail:
             self._q.popleft()
             self._tail += 1
+
+
+class NoLock:
+    """A dummy singleton that can replace a lock. 
+       
+    Usage::
+    
+        with NoLock if _locked else self._lock:
+            pass
+    """
+    async def __aenter__(self):
+        return self
+    async def __aexit__(self, *tb):
+        return   
+NoLock = NoLock()
+
