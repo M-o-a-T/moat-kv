@@ -151,7 +151,12 @@ class ErrorEntry(AttrClientEntry):
                 str=repr(exc), 
                 data=data,
             )
-        await self.root.client.set(*self._path, node, value=res)
+        try:
+            await self.root.client.set(*self._path, node, value=res)
+        except TypeError:
+            for k,v in data.items():
+                data[k] = repr(v)
+            await self.root.client.set(*self._path, node, value=res)
 
     async def add_comment(self, node, comment, data):
         """
