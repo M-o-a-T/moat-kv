@@ -44,8 +44,8 @@ class ModuleRoot(ClientRoot):
         return ModuleEntry
 
     async def run_starting(self):
-        from .errors import get_error_handler
-        self._err = await get_error_handler(self.client)
+        from .errors import ErrorRoot
+        self.err = await get_error_handler(self.client)
         await super().run_starting()
 
     async def add(self, *path, code=None):
@@ -85,10 +85,10 @@ class ModuleEntry(ClientEntry):
         except Exception as exc:
             self._module = None
             logger.warn("Could not compile @%r", self.subpath)
-            await self.root._err.record_exc("compile", *self.subpath,
+            await self.root.err.record_exc("compile", *self.subpath,
                     exc=exc, reason="compilation", message="compiler error")
         else:
-            await self.root._err.record_working("compile", *self.subpath)
+            await self.root.err.record_working("compile", *self.subpath)
             self._module = m
 
 
@@ -129,8 +129,8 @@ class ProcRoot(ClientRoot):
         return ProcEntry
 
     async def run_starting(self):
-        from .errors import get_error_handler
-        self._err = await get_error_handler(self.client)
+        from .errors import ErrorRoot
+        self.err = await get_error_handler(self.client)
         await super().run_starting()
 
     async def add(self, *path, code=None, is_async=False, vars=()):
@@ -182,11 +182,11 @@ class ProcEntry(ClientEntry):
             p = make_proc(c, v.get('vars',()), *self.subpath, use_async=a)
         except Exception as exc:
             logger.warning("Could not compile @%r", self.subpath)
-            await self.root._err.record_exc("compile", *self.subpath,
+            await self.root.err.record_exc("compile", *self.subpath,
                     exc=exc, reason="compilation", message="compiler error")
             self._code = None
         else:
-            await self.root._err.record_working("compile", *self.subpath)
+            await self.root.err.record_working("compile", *self.subpath)
             self._code = p
             self.is_async = a
 
