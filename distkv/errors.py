@@ -216,7 +216,7 @@ class ErrorEntry(AttrClientEntry):
         if drop is not self:
             self.root._push(self)
 
-class ErrorStep(ErrorEntry):
+class ErrorStep(ClientEntry):
     """
     Errors are stored at /tock/node; this represents the /tock part
     """
