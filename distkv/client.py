@@ -103,12 +103,18 @@ class ClientEntry:
             yield from iter(k)
 
 
-    def get(self, k):
+    def get(self, name):
+        """
+        Returns the child named "name". It is created (locally) if it doesn't exist.
+
+        Arguments:
+          name (str): The child node's name.
+        """
         try:
-            c = self._children[k]
+            c = self._children[name]
         except KeyError:
-            c = self.child_type(k)(self, k)
-            self._children[k] = c
+            c = self.child_type(name)(self, name)
+            self._children[name] = c
         return c
 
     def __getitem__(self, k):
