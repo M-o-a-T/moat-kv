@@ -256,6 +256,23 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
+    async def as_handler(cls, client, cfg={}):
+        """Return a (or "the") instance of this class.
+        
+        The handler is created if it doesn't exist.
+
+        INstances are distinguished by their prefix (from config).
+        """
+        c = {}
+        c.update(cls.CFG)
+        c.update(cfg)
+        def make():
+            return client.mirror(*c['prefix'], root_type=cls,
+                    need_wait=True, cfg=c)
+
+        return await client.unique_helper(*c['prefix'], factory=make)
+
+    @classmethod
     def child_type(cls, name):
         """Given a node, return the type which the child with that name should have.
         The default is :cls:`ClientEntry`.

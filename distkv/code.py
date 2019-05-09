@@ -11,20 +11,13 @@ import anyio
 from collections import defaultdict, deque
 from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
+from functools import partial
 
 from .util import PathLongener, make_module, make_proc
 from .client import ClientRoot, ClientEntry
 
 import logging
 logger = logging.getLogger(__name__)
-
-CFG = {
-        'prefix': (".distkv","code","proc",),
-        }
-
-CFGM = {
-        'prefix': (".distkv","code","module",),
-        }
 
 class EmptyCode(Exception):
     """
@@ -39,13 +32,19 @@ class ModuleRoot(ClientRoot):
 
     The module code is stored textually. Content that is not UTF-8 is TODO.
     """
+    CFG = {
+            'prefix': (".distkv","code","module",),
+            }
+
+    err: "ErrorRoot" = None
+
     @classmethod
     def child_type(cls, name):
         return ModuleEntry
 
     async def run_starting(self):
         from .errors import ErrorRoot
-        self.err = await get_error_handler(self.client)
+        self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
     async def add(self, *path, code=None):
@@ -92,7 +91,7 @@ class ModuleEntry(ClientEntry):
             self._module = m
 
 
-class ProcRoot(ClientRoot):
+class CodeRoot(ClientRoot):
     """
     This class represents the root of a code storage hierarchy. Ideally
     there should only be one, but you can configure more.
@@ -124,16 +123,22 @@ class ProcRoot(ClientRoot):
 
     """
 
+    CFG = {
+            'prefix': (".distkv","code","proc",),
+            }
+
+    err = None
+
     @classmethod
     def child_type(cls, name):
-        return ProcEntry
+        return CodeEntry
 
     async def run_starting(self):
         from .errors import ErrorRoot
-        self.err = await get_error_handler(self.client)
+        self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
-    async def add(self, *path, code=None, is_async=False, vars=()):
+    async def add(self, *path, code=None, is_async=None, vars=()):
         """
         Add or replace this code at this location.
         """
@@ -161,7 +166,7 @@ class ProcRoot(ClientRoot):
         return c(*a, **kw)
 
 
-class ProcEntry(ClientEntry):
+class CodeEntry(ClientEntry):
     _code = None
     is_async = None
 
@@ -199,35 +204,4 @@ class ProcEntry(ClientEntry):
                 proc = partial(proc, **kw)
             return anyio.run_in_thread(proc, *a, **kw)
         return self._code(*a, **kw)
-
-
-async def get_code_handler(client, cfg={}):
-    """Return the code handler for this client.
-    
-    The handler is created if it doesn't exist.
-    """
-    c = {}
-    c.update(CFG)
-    c.update(cfg)
-    def make():
-        return client.mirror(*c['prefix'], root_type=ProcRoot,
-                need_wait=True)
-
-    return await client.unique_helper(*c['prefix'], factory=make)
-
-
-async def get_module_handler(client, cfg={}):
-    """Return the code handler for this client.
-    
-    The handler is created if it doesn't exist.
-    """
-    c = {}
-    c.update(CFGM)
-    c.update(cfg)
-    def make():
-        return client.mirror(*c['prefix'], root_type=ModuleRoot,
-                need_wait=True)
-
-    return await client.unique_helper(*c['prefix'], factory=make)
-
 

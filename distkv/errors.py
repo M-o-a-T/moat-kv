@@ -80,23 +80,6 @@ from time import time  # wall clock, intentionally
 from.client import AttrClientEntry, ClientEntry, ClientRoot
 from .util import PathLongener, Cache
 
-CFG = dict (
-        prefix=(".distkv","error"),
-    )
-
-async def get_error_handler(client, cfg={}):
-    """Return the error handler for this client.
-    
-    The handler is created if it doesn't exist.
-    """
-    c = {}
-    c.update(CFG)
-    c.update(cfg)
-    def make():
-        return client.mirror(*c['prefix'], root_type=ErrorRoot)
-
-    return await client.unique_helper(*c['prefix'], factory=make)
-
 
 class ErrorSubEntry(AttrClientEntry):
     """
@@ -118,6 +101,12 @@ class ErrorEntry(AttrClientEntry):
     deleted = False
     resolved = None  # bool; if None, no details yet
     count = 0
+    subsystem = None
+    path = None
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.node, self.tock = self.subpath[-2:]
 
     @classmethod
     def child_type(cls, name):
@@ -240,6 +229,11 @@ class ErrorRoot(ClientRoot):
       prefix (list): Where to store the error data in DistKV.
         The default is ``('.distkv','error')``.
     """
+
+    CFG = dict (
+            prefix=(".distkv","error"),
+        )
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self._name = self.client.name

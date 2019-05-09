@@ -10,7 +10,7 @@ from distkv.auth import loader
 from distkv.client import ServerError
 from distkv.util import PathLongener
 
-from distkv.errors import get_error_handler
+from distkv.errors import ErrorRoot
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,8 +33,8 @@ async def test_81_basic(autojump_clock):
         s, = st.s
         async with st.client() as c:
             async with st.client() as cx:
-                e = await get_error_handler(c)
-                ex = await get_error_handler(cx)
+                e = await ErrorRoot.as_handler(c)
+                ex = await ErrorRoot.as_handler(cx)
                 try:
                     1/0
                 except Exception as exc:
