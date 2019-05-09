@@ -126,7 +126,7 @@ class PathShortener:
 
     etc.
 
-    Note that the dict is modified in-place.
+    Note that the input dict is modified in-place.
 
     """
 
@@ -154,8 +154,12 @@ class PathShortener:
 
 
 class PathLongener:
-    """This reverts the operation of a PathShortener. You need to pass the
+    """
+    This reverts the operation of a PathShortener. You need to pass the
     same prefix in.
+
+    Calling a PathLongener with a dict without ``depth`` or ``path``
+    attributes is a no-op.
     """
 
     def __init__(self, prefix):
@@ -168,8 +172,9 @@ class PathLongener:
         except AttributeError:
             return
         d = res.pop("depth", None)
-        if d is not None:
-            p = self.path[: self.depth + d] + p
+        if d is None:
+            return
+        p = self.path[: self.depth + d] + p
         self.path = p
         res["path"] = p
 
