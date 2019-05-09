@@ -200,7 +200,10 @@ class _MsgRW:
     async def __aexit__(self, *tb):
         if self.path is not None:
             async with anyio.open_cancel_scope(shield=True):
-                await self.stream.close()
+                try:
+                    await self.stream.aclose()
+                except AttributeError:
+                    await self.stream.close()
 
 
 class MsgReader(_MsgRW):
