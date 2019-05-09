@@ -194,6 +194,11 @@ class AttrClientEntry(ClientEntry):
         """
         await super().set_value(val)
         if val is None:
+            for k in self.ATTRS:
+                try:
+                    delattr(self,k)
+                except AttributeError:
+                    pass
             return      
         for k in self.ATTRS:
             if k in val:
