@@ -69,6 +69,7 @@ class ClientEntry:
     def __init__(self, parent, name=None):
         self._children = dict()
         self._path = parent._path + (name,)
+        self._name = name
         self.value = None
         self.chain = None
         self._root = weakref.ref(parent.root)
@@ -125,6 +126,8 @@ class ClientEntry:
         return iter(list(self._children.values()))
 
     def __in__(self, k):
+        if isinstance(k, type(self)):
+            k = k._name
         return k in self._children
 
     async def update(self, value, _locked=False, nchain=0):
@@ -243,6 +246,7 @@ class ClientRoot(ClientEntry):
         if cfg is None:
             cfg = {}
         self._cfg = cfg
+        self._name = cfg.get('name', self.client.name)
 
         if need_wait:
             self._waiters = dict()
