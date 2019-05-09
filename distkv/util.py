@@ -285,7 +285,7 @@ class MsgWriter(_MsgRW):
             from .codec import packer
 
     async def __aexit__(self, *tb):
-        with anyio.open_cancel_scope(shield=True):
+        async with anyio.open_cancel_scope(shield=True):
             if self.buf:
                 await self.stream.write(b"".join(self.buf))
             await super().__aexit__(*tb)
