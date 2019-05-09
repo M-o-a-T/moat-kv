@@ -224,15 +224,25 @@ class AttrClientEntry(ClientEntry):
 
 
 class ClientRoot(ClientEntry):
-    """A helper class that represents the root of a server entry list."""
+    """This class represents the root of a subsystem's storage.
+    
+    To use this class, create a subclass that, at minimum, overrides
+    ``CFG`` and ``child_type``. ``CFG`` must be a dict with at least a
+    ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
 
-    def __init__(self, client, *path, need_wait=False):
+    """
+    CFG = "You need to override this with a dict(prefix=('where','ever'))"
+
+    def __init__(self, client, *path, need_wait=False, cfg=None):
         self._children = dict()
         self.client = client
         self._path = path
         self.value = None
         self._need_wait = need_wait
         self._loaded = anyio.create_event()
+        if cfg is None:
+            cfg = {}
+        self._cfg = cfg
 
         if need_wait:
             self._waiters = dict()
