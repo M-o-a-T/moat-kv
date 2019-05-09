@@ -48,10 +48,6 @@ def combine_dict(*d):
 class attrdict(dict):
     """A dictionary which can be accessed via attributes, for convenience"""
 
-    def __init__(self, *a, **k):
-        super(attrdict, self).__init__(*a, **k)
-        self._done = set()
-
     def __getattr__(self, a):
         if a.startswith("_"):
             return object.__getattr__(self, a)
@@ -67,7 +63,10 @@ class attrdict(dict):
             self[a] = b
 
     def __delattr__(self, a):
-        del self[a]
+        try:
+            del self[a]
+        except KeyError:
+            raise AttributeError(a) from None
 
 
 from yaml.representer import SafeRepresenter
