@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import trio
+import anyio
 from trio.abc import Stream
 from async_generator import asynccontextmanager
 import msgpack
@@ -1287,36 +1288,38 @@ class Server:
                      been sent.
         """
         cfg = self.cfg["ping"]
-        async with Actor(
-            client=self.serf,
-            prefix=self.cfg["root"] + ".ping",
-            name=self.node.name,
-            cfg=cfg,
-        ) as actor:
-            self._actor = actor
-            await self._check_ticked()
-            delay.set()
-            async for msg in actor:
-                if isinstance(msg, RecoverEvent):
-                    await self.spawn(
-                        self.recover_split,
-                        msg.prio,
-                        msg.replace,
-                        msg.local_nodes,
-                        msg.remote_nodes,
-                    )
-                elif isinstance(msg, GoodNodeEvent):
-                    await self.spawn(self.fetch_data, msg.nodes)
-                elif isinstance(msg, RawPingEvent):
-                    msg = msg.msg
-                    msg_node = msg["node"] if "node" in msg else msg["history"][0]
-                    val = msg["value"]
-                    if val is not None:
-                        await self.tock_seen(val[0])
-                        val = val[1]
-                    else:
-                        val = 0
-                    Node(msg_node, val, cache=self._nodes)
+        async with anyio.create_task_group() as tg:
+            async with Actor(
+                client=self.serf,
+                prefix=self.cfg["root"] + ".ping",
+                name=self.node.name,
+                cfg=cfg,
+                tg=tg,
+            ) as actor:
+                self._actor = actor
+                await self._check_ticked()
+                delay.set()
+                async for msg in actor:
+                    if isinstance(msg, RecoverEvent):
+                        await self.spawn(
+                            self.recover_split,
+                            msg.prio,
+                            msg.replace,
+                            msg.local_nodes,
+                            msg.remote_nodes,
+                        )
+                    elif isinstance(msg, GoodNodeEvent):
+                        await self.spawn(self.fetch_data, msg.nodes)
+                    elif isinstance(msg, RawPingEvent):
+                        msg = msg.msg
+                        msg_node = msg["node"] if "node" in msg else msg["history"][0]
+                        val = msg.get("value", None)
+                        if val is not None:
+                            await self.tock_seen(val[0])
+                            val = val[1]
+                        else:
+                            val = 0
+                        Node(msg_node, val, cache=self._nodes)
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
