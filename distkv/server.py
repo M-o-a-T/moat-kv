@@ -1058,6 +1058,10 @@ class _RecoverControl:
 
 
 class Server:
+    """
+    This is the DistKV server. It manages connections to the Serf server,
+    its clients, and (optionally) a file that logs all changes.
+    """
     serf = None
     _ready = None
     _actor = None
@@ -1102,6 +1106,12 @@ class Server:
         return self._tock
 
     async def tock_seen(self, value):
+        """
+        Updates the current tock value so that it is at least ``value``.
+
+        Args:
+          value (int): some incoming '`tock``.
+        """
         if value is None:
             return
         if self._tock < value:
@@ -1113,8 +1123,10 @@ class Server:
             await self._actor.set_value((self._tock, self.node.tick))
 
     def _dropper(self, evt, old_evt=_NotGiven):
-        """Drop either one event, or any event that is in ``old_evt`` but not in
-        ``evt``."""
+        """
+        Drop either one event, or any event that is in ``old_evt`` but not
+        in ``evt``.
+        """
         if old_evt is None:
             return
         if old_evt is _NotGiven:
@@ -1123,6 +1135,7 @@ class Server:
 
         nt = {}
         while evt is not None:
+            assert evt.node.name not in nt
             nt[evt.node.name] = evt.tick
             evt = evt.prev
         while old_evt is not None:
@@ -1130,7 +1143,16 @@ class Server:
                 old_evt.node.supersede(old_evt.tick)
             old_evt = old_evt.prev
 
-    async def _send_event(self, action, msg, coalesce=False):
+    async def _send_event(self, action: str, msg: dict, coalesce=False):
+        """
+        Helper to send a Serf event to the ``action`` endpoint.
+
+        Args:
+          action (str): the endpoint to send to. Prefixed by ``cfg.root``.
+          msg: the message to send.
+          coalesce (bool): Flag whether old messages may be thrown away. 
+            Default: ``False``.
+        """
         if "tock" not in msg:
             msg["tock"] = self.tock
         else:
@@ -1143,7 +1165,9 @@ class Server:
         await self.serf.event(self.cfg["root"] + "." + action, msg, coalesce=coalesce)
 
     async def watcher(self):
-        """This method implements the task that watches a (sub)tree for changes"""
+        """
+        The background task that watches a (sub)tree for changes.
+        """
         async with Watcher(self.root) as watcher:
             async for msg in watcher:
                 if msg.event.node != self.node:
@@ -1156,7 +1180,9 @@ class Server:
     async def get_state(
         self, nodes=False, known=False, missing=False, remote_missing=False, **kw
     ):
-        """Return some info about this node's internal state"""
+        """
+        Return some info about this node's internal state.
+        """
         res = attrdict()
         if nodes:
             nd = res.nodes = {}
@@ -1185,14 +1211,18 @@ class Server:
         return res
 
     async def user_update(self, msg):
-        """Process an update."""
+        """
+        Process an update message: deserialize it and apply the result.
+        """
         msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
         await msg.entry.apply(msg, dropped=self._dropper, root=self.paranoid_root)
 
     async def user_info(self, msg):
-        """Process info broadcasts.
+        """
+        Process info broadcasts.
 
-        These are mainly used in the split recovery protocol."""
+        These messages are mainly used by the split recovery protocol.
+        """
 
         if msg.node == self.node.name:
             return  # ignore our own message
@@ -1204,6 +1234,7 @@ class Server:
                 n = Node(n, cache=self._nodes)
                 n.tick = max_n(n.tick, t)
 
+            # did this message pre-empt our own transmission?
             rec = self._recover_tasks.get(msg.node, None)
             if rec is not None:
                 await rec.set(1)
@@ -1229,6 +1260,7 @@ class Server:
                 else:
                     mr += r
 
+            # did this message pre-empt our own transmission?
             rec = self._recover_tasks.get(msg.node, None)
             if rec is not None:
                 await rec.set(2)
@@ -1237,6 +1269,8 @@ class Server:
                 self.logger.debug("Step2: %s not known", msg.node)
 
             if nn > 0:
+                # Some data have been reported to be missing.
+                # Send them.
                 await self._run_send_missing(None)
 
         # Step 3
