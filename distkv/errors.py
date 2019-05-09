@@ -182,38 +182,38 @@ class ErrorEntry(AttrClientEntry):
         for node in list(self._details.keys()):
             await self._store._client.set(*self._store._path, value=None)
         
+    async def move_to(self, dest):
+        """
+        Move this entry, or rather the errors in it, to another.
 
-    async def update(self, val):
-        """Error data arrives"""
-        await super().update(val)
-
-        if val is None:
-            self.deleted = True
-            self.resolved = True
-            self.root._drop(self)
-            return
-        self.delete = False
-
-        for k in SAVED:
-            if k in val:
-                setattr(self,k,val[k])
-        self.root._update(self)
-
+        This is used for collision resolution.
+        """
+        for kid in self:
+            try:
+                dkid = dest[kid._name]
+            except KeyError:
+                dest.add(kid.value)
+            else:
+                if dkid.tock < kid.tock:
+                    continue
+                dkid.update(kid.value)
+            await kid.update(None)
+        await self.update(None)
 
     async def set_value(self, val):
-        os = getattr(self,'subsystem',None)
-        op = getattr(self,'path',None)
-        ox = getattr(self,'resolved',None)
+        """Overridden: set_value
+        
+        Stores a pointer to the error in the root and keeps the records unique
+        """
 
+        await self.root._pop(self)
         await super().set_value(val)
 
-        ns = getattr(self,'subsystem',None)
-        np = getattr(self,'path',None)
-        nx = getattr(self,'resolved',None)
+        drop, keep = await self.root._unique(self)
+        if drop is not None:
+            await drop.move_to(keep)
 
-        if os != ns or op != np or ox != nx:
-            if os is not None and op is not None:
-                s = self.root._pop(os,op,ox)
+        if drop is not self:
             self.root._push(self)
 
 class ErrorStep(ErrorEntry):
@@ -286,6 +286,41 @@ class ErrorRoot(ClientRoot):
         tock = await self.client.get_tock()
         return self.follow(self._name, tock)
 
+    async def _unique(self, entry):
+        """
+        Test whether this record is unique.
+
+        Returns:
+          ``None,None`` if there is no problem
+          Otherwise, a tuple:
+              - the record that should be deleted
+              - the record that should be kept
+
+        This is used for collision resolution and **must** be stable, i.e.
+        not depend on which node it is running on or which entry arrives
+        first.
+        """
+        other = await self.get_error_record(entry.subsystem, *entry.path, create=False)
+        if other is None or other is entry:
+            return None,None
+
+        if other.resolved and not entry.resolved:
+            return other,entry
+        elif entry.resolved and not other.resolved:
+            return entry,other
+
+        if entry.tock < other.tock:
+            return other,entry
+        elif other.tock < entry.tock:
+            return entry,other
+
+        if entry.node < other.node:
+            return other,entry
+        elif other.node < entry.node:
+            return entry,other
+
+        raise RuntimeError("This cannot happen: %s %s", entry.node, entry.tock)
+
     async def record_working(self, subsystem, *path, comment=None, data={}, force=False):
         """This exception has been fixed.
         
@@ -343,22 +378,30 @@ class ErrorRoot(ClientRoot):
         await rec.add_exc(self._name, exc, data, comment=comment)
         return rec
 
-    def _pop(self, subsystem, path, resolved):
+    async def _pop(self, entry):
         """Override to deal with entry changes"""
-        if subsystem is None or path is None:
+        if entry.subsystem is None or entry.path is None:
             return
-        if resolved:
-            self._done[subsystem].pop(path, None)
-        else:
-            self._active[subsystem].pop(path, None)
+        rec = await self.get_error_record(entry.subsystem, *entry.path, create=False)
+        if rec is not entry:
+            return
+
+        try:
+            del (self._done if entry.resolved else self._active)[entry.subsystem][entry.path]
+        except KeyError:
+            pass
+
 
     def _push(self, entry):
         if entry.subsystem is None or entry.path is None:
             return
+        if entry.value is None or entry.deleted:
+            return
 
         if entry.resolved:
-            self._done[entry.subsystem][entry.path] = entry
+            dest = self._done
             self._latest.keep(entry)
         else:
-            self._active[entry.subsystem][entry.path] = entry
+            dest = self._active
+        dest[entry.subsystem][entry.path] = entry
 
