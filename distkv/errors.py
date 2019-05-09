@@ -133,7 +133,7 @@ class ErrorEntry(AttrClientEntry):
         self.resolved = True
         await self.save()
 
-    async def add_exc(self, node, exc, data):
+    async def add_exc(self, node, exc, data, comment=None):
         """
         Store a detail record for this error.
 
@@ -148,7 +148,7 @@ class ErrorEntry(AttrClientEntry):
                 seen=time(),
                 tock=await self.root.client.get_tock(),
                 trace=traceback.format_exception(type(exc), exc, exc.__traceback__),
-                str=repr(exc), 
+                str=comment or repr(exc),
                 data=data,
             )
         try:
@@ -307,7 +307,8 @@ class ErrorRoot(ClientRoot):
         return rec
 
     async def record_exc(self, subsystem, *path, exc=None, reason=None,
-            data={}, severity=0, message=None, force: bool = False):
+            data={}, severity=0, message=None, force: bool = False,
+            comment: str = None):
         """An exception has occurred for this subtype and path.
         
         Arguments:
@@ -339,7 +340,7 @@ class ErrorRoot(ClientRoot):
         rec.last_seen = time()
 
         await rec.save()
-        await rec.add_exc(self._name, exc, data)
+        await rec.add_exc(self._name, exc, data, comment=comment)
         return rec
 
     def _pop(self, subsystem, path, resolved):
