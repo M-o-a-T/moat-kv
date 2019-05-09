@@ -199,8 +199,9 @@ class AttrClientEntry(ClientEntry):
             if k in val:
                 setattr(self,k,val[k])
 
-    async def save(self):
-        """Save myself to storage, by copying ATTRS to a new value.
+    async def save(self, wait=False):
+        """
+        Save myself to storage, by copying ATTRS to a new value.
         """
         res = {}
         async with self._lock:
@@ -211,7 +212,9 @@ class AttrClientEntry(ClientEntry):
                     pass
                 else:   
                     res[attr] = v
-            await super().update(value=res, _locked=True)
+            r = await super().update(value=res, _locked=True, nchain = 3 if wait else 0)
+            if wait:
+                await self.root.wait_chain(r.chain)
             return r
 
 
