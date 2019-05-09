@@ -137,6 +137,17 @@ class ClientEntry:
             self.value = value
             return r
 
+    async def add(self, name, value):
+        """Add a child node with that value.
+
+        Arguments:
+          name (str): the name of the sub-node
+          value: the node's value
+
+        This is a coroutine.
+        """
+        return await self.client.set(*self._path, name, chain=None, value=value)
+
     async def set_value(self, value):
         """Callback to set the value when data has arrived.
         
