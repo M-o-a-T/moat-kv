@@ -91,6 +91,18 @@ class ClientEntry:
         """Return the path, starting with the root."""
         return self._path[len(self.root._path) :]  # noqa: E203
 
+    @property
+    def all_children(self):
+        """Iterate all child nodes.
+        You can send ``True`` to the iterator if you want to skip a subtree.
+        """
+        for k in self:
+            res = (yield k)
+            if res is True:
+                continue
+            yield from iter(k)
+
+
     def get(self, k):
         try:
             c = self._children[k]
@@ -101,6 +113,10 @@ class ClientEntry:
 
     def __getitem__(self, k):
         return self._children[k]
+
+    def __iter__(self):
+        """Iterating an entry returns its children."""
+        return iter(list(self._children.values()))
 
     def __in__(self, k):
         return k in self._children
