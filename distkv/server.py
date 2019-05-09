@@ -1584,7 +1584,7 @@ class Server:
                 await self._send_event("info", attrdict(known=known))
         self.sending_missing = None
 
-    async def load(self, path: str, stream: io.IOBase = None, local: bool = False):
+    async def load(self, path: str = None, stream: io.IOBase = None, local: bool = False):
         """Load data from this stream
 
         Args:
@@ -1706,12 +1706,12 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_stream=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None):
+    async def serve(self, log_path=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
-          ``log_stream``: a binary stream to write changes and initial state to.
+          ``log_path``: path to a binary file to write changes and initial state to.
         """
         async with asyncserf.serf_client(**self.cfg["serf"]) as serf:
             # Collect all "info/missing" messages seen since the last
@@ -1759,8 +1759,8 @@ class Server:
             if self.cfg["state"] is not None:
                 await self.spawn(self.save, self.cfg["state"])
 
-            if log_stream is not None:
-                await self.run_saver(stream=log_stream, save_state=True)
+            if log_path is not None:
+                await self.run_saver(path=log_path, save_state=True)
 
             # Link up our "user_*" code
             for d in dir(self):

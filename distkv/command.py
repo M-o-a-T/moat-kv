@@ -118,10 +118,10 @@ async def pdb(args):  # safe
     help="Port to bind to. Default: %d" % (CFG.server.port,),
 )
 @click.option(
-    "-l", "--load", type=click.File("rb"), default=None, help="Event log to preload."
+    "-l", "--load", type=click.Path(readable=True, exists=True, allow_dash=False), default=None, help="Event log to preload."
 )
 @click.option(
-    "-s", "--save", type=click.File("wb"), default=None, help="Event log to write to."
+    "-s", "--save", type=click.Path(writable=True, allow_dash=False), default=None, help="Event log to write to."
 )
 @click.option(
     "-i",
@@ -153,8 +153,8 @@ async def run(obj, name, host, port, load, save, init, eval):
 
     s = Server(name, cfg=obj.cfg, **kw)
     if load is not None:
-        await s.load(stream=load, local=True)
-    await s.serve(log_stream=save, task_status=RunMsg())
+        await s.load(path=load, local=True)
+    await s.serve(log_path=save, task_status=RunMsg())
 
 
 @main.group()
@@ -396,7 +396,7 @@ async def update(obj, path, infile, local, force):
         raise click.UsageError("'local' and 'force' are mutually exclusive")
 
     ps = PathShortener()
-    async with MsgReader() as reader:
+    async with MsgReader(path=path) as reader:
         with obj.client._stream(
             action="update", path=path, force=force, local=local
         ) as sender:

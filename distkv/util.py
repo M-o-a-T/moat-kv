@@ -2,6 +2,7 @@
 This module contains various helper functions and classes.
 """
 import trio
+import anyio
 from getpass import getpass
 from collections import deque
 from collections.abc import Mapping
@@ -180,39 +181,51 @@ class PathLongener:
 
 
 class _MsgRW:
+    """
+    Common base class for :class:`MsgReader` and :class:`MsgWriter`.
+    """
     _mode = None
 
     def __init__(self, path=None, stream=None):
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
-        self.path = trio.Path(path)
+        self.path = path
         self.stream = stream
 
     async def __aenter__(self):
         if self.path is not None:
-            self.stream = await self.path.open(self._mode)
+            self.stream = await anyio.aopen(self.path, self._mode)
         return self
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            with trio.CancelScope(shield=True):
-                await self.stream.aclose()
+            async with anyio.open_cancel_scope(shield=True):
+                await self.stream.close()
 
 
 class MsgReader(_MsgRW):
-    """Read a stream of messages from a file.
+    """Read a stream of messages (encoded with MsgPack) from a file.
 
     Usage::
 
-        async with MsgReader("/tmp/msgs.pack") as f:
+        async with MsgReader(path="/tmp/msgs.pack") as f:
             async for msg in f:
                 process(msg)
+
+    Arguments:
+      buflen (int): The read buffer size. Defaults to 4k.
+      path (str): the file to write to.
+      stream: the stream to write to.
+        
+    Exactly one of ``path`` and ``stream`` must be used.
     """
 
     _mode = "rb"
 
-    def __init__(self, stream, **kw):
-        super().__init__(**kw)
+    def __init__(self, *a, buflen=4096, **kw):
+        super().__init__(*a, **kw)
+        self.buflen = buflen
+
         from .codec import stream_unpacker
 
         self.unpack = stream_unpacker()
@@ -229,7 +242,7 @@ class MsgReader(_MsgRW):
             else:
                 return msg
 
-            d = await self.stream.read(4096)
+            d = await self.stream.read(self.buflen)
             if d == b"":
                 raise StopAsyncIteration
             self.unpack.feed(d)
@@ -239,19 +252,28 @@ packer = None
 
 
 class MsgWriter(_MsgRW):
-    """Write a stream of messages from a file.
+    """Write a stream of messages to a file (encoded with MsgPack).
 
     Usage::
 
         async with MsgWriter("/tmp/msgs.pack") as f:
             for msg in some_source_of_messages():  # or "async for"
                 f(msg)
+
+    Arguments:
+      buflen (int): The buffer size. Defaults to 64k.
+      path (str): the file to write to.
+      stream: the stream to write to.
+        
+    Exactly one of ``path`` and ``stream`` must be used.
+
+    The stream is buffered. Call :meth:`flush` to flush the buffer.
     """
 
     _mode = "wb"
 
-    def __init__(self, buflen=65536, **kw):
-        super().__init__(**kw)
+    def __init__(self, *a, buflen=65536, **kw):
+        super().__init__(*a, **kw)
 
         self.buf = []
         self.buflen = buflen
@@ -263,7 +285,7 @@ class MsgWriter(_MsgRW):
             from .codec import packer
 
     async def __aexit__(self, *tb):
-        with trio.CancelScope(shield=True):
+        with anyio.open_cancel_scope(shield=True):
             if self.buf:
                 await self.stream.write(b"".join(self.buf))
             await super().__aexit__(*tb)
