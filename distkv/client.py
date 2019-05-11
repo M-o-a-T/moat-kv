@@ -125,7 +125,7 @@ class ClientEntry:
         """Iterating an entry returns its children."""
         return iter(list(self._children.values()))
 
-    def __in__(self, k):
+    def __contains__(self, k):
         if isinstance(k, type(self)):
             k = k._name
         return k in self._children
