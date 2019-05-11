@@ -11,7 +11,7 @@ from range_set import RangeSet
 
 from typing import List, Any
 
-from .util import attrdict
+from .util import attrdict, NotGiven
 from anyio import create_queue
 
 from logging import getLogger
@@ -309,10 +309,6 @@ class NodeEvent:
         return self
 
 
-class _NotGiven:
-    pass
-
-
 class UpdateEvent:
     """Represents an event which updates something.
     """
@@ -322,13 +318,13 @@ class UpdateEvent:
         event: NodeEvent,
         entry: "Entry",
         new_value,
-        old_value=_NotGiven,
+        old_value=NotGiven,
         tock=None,
     ):
         self.event = event
         self.entry = entry
         self.new_value = new_value
-        if old_value is not _NotGiven:
+        if old_value is not NotGiven:
             self.old_value = old_value
         self.tock = tock
 

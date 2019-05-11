@@ -18,6 +18,11 @@ except ImportError:
     from async_generator import asynccontextmanager
 
 
+class NotGiven:
+    """Placeholder value for 'no data' or 'deleted'."""
+    pass
+
+
 def combine_dict(*d):
     """
     Returns a dict with all keys+values of all dict arguments.

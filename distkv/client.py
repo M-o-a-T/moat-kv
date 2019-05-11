@@ -19,7 +19,7 @@ except ImportError:
     from async_exit_stack import AsyncExitStack
 
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock
+from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock, NotGiven
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -151,7 +151,7 @@ class ClientEntry:
         """
         return await self.client.set(*self._path, name, chain=None, value=value)
 
-    async def set_value(self, value):
+    async def set_value(self, value=NotGiven):
         """Callback to set the value when data has arrived.
         
         This method is strictly for overriding.
@@ -159,7 +159,10 @@ class ClientEntry:
 
         This is a coroutine, for ease of integration.
         """
-        self.value = value
+        if value is not NotGiven:
+            self.value = value
+        elif hasattr(self, 'value'):
+            del self.value
 
 def _node_gt(self, other):
     if other is None:
@@ -190,7 +193,7 @@ class AttrClientEntry(ClientEntry):
     async def update(self,val):
         raise RuntimeError("Nope. Set attributes and call '.save()'.")
 
-    async def set_value(self, val):
+    async def set_value(self, val=NotGiven):
         """Callback to set the value when data has arrived.
 
         This method sets the actual attributes.
@@ -345,7 +348,7 @@ class ClientRoot(ClientEntry):
                             assert _node_gt(r.chain, entry.chain)
                         except AttributeError:
                             pass
-                        await entry.set_value(r.value)
+                        await entry.set_value(r.get('value', NotGiven))
                         entry.chain = r.get('chain', None)
 
                         if not self._need_wait or 'chain' not in r:
@@ -897,7 +900,7 @@ class Client:
         """
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
-    def set(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+    def set(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Set or update a value.
 
@@ -910,20 +913,20 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain tag, for further updates.
         """
-        if value is NoData:
-            raise RuntimeError("You need to supply a value")
+        if value is NotGiven:
+            raise RuntimeError("You need to supply a value, or call 'delete'")
 
         kw = {}
-        if prev is not NoData:
+        if prev is not NotGiven:
             kw["prev"] = prev
-        if chain is not NoData:
+        if chain is not NotGiven:
             kw["chain"] = chain
 
         return self._request(
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+    def delete(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Delete a node.
 
@@ -936,9 +939,9 @@ class Client:
             nchain: set to retrieve the node's chain, for setting a new value.
         """
         kw = {}
-        if prev is not NoData:
+        if prev is not NotGiven:
             kw["prev"] = prev
-        if chain is not NoData:
+        if chain is not NotGiven:
             kw["chain"] = chain
 
         return self._request(

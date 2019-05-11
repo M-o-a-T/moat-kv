@@ -30,6 +30,7 @@ from .util import (
     gen_ssl,
     num2byte,
     byte2num,
+    NotGiven,
 )
 from .exceptions import ClientError, NoAuthError, CancelledError
 from . import client as distkv_client  # needs to be mock-able
@@ -40,10 +41,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
-
-
-class _NotGiven:
-    pass
 
 
 _client_nr = 0
@@ -732,7 +729,7 @@ class ServerClient:
         entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
         if root is self.root and "match" in self.metaroot:
             try:
-                self.metaroot["match"].check_value(msg.value, entry)
+                self.metaroot["match"].check_value(None if value is NotGiven else value, entry)
             except ClientError:
                 raise
             except Exception as exc:
@@ -755,22 +752,38 @@ class ServerClient:
             elif msg.chain is not None:
                 raise ClientError("This entry is new")
             send_prev = False
-        res = {"changed": entry.data != msg.value}
-        if send_prev:
-            res["prev"] = entry.data
 
-        async with self.server.next_event() as event:
-            await entry.set_data(
-                event,
-                self.conv.dec_value(msg.value, entry=entry),
-                dropped=self.server._dropper,
-                tock=self.server.tock,
-            )
+        res = attrdict()
+        if value is NotGiven:
+            res.changed = entry.chain is not None
+        else:
+            res.changed = entry.data != value
+        if send_prev:
+            res.prev = entry.data
 
         nchain = msg.get("nchain", 1)
-        if nchain != 0:
-            res["chain"] = entry.chain.serialize(nchain=nchain)
-        res["tock"] = entry.tock
+        if value is NotGiven:
+            if nchain != 0:
+                res.chain = None
+            msg = {}
+            for n,t in entry.chain_links():
+                msg[n.name] = [t]
+            entry.delete()
+            await self.server._send_event("info", attrdict(deleted=msg))
+
+        else:
+            async with self.server.next_event() as event:
+                await entry.set_data(
+                    event,
+                    self.conv.dec_value(msg.value, entry=entry),
+                    dropped=self.server._dropper,
+                    tock=self.server.tock,
+                )
+
+            if nchain != 0:
+                res.chain = entry.chain.serialize(nchain=nchain)
+        res.tock = entry.tock
+
         return res
 
     async def cmd_update(self, msg):
@@ -1066,7 +1079,7 @@ class Server:
     _ready = None
     _actor = None
 
-    def __init__(self, name: str, cfg: dict, init: Any = _NotGiven, root: Entry = None):
+    def __init__(self, name: str, cfg: dict, init: Any = NotGiven, root: Entry = None):
         self._tock = 0
         if root is None:
             root = RootEntry(tock=self.tock)
@@ -1122,14 +1135,14 @@ class Server:
         if self._actor is not None and self._ready.is_set():
             await self._actor.set_value((self._tock, self.node.tick))
 
-    def _dropper(self, evt, old_evt=_NotGiven):
+    def _dropper(self, evt, old_evt=NotGiven):
         """
         Drop either one event, or any event that is in ``old_evt`` but not
         in ``evt``.
         """
         if old_evt is None:
             return
-        if old_evt is _NotGiven:
+        if old_evt is NotGiven:
             evt.node.supersede(evt.tick)
             return
 
@@ -1806,7 +1819,7 @@ class Server:
 
             await self.spawn(self.watcher)
 
-            if self._init is not _NotGiven:
+            if self._init is not NotGiven:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
@@ -1826,7 +1839,7 @@ class Server:
             ssl_ctx = gen_ssl(ssl_ctx, server=True)
 
             await self._ready.wait()
-            if cfg_s.get("port", _NotGiven) is None:
+            if cfg_s.get("port", NotGiven) is None:
                 del cfg_s["port"]
             async with create_tcp_server(**cfg_s) as server:
                 self.ports = server.ports

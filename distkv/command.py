@@ -13,6 +13,7 @@ from .util import (
     MsgReader,
     PathShortener,
     split_one,
+    NotGiven,
 )
 from .client import open_client, StreamedRequest
 from .default import CFG
@@ -23,13 +24,6 @@ from .exceptions import ClientError
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class _NotGiven:
-    pass
-
-
-_NotGiven = _NotGiven()
 
 
 def cmd():
@@ -298,7 +292,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     help="Length of change list to return. Default: 0",
 )
 @click.option(
-    "-p", "--prev", default=_NotGiven, help="Previous value. Deprecated; use 'last'"
+    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option(
@@ -311,7 +305,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
     if eval:
         value = __builtins__["eval"](value)
     args = {}
-    if prev is not _NotGiven:
+    if prev is not NotGiven:
         if eval:
             prev = __builtins__["eval"](prev)
         args["prev"] = prev
