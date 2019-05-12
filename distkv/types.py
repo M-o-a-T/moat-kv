@@ -34,7 +34,7 @@ class TypeEntry(Entry):
         if self._code is not None:
             self._code(value, entry=entry, data=self._data, **kv)
 
-    def _set(self, value):
+    async def set(self, value):
         code = None
         schema = None
         if value is not None and (
@@ -70,7 +70,7 @@ class TypeEntry(Entry):
                 else:
                     raise ValueError("did not fail on %r" % (v,))
 
-        super()._set(value)
+        await super().set(value)
         self._code = code
         self._schema = schema
 
@@ -84,7 +84,7 @@ class TypeRoot(Entry):
 
     SUBTYPE = TypeEntry
 
-    def _set(self, value):
+    async def set(self, value):
         if value is not None:
             raise ValueError("This node can't have data.")
 
@@ -102,7 +102,7 @@ class MatchEntry(MetaEntry):
     hierarchy that's next to my MatchRoot.
     """
 
-    def _set(self, value):
+    async def set(self, value):
         if isinstance(value.type, str):
             value.type = (value.type,)
         elif not isinstance(value.type, (list, tuple)):
@@ -112,7 +112,7 @@ class MatchEntry(MetaEntry):
         except KeyError:
             raise ClientError("This type does not exist")
         # crashes if nonexistent
-        super()._set(value)
+        await super().set(value)
 
 
 MatchEntry.SUBTYPE = MatchEntry
@@ -152,7 +152,7 @@ class MatchRoot(MetaPathEntry):
 
     SUBTYPE = MatchEntry
 
-    def _set(self, value):
+    async def set(self, value):
         if value is not None:
             raise ValueError("This node can't have data.")
 
@@ -190,7 +190,7 @@ class CodecEntry(Entry):
                     raise
         return value
 
-    def _set(self, value):
+    async def set(self, value):
         enc = None
         dec = None
         if value is not None and value.decode is not None:
@@ -219,7 +219,7 @@ class CodecEntry(Entry):
                     if r != w:
                         raise ValueError("Encoding %r got %r, not %r" % (v, r, w))
 
-        super()._set(value)
+        await super().set(value)
         self._enc = enc
         self._dec = dec
 
@@ -233,7 +233,7 @@ class CodecRoot(Entry):
 
     SUBTYPE = CodecEntry
 
-    def _set(self, value):
+    async def set(self, value):
         if value is not None:
             raise ValueError("This node can't have data.")
 
@@ -251,7 +251,7 @@ class ConvEntry(MetaEntry):
     hierarchy that's next to my Root.
     """
 
-    def _set(self, value):
+    async def set(self, value):
         if isinstance(value.codec, str):
             value.codec = (value.codec,)
         elif not isinstance(value.codec, (list, tuple)):
@@ -261,7 +261,7 @@ class ConvEntry(MetaEntry):
         except KeyError:
             raise ClientError("This codec does not exist")
         # crashes if nonexistent
-        super()._set(value)
+        await super().set(value)
 
 
 ConvEntry.SUBTYPE = ConvEntry
@@ -288,7 +288,7 @@ class ConvName(MetaPathEntry):
 
     SUBTYPE = ConvEntry
 
-    def _set(self, value):
+    async def set(self, value):
         if value is not None:
             raise ValueError("This node can't have data.")
 
@@ -312,7 +312,7 @@ class ConvName(MetaPathEntry):
 class ConvRoot(MetaEntry):
     SUBTYPE = ConvName
 
-    def _set(self, value):
+    async def set(self, value):
         if value is not None:
             raise ValueError("This node can't have data.")
 

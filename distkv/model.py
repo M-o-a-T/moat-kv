@@ -483,7 +483,7 @@ class Entry:
         self._root = weakref.ref(root)
         return root
 
-    def _set(self, value):
+    async def set(self, value):
         self._data = value
 
     @property
@@ -573,7 +573,7 @@ class Entry:
             chk.check_value(evt_val, self)
         if not hasattr(evt, "old_value"):
             evt.old_value = self._data
-        self._set(evt_val)
+        await self.set(evt_val)
         self.tock = evt.tock
 
         if dropped is not None and self.chain is not None:
