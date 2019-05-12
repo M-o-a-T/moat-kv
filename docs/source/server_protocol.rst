@@ -11,7 +11,8 @@ action's type). The ``coalesce`` flag must always be ``False``.
 
 All strings are required to be UTF-8 encoded.
 
-TODO: investigate whether replicating Serf in Python would make sense.
+TODO: investigate whether replicating the Serf protocol in Python would
+make sense.
 
 ++++++++++
 Data types
@@ -27,7 +28,7 @@ A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
 * ``tick`` is a node-specific counter which increments by one when any
   entry on that node is changed.
 
-A chain entry may not have a ``tick`` element. In that case the node has
+A chain entry might not have a ``tick`` element. In that case the node has
 not been initialized yet. Such entries are only valid in ``ping`` chains.
 
 Chains are governed by three rules:

@@ -722,18 +722,20 @@ class Client:
         """Send a request. Wait for a reply.
 
         Args:
-          ``action``: what to do. If ``seq`` is set, this is the stream's
-                      state, which should be ``None`` or ``'end'``.
-          ``seq``: Sequence number to use. Only when terminating a
-                   multi-message request.
-          ``_async``: don't wait for a reply (internal!)
-          ``params``: whatever other data the action needs
-          ``iter``: A flag how to treat multi-line replies.
-                    ``True``: always return an iterator
-                    ``False``: Never return an iterator, raise an error
-                               if no or more than on reply arrives
-                    Default: ``None``: return a StreamedRequest if multi-line
-                                       otherwise return directly
+          action (str): what to do. If ``seq`` is set, this is the stream's
+            state, which should be ``None`` or ``'end'``.
+          seq: Sequence number to use. Only when terminating a
+            multi-message request.
+          _async: don't wait for a reply (internal!)
+          params: whatever other data the action needs
+          iter: A flag how to treat multi-line replies.
+            ``True``: always return an iterator
+            ``False``: Never return an iterator, raise an error
+                       if no or more than on reply arrives
+            Default: ``None``: return a StreamedRequest if multi-line
+                                otherwise return directly
+
+        Any other keywords are forwarded to the server.
         """
         if self._handlers is None:
             raise anyio.ClosedResourceError()
