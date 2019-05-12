@@ -13,7 +13,7 @@ from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 from functools import partial
 
-from .util import PathLongener, make_module, make_proc
+from .util import PathLongener, make_module, make_proc, NotGiven
 from .client import ClientRoot, ClientEntry
 
 import logging
@@ -72,7 +72,7 @@ class ModuleEntry(ClientEntry):
 
     async def set_value(self, value):
         await super().set_value(value)
-        if value is None:
+        if value is NotGiven:
             self._module = None
             try:
                 del sys.modules[self.name]
@@ -150,14 +150,14 @@ class CodeRoot(ClientRoot):
         """
         Add or replace this code at this location.
         """
-        if code is None:
+        if code is NotGiven:
             return await self.remove(*path)
 
         # test-compile the code for validity
         make_proc(code, vars, *path, use_async=is_async)
 
         r = await self.client.set(
-            *self._path, path,
+            *(self._path + path),
             value=dict(code=code, is_async=is_async, vars=vars),
             nchain=2
         )
@@ -187,7 +187,7 @@ class CodeEntry(ClientEntry):
 
     async def set_value(self, value):
         await super().set_value(value)
-        if value is None:
+        if value is NotGiven:
             self._code = None
             return
 

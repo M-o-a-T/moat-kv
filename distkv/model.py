@@ -321,6 +321,8 @@ class UpdateEvent:
         self.new_value = new_value
         if old_value is not NotGiven:
             self.old_value = old_value
+        if new_value is NotGiven:
+            event.node.delete(event.tick)
         self.tock = tock
 
     def __repr__(self):
@@ -349,9 +351,11 @@ class UpdateEvent:
         res = self.event.serialize(nchain=nchain)
         res.path = self.entry.path[chop_path:]
         if with_old:
-            res.old_value = conv.enc_value(self.old_value, entry=self.entry)
-            res.new_value = conv.enc_value(self.new_value, entry=self.entry)
-        else:
+            if self.old_value is not NotGiven:
+                res.old_value = conv.enc_value(self.old_value, entry=self.entry)
+            if self.new_value is not NotGiven:
+                res.new_value = conv.enc_value(self.new_value, entry=self.entry)
+        elif self.new_value is not NotGiven:
             res.value = conv.enc_value(self.new_value, entry=self.entry)
         res.tock = self.entry.tock
         return res
@@ -365,12 +369,16 @@ class UpdateEvent:
             conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
         event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        old_value = NotGiven
         if "value" in msg:
             value = conv.dec_value(msg.value, entry=entry)
-        else:
+        elif "new_value" in msg:
             value = conv.dec_value(msg.new_value, entry=entry)
+            old_value = conv.dec_value(msg.old_value, entry=entry)
+        else:
+            value = NotGiven
 
-        return UpdateEvent(event, entry, value, tock=msg.tock)
+        return cls(event, entry, value, old_value=old_value, tock=msg.tock)
 
 
 class Entry:
@@ -381,10 +389,10 @@ class Entry:
     name: str = None
     _path: List[str] = None
     _root: "Entry" = None
-    _data: bytes = None
     chain: NodeEvent = None
     SUBTYPE = None
     SUBTYPES = {}
+    _data: Any = NotGiven
 
     monitors = None
 
@@ -569,7 +577,7 @@ class Entry:
         else:
             evt_val = evt.value
 
-        if chk is not None:
+        if chk is not None and evt_val is not NotGiven:
             chk.check_value(evt_val, self)
         if not hasattr(evt, "old_value"):
             evt.old_value = self._data
@@ -609,7 +617,9 @@ class Entry:
             if ConvNull is None:
                 from .types import ConvNull
             conv = ConvNull
-        res = attrdict(value=conv.enc_value(self._data, entry=self))
+        res = attrdict()
+        if self._data is not NotGiven:
+            res.value = conv.enc_value(self._data, entry=self)
         if self.chain is not None and nchain != 0:
             res.chain = self.chain.serialize(nchain=nchain)
         res.tock = self.tock

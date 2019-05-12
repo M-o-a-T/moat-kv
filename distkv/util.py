@@ -18,8 +18,17 @@ except ImportError:
     from async_generator import asynccontextmanager
 
 
+def singleton(cls):
+    return cls()
+
+
+@singleton
 class NotGiven:
     """Placeholder value for 'no data' or 'deleted'."""
+
+    def __getstate__(self):
+        raise ValueError("You may not serialize this object")
+
     pass
 
 

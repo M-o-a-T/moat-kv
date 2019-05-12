@@ -2,7 +2,7 @@ import weakref
 import jsonschema
 
 from .model import Entry
-from .util import make_proc
+from .util import make_proc, NotGiven
 from .exceptions import ClientError
 
 
@@ -37,7 +37,7 @@ class TypeEntry(Entry):
     async def set(self, value):
         code = None
         schema = None
-        if value is not None and (
+        if value is not NotGiven and (
             value.get("code", None) is not None or value.get("schema", None) is not None
         ):
             schema = value.get("schema", None)
@@ -85,7 +85,7 @@ class TypeRoot(Entry):
     SUBTYPE = TypeEntry
 
     async def set(self, value):
-        if value is not None:
+        if value is not NotGiven:
             raise ValueError("This node can't have data.")
 
     def check_value(self, value, entry=None, **kv):
@@ -103,7 +103,9 @@ class MatchEntry(MetaEntry):
     """
 
     async def set(self, value):
-        if isinstance(value.type, str):
+        if value is NotGiven:
+            pass
+        elif isinstance(value.type, str):
             value.type = (value.type,)
         elif not isinstance(value.type, (list, tuple)):
             raise ValueError("Type is not a list")
@@ -130,7 +132,7 @@ class MetaPathEntry(MetaEntry):
         while checks:
             node, off = checks.pop()
             if off == n_p:
-                if node._data is not None:
+                if node._data is not NotGiven:
                     return node
                 continue
             if "#" in node:

@@ -396,7 +396,7 @@ class SCmd_get_tree(StreamCommand):
             kw["min_depth"] = min_depth
 
         async def send_sub(entry):
-            if entry.data is None:
+            if entry.data is NotGiven:
                 return
             res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
             ps(res)
@@ -760,30 +760,23 @@ class ServerClient:
             res.changed = entry.chain is not None
         else:
             res.changed = entry.data != value
-        if send_prev:
-            res.prev = entry.data
+        if send_prev and entry.data is not NotGiven:
+            res.prev = self.conv.enc_value(entry.data, entry=entry)
 
         nchain = msg.get("nchain", 1)
-        if value is NotGiven:
-            if nchain != 0:
-                res.chain = None
-            msg = {}
-            for n,t in entry.chain_links():
-                msg[n.name] = [t]
-            entry.delete()
-            await self.server._send_event("info", attrdict(deleted=msg))
+        value = msg.get("value", NotGiven)
+        async with self.server.next_event() as event:
+            await entry.set_data(
+                event,
+                NotGiven
+                if value is NotGiven
+                else self.conv.dec_value(value, entry=entry),
+                dropped=self.server._dropper,
+                tock=self.server.tock,
+            )
 
-        else:
-            async with self.server.next_event() as event:
-                await entry.set_data(
-                    event,
-                    self.conv.dec_value(msg.value, entry=entry),
-                    dropped=self.server._dropper,
-                    tock=self.server.tock,
-                )
-
-            if nchain != 0:
-                res.chain = entry.chain.serialize(nchain=nchain)
+        if nchain != 0:
+            res.chain = entry.chain.serialize(nchain=nchain)
         res.tock = entry.tock
 
         return res
@@ -895,7 +888,7 @@ class ServerClient:
         if not self.user.is_super_root:
             raise RuntimeError("You're not allowed to do that")
         a = self.root.follow(None, "auth", nulls_ok=True)
-        if a.data is None:
+        if a.data is NotGiven:
             val = {}
         else:
             val = a.data.copy()
