@@ -346,9 +346,8 @@ class _Server:
         self._kw = kw
         self.ssl = ssl
 
-    async def _accept(self, server, q, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def _accept(self, server, q):
         self.ports.append(server.socket.getsockname())
-        task_status.started()
         try:
             while True:
                 conn = await server.accept()
@@ -356,7 +355,7 @@ class _Server:
                     conn = trio.SSLStream(conn, self.ssl, server_side=True)
                 await q.send(conn)
         finally:
-            with trio.CancelScope(shield=True):
+            async with anyio.open_cancel_scope(shield=True):
                 await q.aclose()
                 await server.aclose()
 
@@ -365,13 +364,13 @@ class _Server:
         servers = await trio.open_tcp_listeners(self.port, **self._kw)
         self.ports = []
         for s in servers:
-            await self.tg.start(self._accept, s, send_q.clone())
+            await self.tg.spawn(self._accept, s, send_q.clone())
         await send_q.aclose()
         return self
 
     async def __aexit__(self, *tb):
-        self.tg.cancel_scope.cancel()
-        with trio.CancelScope(shield=True):
+        await self.tg.cancel_scope.cancel()
+        async with anyio.open_cancel_scope(shield=True):
             await self.recv_q.aclose()
 
     def __aiter__(self):
@@ -386,7 +385,7 @@ class _Server:
 
 @asynccontextmanager
 async def create_tcp_server(**args) -> _Server:
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         server = _Server(tg, **args)
         async with server:
             yield server

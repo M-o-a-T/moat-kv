@@ -4,6 +4,7 @@ except ImportError:
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
 import trio
+import anyio
 import mock
 import attr
 import copy
@@ -17,6 +18,7 @@ from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
 from distkv.util import attrdict
+from asyncserf.util import ValueEvent
 from anyio import create_queue
 
 import logging
@@ -108,7 +110,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         except RuntimeError:
             return otm()
 
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
             ex.enter_context(mock.patch("time.time", new=tm))
@@ -139,35 +141,26 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                 )
                 st.s.append(s)
 
-            class IsStarted:
-                def __init__(self, n):
-                    self.n = n
-                    self.dly = trio.Event()
-
-                def started(self, x=None):
-                    self.n -= 1
-                    if not self.n:
-                        self.dly.set()
-
-            is_started = IsStarted(n)
+            evts = []
             for i in range(n):
                 if kw.get("run_" + str(i), run):
-                    tg.start_soon(partial(st.s[i].serve, task_status=is_started))
-                else:
-                    is_started.started()  # mock me
-            await is_started.dly.wait()
+                    evt = anyio.create_event()
+                    await tg.spawn(partial(st.s[i].serve, ready_evt=evt))
+                    evts.append(evt)
+            for e in evts:
+                await e.wait()
             try:
                 yield st
             finally:
                 logger.info("Runtime: %s", clock.current_time())
-                tg.cancel_scope.cancel()
+                await tg.cancel_scope.cancel()
         logger.info("End")
         pass  # unwinding ex:AsyncExitStack
 
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         ms = MockServ(tg, master, **cfg)
         master.serfs.add(ms)
         try:
@@ -180,7 +173,7 @@ async def mock_serf_client(master, **cfg):
 class MockServ:
     def __init__(self, tg, master, **cfg):
         self.cfg = cfg
-        self.tg = tg
+        self._tg = tg
         self.streams = {}
         self._master = master
 
@@ -188,13 +181,14 @@ class MockServ:
         return id(self)
 
     async def spawn(self, fn, *args, **kw):
-        async def run():
-            try:
+        async def run(evt):
+            async with anyio.open_cancel_scope() as sc:
+                await evt.set(sc)
                 await fn(*args, **kw)
-            except CancelledError:
-                pass
 
-        return self.tg.start_soon(run)
+        evt = ValueEvent()
+        await self._tg.spawn(run, evt)
+        return await evt.get()
 
     def stream(self, event_types="*"):
         if "," in event_types or not event_types.startswith("user:"):

@@ -430,13 +430,12 @@ class SCmd_watch(StreamCommand):
         min_depth = msg.get("min_depth", 0)
 
         async with Watcher(entry) as watcher:
-            async with trio.open_nursery() as n:
+            async with anyio.create_task_group() as tg:
                 tock = client.server.tock
                 shorter = PathShortener(entry.path)
                 if msg.get("fetch", False):
 
-                    async def orig_state(task_status=trio.TASK_STATUS_IGNORED):
-                        task_status.started()
+                    async def orig_state():
                         kv = {"max_depth": max_depth, "min_depth": min_depth}
 
                         async def worker(entry):
@@ -452,7 +451,7 @@ class SCmd_watch(StreamCommand):
                         await entry.walk(worker, **kv)
                         await self.send(state="uptodate")
 
-                    await n.start(orig_state)
+                    await tg.spawn(orig_state)
 
                 async for m in watcher:
                     ml = len(m.entry.path) - len(msg.path)
@@ -583,14 +582,14 @@ class ServerClient:
         res["seq"] = msg.seq
         await self.send(res)
 
-    async def process(self, msg, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def process(self, msg, evt=None):
         """
         Process an incoming message.
         """
         needAuth = self.user is None or self._user is not None
 
         seq = msg.seq
-        with trio.CancelScope() as s:
+        async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             if "chain" in msg:
                 msg.chain = NodeEvent.deserialize(
@@ -608,7 +607,8 @@ class ServerClient:
                 if needAuth and not getattr(fn, "noAuth", False):
                     raise NoAuthError()
                 fn = partial(self._process, fn, msg)
-            task_status.started(s)
+            if evt is not None:
+                await evt.set()
 
             try:
                 await fn()
@@ -881,7 +881,7 @@ class ServerClient:
             t = self.tasks[msg.task]
         except KeyError:
             return False
-        t.cancel()
+        await t.cancel()
         return True
 
     async def cmd_set_auth_typ(self, msg):
@@ -936,7 +936,7 @@ class ServerClient:
             object_pairs_hook=attrdict, raw=False, use_list=False
         )
 
-        async with trio.open_nursery() as tg:
+        async with anyio.create_task_group() as tg:
             self.tg = tg
             msg = {
                 "seq": 0,
@@ -984,7 +984,9 @@ class ServerClient:
                                     % (self.seq, msg.seq)
                                 )
                             self.seq = seq
-                            await self.tg.start(self.process, msg)
+                            evt = anyio.create_event()
+                            await self.tg.spawn(self.process, msg, evt)
+                            await evt.wait()
                     except Exception as exc:
                         if not isinstance(exc, ClientError):
                             self.logger.exception(
