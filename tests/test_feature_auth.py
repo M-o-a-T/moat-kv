@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 async def test_22_auth_basic(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
-        for h,p,*_ in s.ports:
-            if h[0] != ':':
+        for h, p, *_ in s.ports:
+            if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
 
@@ -67,8 +67,8 @@ typ: root
 async def test_23_auth_test(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
-        for h,p,*_ in s.ports:
-            if h[0] != ':':
+        for h, p, *_ in s.ports:
+            if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
         await run_c("set", "-v", "there", "hello")
@@ -110,8 +110,8 @@ async def test_24_auth_password(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         autojump_clock.autojump_threshold = 1
-        for h,p,*_ in s.ports:
-            if h[0] != ':':
+        for h, p, *_ in s.ports:
+            if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
         await run_c("set", "-v", "42", "answers", "life etc.")

@@ -17,13 +17,17 @@ from .util import PathLongener, make_module, make_proc
 from .client import ClientRoot, ClientEntry
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 class EmptyCode(Exception):
     """
     There is no code here.
     """
+
     pass
+
 
 class ModuleRoot(ClientRoot):
     """
@@ -32,9 +36,8 @@ class ModuleRoot(ClientRoot):
 
     The module code is stored textually. Content that is not UTF-8 is TODO.
     """
-    CFG = {
-            'prefix': (".distkv","code","module",),
-            }
+
+    CFG = {"prefix": (".distkv", "code", "module")}
 
     err: "ErrorRoot" = None
 
@@ -44,6 +47,7 @@ class ModuleRoot(ClientRoot):
 
     async def run_starting(self):
         from .errors import ErrorRoot
+
         self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
@@ -57,14 +61,14 @@ class ModuleRoot(ClientRoot):
 
         make_module(code, *path)
 
-        r = await self.client.set(*(self._path+path), value=dict(code=code),
-            nchain=2)
+        r = await self.client.set(*self._path, *path, value=dict(code=code), nchain=2)
         await self.wait_chain(r.chain)
+
 
 class ModuleEntry(ClientEntry):
     @property
     def name(self):
-        return '.'.join(self.subpath)
+        return ".".join(self.subpath)
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -84,8 +88,13 @@ class ModuleEntry(ClientEntry):
         except Exception as exc:
             self._module = None
             logger.warn("Could not compile @%r", self.subpath)
-            await self.root.err.record_exc("compile", *self.subpath,
-                    exc=exc, reason="compilation", message="compiler error")
+            await self.root.err.record_exc(
+                "compile",
+                *self.subpath,
+                exc=exc,
+                reason="compilation",
+                message="compiler error"
+            )
         else:
             await self.root.err.record_working("compile", *self.subpath)
             self._module = m
@@ -123,9 +132,7 @@ class CodeRoot(ClientRoot):
 
     """
 
-    CFG = {
-            'prefix': (".distkv","code","proc",),
-            }
+    CFG = {"prefix": (".distkv", "code", "proc")}
 
     err = None
 
@@ -135,6 +142,7 @@ class CodeRoot(ClientRoot):
 
     async def run_starting(self):
         from .errors import ErrorRoot
+
         self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
@@ -148,18 +156,21 @@ class CodeRoot(ClientRoot):
         # test-compile the code for validity
         make_proc(code, vars, *path, use_async=is_async)
 
-        r = await self.client.set(*(self._path+path), value=dict(code=code,
-            is_async=is_async, vars=vars), nchain=2)
+        r = await self.client.set(
+            *self._path, path,
+            value=dict(code=code, is_async=is_async, vars=vars),
+            nchain=2
+        )
         await self.wait_chain(r.chain)
 
     async def remove(self, *path):
         """Drop this code"""
-        r = await self.client.set(*(self._path+path), value=None, nchain=2)
+        r = await self.client.set(*self._path, *path, value=None, nchain=2)
         await self.wait_chain(r.chain)
 
     def __call__(self, name, *a, **kw):
         c = self
-        for k in name.split('.'):
+        for k in name.split("."):
             c = c[k]
         if c is self:
             raise RuntimeError("Empty code names don't make sense")
@@ -172,7 +183,7 @@ class CodeEntry(ClientEntry):
 
     @property
     def name(self):
-        return '.'.join(self.subpath)
+        return ".".join(self.subpath)
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -182,20 +193,25 @@ class CodeEntry(ClientEntry):
 
         try:
             v = self.value
-            c = v['code']
-            a = v.get('is_async', None)
-            p = make_proc(c, v.get('vars',()), *self.subpath, use_async=a)
+            c = v["code"]
+            a = v.get("is_async", None)
+            p = make_proc(c, v.get("vars", ()), *self.subpath, use_async=a)
         except Exception as exc:
             logger.warning("Could not compile @%r", self.subpath)
-            await self.root.err.record_exc("compile", *self.subpath,
-                    exc=exc, reason="compilation", message="compiler error")
+            await self.root.err.record_exc(
+                "compile",
+                *self.subpath,
+                exc=exc,
+                reason="compilation",
+                message="compiler error"
+            )
             self._code = None
         else:
             await self.root.err.record_working("compile", *self.subpath)
             self._code = p
             self.is_async = a
 
-    def __call__(self, *a,**kw):
+    def __call__(self, *a, **kw):
         if self._code is None:
             raise EmptyCode(self._path)
         if self.is_async is False:
@@ -204,4 +220,3 @@ class CodeEntry(ClientEntry):
                 proc = partial(proc, **kw)
             return anyio.run_in_thread(proc, *a, **kw)
         return self._code(*a, **kw)
-

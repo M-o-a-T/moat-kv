@@ -152,45 +152,22 @@ async def test_02_cmd(autojump_clock):
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
-            for h,p,*_ in s.ports:
-                if h[0] != ':':
+            for h, p, *_ in s.ports:
+                if h[0] != ":":
                     break
 
+            r = await run("client", "-h", h, "-p", p, "set", "-v", "hello", "foo")
             r = await run(
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "set",
-                "-v",
-                "hello",
-                "foo",
-            )
-            r = await run(
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "set",
-                "-ev",
-                "'baz'",
-                "foo",
-                "bar",
+                "client", "-h", h, "-p", p, "set", "-ev", "'baz'", "foo", "bar"
             )
 
             r = await run("client", "-h", h, "-p", p, "get")
             assert r.stdout == "123\n"
 
-            r = await run(
-                "client", "-h", h, "-p", p, "get", "foo"
-            )
+            r = await run("client", "-h", h, "-p", p, "get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run(
-                "client", "-h", h, "-p", p, "get", "foo", "bar"
-            )
+            r = await run("client", "-h", h, "-p", p, "get", "foo", "bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(

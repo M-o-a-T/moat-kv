@@ -77,7 +77,7 @@ from collections import defaultdict, deque
 from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
-from.client import AttrClientEntry, ClientEntry, ClientRoot
+from .client import AttrClientEntry, ClientEntry, ClientRoot
 from .util import PathLongener, Cache
 
 
@@ -85,6 +85,7 @@ class ErrorSubEntry(AttrClientEntry):
     """
     Tracks the latest occurrence of an error, per node.
     """
+
     ATTRS = "seen tock trace str data".split()
 
     @classmethod
@@ -92,11 +93,13 @@ class ErrorSubEntry(AttrClientEntry):
         logger.warning("Unknown entry type at %r: %s", self._path, name)
         return ClientEntry
 
+
 class ErrorEntry(AttrClientEntry):
     """
     A specific error. While it's recorded per node+tock, for uniqueness,
     the error is really unique per subsystem and path.
     """
+
     ATTRS = "path subsystem severity resolved created count last_seen message".split()
     deleted = False
     resolved = None  # bool; if None, no details yet
@@ -134,16 +137,16 @@ class ErrorEntry(AttrClientEntry):
           data (dict): any relevant data to reproduce the problem.
         """
         res = dict(
-                seen=time(),
-                tock=await self.root.client.get_tock(),
-                trace=traceback.format_exception(type(exc), exc, exc.__traceback__),
-                str=comment or repr(exc),
-                data=data,
-            )
+            seen=time(),
+            tock=await self.root.client.get_tock(),
+            trace=traceback.format_exception(type(exc), exc, exc.__traceback__),
+            str=comment or repr(exc),
+            data=data,
+        )
         try:
             await self.root.client.set(*self._path, node, value=res)
         except TypeError:
-            for k,v in data.items():
+            for k, v in data.items():
                 data[k] = repr(v)
             await self.root.client.set(*self._path, node, value=res)
 
@@ -153,13 +156,12 @@ class ErrorEntry(AttrClientEntry):
         One per node, so we don't try to avoid collisions.
         """
         res = dict(
-                seen=time(),
-                tock=await self._store._client.get_tock(),
-                str=comment,
-                data=data,
-            )
+            seen=time(),
+            tock=await self._store._client.get_tock(),
+            str=comment,
+            data=data,
+        )
         await self.root.client.set(*self._path, self._tock, node, value=res)
-
 
     async def delete(self):
         """
@@ -170,7 +172,7 @@ class ErrorEntry(AttrClientEntry):
         await self._store._client.set(*self._store._path, self._tock, value=None)
         for node in list(self._details.keys()):
             await self._store._client.set(*self._store._path, value=None)
-        
+
     async def move_to(self, dest):
         """
         Move this entry, or rather the errors in it, to another.
@@ -205,13 +207,16 @@ class ErrorEntry(AttrClientEntry):
         if drop is not self:
             self.root._push(self)
 
+
 class ErrorStep(ClientEntry):
     """
     Errors are stored at /tock/node; this represents the /tock part
     """
+
     @classmethod
     def child_type(cls, name):
         return ErrorEntry
+
 
 class ErrorRoot(ClientRoot):
     """
@@ -230,9 +235,7 @@ class ErrorRoot(ClientRoot):
         The default is ``('.distkv','error')``.
     """
 
-    CFG = dict (
-            prefix=(".distkv","error"),
-        )
+    CFG = dict(prefix=(".distkv", "error"))
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -296,26 +299,28 @@ class ErrorRoot(ClientRoot):
         """
         other = await self.get_error_record(entry.subsystem, *entry.path, create=False)
         if other is None or other is entry:
-            return None,None
+            return None, None
 
         if other.resolved and not entry.resolved:
-            return other,entry
+            return other, entry
         elif entry.resolved and not other.resolved:
-            return entry,other
+            return entry, other
 
         if entry.tock < other.tock:
-            return other,entry
+            return other, entry
         elif other.tock < entry.tock:
-            return entry,other
+            return entry, other
 
         if entry.node < other.node:
-            return other,entry
+            return other, entry
         elif other.node < entry.node:
-            return entry,other
+            return entry, other
 
         raise RuntimeError("This cannot happen: %s %s", entry.node, entry.tock)
 
-    async def record_working(self, subsystem, *path, comment=None, data={}, force=False):
+    async def record_working(
+        self, subsystem, *path, comment=None, data={}, force=False
+    ):
         """This exception has been fixed.
         
         Arguments:
@@ -335,9 +340,18 @@ class ErrorRoot(ClientRoot):
             rec.add_comment(self._name, comment, data)
         return rec
 
-    async def record_exc(self, subsystem, *path, exc=None, reason=None,
-            data={}, severity=0, message=None, force: bool = False,
-            comment: str = None):
+    async def record_exc(
+        self,
+        subsystem,
+        *path,
+        exc=None,
+        reason=None,
+        data={},
+        severity=0,
+        message=None,
+        force: bool = False,
+        comment: str = None
+    ):
         """An exception has occurred for this subtype and path.
         
         Arguments:
@@ -381,10 +395,11 @@ class ErrorRoot(ClientRoot):
             return
 
         try:
-            del (self._done if entry.resolved else self._active)[entry.subsystem][entry.path]
+            del (self._done if entry.resolved else self._active)[entry.subsystem][
+                entry.path
+            ]
         except KeyError:
             pass
-
 
     def _push(self, entry):
         if entry.subsystem is None or entry.path is None:
@@ -398,4 +413,3 @@ class ErrorRoot(ClientRoot):
         else:
             dest = self._active
         dest[entry.subsystem][entry.path] = entry
-

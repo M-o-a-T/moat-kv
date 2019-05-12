@@ -73,10 +73,12 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
             for host, port, *_ in st.s[i].ports:
-                if host[0] == ':':
+                if host[0] == ":":
                     continue
                 try:
-                    async with open_client(host=host, port=port, ssl=client_ctx, **kv) as c:
+                    async with open_client(
+                        host=host, port=port, ssl=client_ctx, **kv
+                    ) as c:
                         yield c
                         return
                 except socket.gaierror:
@@ -97,7 +99,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         s = st.s[i]
         await s.is_serving
         for host, port, *_ in s.ports:
-            if host[0] != ':':
+            if host[0] != ":":
                 return host, port
 
     def tm():

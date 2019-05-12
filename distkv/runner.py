@@ -26,6 +26,7 @@ class NotSelected(RuntimeError):
     """
     This node has not been selected for a very long time. Something is amiss.
     """
+
     pass
 
 
@@ -46,14 +47,15 @@ async def keep_running(client: Serf, name: str, cfg: dict, evt: anyio.abc.Event 
       prefix (dict): The prefix for the actor. Default "run".
     """
     async with anyio.open_task_group() as tg:
-        async with Actor(client, name, cfg.get('prefix', "runner"), cfg.get("actor", {})) as act:
+        async with Actor(
+            client, name, cfg.get("prefix", "runner"), cfg.get("actor", {})
+        ) as act:
             r = Runner(tg, act, cfg)
             async with r:
                 try:
                     yield r
                 finally:
                     await tg.cancel_scope.cancel()
-
 
 
 class RunnerEntry(AttrClientEntry):
@@ -81,6 +83,7 @@ class RunnerEntry(AttrClientEntry):
       _client: the DistKV client connection
 
     """
+
     ATTRS = "code data started stopped result node backoff delay repeat target".split()
 
     started = 0  # timestamp
@@ -96,11 +99,11 @@ class RunnerEntry(AttrClientEntry):
     _comment = None  # used for error entries, i.e. mainly Cancel
 
     def __init__(self, *a, **k):
-        super().__init__(*a,**k)
+        super().__init__(*a, **k)
 
         self._task = None
-        self.code = None # code location
-        self.data = {} # local data
+        self.code = None  # code location
+        self.data = {}  # local data
 
     async def run(self):
         if self.code is None:
@@ -111,8 +114,8 @@ class RunnerEntry(AttrClientEntry):
                     raise RuntimeError("already running on %s", self.node)
                 code = self.root.code.follow(*self.code, create=False)
                 data = deepcopy(self.data)
-                data['_entry'] = self
-                data['_client'] = self.root.client
+                data["_entry"] = self
+                data["_client"] = self.root.client
 
                 self.started = time.time()
                 self.node = self.root.name
@@ -129,10 +132,12 @@ class RunnerEntry(AttrClientEntry):
             finally:
                 self.scope = None
                 t = time.time()
-            
+
         except BaseException as exc:
-            c,self._comment = self._comment,None
-            await self.root.err.record_exc("run", *self._path, exc=exc, data=data, comment=c)
+            c, self._comment = self._comment, None
+            await self.root.err.record_exc(
+                "run", *self._path, exc=exc, data=data, comment=c
+            )
             self.backoff += 1
             if self.node == self.root.name:
                 self.node = None
@@ -143,7 +148,7 @@ class RunnerEntry(AttrClientEntry):
         finally:
             self.stopped = t
             if self.backoff > 0:
-                self.retry = t+(1<<self.backoff)*self.delay
+                self.retry = t + (1 << self.backoff) * self.delay
             else:
                 self.retry = None
             try:
@@ -177,9 +182,13 @@ class RunnerEntry(AttrClientEntry):
             self._comment = "Cancel: Node set to %r" % (self.node,)
             await self.scope.cancel()
         elif n is not None:
-            logger.warning("Runner %s at %r: running but node is %s", self.root.name, self.subpath, n)
+            logger.warning(
+                "Runner %s at %r: running but node is %s",
+                self.root.name,
+                self.subpath,
+                n,
+            )
         # otherwise this is the change where we took the thing
-
 
     async def run_at(self, t: float):
         """Next run at this time.
@@ -205,7 +214,7 @@ class RunnerEntry(AttrClientEntry):
         if self.target > self.started:
             return self.target - t
         elif self.backoff:
-            return self.stopped + self.delay * (1<<self.backoff) - t
+            return self.stopped + self.delay * (1 << self.backoff) - t
         else:
             return False
 
@@ -213,22 +222,23 @@ class RunnerEntry(AttrClientEntry):
         return hash(self.subpath)
 
     def __eq__(self, other):
-        other = getattr(other,'subpath',other)
+        other = getattr(other, "subpath", other)
         return self.name == other
 
     def __lt__(self, other):
-        other = getattr(other,'subpath',other)
+        other = getattr(other, "subpath", other)
         return self.name < other
 
     @property
     def age(self):
-        return time.time()-self.started
+        return time.time() - self.started
 
 
 class RunnerNode:
     """
     Represents all nodes in this runner group.
     """
+
     seen = 0
     load = 999
 
@@ -245,6 +255,7 @@ class RunnerNode:
     def __init__(self, *a, **k):
         pass
 
+
 class RunnerRoot(ClientRoot):
     """
     This class represents the root of a code runner. Its job is to start
@@ -260,16 +271,10 @@ class RunnerRoot(ClientRoot):
       actor (dict): the configuration for the underlying actor. See
         ``asyncserf.actor`` for details.
     """
-    CFG = dict(
-            prefix=('.distkv','run'),
-            start_delay=1,
-        )
 
-    ACTOR_CFG = dict(
-            cycle=5,
-            nodes=-1,
-            splits=5,
-        )
+    CFG = dict(prefix=(".distkv", "run"), start_delay=1)
+
+    ACTOR_CFG = dict(cycle=5, nodes=-1, splits=5)
 
     _age_killer_task = None
     _run_now_task = None
@@ -285,17 +290,18 @@ class RunnerRoot(ClientRoot):
     async def run_starting(self):
         from .errors import ErrorRoot
         from .code import CodeRoot
+
         self.err = await ErrorRoot.as_handler(self.client)
         self.code = await CodeRoot.as_handler(self.client)
 
-        g = ['run']
-        if 'name' in self._cfg:
-            g.append(self._cfg['name'])
-        if self.value and 'name' in self.value:
-            g.append(self.value['name'])
+        g = ["run"]
+        if "name" in self._cfg:
+            g.append(self._cfg["name"])
+        if self.value and "name" in self.value:
+            g.append(self.value["name"])
         self.group = ".".join(g)
         self.node_history = NodeList(0)
-        self._start_delay = self._cfg['start_delay']
+        self._start_delay = self._cfg["start_delay"]
 
         await super().run_starting()
 
@@ -313,7 +319,7 @@ class RunnerRoot(ClientRoot):
     @property
     def max_age(self):
         """Timeout after which we really should have gotten another go"""
-        return self._act.cycle_time_max * (self._act.history_size+1) * 1.5
+        return self._act.cycle_time_max * (self._act.history_size + 1) * 1.5
 
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
@@ -329,7 +335,9 @@ class RunnerRoot(ClientRoot):
 
                 async for msg in self._act:
                     if isinstance(msg, PingEvent):
-                        await self._act.set_value(100-psutil.cpu_percent(interval=None))
+                        await self._act.set_value(
+                            100 - psutil.cpu_percent(interval=None)
+                        )
 
                         node = self.get_node(msg.node)
                         node.load = msg.value
@@ -339,10 +347,10 @@ class RunnerRoot(ClientRoot):
                         self.node_history += node
 
                     elif isinstance(msg, TagEvent):
-                        load = 100-psutil.cpu_percent(interval=None)
+                        load = 100 - psutil.cpu_percent(interval=None)
                         await self._act.set_value(load)
                         if self.seen_load is not None:
-                            pass # TODO
+                            pass  # TODO
 
                         self.node_history += self.name
                         evt = anyio.create_event()
@@ -351,12 +359,14 @@ class RunnerRoot(ClientRoot):
                         await evt.wait()
 
                     elif isinstance(msg, UntagEvent):
-                        await self._act.set_value(100-psutil.cpu_percent(interval=None))
+                        await self._act.set_value(
+                            100 - psutil.cpu_percent(interval=None)
+                        )
                         self.seen_load = 0
 
                         await self._run_now_task.cancel()
                         # TODO if this is a DetagEvent, kill everything?
-    
+
     async def _run_now(self, evt):
         async with anyio.create_task_group() as tg:
             self._run_now_task = tg.cancel_scope
@@ -376,7 +386,7 @@ class RunnerRoot(ClientRoot):
             self._age_killer_task = sc
             await anyio.sleep(self.max_age)
         if not sc.cancel_called:
-            raise NotSelected(self.max_age,t,time.time())
+            raise NotSelected(self.max_age, t, time.time())
 
     async def _cleanup_nodes(self):
         while len(self.node_history) > 1:
@@ -387,4 +397,3 @@ class RunnerRoot(ClientRoot):
             for j in self.all_children:
                 if j.node == node.name:
                     await j.seems_down()
-                

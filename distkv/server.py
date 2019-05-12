@@ -729,7 +729,9 @@ class ServerClient:
         entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
         if root is self.root and "match" in self.metaroot:
             try:
-                self.metaroot["match"].check_value(None if value is NotGiven else value, entry)
+                self.metaroot["match"].check_value(
+                    None if value is NotGiven else value, entry
+                )
             except ClientError:
                 raise
             except Exception as exc:
@@ -846,7 +848,10 @@ class ServerClient:
             if entry.data is not None:
                 async with self.server.next_event() as event:
                     evt = await entry.set_data(
-                        event, None, dropped=self.server._dropper, tock=self.server.tock
+                        event,
+                        NotGiven,
+                        dropped=self.server._dropper,
+                        tock=self.server.tock,
                     )
                     if nchain:
                         r = evt.serialize(
@@ -1191,7 +1196,12 @@ class Server:
                 await self._send_event("update", p)
 
     async def get_state(
-        self, nodes=False, known=False, missing=False, remote_missing=False, **kw
+        self,
+        nodes=False,
+        known=False,
+        missing=False,
+        remote_missing=False,
+        **kw
     ):
         """
         Return some info about this node's internal state.
@@ -1634,7 +1644,9 @@ class Server:
                 await self._send_event("info", attrdict(known=known))
         self.sending_missing = None
 
-    async def load(self, path: str = None, stream: io.IOBase = None, local: bool = False):
+    async def load(
+        self, path: str = None, stream: io.IOBase = None, local: bool = False
+    ):
         """Load data from this stream
 
         Args:
@@ -1756,7 +1768,9 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_path=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None):
+    async def serve(
+        self, log_path=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None
+    ):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:

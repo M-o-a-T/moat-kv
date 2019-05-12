@@ -6,6 +6,7 @@ from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
 from distkv.util import PathLongener
+from functools import partial
 
 import logging
 
@@ -82,7 +83,11 @@ async def test_21_load_save(autojump_clock, tmpdir):
         logger.debug("LOAD %s", path)
         await s.load(path, local=True)
         logger.debug("LOADED")
-        await st.tg.start(st.s[0].serve)
+
+        evt = anyio.create_event()
+        await st.tg.spawn(partial(st.s[0].serve, ready_evt=evt))
+        await evt.wait()
+
         logger.debug("RUNNING")
 
         async with st.client() as c:
@@ -95,6 +100,7 @@ async def test_21_load_save(autojump_clock, tmpdir):
             assert (await c.get("foo", "bar")).value == "baz"
             assert (await c.get()).value == 2345
             await trio.sleep(1)  # allow the writer to write
+
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
@@ -129,45 +135,22 @@ async def test_02_cmd(autojump_clock):
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
-            for h,p,*_ in s.ports:
-                if h[0] != ':':
+            for h, p, *_ in s.ports:
+                if h[0] != ":":
                     break
 
+            r = await run("client", "-h", h, "-p", p, "set", "-v", "hello", "foo")
             r = await run(
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "set",
-                "-v",
-                "hello",
-                "foo",
-            )
-            r = await run(
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "set",
-                "-ev",
-                "'baz'",
-                "foo",
-                "bar",
+                "client", "-h", h, "-p", p, "set", "-ev", "'baz'", "foo", "bar"
             )
 
             r = await run("client", "-h", h, "-p", p, "get")
             assert r.stdout == "123\n"
 
-            r = await run(
-                "client", "-h", h, "-p", p, "get", "foo"
-            )
+            r = await run("client", "-h", h, "-p", p, "get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run(
-                "client", "-h", h, "-p", p, "get", "foo", "bar"
-            )
+            r = await run("client", "-h", h, "-p", p, "get", "foo", "bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(

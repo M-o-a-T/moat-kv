@@ -36,9 +36,9 @@ async def test_81_basic(autojump_clock):
                 e = await ErrorRoot.as_handler(c)
                 ex = await ErrorRoot.as_handler(cx)
                 try:
-                    1/0
+                    1 / 0
                 except Exception as exc:
-                    await ex.record_exc("tester", "here","or","there", exc=exc)
+                    await ex.record_exc("tester", "here", "or", "there", exc=exc)
                 await trio.sleep(1)
                 n = 0
                 for err in e.all_errors("tester"):
@@ -46,4 +46,3 @@ async def test_81_basic(autojump_clock):
                     await err.resolve()
                 assert n == 1
                 await trio.sleep(1)
-

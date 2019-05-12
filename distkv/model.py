@@ -314,12 +314,7 @@ class UpdateEvent:
     """
 
     def __init__(
-        self,
-        event: NodeEvent,
-        entry: "Entry",
-        new_value,
-        old_value=NotGiven,
-        tock=None,
+        self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None
     ):
         self.event = event
         self.entry = entry

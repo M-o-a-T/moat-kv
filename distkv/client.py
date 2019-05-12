@@ -103,7 +103,6 @@ class ClientEntry:
                 continue
             yield from iter(k)
 
-
     def get(self, name):
         """
         Returns the child named "name". It is created (locally) if it doesn't exist.
@@ -136,7 +135,9 @@ class ClientEntry:
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
-            r = await self.root.client.set(*self._path, chain=self.chain, value=value, nchain=nchain)
+            r = await self.root.client.set(
+                *self._path, chain=self.chain, value=value, nchain=nchain
+            )
             self.value = value
             return r
 
@@ -161,8 +162,9 @@ class ClientEntry:
         """
         if value is not NotGiven:
             self.value = value
-        elif hasattr(self, 'value'):
+        elif hasattr(self, "value"):
             del self.value
+
 
 def _node_gt(self, other):
     if other is None:
@@ -189,8 +191,8 @@ class AttrClientEntry(ClientEntry):
     """
 
     ATTRS = ()
-    
-    async def update(self,val):
+
+    async def update(self, val):
         raise RuntimeError("Nope. Set attributes and call '.save()'.")
 
     async def set_value(self, val=NotGiven):
@@ -205,13 +207,13 @@ class AttrClientEntry(ClientEntry):
         if val is None:
             for k in self.ATTRS:
                 try:
-                    delattr(self,k)
+                    delattr(self, k)
                 except AttributeError:
                     pass
-            return      
+            return
         for k in self.ATTRS:
             if k in val:
-                setattr(self,k,val[k])
+                setattr(self, k, val[k])
 
     async def save(self, wait=False):
         """
@@ -224,9 +226,9 @@ class AttrClientEntry(ClientEntry):
                     v = getattr(self, attr)
                 except AttributeError:
                     pass
-                else:   
+                else:
                     res[attr] = v
-            r = await super().update(value=res, _locked=True, nchain = 3 if wait else 0)
+            r = await super().update(value=res, _locked=True, nchain=3 if wait else 0)
             if wait:
                 await self.root.wait_chain(r.chain)
             return r
@@ -240,6 +242,7 @@ class ClientRoot(ClientEntry):
     ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
 
     """
+
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
     def __init__(self, client, *path, need_wait=False, cfg=None):
@@ -252,7 +255,7 @@ class ClientRoot(ClientEntry):
         if cfg is None:
             cfg = {}
         self._cfg = cfg
-        self._name = cfg.get('name', self.client.name)
+        self._name = cfg.get("name", self.client.name)
 
         if need_wait:
             self._waiters = dict()
@@ -269,11 +272,11 @@ class ClientRoot(ClientEntry):
         c = {}
         c.update(cls.CFG)
         c.update(cfg)
-        def make():
-            return client.mirror(*c['prefix'], root_type=cls,
-                    need_wait=True, cfg=c)
 
-        return await client.unique_helper(*c['prefix'], factory=make)
+        def make():
+            return client.mirror(*c["prefix"], root_type=cls, need_wait=True, cfg=c)
+
+        return await client.unique_helper(*c["prefix"], factory=make)
 
     @classmethod
     def child_type(cls, name):
@@ -303,7 +306,7 @@ class ClientRoot(ClientEntry):
         ``.follow(*path)``. To allow that, set ``unsafe``, though a better
         idea is to structure your data that this is not necessary.
         """
-        if not unsafe and len(path) == 1 and isinstance(path, (list,tuple)):
+        if not unsafe and len(path) == 1 and isinstance(path, (list, tuple)):
             raise RuntimeError("You seem to have used 'path' instead of '*path'.")
 
         node = self
@@ -335,11 +338,13 @@ class ClientRoot(ClientEntry):
             async def monitor():
                 pl = PathLongener(())
                 await self.run_starting()
-                async with self.client._stream("watch", nchain=3, path=self._path, fetch=True) as w:
+                async with self.client._stream(
+                    "watch", nchain=3, path=self._path, fetch=True
+                ) as w:
 
                     async for r in w:
-                        if 'path' not in r:
-                            if r.get('state', "") == "uptodate":
+                        if "path" not in r:
+                            if r.get("state", "") == "uptodate":
                                 await self.running()
                             continue
                         pl(r)
@@ -348,10 +353,10 @@ class ClientRoot(ClientEntry):
                             assert _node_gt(r.chain, entry.chain)
                         except AttributeError:
                             pass
-                        await entry.set_value(r.get('value', NotGiven))
-                        entry.chain = r.get('chain', None)
+                        await entry.set_value(r.get("value", NotGiven))
+                        entry.chain = r.get("chain", None)
 
-                        if not self._need_wait or 'chain' not in r:
+                        if not self._need_wait or "chain" not in r:
                             continue
                         c = r.chain
                         while c is not None:
@@ -397,6 +402,7 @@ class ClientRoot(ClientEntry):
 
     def spawn(self, *a, **kw):
         return self._tg.spawn(*a, **kw)
+
 
 class StreamedRequest:
     """
@@ -591,7 +597,7 @@ class Client:
         self.ssl = gen_ssl(ssl, server=False)
         self._helpers = {}
         if name is None:
-            name = ''.join(random.choices("abcdefghjkmnopqrstuvwxyz23456789",k=9))
+            name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
         self._name = name
 
     @property
@@ -600,7 +606,7 @@ class Client:
 
     @property
     def node(self):
-        return self._server_init['node']
+        return self._server_init["node"]
 
     async def get_tock(self):
         """Fetch the next tock value from the server."""
@@ -616,8 +622,9 @@ class Client:
         if h is None:
             h = anyio.create_lock()
             self._helpers[path] = h
-        if isinstance(h,anyio.abc.Lock):
+        if isinstance(h, anyio.abc.Lock):
             async with h:
+
                 async def _run(factory, evt):
                     async with factory() as f:
                         nonlocal h
@@ -627,7 +634,7 @@ class Client:
                             await anyio.sleep(99999)
 
                 evt = anyio.create_event()
-                await self.tg.spawn(_run,factory,evt)
+                await self.tg.spawn(_run, factory, evt)
                 await evt.wait()
                 self._helpers[path] = h
         return h
@@ -665,9 +672,7 @@ class Client:
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            await anyio.run_in_thread(
-                k.generate_shared_secret, byte2num(res.pubkey)
-            )
+            await anyio.run_in_thread(k.generate_shared_secret, byte2num(res.pubkey))
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
@@ -851,7 +856,9 @@ class Client:
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
-            sock = await ex.enter_async_context(await anyio.connect_tcp(self.host, self.port, ssl_context=self.ssl))
+            sock = await ex.enter_async_context(
+                await anyio.connect_tcp(self.host, self.port, ssl_context=self.ssl)
+            )
 
             if self.ssl:
                 await sock.start_tls()

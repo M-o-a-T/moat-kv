@@ -112,10 +112,18 @@ async def pdb(args):  # safe
     help="Port to bind to. Default: %d" % (CFG.server.port,),
 )
 @click.option(
-    "-l", "--load", type=click.Path(readable=True, exists=True, allow_dash=False), default=None, help="Event log to preload."
+    "-l",
+    "--load",
+    type=click.Path(readable=True, exists=True, allow_dash=False),
+    default=None,
+    help="Event log to preload.",
 )
 @click.option(
-    "-s", "--save", type=click.Path(writable=True, allow_dash=False), default=None, help="Event log to write to."
+    "-s",
+    "--save",
+    type=click.Path(writable=True, allow_dash=False),
+    default=None,
+    help="Event log to write to.",
 )
 @click.option(
     "-i",

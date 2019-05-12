@@ -4,9 +4,11 @@ to clean up the list of deleted nodes, resp. their chain links.
 """
 
 from collections import deque
+
 from asyncserf.actor import Actor
 
 TAGS = 4
+
 
 class CoreActor:
     def __init__(self, server):
@@ -18,7 +20,7 @@ class CoreActor:
     def tagged(self):
         self.tags.append(self.server.tock)
         self.tags = self.tags[-TAGS:]
-        return self.tags[0],self.tags[-1]
+        return self.tags[0], self.tags[-1]
 
     def add_deleted(self, add):
         self.deleted.append((self.server.tock, add.copy()))
@@ -51,4 +53,3 @@ class CoreActor:
                             await self.self.tagged()
         finally:
             self.actor = None
-                

@@ -189,6 +189,7 @@ class _MsgRW:
     """
     Common base class for :class:`MsgReader` and :class:`MsgWriter`.
     """
+
     _mode = None
 
     def __init__(self, path=None, stream=None):
@@ -435,6 +436,7 @@ def _call_proc(code, *a, **kw):
     code = d["_proc"]
     return code(*a, **kw)
 
+
 def make_proc(code, vars, *path, use_async=False):
     """Compile this code block to a procedure.
 
@@ -458,9 +460,11 @@ def make_proc(code, vars, *path, use_async=False):
 
     return partial(_call_proc, code)
 
+
 class Module(ModuleType):
     def __repr__(self):
         return "<Module %s>" % (self.__name__,)
+
 
 def make_module(code, *path):
     """Compile this code block to something module-ish.
@@ -499,7 +503,7 @@ class Cache:
         self._q = deque()
 
     def keep(self, entry):
-        if getattr(entry, self._attr, -1) > self._tail+self._size/3:
+        if getattr(entry, self._attr, -1) > self._tail + self._size / 3:
             return
         self._head += 1
         setattr(entry, self._attr, self._head)
@@ -507,7 +511,7 @@ class Cache:
         self._flush()
 
     def _flush(self):
-        while self._head-self._tail > self._size:
+        while self._head - self._tail > self._size:
             self._q.popleft()
             self._tail += 1
 
@@ -531,8 +535,10 @@ class NoLock:
         with NoLock if _locked else self._lock:
             pass
     """
+
     async def __aenter__(self):
         return self
+
     async def __aexit__(self, *tb):
         return   
 NoLock = NoLock()
