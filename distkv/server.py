@@ -1511,19 +1511,20 @@ class Server:
         Recover from a network split.
         """
         with trio.CancelScope() as scope:
-            self.logger.debug(
-                "SplitRecover: start %d %s local=%r remote=%r",
-                prio,
-                replace,
-                local_history,
-                sources,
-            )
             for node in sources:
                 if node not in self._recover_tasks:
                     break
             else:
                 return
             t = _RecoverControl(self, scope, prio, local_history, sources)
+            self.logger.debug(
+                "SplitRecover %d: start %d %s local=%r remote=%r",
+                t._id,
+                prio,
+                replace,
+                local_history,
+                sources,
+            )
             try:
                 await t._start()
                 clock = self.cfg["ping"]["cycle"]
@@ -1535,7 +1536,8 @@ class Server:
                 with trio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
                     await t.wait(1)
                 if x.cancel_called:
-                    self.logger.debug("SplitRecover: no signal 1")
+                    if prio > 0:
+                        self.logger.debug("SplitRecover: no signal 1")
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
@@ -1550,7 +1552,8 @@ class Server:
                     await t.wait(2)
 
                 if x.cancel_called:
-                    self.logger.debug("SplitRecover: no signal 2")
+                    if prio > 0:
+                        self.logger.debug("SplitRecover: no signal 2")
                     msg = dict()
                     for n in list(self._nodes.values()):
                         if not n.tick:
@@ -1581,7 +1584,7 @@ class Server:
             finally:
                 # Protect against cleaning up when another recovery task has
                 # been started (because we saw another merge)
-                self.logger.debug("SplitRecover: finished @%d", t.tock)
+                self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
                 self.seen_missing = {}
                 await t.cancel()
 
@@ -1670,7 +1673,7 @@ class Server:
                 elif "nodes" in m or "known" in m:
                     await self._process_info(m)
                 else:
-                    self.logger.warn("Unknown message in stream: %s", repr(m))
+                    self.logger.warning("Unknown message in stream: %s", repr(m))
         self.logger.debug("Loading finished.")
 
     async def _save(self, writer, shorter, nchain=-1):
