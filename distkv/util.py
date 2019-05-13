@@ -29,7 +29,8 @@ class NotGiven:
     def __getstate__(self):
         raise ValueError("You may not serialize this object")
 
-    pass
+    def __repr__(self):
+        return "<*NotGiven*>"
 
 
 def combine_dict(*d):
