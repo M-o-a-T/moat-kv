@@ -12,12 +12,14 @@ from range_set import RangeSet
 import io
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
-from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
-from .types import RootEntry, ConvNull
+from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
+from collections import defaultdict
 
 # from trio_log import LogStream
 
-from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent
+from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
+from .types import RootEntry, ConvNull
+from .core_actor import CoreActor
 from .default import CFG
 from .util import (
     attrdict,
@@ -530,7 +532,7 @@ class SCmd_update(StreamCommand):
                 client.root, msg, nulls_ok=client.nulls_ok, conv=conv
             )
             await tock_seen(msg.get("tock", None))
-            await msg.entry.apply(msg, dropped=client._dropper, root=self.root)
+            await msg.entry.apply(msg, server=self, root=self.root)
             n += 1
         await self.send(count=n)
 
@@ -710,16 +712,31 @@ class ServerClient:
         try:
             entry = root.follow(*msg.path, create=False, nulls_ok=_nulls_ok)
         except KeyError:
-            entry = {"value": None}
+            entry = {}
+            if msg.get("nchain", 0):
+                entry["chain"] = None
         else:
             entry = entry.serialize(
                 chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv
             )
         return entry
 
-    async def cmd_set_value(self, msg, root=None, _nulls_ok=False):
+    async def cmd_set_value(self, msg, **kw):
         """Set a node's value.
         """
+        if "value" not in msg:
+            raise ClientError("Call 'delete_value' if you want to clear the value")
+        return await self._set_value(msg, value=msg.value, **kw)
+
+    async def cmd_delete_value(self, msg, **kw):
+        """Delete a node's value.
+        """
+        if "value" in msg:
+            raise ClientError("A deleted entry can't have a value")
+
+        return await self._set_value(msg, **kw)
+
+    async def _set_value(self, msg, value=NotGiven, root=None, _nulls_ok=False):
         # TODO drop this as soon as we have server-side user mods
         if self.user.is_super_root and root is None:
             _nulls_ok = 2
@@ -744,20 +761,19 @@ class ServerClient:
                 raise ClientError("Data is %s" % (repr(entry.data),))
             send_prev = False
         if "chain" in msg:
-            if msg.chain is None and entry.data is None:
-                pass
-            elif entry.chain is not None:
-                if msg.chain is None:
+            if msg.chain is None:
+                if entry.data is not NotGiven:
                     raise ClientError("This entry already exists")
+            elif entry.data is not NotGiven:
                 if entry.chain != msg.chain:
                     raise ClientError("Chain is %s" % (repr(entry.chain),))
-            elif msg.chain is not None:
+            else:
                 raise ClientError("This entry is new")
             send_prev = False
 
         res = attrdict()
         if value is NotGiven:
-            res.changed = entry.chain is not None
+            res.changed = entry.data is not NotGiven
         else:
             res.changed = entry.data != value
         if send_prev and entry.data is not NotGiven:
@@ -771,10 +787,9 @@ class ServerClient:
                 NotGiven
                 if value is NotGiven
                 else self.conv.dec_value(value, entry=entry),
-                dropped=self.server._dropper,
+                server=self.server,
                 tock=self.server.tock,
             )
-
         if nchain != 0:
             res.chain = entry.chain.serialize(nchain=nchain)
         res.tock = entry.tock
@@ -790,20 +805,25 @@ class ServerClient:
         msg = UpdateEvent.deserialize(
             self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv
         )
-        res = await msg.entry.apply(msg, dropped=self._dropper, root=self.root)
+        res = await msg.entry.apply(msg, server=self, root=self.root)
         if res is None:
             return False
         else:
             return res.serialize(chop_path=self._chop_path, conv=self.conv)
 
-    async def cmd_delete_value(self, msg, root=None):
-        """Delete a node's value.
-        Sub-nodes are not affected.
-        """
-        if "value" in msg:
-            raise ClientError("A deleted entry can't have a value")
-        msg.value = None
-        return await self.cmd_set_value(msg, root=root)
+    async def cmd_check_deleted(self, msg):
+        nodes = msg.nodes
+        deleted = NodeSet()
+        for n, v in nodes.items():
+            n = Node(n, None, cache=self.server._nodes)
+            r = RangeSet()
+            r.__setstate__(v)
+            for a, b in r:
+                for t in range(a, b):
+                    if t not in n:
+                        deleted.add(n.name, t)
+        if deleted:
+            await self._send_event("info", attrdict(deleted=deleted.__getstate__()))
 
     async def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
@@ -843,7 +863,7 @@ class ServerClient:
                     evt = await entry.set_data(
                         event,
                         NotGiven,
-                        dropped=self.server._dropper,
+                        server=self,
                         tock=self.server.tock,
                     )
                     if nchain:
@@ -1011,6 +1031,8 @@ class ServerClient:
 
 
 class _RecoverControl:
+    _id = 0
+
     def __init__(self, server, scope, prio, local_history, sources):
         self.server = server
         self.scope = scope
@@ -1018,6 +1040,8 @@ class _RecoverControl:
         self.local_history = local_history
         self.sources = sources
         self.tock = server.tock
+        type(self)._id += 1
+        self._id = type(self)._id
 
         self._waiters = {}
 
@@ -1075,14 +1099,16 @@ class Server:
     This is the DistKV server. It manages connections to the Serf server,
     its clients, and (optionally) a file that logs all changes.
     """
+
     serf = None
     _ready = None
     _actor = None
+    _core_actor = None
 
     def __init__(self, name: str, cfg: dict, init: Any = NotGiven, root: Entry = None):
         self._tock = 0
         if root is None:
-            root = RootEntry(tock=self.tock)
+            root = RootEntry(self, tock=self.tock)
         self.root = root
         self.cfg = combine_dict(cfg, CFG)
         self.paranoid_root = root if self.cfg["paranoia"] else None
@@ -1091,6 +1117,7 @@ class Server:
         self._init = init
         self.crypto_limiter = trio.CapacityLimiter(3)
         self.logger = logging.getLogger("distv.server." + name)
+        self._delete_also_nodes = NodeSet()
 
         self._evt_lock = trio.Lock()
         self._clients = set()
@@ -1135,7 +1162,21 @@ class Server:
         if self._actor is not None and self._ready.is_set():
             await self._actor.set_value((self._tock, self.node.tick))
 
-    def _dropper(self, evt, old_evt=NotGiven):
+    async def core_check(self, value):
+        """
+        Called when ``(None,"core")`` is set.
+        """
+        if value is NotGiven:
+            await self._core_actor.disable()
+            return
+
+        nodes = value.get("nodes", ())
+        if self.node.name in nodes:
+            await self._core_actor.enable(len(nodes))
+        else:
+            await self._core_actor.disable(len(nodes))
+
+    def drop_old_event(self, evt, old_evt=NotGiven):
         """
         Drop either one event, or any event that is in ``old_evt`` but not
         in ``evt``.
@@ -1163,7 +1204,7 @@ class Server:
         Args:
           action (str): the endpoint to send to. Prefixed by ``cfg.root``.
           msg: the message to send.
-          coalesce (bool): Flag whether old messages may be thrown away. 
+          coalesce (bool): Flag whether old messages may be thrown away.
             Default: ``False``.
         """
         if "tock" not in msg:
@@ -1174,6 +1215,7 @@ class Server:
             msg["node"] = self.node.name
         if "tick" not in msg:
             msg["tick"] = self.node.tick
+        omsg = msg
         msg = _packer(msg)
         await self.serf.event(self.cfg["root"] + "." + action, msg, coalesce=coalesce)
 
@@ -1190,10 +1232,75 @@ class Server:
                 p = msg.serialize(nchain=self.cfg["change"]["length"])
                 await self._send_event("update", p)
 
+    async def resync_deleted(self, nodes):
+        """
+        Owch. We need to re-sync.
+
+        We collect the latest ticks in our object tree and send them to one
+        of the core nodes.
+        """
+
+        for n in nodes:
+            try:
+                host, port = await self._get_host_port(n)
+                async with distkv_client.open_client(host, port) as client:
+                    # TODO auth this client
+                    nodes = NodeSet()
+                    n_nodes = 0
+
+                    async def send_nodes():
+                        nonlocal nodes, n_nodes
+                        res = await client._request(
+                            "check_deleted", iter=False, nchain=-1, nodes=nodes.serialize()
+                        )
+                        nodes.clear()
+                        n_nodes = 0
+
+                    async def add(event):
+                        nonlocal nodes, n_nodes
+                        c = event.chain
+                        if c is None:
+                            return
+                        nodes.add(c.node.name, c.tick)
+                        n_nodes += 1
+                        if n_nodes >= 100:
+                            await send_nodes()
+
+                    await self.root.walk(add)
+                    if n_nodes > 0:
+                        await send_nodes()
+
+#           except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
+#               raise
+            except Exception:
+                raise
+#               self.logger.exception("Unable to connect to %s" % (nodes,))
+            else:
+                # The recipient will broadcast "info.deleted" messages for
+                # whatever it doesn't have, so we're done here.
+                return
+
+    def mark_deleted(self, node, tick):
+        """
+        This tick has been marked as deleted.
+        """
+        self._delete_also_nodes[node.name].add(tick)
+
+    def purge_deleted(self, deleted):
+        """
+        These deleted entry is no longer required.
+        """
+        self.logger.debug("PurgeDel: %r", deleted)
+
+        for n, v in deleted.items():
+            n = Node(n, cache=self._nodes)
+            n.purge_deleted(v)
+
     async def get_state(
         self,
         nodes=False,
         known=False,
+        deleted=False,
         missing=False,
         remote_missing=False,
         **kw
@@ -1210,6 +1317,12 @@ class Server:
             nd = res.known = {}
             for n in self._nodes.values():
                 lk = n.local_known
+                if len(lk):
+                    nd[n.name] = lk.__getstate__()
+        if deleted:
+            nd = res.deleted = {}
+            for n in self._nodes.values():
+                lk = n.local_deleted
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
         if missing:
@@ -1233,7 +1346,7 @@ class Server:
         Process an update message: deserialize it and apply the result.
         """
         msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
-        await msg.entry.apply(msg, dropped=self._dropper, root=self.paranoid_root)
+        await msg.entry.apply(msg, server=self, root=self.paranoid_root, )
 
     async def user_info(self, msg):
         """
@@ -1296,8 +1409,24 @@ class Server:
                 r.__setstate__(k)
                 n.report_known(r)
 
+        deleted = msg.get("deleted", None)
+        if deleted is not None:
+            for n, r in deleted.items():
+                n.report_deleted(r, self)
+
+    async def _delete_also(self):
+        """
+        Add deletion records to the core actor.
+        """
+        while True:
+            await trio.sleep(10)
+            if self._delete_also_nodes:
+                self._core_actor.add_deleted(self._delete_also_nodes)
+                self._delete_also_nodes = NodeSet()
+
     async def monitor(self, action: str, delay: trio.Event = None):
-        """The task that hooks to Serf's event stream for receiving messages.
+        """
+        The task that hooks to Serf's event stream for receiving messages.
 
         Args:
           action (str): The action name, corresponding to a Serf ``user_*`` method.
@@ -1322,7 +1451,14 @@ class Server:
         except (CancelledError, SerfCancelledError):
             pass
 
-    async def pinger(self, delay: trio.Event):
+    async def _run_core(self, evt):
+        try:
+            self._core_actor = CoreActor(self)
+            await self._core_actor.run(evt=evt)
+        finally:
+            self._core_actor = None
+
+    async def _pinger(self, delay: trio.Event):
         """
         This task
         * sends PING messages
@@ -1445,7 +1581,7 @@ class Server:
                             self.root, r, cache=self._nodes, nulls_ok=True
                         )
                         await r.entry.apply(
-                            r, dropped=self._dropper, root=self.paranoid_root
+                            r, server=self, root=self.paranoid_root
                         )
                     await self.tock_seen(res.end_msg.tock)
 
@@ -1454,6 +1590,7 @@ class Server:
                         nodes=True,
                         from_server=self.node.name,
                         known=True,
+                        deleted=True,
                         iter=False,
                     )
                     await self._process_info(res)
@@ -1483,16 +1620,32 @@ class Server:
         self.fetch_running = None
 
     async def _process_info(self, msg):
+        """
+        Process "info" messages.
+        """
+        # nodes: list of known nodes and their max ticks
         for nn, t in msg.get("nodes", {}).items():
             nn = Node(nn, cache=self._nodes)
             nn.tick = max_n(nn.tick, t)
+
+        # known: per-node range of ticks that have been resolved
         for nn, k in msg.get("known", {}).items():
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
             nn.report_known(r, local=True)
+
+        # deleted: per-node range of ticks that have been deleted
+        deleted = msg.get("deleted", {})
+        for nn, k in deleted.items():
+            nn = Node(nn, cache=self._nodes)
+            r = RangeSet()
+            r.__setstate__(k)
+            nn.report_deleted(r, add=add)
+
+        # remote_missing: per-node range of ticks that should be re-sent
+        # This is used when loading data from a state file
         for nn, k in msg.get("remote_missing", {}).items():
-            # used when loading data from a state file
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
@@ -1601,7 +1754,7 @@ class Server:
         """Step 3 of the re-join protocol.
         For each node, collect events that somebody has reported as missing,
         and re-broadcast them. If the event is unavailable, send a "known"
-        message.
+        / "deleted" message.
         """
         clock = self.cfg["ping"]["cycle"]
         if prio is None:
@@ -1616,6 +1769,7 @@ class Server:
             nodes = list(self._nodes.values())
             self._actor._rand.shuffle(nodes)
             known = {}
+            deleted = {}
             for n in nodes:
                 k = RangeSet()
                 for r in n.remote_missing & n.local_known:
@@ -1627,15 +1781,19 @@ class Server:
                         if t in n:
                             msg = n[t].serialize()
                             await self._send_event("update", msg)
-                        else:
+                            n.remote_missing.discard(t)
+                        elif t not in n.local_deleted:
                             k.add(t)
                 if k:
                     known[n.name] = k.__getstate__()
-                rm = n.remote_missing
-                rm -= n.local_known
-                assert rm is n.remote_missing
-            if known:
-                await self._send_event("info", attrdict(known=known))
+                assert not (n.remote_missing & n.local_known)
+
+                d = n.remote_missing & n.local_deleted
+                if d:
+                    deleted[n.name] = d.__getstate__()
+
+            if known or deleted:
+                await self._send_event("info", attrdict(known=known, deleted=deleted))
         self.sending_missing = None
 
     async def load(
@@ -1668,9 +1826,9 @@ class Server:
                     )
                     await self.tock_seen(m.tock)
                     await m.entry.apply(
-                        m, local=local, dropped=self._dropper, root=self.paranoid_root
+                        m, local=local, server=self, root=self.paranoid_root
                     )
-                elif "nodes" in m or "known" in m:
+                elif "nodes" in m or "known" in m or "deleted" in m:
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
@@ -1687,7 +1845,7 @@ class Server:
             shorter(res)
             await writer(res)
 
-        msg = await self.get_state(nodes=True, known=True)
+        msg = await self.get_state(nodes=True, known=True, deleted=True)
         await writer(msg)
         await self.root.walk(saver)
 
@@ -1716,7 +1874,7 @@ class Server:
                 if save_state:
                     await self._save(mw, shorter)
 
-                msg = await self.get_state(nodes=True, known=True)
+                msg = await self.get_state(nodes=True, known=True, deleted=True)
                 await mw(msg)
                 await mw.flush()
                 if done is not None:
@@ -1813,6 +1971,10 @@ class Server:
             # lost, or processed prematurely
             delay = trio.Event()
             delay2 = trio.Event()
+            delay3 = trio.Event()
+
+            await self.spawn(self._run_core, delay3)
+            await self.spawn(self._delete_also)
 
             if self.cfg["state"] is not None:
                 await self.spawn(self.save, self.cfg["state"])
@@ -1825,16 +1987,17 @@ class Server:
                 if d.startswith("user_"):
                     await self.spawn(self.monitor, d[5:], delay)
 
+            await delay3.wait()
             await self.spawn(self.watcher)
 
             if self._init is not NotGiven:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
-                    await self.root.set_data(event, self._init, tock=self.tock)
+                    await self.root.set_data(event, self._init, tock=self.tock, server=self)
 
             # send initial ping
-            await self.spawn(self.pinger, delay2)
+            await self.spawn(self._pinger, delay2)
 
             await trio.sleep(0.1)
             delay.set()

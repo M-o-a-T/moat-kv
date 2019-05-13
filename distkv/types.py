@@ -319,6 +319,14 @@ class ConvRoot(MetaEntry):
             raise ValueError("This node can't have data.")
 
 
+class CoreRoot(Entry):
+    SUBTYPE = None
+
+    async def set(self, value):
+        await super().set(value)
+        await self.root.server.core_check(value)
+
+
 # ROOT
 
 
@@ -330,6 +338,7 @@ class MetaRootEntry(Entry):  # not MetaEntry
         "match": MatchRoot,
         "codec": CodecRoot,
         "conv": ConvRoot,
+        "core": CoreRoot,
     }
 
     def __init__(self, *a, **k):
@@ -343,8 +352,13 @@ Entry.SUBTYPES[None] = MetaRootEntry
 class RootEntry(Entry):
     """I am the root of the DistKV data tree."""
 
-    def __init__(self, *a, **k):
+    def __init__(self, server, *a, **k):
         super().__init__("ROOT", None, *a, **k)
+        self._server = weakref.ref(server)
+
+    @property
+    def server(self):
+        return self._server()
 
     SUBTYPES = {None: MetaRootEntry}
 
