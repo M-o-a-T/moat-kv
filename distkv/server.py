@@ -1257,8 +1257,6 @@ class Server:
             if rec is not None:
                 await rec.set(1)
                 self.logger.debug("Step1: %r triggered by %s", rec, msg.node)
-            else:
-                self.logger.debug("Step1: %s not known", msg.node)
 
         # Step 2
         missing = msg.get("missing", None)
@@ -1283,8 +1281,6 @@ class Server:
             if rec is not None:
                 await rec.set(2)
                 self.logger.debug("Step2: %r triggered by %s", rec, msg.node)
-            else:
-                self.logger.debug("Step2: %s not known", msg.node)
 
             if nn > 0:
                 # Some data have been reported to be missing.
