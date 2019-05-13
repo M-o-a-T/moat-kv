@@ -13,6 +13,8 @@ import psutil
 import time
 from asyncserf.client import Serf
 
+from .codec import packer, unpacker
+
 try:
     from contextlib import asynccontextmanager
 except ImportError:
@@ -48,7 +50,8 @@ async def keep_running(client: Serf, name: str, cfg: dict, evt: anyio.abc.Event 
     """
     async with anyio.open_task_group() as tg:
         async with Actor(
-            client, name, cfg.get("prefix", "runner"), cfg.get("actor", {})
+            client, name, cfg.get("prefix", "runner"), cfg.get("actor", {}),
+            packer=packer, unpacker=unpacker,
         ) as act:
             r = Runner(tg, act, cfg)
             async with r:

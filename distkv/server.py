@@ -21,6 +21,7 @@ from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull
 from .core_actor import CoreActor
 from .default import CFG
+from .codec import packer, unpacker
 from .util import (
     attrdict,
     PathShortener,
@@ -1444,7 +1445,7 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.data, object_pairs_hook=attrdict, raw=False, use_list=False
+                        resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
                     )
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
@@ -1479,6 +1480,7 @@ class Server:
                 name=self.node.name,
                 cfg=cfg,
                 tg=tg,
+                packer=packer, unpacker=unpacker,
             ) as actor:
                 self._actor = actor
                 await self._check_ticked()

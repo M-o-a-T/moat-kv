@@ -19,6 +19,7 @@ from distkv.server import Server
 from distkv.codec import unpacker
 from distkv.util import attrdict
 from asyncserf.util import ValueEvent
+from asyncserf.stream import SerfEvent
 from anyio import create_queue
 
 import logging
@@ -215,11 +216,22 @@ class MockServ:
                     for s in sl:
                         await s.q.put(payload)
 
+    def stream(self, typ):
+        """compat for supporting asyncserf.actor"""
+        if not typ.startswith('user:'):
+            raise RuntimeError("not supported")
+        typ = typ[5:]
+        return self.serf_mon(typ)
+
     def serf_mon(self, typ):
         if "," in typ:
             raise RuntimeError("not supported")
         s = MockSerfStream(self, "user:" + typ)
         return s
+
+    async def event(self, typ, payload):
+        """compat for supporting asyncserf.actor"""
+        return await self.serf_send(typ data=payload)
 
     async def serf_send(self, typ, data):
         # logger.debug("SERF:%s: %r", typ, data)
@@ -257,4 +269,7 @@ class MockSerfStream:
 
     async def __anext__(self):
         res = await self.q.get()
-        return attrdict(data=res)
+        evt = SerfEvent(self)
+        evt.payload=res
+        return evt
+

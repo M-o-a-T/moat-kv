@@ -10,6 +10,9 @@ from collections import deque
 from asyncserf.actor import Actor
 from asyncserf.actor import PingEvent, TagEvent
 
+from .codec import packer, unpacker
+
+
 TAGS = 4
 
 
@@ -92,6 +95,8 @@ class CoreActor:
                     cfg=cfg,
                     tg=tg,
                     enabled=False,
+                    packer=packer,
+                    unpacker=unpacker,
                 ) as actor:
                     self.actor = actor
                     if evt is not None:
