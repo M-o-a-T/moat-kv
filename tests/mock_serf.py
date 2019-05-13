@@ -113,6 +113,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
     async with anyio.create_task_group() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
+            st.ex = ex
             ex.enter_context(mock.patch("time.time", new=tm))
             logging._startTime = tm()
 

@@ -1,5 +1,6 @@
 import pytest
 import trio
+import mock
 
 from .mock_serf import stdtest
 import asyncserf
@@ -12,6 +13,19 @@ logger = logging.getLogger(__name__)
 
 N = 20
 
+def _skip_check(self):
+    if self._prefix != "test.core":
+        return False
+    if not hasattr(self,'_test_foo') or not self._test_foo:
+        self._test_foo = ["test_2","test_3","test_4"]
+    self.logger.debug("SKIP? %s %r %r",self._name, self._test_foo, self._history)
+    p = self._test_foo[-1]
+    if p in self._history:
+        self._test_foo.pop()
+        return False
+    if self._name == p:
+        return True
+    return False
 
 @pytest.mark.trio
 async def test_10_many(autojump_clock):
@@ -19,6 +33,10 @@ async def test_10_many(autojump_clock):
     This test starts multiple servers at the same time.
     """
     async with stdtest(test_1={"init": 420}, n=N, tocks=1000) as st:
+        st.ex.enter_context(
+                mock.patch("asyncserf.actor.Actor._skip_check", new=_skip_check)
+            )
+
         s = st.s[1]
         async with st.client(1) as ci:
             assert (await ci.get()).value == 420
