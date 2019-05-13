@@ -536,6 +536,7 @@ class Cache:
             self._tail += 1
 
 
+@singleton
 class NoLock:
     """A dummy singleton that can replace a lock. 
        
@@ -549,6 +550,4 @@ class NoLock:
         return self
 
     async def __aexit__(self, *tb):
-        return   
-NoLock = NoLock()
-
+        return
