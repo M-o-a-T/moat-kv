@@ -1300,10 +1300,10 @@ class Server:
         """The task that hooks to Serf's event stream for receiving messages.
 
         Args:
-          ``action``: The action name, corresponding to a Serf ``user_*`` method.
-          ``delay``: an optional event to wait for, after starting the
-                     listener but before actually processing messages. This
-                     helps to avoid possible inconsistency errors on startup.
+          action (str): The action name, corresponding to a Serf ``user_*`` method.
+          delay (trio.Event): an optional event to wait for, after starting the
+            listener but before actually processing messages. This helps to
+            avoid consistency problems on startup.
         """
         cmd = getattr(self, "user_" + action)
         try:
@@ -1332,8 +1332,8 @@ class Server:
         The initial ping is delayed randomly.
 
         Args:
-          ``delay``: an event to set after the initial ping message has
-                     been sent.
+          delay (trio.Event): an event to set after the initial ping
+            message has been sent.
         """
         cfg = self.cfg["ping"]
         async with anyio.create_task_group() as tg:
