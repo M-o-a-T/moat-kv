@@ -415,7 +415,7 @@ async def update(obj, path, infile, local, force):
 async def auth(obj, method):
     """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
     a = await obj.client.get(None, "auth")
-    a = a.value
+    a = a.get("value", None)
     if a is not None:
         a = a["current"]
     obj.auth_current = a
