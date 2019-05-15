@@ -10,6 +10,38 @@ PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 
 CFG = attrdict(
     server=attrdict(
+    logging={
+        "disable_existing_loggers":False,
+        "version":1,
+        "loggers":{
+            "asyncserf":{"level":"INFO"},
+        },
+        "root":{
+            "handlers":["stderr",],
+            "level":"INFO",
+        },
+        "handlers":{
+            "logfile":{
+                "class":"logging.FileHandler",
+                "filename":"test.log",
+                "level":"DEBUG",
+                "formatter":"std",
+            },
+            "stderr":{
+                "class":"logging.StreamHandler",
+                "level":"DEBUG",
+                "formatter":"std",
+                "stream":"ext://sys.stderr",
+            },
+        },
+        "formatters":{
+            "std":{
+                "class":"distkv.util.TimeOnlyFormatter",
+                "format":'%(asctime)s %(levelname)s:%(name)s:%(message)s',
+            },
+        },
+
+    },
         host="localhost",
         port=PORT,
         ssl=False,

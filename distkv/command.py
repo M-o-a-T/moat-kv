@@ -78,6 +78,7 @@ from .auth import loader, gen_auth
 from .exceptions import ClientError
 
 import logging
+from logging.config import dictConfig
 
 logger = logging.getLogger(__name__)
 
@@ -115,34 +116,45 @@ def cmd():
     help="Enable debugging. Use twice for more verbosity.",
 )
 @click.option(
+    "-l", "--log", multiple=True, help="Adjust log level. Example: '--log asyncserf.actor=DEBUG'."
+)
+@click.option(
     "-q", "--quiet", count=True, help="Disable debugging. Opposite of '--verbose'."
 )
 @click.option(
     "-D", "--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc)."
 )
-@click.option("-c", "--cfg", type=click.File("r"), default=None)
+@click.option("-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML).")
 @click.pass_context
-async def main(ctx, verbose, quiet, debug, cfg):
+async def main(ctx, verbose, quiet, debug, log, cfg):
+    """
+    This is the DistKV command. You need to add a subcommand for it to do
+    anything.
+
+    Default values for all configuration options are located in
+    `distkv.default.CFG`.
+    """
     ctx.ensure_object(attrdict)
     ctx.obj.debug = verbose - quiet
     ctx.obj._DEBUG = debug
-    logging.basicConfig(
-        level=logging.DEBUG
-        if verbose > 2
-        else logging.INFO
-        if verbose > 1
-        else logging.WARNING
-        if verbose > 0
-        else logging.ERROR
-    )
+    
     if cfg:
         logger.debug("Loading %s", cfg)
         import yaml
 
-        ctx.obj.cfg = combine_dict(yaml.safe_load(cfg), CFG)
+        ctx.obj.cfg = combine_dict(yaml.safe_load(cfg), CFG, cls=attrdict)
         cfg.close()
     else:
         ctx.obj.cfg = CFG
+
+    # Configure logging. This is a somewhat arcane art.
+    lcfg = ctx.obj.cfg.logging
+    lcfg['root']['level'] = "DEBUG" if verbose > 2 else "INFO" if verbose > 1 else "WARNING" if verbose else "ERROR"
+    for ls in log:
+        k,v = ls.split('=')
+        lcfg['loggers'].setdefault(k, {})['level'] = v
+    dictConfig(lcfg)
+    logging.captureWarnings(verbose > 0)
 
 
 @main.command(short_help="Import the debugger",
