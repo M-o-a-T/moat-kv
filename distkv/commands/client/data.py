@@ -31,7 +31,9 @@ logger = logging.getLogger(__name__)
 @main.group(short_help="Manage data.")
 @click.pass_obj
 async def cli(obj):
-    """Manage users."""
+    """
+    This subcommand accesses the actual user data stored in your DistKV tree.
+    """
     pass
 
 @cli.command()
@@ -74,7 +76,13 @@ async def cli(obj):
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, mindepth):
-    """Read a DistKV value"""
+    """
+    Read a DistKV value.
+
+    If you read a sub-tree recursively, be aware that the whole subtree
+    will be read before anything is printed. Use the "watch --state" subcommand
+    for incremental output.
+    """
     if recursive:
         kw = {}
         if maxdepth is not None:
@@ -128,8 +136,8 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         pprint(res)
 
 
-@cli.command()
-@click.option("-v", "--value", help="Value to set. Mandatory.")
+@cli.command(short_help="Add or update an entry")
+@click.option("-v", "--value", help="The value to store. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
 @click.option(
     "-c",
@@ -142,24 +150,35 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
+@click.option("-n", "--new", is_flag=True, help="This is a new entry.")
 @click.option(
     "-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python."
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, value, eval, chain, prev, last, yaml):
-    """Set a DistKV value"""
+async def set(obj, path, value, eval, chain, prev, last, new, yaml):
+    """
+    Store a value at some DistKV position.
+
+    If you update a value, you really should use "--last" (preferred) or
+    "--prev" (if you must) to ensure that no other change arrived.
+
+    When adding a new entry, use "--new" to ensure that you don't 
+    accidentally overwrite something.
+    """
     if eval:
         value = __builtins__["eval"](value)
     args = {}
-    if prev is not NotGiven:
-        if eval:
-            prev = __builtins__["eval"](prev)
-        args["prev"] = prev
-    if last:
-        if last[1] == "-":
-            args["chain"] = None
-        else:
+    if new:
+        if prev or last:
+            raise click.UsageError("'new' and 'prev'/'last' are mutually exclusive")
+        args["chain"] = None
+    else:
+        if prev is not NotGiven:
+            if eval:
+                prev = __builtins__["eval"](prev)
+            args["prev"] = prev
+        if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client.set(*path, value=value, nchain=chain, **args)
@@ -171,7 +190,7 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
         pprint(res)
 
 
-@cli.command()
+@cli.command("Delete an entry / subtree")
 @click.argument("path", nargs=-1)
 @click.option(
     "-c",
@@ -180,12 +199,44 @@ async def set(obj, path, value, eval, chain, prev, last, yaml):
     default=0,
     help="Length of change list to return. Default: 0",
 )
+@click.option(
+    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
+)
+@click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
+@click.option("-e", "--eval", is_flag=True, help="The previous value shall be evaluated.")
 @click.pass_obj
-async def delete(obj, path, chain, recursive):
-    """Delete a node."""
+async def delete(obj, path, chain, prev, last, recursive, eval):
+    """
+    Delete an entry, or a whole subtree.
+
+    You really should use "--last" (preferred) or
+    "--prev" (if you must) to ensure that no other change arrived (but note
+    that this doesn't work when deleting a subtree).
+
+    Non-recursively deleting an entry with children works and does *not*
+    affect the child entries.
+
+    The root entry cannot be deleted.
+    """
+    args = {}
+    if eval and not prev:
+        raise click.UsageError("You need to add a value that can be evaluated")
+    if recursive:
+        if prev or last:
+            raise click.UsageError("'local' and 'force' are mutually exclusive")
+    else:
+        if prev is not NotGiven:
+            if eval:
+                prev = __builtins__["eval"](prev)
+            args["prev"] = prev
+        if last:
+            args["chain"] = {"node": last[0], "tick": int(last[1])}
+
+    res = await obj.client.set(*path, value=value, nchain=chain, **args)
+
     res = await obj.client._request(
-        action="delete_tree" if recursive else "delete_value", path=path, nchain=chain
+        action="delete_tree" if recursive else "delete_value", path=path, nchain=chain, **args
     )
     if isinstance(res, StreamedRequest):
         pl = PathLongener(path)
