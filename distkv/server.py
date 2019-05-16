@@ -847,6 +847,8 @@ class ServerClient:
         Sub-nodes are cleared (after their parent).
         """
         seq = msg.seq
+        if not msg.path:
+            raise ClientError("You can't delete the root node")
         nchain = msg.get("nchain", 0)
         if nchain:
             await self.send({"seq": seq, "state": "start"})
