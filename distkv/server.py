@@ -541,7 +541,6 @@ class SCmd_update(StreamCommand):
 class ServerClient:
     """Represent one (non-server) client."""
 
-    _nursery = None
     is_chroot = False
     _user = None  # user during auth
     user = None  # authorized user
