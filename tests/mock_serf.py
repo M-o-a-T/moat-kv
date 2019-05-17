@@ -135,7 +135,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                             "port":i+50120,
                             "ssl": server_ctx,
                         },
-                        "server": {
+                        "serf": {
                             "i": i,
                         },
                     },
