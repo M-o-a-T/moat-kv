@@ -15,8 +15,6 @@ from asyncserf.util import CancelledError as SerfCancelledError
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
 from collections import defaultdict
 
-# from trio_log import LogStream
-
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull
 from .core_actor import CoreActor
@@ -562,7 +560,6 @@ class ServerClient:
         _client_nr += 1
         self._client_nr = _client_nr
         self.logger = server.logger
-        self.logger.debug("CONNECT %d %s", self._client_nr, repr(stream))
 
     @property
     def nulls_ok(self):
@@ -992,7 +989,6 @@ class ServerClient:
 
             while True:
                 for msg in unpacker:
-                    # logger.debug("MSG %r",msg)
                     seq = None
                     try:
                         # self.logger.debug("IN %d: %s", self._client_nr, msg)
@@ -2063,19 +2059,17 @@ class Server:
                     await ready_evt.set()
 
     async def _accept_clients(self, cfg, n, evt):
+        ssl_ctx = gen_ssl(cfg['ssl'], server=True)
+        cfg = combine_dict({"ssl":ssl_ctx}, cfg, cls=attrdict)
+
         async with create_tcp_server(**cfg) as server:
             if n == 0:
                 self.ports = server.ports
             if evt is not None:
                 await evt.set()
 
-            self.logger.debug("S: opened %s", self.ports)
-            async for client in server:
-                ssl_ctx = gen_ssl(cfg['ssl'], server=True)
-                if ssl_ctx:
-                    client = trio.SSLStream(client, ssl_ctx, server_side=True)
-                    await client.do_handshake()
-                await self.spawn(self._connect, client)
+            async for stream in server:
+                await self.spawn(self._connect, stream)
             pass  # unwinding create_tcp_server
         pass  # unwinding serf_client (cancelled or error)
 
