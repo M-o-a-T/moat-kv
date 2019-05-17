@@ -867,16 +867,15 @@ class Client:
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
-            sock = await ex.enter_async_context(
-                await anyio.connect_tcp(host, port, ssl_context=ssl)
+            stream = await ex.enter_async_context(
+                await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
             )
 
             if ssl:
-                await sock.start_tls()
-            # logger.debug("ConnDone %s %s",host,port)
+                await stream.start_tls()
             try:
                 self.tg = tg
-                self._socket = sock
+                self._socket = stream
                 await self.tg.spawn(self._reader)
                 #async with anyio.fail_after(init_timeout):
                 async with anyio.open_cancel_scope():
