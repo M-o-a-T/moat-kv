@@ -1101,7 +1101,17 @@ class _RecoverControl:
 class Server:
     """
     This is the DistKV server. It manages connections to the Serf server,
-    its clients, and (optionally) a file that logs all changes.
+    the DistKV clients, and (optionally) logs all changes to a file.
+
+    Args:
+      name (str): the name of this DistKV server instance.
+        It **must** be unique.
+      cfg: configuration.
+        See :attr:`distkv.default.CFG` for default values.
+        Relevant is the ``server`` sub-dict (mostly).
+      init (Any):
+        The initial content of the root entry. **Do not use this**, except
+          when setting up an entirely new DistKV network.
     """
 
     serf = None
@@ -1873,6 +1883,16 @@ class Server:
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
+
+        Args:
+          path (str): The file to save to.
+          stream (anyio.abc.Stream): the stream to save to.
+          save_state (bool): Flag whether to write the current state.
+            If ``False`` (the default), only write changes.
+          done (trio.Event): set when writing changes commences, signalling
+            that the old save file (if any) may safely be closed.
+        
+        Exactly one of ``stream`` or ``path`` must be set.
         """
         shorter = PathShortener([])
 
@@ -1905,10 +1925,19 @@ class Server:
                     self._saver_prev = None
 
     async def run_saver(self, path: str = None, stream=None, save_state=False):
-        """Start a task that continually saves to disk.
+        """
+        Start a task that continually saves to disk.
 
-        Only one saver can run at a time; if a new one is started,
-        the old one is stopped as soon as the new saver's current state is on disk.
+        At most one one saver runs at a time; if a new one is started,
+        the old saver is cancelled as soon as the new saver's current state
+        is on disk (if told to do so) and it is ready to start writing.
+
+        Args:
+          path (str): The file to save to.
+          stream (anyio.abc.Stream): the stream to save to.
+          save_state (bool): Flag whether to write the current state.
+            If ``False`` (the default), only write changes.
+        
         """
         done = trio.Event()
         s = self._saver_prev
