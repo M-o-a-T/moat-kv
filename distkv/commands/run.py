@@ -77,12 +77,12 @@ async def cli(obj, name, host, port, load, save, init, eval):
         kw["init"] = init
 
     class RunMsg:
-        def started(self, x=None):
+        async def set(self):
             print("Running.")
 
     s = Server(name, cfg=obj.cfg, **kw)
     if load is not None:
         await s.load(path=load, local=True)
-    await s.serve(log_path=save, task_status=RunMsg())
+    await s.serve(log_path=save, ready_evt=RunMsg())
 
 
