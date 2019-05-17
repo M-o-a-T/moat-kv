@@ -51,12 +51,12 @@ async def test_83_run(autojump_clock):
             logger.info("Start sleep")
             with trio.fail_after(60):
                 await c._test_evt.wait()
-            await run("client", "-h", h, "-p", p, "get", "-ryd_", do_stdout=False)
+            await run("client", "-h", h, "-p", p, "data", "get", "-ryd_", do_stdout=False)
             await trio.sleep(11)
 
             logger.info("End sleep")
 
-            r = await run("client", "-h", h, "-p", p, "get")
+            r = await run("client", "-h", h, "-p", p, "data", "get")
             assert r.stdout == "123\n"
 
             assert ru.started > 0

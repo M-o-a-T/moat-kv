@@ -139,18 +139,18 @@ async def test_02_cmd(autojump_clock):
                 if h[0] != ":":
                     break
 
-            r = await run("client", "-h", h, "-p", p, "set", "-v", "hello", "foo")
+            r = await run("client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo")
             r = await run(
-                "client", "-h", h, "-p", p, "set", "-ev", "'baz'", "foo", "bar"
+                "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo", "bar"
             )
 
-            r = await run("client", "-h", h, "-p", p, "get")
+            r = await run("client", "-h", h, "-p", p, "data", "get")
             assert r.stdout == "123\n"
 
-            r = await run("client", "-h", h, "-p", p, "get", "foo")
+            r = await run("client", "-h", h, "-p", p, "data", "get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run("client", "-h", h, "-p", p, "get", "foo", "bar")
+            r = await run("client", "-h", h, "-p", p, "data", "get", "foo", "bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
