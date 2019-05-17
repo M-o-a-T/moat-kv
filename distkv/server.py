@@ -992,9 +992,10 @@ class ServerClient:
 
             while True:
                 for msg in unpacker:
+                    # logger.debug("MSG %r",msg)
                     seq = None
                     try:
-                        self.logger.debug("IN %d: %s", self._client_nr, msg)
+                        # self.logger.debug("IN %d: %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -1029,6 +1030,7 @@ class ServerClient:
                     return  # closed/reset/whatever
                 if len(buf) == 0:  # Connection was closed.
                     return  # done
+                # self.logger.debug("FEED %r",buf)
                 unpacker.feed(buf)
 
 
@@ -1487,6 +1489,7 @@ class Server:
                 await self._check_ticked()
                 delay.set()
                 async for msg in actor:
+                    # self.logger.debug("IN %r",msg)
                     if isinstance(msg, RecoverEvent):
                         await self.spawn(
                             self.recover_split,
@@ -1661,6 +1664,9 @@ class Server:
             self.logger.debug("Ready")
             self._ready.set()
             await self._set_tock()
+        else:
+            # self.logger.debug("Not yet ready.")
+            pass
 
     async def recover_split(self, prio, replace, local_history, sources):
         """
