@@ -495,17 +495,17 @@ class SCmd_serfmon(StreamCommand):
             async for resp in stream:
                 res = attrdict(type=msg.type)
                 if raw:
-                    res["raw"] = resp.data
+                    res["raw"] = resp.payload
                 else:
                     try:
                         res["data"] = msgpack.unpackb(
-                            resp.data,
+                            resp.payload,
                             object_pairs_hook=attrdict,
                             raw=False,
                             use_list=False,
                         )
                     except Exception as exc:
-                        res["raw"] = resp.data
+                        res["raw"] = resp.payload
                         res["error"] = repr(exc)
 
                 await self.send(**res)
