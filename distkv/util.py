@@ -7,6 +7,8 @@ from getpass import getpass
 from collections import deque
 from collections.abc import Mapping
 from types import ModuleType
+from typing import Union, Dict, Optional
+from ssl import SSLContext
 from functools import partial
 import sys
 
@@ -396,7 +398,14 @@ async def create_tcp_server(**args) -> _Server:
             yield server
 
 
-def gen_ssl(ctx, server: bool = True):
+def gen_ssl(ctx: Union[bool, SSLContext, Dict[str, str]] = False, server: bool = True) -> Optional[SSLContext]:
+    """
+    Generate a SSL config from the given context.
+
+    Args:
+      ctx: either a Bool (ssl yes/no) or a dict with "key" and "cert" entries.
+      server: a flag whether to behave as a server.
+    """
     if not ctx:
         return None
     if ctx is True:
