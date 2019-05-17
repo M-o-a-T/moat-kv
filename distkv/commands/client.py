@@ -50,14 +50,14 @@ class NullObj:
 
 @main.group(cls=partial(Loader,__file__,"client"))
 @click.option(
-    "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.server.host,)
+    "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,)
 )
 @click.option(
     "-p",
     "--port",
     type=int,
     default=None,
-    help="Port to use. Default: %d" % (CFG.server.port,),
+    help="Port to use. Default: %d" % (CFG.connect.port,),
 )
 @click.option(
     "-a",
@@ -70,19 +70,21 @@ class NullObj:
 async def cli(ctx, host, port, auth):
     """Talk to a DistKV server."""
     obj = ctx.obj
-    if host is None:
-        host = obj.cfg.server.host
-    if port is None:
-        port = obj.cfg.server.port
+    cfg = {}
+    if host is not None:
+        cfg['host'] = host
+    if port is not None:
+        cfg['port'] = port
 
-    kw = {}
     if auth is not None:
-        kw["auth"] = gen_auth(auth)
+        cfg["auth"] = gen_auth(auth)
         if obj._DEBUG:
-            kw["auth"]._DEBUG = True
+            cfg["auth"]._DEBUG = True
+
+    cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
 
     try:
-        obj.client = await ctx.enter_async_context(open_client(host, port, **kw))
+        obj.client = await ctx.enter_async_context(open_client(**cfg))
     except OSError as exc:
         obj.client = NullObj(exc)
     else:

@@ -14,6 +14,7 @@ import time
 from asyncserf.client import Serf
 
 from .codec import packer, unpacker
+from .actor import ClientActor
 
 try:
     from contextlib import asynccontextmanager
@@ -49,7 +50,7 @@ async def keep_running(client: Serf, name: str, cfg: dict, evt: anyio.abc.Event 
       prefix (dict): The prefix for the actor. Default "run".
     """
     async with anyio.open_task_group() as tg:
-        async with Actor(
+        async with ClientActor(
             client, name, cfg.get("prefix", "runner"), cfg.get("actor", {}),
             packer=packer, unpacker=unpacker,
         ) as act:
@@ -275,9 +276,7 @@ class RunnerRoot(ClientRoot):
         ``asyncserf.actor`` for details.
     """
 
-    CFG = dict(prefix=(".distkv", "run"), start_delay=1)
-
-    ACTOR_CFG = dict(cycle=5, nodes=-1, splits=5)
+    CFG = "runner"
 
     _age_killer_task = None
     _run_now_task = None
@@ -327,10 +326,7 @@ class RunnerRoot(ClientRoot):
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
             self.tg = tg
-            cfg = {}
-            cfg.update(type(self).ACTOR_CFG)
-            cfg.update(self._cfg.get("actor", {}))
-            async with Actor(self.client, self.name, self.group, tg=tg, cfg=cfg) as act:
+            async with ClientActor(self.client, self.name, self.group, tg=tg, cfg=self._cfg.actor) as act:
                 self._act = act
                 psutil.cpu_percent(interval=None)
                 await self._act.set_value(0)

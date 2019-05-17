@@ -1,6 +1,6 @@
 """
-This module implements additional code for the "core" Actors, which is used
-to clean up the list of deleted nodes.
+This module implements additional code for the server-side "core" Actor,
+which is used to clean up the list of deleted nodes.
 """
 
 import anyio
@@ -86,13 +86,12 @@ class CoreActor:
         The task that monitors the core actor.
         """
         try:
-            cfg = self.server.cfg.get("core", {})
             async with anyio.create_task_group() as tg:
                 async with Actor(
                     self.server.serf,
-                    prefix=self.server.cfg["root"] + ".core",
+                    prefix=self.server.cfg.server.root + ".core",
                     name=self.server.node.name,
-                    cfg=cfg,
+                    cfg=self.server.cfg.server.core,
                     tg=tg,
                     enabled=False,
                     packer=packer,

@@ -769,7 +769,7 @@ class Entry:
                 logger.warn("*** inconsistency ***")
                 logger.warn("Node: %s", self.path)
                 logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
+                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.get('value',NotGiven))
                 if evt.tock < self.tock:
                     logger.warn("New value ignored")
                     return

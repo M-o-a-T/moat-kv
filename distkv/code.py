@@ -37,7 +37,7 @@ class ModuleRoot(ClientRoot):
     The module code is stored textually. Content that is not UTF-8 is TODO.
     """
 
-    CFG = {"prefix": (".distkv", "code", "module")}
+    CFG = "modules"
 
     err: "ErrorRoot" = None
 
@@ -132,7 +132,7 @@ class CodeRoot(ClientRoot):
 
     """
 
-    CFG = {"prefix": (".distkv", "code", "proc")}
+    CFG = "codes"
 
     err = None
 

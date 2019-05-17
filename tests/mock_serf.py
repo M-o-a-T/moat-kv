@@ -17,7 +17,7 @@ from distkv.default import CFG
 from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict
+from distkv.util import attrdict, combine_dict
 from asyncserf.util import ValueEvent
 from asyncserf.stream import SerfEvent
 from anyio import create_queue
@@ -46,7 +46,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         ca.configure_trust(client_ctx)
         cert.configure_cert(server_ctx)
     else:
-        server_ctx = client_ctx = None
+        server_ctx = client_ctx = False
 
     clock = trio.hazmat.current_clock()
     clock.autojump_threshold = 0.1
@@ -125,13 +125,21 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             for i in range(n):
                 name = "test_" + str(i)
                 args = kw.get(name, kw.get("args", attrdict()))
-                if "cfg" not in args:
-                    args["cfg"] = args.get("cfg", TESTCFG).copy()
-                    args["cfg"]["serf"] = args["cfg"]["serf"].copy()
-                    args["cfg"]["serf"]["i"] = i
-                    if server_ctx:
-                        args["cfg"]["server"] = args["cfg"]["server"].copy()
-                        args["cfg"]["server"]["ssl"] = server_ctx
+                args['cfg'] = combine_dict(args.get('cfg',{}), {
+                    "connect": {
+                        "ssl": client_ctx,
+                    },
+                    "server": {
+                        "bind_default": {
+                            "host":"127.0.0.1",
+                            "port":i+50120,
+                            "ssl": server_ctx,
+                        },
+                        "server": {
+                            "i": i,
+                        },
+                    },
+                }, TESTCFG)
                 s = Server(name, **args)
                 # ex.enter_context(
                 #     mock.patch.object(
@@ -229,22 +237,9 @@ class MockServ:
         s = MockSerfStream(self, "user:" + typ)
         return s
 
-    async def event(self, typ, payload):
+    async def serf_send(self, typ, payload):
         """compat for supporting asyncserf.actor"""
-        return await self.serf_send(typ data=payload)
-
-    async def serf_send(self, typ, data):
-        # logger.debug("SERF:%s: %r", typ, data)
-
-        for s in list(self._master.serfs):
-            for x in self._master.splits:
-                if (s.cfg.get("i", 0) < x) != (self.cfg.get("i", 0) < x):
-                    break
-            else:
-                sl = s.streams.get(typ, None)
-                if sl is not None:
-                    for s in sl:
-                        await s.q.put(data)
+        return await self.event(typ, payload)
 
 
 class MockSerfStream:

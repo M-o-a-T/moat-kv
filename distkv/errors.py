@@ -235,7 +235,7 @@ class ErrorRoot(ClientRoot):
         The default is ``('.distkv','error')``.
     """
 
-    CFG = dict(prefix=(".distkv", "error"))
+    CFG = "errors"
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)

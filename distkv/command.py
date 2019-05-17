@@ -125,8 +125,9 @@ def cmd():
     "-D", "--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc)."
 )
 @click.option("-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML).")
+@click.option("-C", "--conf", multiple=True, help="Override a config entry. Example: '-C server.bind_default.port=57586'")
 @click.pass_context
-async def main(ctx, verbose, quiet, debug, log, cfg):
+async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     """
     This is the DistKV command. You need to add a subcommand for it to do
     anything.
@@ -147,11 +148,31 @@ async def main(ctx, verbose, quiet, debug, log, cfg):
     else:
         ctx.obj.cfg = CFG
 
+    # One-Shot-Hack the config file.
+    for k in conf:
+        try:
+            k,v = k.split('=')
+        except ValueError:
+            v = NotGiven
+        else:
+            try:
+                v = eval(v)
+            except Exception:
+                pass
+        c = ctx.obj.cfg
+        *sl, s = k.split('.')
+        for k in sl:
+            c = c[k]
+        if v is NotGiven:
+            del c[s]
+        else:
+            c[s] = v
+
     # Configure logging. This is a somewhat arcane art.
     lcfg = ctx.obj.cfg.logging
     lcfg['root']['level'] = "DEBUG" if verbose > 2 else "INFO" if verbose > 1 else "WARNING" if verbose else "ERROR"
-    for ls in log:
-        k,v = ls.split('=')
+    for k in log:
+        k,v = k.split('=')
         lcfg['loggers'].setdefault(k, {})['level'] = v
     dictConfig(lcfg)
     logging.captureWarnings(verbose > 0)

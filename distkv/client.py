@@ -19,7 +19,8 @@ except ImportError:
     from async_exit_stack import AsyncExitStack
 
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock, NotGiven
+from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock, NotGiven, combine_dict
+from .default import CFG
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -47,17 +48,15 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
+async def open_client(name=None, **cfg):
     """
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the Serf connection should fail.
     """
-    client = Client(host, port, ssl=ssl)
+    client = Client(name, cfg)
     async with anyio.create_task_group() as tg:
-        async with client._connected(
-            tg, init_timeout=init_timeout, auth=auth
-        ) as client:
+        async with client._connected(tg) as client:
             yield client
 
 
@@ -262,21 +261,26 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg={}):
+    async def as_handler(cls, client, cfg=None):
         """Return a (or "the") instance of this class.
         
         The handler is created if it doesn't exist.
 
         INstances are distinguished by their prefix (from config).
         """
-        c = {}
-        c.update(cls.CFG)
-        c.update(cfg)
+        d = []
+        if cfg is not None:
+            d.append(cfg)
+        defcfg = CFG[cls.CFG]
+        if cfg:
+            cfg = combine_dict(cfg, defcfg)
+        else:
+            cfg = defcfg
 
         def make():
-            return client.mirror(*c["prefix"], root_type=cls, need_wait=True, cfg=c)
+            return client.mirror(*cfg["prefix"], root_type=cls, need_wait=True, cfg=cfg)
 
-        return await client.unique_helper(*c["prefix"], factory=make)
+        return await client.unique_helper(*cfg["prefix"], factory=make)
 
     @classmethod
     def child_type(cls, name):
@@ -588,13 +592,12 @@ class Client:
     _dh_key = None
     exit_stack = None
 
-    def __init__(self, host, port, ssl=False, name=None):
-        self.host = host
-        self.port = port
+    def __init__(self, name: str, cfg: dict):
+        self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+
         self._seq = 0
         self._handlers = {}
         self._send_lock = anyio.create_lock()
-        self.ssl = gen_ssl(ssl, server=False)
         self._helpers = {}
         if name is None:
             name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
@@ -847,7 +850,7 @@ class Client:
         await auth.auth(self)
 
     @asynccontextmanager
-    async def _connected(self, tg, init_timeout=5, auth=None):
+    async def _connected(self, tg):
         """
         This async context manager handles the actual TCP connection to
         the DistKV server.
@@ -855,26 +858,33 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
+        host = self._cfg['host']
+        port = self._cfg['port']
+        auth = self._cfg['auth']
+        init_timeout = self._cfg['init_timeout']
+        ssl = gen_ssl(self._cfg['ssl'], server=False)
+
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
             sock = await ex.enter_async_context(
-                await anyio.connect_tcp(self.host, self.port, ssl_context=self.ssl)
+                await anyio.connect_tcp(host, port, ssl_context=ssl)
             )
 
-            if self.ssl:
+            if ssl:
                 await sock.start_tls()
-            # logger.debug("ConnDone %s %s",self.host,self.port)
+            # logger.debug("ConnDone %s %s",host,port)
             try:
                 self.tg = tg
                 self._socket = sock
                 await self.tg.spawn(self._reader)
-                async with anyio.fail_after(init_timeout):
+                #async with anyio.fail_after(init_timeout):
+                async with anyio.open_cancel_scope():
                     self._server_init = await hello.get()
                     await self._run_auth(auth)
                 yield self
             except socket.error as e:
-                raise ServerConnectionError(self.host, self.port) from e
+                raise ServerConnectionError(host, port) from e
             else:
                 # This is intentionally not in the error path
                 # cancelling the nursey causes open_client() to

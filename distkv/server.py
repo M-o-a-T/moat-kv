@@ -1119,13 +1119,11 @@ class Server:
     _actor = None
     _core_actor = None
 
-    def __init__(self, name: str, cfg: dict, init: Any = NotGiven, root: Entry = None):
+    def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
-        if root is None:
-            root = RootEntry(self, tock=self.tock)
-        self.root = root
-        self.cfg = combine_dict(cfg, CFG)
-        self.paranoid_root = root if self.cfg["paranoia"] else None
+        self.root = RootEntry(self, tock=self.tock)
+        self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
+        self.paranoid_root = root if self.cfg.server.paranoia else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
@@ -1231,7 +1229,7 @@ class Server:
             msg["tick"] = self.node.tick
         omsg = msg
         msg = _packer(msg)
-        await self.serf.event(self.cfg["root"] + "." + action, msg, coalesce=coalesce)
+        await self.serf.event(self.cfg.server.root + "." + action, msg, coalesce=coalesce)
 
     async def watcher(self):
         """
@@ -1243,7 +1241,7 @@ class Server:
                     continue
                 if self.node.tick is None:
                     continue
-                p = msg.serialize(nchain=self.cfg["change"]["length"])
+                p = msg.serialize(nchain=self.cfg.server.change.length)
                 await self._send_event("update", p)
 
     async def resync_deleted(self, nodes):
@@ -1451,7 +1449,7 @@ class Server:
         cmd = getattr(self, "user_" + action)
         try:
             async with self.serf.stream(
-                "user:%s.%s" % (self.cfg["root"], action)
+                "user:%s.%s" % (self.cfg.server.root, action)
             ) as stream:
                 if delay is not None:
                     await delay.wait()
@@ -1485,13 +1483,12 @@ class Server:
           delay (trio.Event): an event to set after the initial ping
             message has been sent.
         """
-        cfg = self.cfg["ping"]
         async with anyio.create_task_group() as tg:
             async with Actor(
                 client=self.serf,
-                prefix=self.cfg["root"] + ".ping",
+                prefix=self.cfg.server.root + ".ping",
                 name=self.node.name,
-                cfg=cfg,
+                cfg=self.cfg.server.ping,
                 tg=tg,
                 packer=packer, unpacker=unpacker,
             ) as actor:
@@ -1523,9 +1520,14 @@ class Server:
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
-        port = self.cfg["server"]["port"]
-        domain = self.cfg["domain"]
-        if domain is not None:
+        port = self.cfg.server.server.port
+        domain = self.cfg.domain
+        hostmap = self.cfg.hostmap
+        if host in hostmap:
+            host = hostmap[host]
+            if not isinstance(host, str):
+                host, port = host
+        elif domain is not None:
             host += "." + domain
         return (host, port)
 
@@ -1533,7 +1535,7 @@ class Server:
         """Task to periodically send "missing …" messages
         """
         self.logger.debug("send-missing started")
-        clock = self.cfg["ping"]["gap"]
+        clock = self.cfg.server.ping.gap
         while self.fetch_missing:
             if self.fetch_running is not False:
                 self.logger.debug("send-missing halted")
@@ -1582,7 +1584,8 @@ class Server:
         for n in nodes:
             try:
                 host, port = await self._get_host_port(n)
-                async with distkv_client.open_client(host, port) as client:
+                cfg = combine_dict({"host":host, "port":port, "name":self.node.name}, self.cfg.connect, cls=attrdict)
+                async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
                     res = await client._request(
@@ -1699,7 +1702,7 @@ class Server:
             )
             try:
                 await t._start()
-                clock = self.cfg["ping"]["cycle"]
+                clock = self.cfg.server.ping.cycle
                 tock = self.tock
                 self.logger.debug("SplitRecover: %s @%d", prio, tock)
 
@@ -1775,7 +1778,7 @@ class Server:
         and re-broadcast them. If the event is unavailable, send a "known"
         / "deleted" message.
         """
-        clock = self.cfg["ping"]["cycle"]
+        clock = self.cfg.server.ping.cycle
         if prio is None:
             await trio.sleep(clock * (1 + self._actor.random / 3))
         else:
@@ -1795,7 +1798,7 @@ class Server:
                     for t in range(*r):
                         if t not in n.remote_missing:
                             # some other node could have sent this while we worked
-                            await trio.sleep(self.cfg["ping"]["gap"] / 3)
+                            await trio.sleep(self.cfg.server.ping.gap / 3)
                             continue
                         if t in n:
                             msg = n[t].serialize()
@@ -1959,7 +1962,7 @@ class Server:
         await self._ready2.wait()
 
     async def serve(
-        self, log_path=None, task_status=trio.TASK_STATUS_IGNORED, ready_evt=None
+        self, log_path=None, ready_evt=None
     ):
         """Task that opens a Serf connection and actually runs the server.
 
@@ -1967,7 +1970,7 @@ class Server:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
         """
-        async with asyncserf.serf_client(**self.cfg["serf"]) as serf:
+        async with asyncserf.serf_client(**self.cfg.server.server) as serf:
             # Collect all "info/missing" messages seen since the last
             # healed network split so that they're only sent once.
             self.seen_missing = {}
@@ -2014,8 +2017,8 @@ class Server:
             await self.spawn(self._run_core, delay3)
             await self.spawn(self._delete_also)
 
-            if self.cfg["state"] is not None:
-                await self.spawn(self.save, self.cfg["state"])
+            if self.cfg.server.state is not None:
+                await self.spawn(self.save, self.cfg.server.state)
 
             if log_path is not None:
                 await self.run_saver(path=log_path, save_state=True)
@@ -2041,32 +2044,40 @@ class Server:
             delay.set()
             await self._check_ticked()  # when _init is set
             await delay2.wait()
-
-            cfg_s = self.cfg["server"].copy()
-            cfg_s.setdefault("host", "localhost")
-            ssl_ctx = cfg_s.pop("ssl", False)
-            ssl_ctx = gen_ssl(ssl_ctx, server=True)
-
             await self._ready.wait()
-            if cfg_s.get("port", NotGiven) is None:
-                del cfg_s["port"]
-            async with create_tcp_server(**cfg_s) as server:
-                self.ports = server.ports
-                task_status.started(server)
+
+            cfgs = self.cfg.server.bind
+            cfg_b = self.cfg.server.bind_default
+            evts = []
+            async with anyio.create_task_group() as tg:
+                for n,cfg in enumerate(cfgs):
+                    cfg = combine_dict(cfg, cfg_b, cls=attrdict)
+                    evt = anyio.create_event()
+                    evts.append(evt)
+                    await tg.spawn(self._accept_clients, cfg, n, evt)
+                for evt in evts:
+                    await evt.wait()
+
+                self._ready2.set()
                 if ready_evt is not None:
                     await ready_evt.set()
 
-                self.logger.debug("S: opened %s", self.ports)
-                self._ready2.set()
-                async for client in server:
-                    if ssl_ctx:
-                        # client = LogStream(client,"SL")
-                        client = trio.SSLStream(client, ssl_ctx, server_side=True)
-                        # client = LogStream(client,"SH")
-                        await client.do_handshake()
-                    await self.spawn(self._connect, client)
-                pass  # unwinding create_tcp_server
-            pass  # unwinding serf_client (cancelled or error)
+    async def _accept_clients(self, cfg, n, evt):
+        async with create_tcp_server(**cfg) as server:
+            if n == 0:
+                self.ports = server.ports
+            if evt is not None:
+                await evt.set()
+
+            self.logger.debug("S: opened %s", self.ports)
+            async for client in server:
+                ssl_ctx = gen_ssl(cfg['ssl'], server=True)
+                if ssl_ctx:
+                    client = trio.SSLStream(client, ssl_ctx, server_side=True)
+                    await client.do_handshake()
+                await self.spawn(self._connect, client)
+            pass  # unwinding create_tcp_server
+        pass  # unwinding serf_client (cancelled or error)
 
     async def _connect(self, stream):
         c = ServerClient(server=self, stream=stream)
@@ -2079,7 +2090,7 @@ class Server:
             if exc is not None and type(exc) is not trio.Cancelled:
                 self.logger.exception("Client connection killed", exc_info=exc)
             try:
-                with trio.move_on_after(2) as cs:
+                async with anyio.move_on_after(2) as cs:
                     cs.shield = True
                     await self.send({"error": str(exc)})
             except Exception:

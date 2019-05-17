@@ -24,6 +24,11 @@ def singleton(cls):
     return cls()
 
 
+class TimeOnlyFormatter(logging.Formatter):
+    default_time_format = "%H:%M:%S"
+    default_msec_format = "%s.%03d"
+
+
 @singleton
 class NotGiven:
     """Placeholder value for 'no data' or 'deleted'."""
