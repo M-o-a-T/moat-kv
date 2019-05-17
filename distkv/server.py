@@ -1520,7 +1520,7 @@ class Server:
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to"""
-        port = self.cfg.server.server.port
+        port = self.cfg.server.serf.port
         domain = self.cfg.domain
         hostmap = self.cfg.hostmap
         if host in hostmap:
@@ -1970,7 +1970,7 @@ class Server:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
         """
-        async with asyncserf.serf_client(**self.cfg.server.server) as serf:
+        async with asyncserf.serf_client(**self.cfg.server.serf) as serf:
             # Collect all "info/missing" messages seen since the last
             # healed network split so that they're only sent once.
             self.seen_missing = {}

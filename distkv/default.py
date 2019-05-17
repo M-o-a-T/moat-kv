@@ -76,7 +76,7 @@ CFG = attrdict(
 
     server=attrdict(
         # server-side configuration
-        server=attrdict(
+        serf=attrdict(
             # how to connect to Serf
             host="localhost",
             port=7373,

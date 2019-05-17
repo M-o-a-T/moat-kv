@@ -29,14 +29,14 @@ logger = logging.getLogger(__name__)
     "-h",
     "--host",
     default=None,
-    help="Address to bind to. Default: %s" % (CFG.server.server.host),
+    help="Address to bind to. Default: %s" % (CFG.server.serf.host),
 )
 @click.option(
     "-p",
     "--port",
     type=int,
     default=None,
-    help="Port to bind to. Default: %d" % (CFG.server.server.port,),
+    help="Port to bind to. Default: %d" % (CFG.server.serf.port,),
 )
 @click.option(
     "-l",
@@ -76,9 +76,9 @@ async def cli(obj, name, host, port, load, save, init, eval):
     network is complete.
     """
     if host is not None:
-        obj.cfg.server.server.host = host
+        obj.cfg.server.serf.host = host
     if port is not None:
-        obj.cfg.server.server.port = port
+        obj.cfg.server.serf.port = port
 
     kw = {}
     if eval:
