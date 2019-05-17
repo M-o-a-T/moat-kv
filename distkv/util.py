@@ -33,14 +33,18 @@ class NotGiven:
         return "<*NotGiven*>"
 
 
-def combine_dict(*d):
+def combine_dict(*d, cls=dict):
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
 
     This recurses if values are dicts.
+
+    Args:
+      cls (type): a class to instantiate the result with. Default: dict.
+        Often used: :cls:`attrdict`.
     """
-    res = {}
+    res = cls()
     keys = {}
     if len(d) <= 1:
         return d
@@ -57,7 +61,7 @@ def combine_dict(*d):
                 assert not isinstance(vv, Mapping)
             res[k] = v[0]
         else:
-            res[k] = combine_dict(*v)
+            res[k] = combine_dict(*v, cls=cls)
     return res
 
 
