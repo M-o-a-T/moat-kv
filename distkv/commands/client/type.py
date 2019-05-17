@@ -8,7 +8,6 @@ import json
 
 from distkv.util import (
     attrdict,
-    combine_dict,
     PathLongener,
     MsgReader,
     PathShortener,
