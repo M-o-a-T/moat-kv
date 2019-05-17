@@ -204,7 +204,7 @@ class AttrClientEntry(ClientEntry):
         Don't call me, I'll call you.
         """
         await super().set_value(val)
-        if val is None:
+        if val is NotGiven:
             for k in self.ATTRS:
                 try:
                     delattr(self, k)
