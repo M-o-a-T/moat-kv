@@ -877,8 +877,7 @@ class Client:
                 self.tg = tg
                 self._socket = stream
                 await self.tg.spawn(self._reader)
-                #async with anyio.fail_after(init_timeout):
-                async with anyio.open_cancel_scope():
+                async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                     await self._run_auth(auth)
                 yield self
