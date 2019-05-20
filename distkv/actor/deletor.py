@@ -10,7 +10,7 @@ from collections import deque
 from asyncserf.actor import Actor
 from asyncserf.actor import PingEvent, TagEvent
 
-from .codec import packer, unpacker
+from ..codec import packer, unpacker
 
 
 TAGS = 4
