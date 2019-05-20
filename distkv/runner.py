@@ -33,35 +33,6 @@ class NotSelected(RuntimeError):
     pass
 
 
-@asynccontextmanager
-async def keep_running(client: Serf, name: str, cfg: dict, evt: anyio.abc.Event = None):
-    """
-    This task runs all tasks destined to run on this machine, as per the
-    configuration.
-
-    Arguments:
-      name (str): The (unique) name of this runner.
-      cfg (dict): The configuration to use.
-
-    The configuration should look like this:
-
-    Arguments:
-      actor (dict): The configuration for the underlying actor.
-      prefix (dict): The prefix for the actor. Default "run".
-    """
-    async with anyio.open_task_group() as tg:
-        async with ClientActor(
-            client, name, cfg.get("prefix", "runner"), cfg.get("actor", {}),
-            packer=packer, unpacker=unpacker,
-        ) as act:
-            r = Runner(tg, act, cfg)
-            async with r:
-                try:
-                    yield r
-                finally:
-                    await tg.cancel_scope.cancel()
-
-
 class RunnerEntry(AttrClientEntry):
     """
     An entry representing some hopefully-running code.
