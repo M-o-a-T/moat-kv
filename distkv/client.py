@@ -383,6 +383,7 @@ class ClientRoot(ClientEntry):
                 yield self
             finally:
                 await tg.cancel_scope.cancel()
+            pass # end of 'run', closing taskgroup
 
     async def cancel(self):
         """Stop the monitor"""
@@ -436,6 +437,7 @@ class StreamedRequest:
         self._reply_stream = None
         self.n_msg = 0
         self._report_start = report_start
+        self._started = anyio.create_event()
         # None: no message yet; True: begin seen; False: end or single message seen
 
     async def set(self, msg):
@@ -452,6 +454,7 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
             self.start_msg = msg
+            await self._started.set()
             if self._report_start:
                 await self.q.put(outcome.Value(msg))
 
@@ -528,6 +531,9 @@ class StreamedRequest:
         if self.q is not None:
             await self.q.put(outcome.Error(CancelledError()))
         await self.aclose()
+
+    async def wait_started(self):
+        await self._started.wait()
 
     async def aclose(self, timeout=0.2):
         if self.q is not None:
@@ -635,6 +641,7 @@ class Client:
                         await evt.set()
                         while True:
                             await anyio.sleep(99999)
+                        pass # exiting helper
 
                 evt = anyio.create_event()
                 await self.tg.spawn(_run, factory, evt)
@@ -820,6 +827,7 @@ class Client:
             raise anyio.exceptions.ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
         await res.send(action=action, **params)
+        await res.wait_started()
         try:
             yield res
         except BaseException as exc:
