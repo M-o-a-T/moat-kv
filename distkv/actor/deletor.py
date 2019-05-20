@@ -1,5 +1,5 @@
 """
-This module implements additional code for the server-side "core" Actor,
+This module implements additional code for the server-side DeleteActor,
 which is used to clean up the list of deleted nodes.
 """
 
@@ -16,7 +16,7 @@ from ..codec import packer, unpacker
 TAGS = 4
 
 
-class CoreActor:
+class DeleteActor:
     def __init__(self, server):
         self._server = weakref.ref(server)
         self.deleted = deque()
@@ -83,15 +83,15 @@ class CoreActor:
 
     async def run(self, evt=None):
         """
-        The task that monitors the core actor.
+        The task that monitors the Delete actor.
         """
         try:
             async with anyio.create_task_group() as tg:
                 async with Actor(
                     self.server.serf,
-                    prefix=self.server.cfg.server.root + ".core",
+                    prefix=self.server.cfg.server.root + ".del",
                     name=self.server.node.name,
-                    cfg=self.server.cfg.server.core,
+                    cfg=self.server.cfg.server.delete,
                     tg=tg,
                     enabled=False,
                     packer=packer,

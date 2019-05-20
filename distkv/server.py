@@ -17,7 +17,7 @@ from collections import defaultdict
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull
-from .core_actor import CoreActor
+from .actor.deletor import DeleteActor
 from .default import CFG
 from .codec import packer, unpacker
 from .util import (
@@ -1113,7 +1113,7 @@ class Server:
     serf = None
     _ready = None
     _actor = None
-    _core_actor = None
+    _del_actor = None
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
@@ -1170,19 +1170,19 @@ class Server:
         if self._actor is not None and self._ready.is_set():
             await self._actor.set_value((self._tock, self.node.tick))
 
-    async def core_check(self, value):
+    async def del_check(self, value):
         """
-        Called when ``(None,"core")`` is set.
+        Called when ``(None,"del")`` is set.
         """
         if value is NotGiven:
-            await self._core_actor.disable()
+            await self._del_actor.disable()
             return
 
         nodes = value.get("nodes", ())
         if self.node.name in nodes:
-            await self._core_actor.enable(len(nodes))
+            await self._del_actor.enable(len(nodes))
         else:
-            await self._core_actor.disable(len(nodes))
+            await self._del_actor.disable(len(nodes))
 
     def drop_old_event(self, evt, old_evt=NotGiven):
         """
@@ -1245,7 +1245,7 @@ class Server:
         Owch. We need to re-sync.
 
         We collect the latest ticks in our object tree and send them to one
-        of the core nodes.
+        of the Delete nodes.
         """
 
         for n in nodes:
@@ -1424,12 +1424,12 @@ class Server:
 
     async def _delete_also(self):
         """
-        Add deletion records to the core actor.
+        Add deletion records to the delete actor.
         """
         while True:
             await trio.sleep(10)
             if self._delete_also_nodes:
-                self._core_actor.add_deleted(self._delete_also_nodes)
+                self._del_actor.add_deleted(self._delete_also_nodes)
                 self._delete_also_nodes = NodeSet()
 
     async def monitor(self, action: str, delay: trio.Event = None):
@@ -1459,12 +1459,12 @@ class Server:
         except (CancelledError, SerfCancelledError):
             pass
 
-    async def _run_core(self, evt):
+    async def _run_del(self, evt):
         try:
-            self._core_actor = CoreActor(self)
-            await self._core_actor.run(evt=evt)
+            self._del_actor = DeleteActor(self)
+            await self._del_actor.run(evt=evt)
         finally:
-            self._core_actor = None
+            self._del_actor = None
 
     async def _pinger(self, delay: trio.Event):
         """
@@ -2010,7 +2010,7 @@ class Server:
             delay2 = trio.Event()
             delay3 = trio.Event()
 
-            await self.spawn(self._run_core, delay3)
+            await self.spawn(self._run_del, delay3)
             await self.spawn(self._delete_also)
 
             if self.cfg.server.state is not None:

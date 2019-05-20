@@ -95,7 +95,7 @@ CFG = attrdict(
         state=None,  # path to a file load/save system state
         change=attrdict(length=5),  # chain length: use max nr of network sections +1
         ping=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for ping
-        core=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for core
+        delete=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for deletion
         # ping time also controls minimum startup time
     ),
     paranoia=False,  # typecheck server>server updates?

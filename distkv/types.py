@@ -319,12 +319,19 @@ class ConvRoot(MetaEntry):
             raise ValueError("This node can't have data.")
 
 
-class CoreRoot(Entry):
+class DelRoot(Entry):
     SUBTYPE = None
 
     async def set(self, value):
         await super().set(value)
-        await self.root.server.core_check(value)
+        await self.root.server.del_check(value)
+
+
+class ActorRoot(Entry):
+    SUBTYPE = None
+    SUBTYPES = {
+        "del": DelRoot,
+    }
 
 
 # ROOT
@@ -338,7 +345,7 @@ class MetaRootEntry(Entry):  # not MetaEntry
         "match": MatchRoot,
         "codec": CodecRoot,
         "conv": ConvRoot,
-        "core": CoreRoot,
+        "actor": ActorRoot,
     }
 
     def __init__(self, *a, **k):

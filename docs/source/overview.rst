@@ -67,7 +67,7 @@ rather their chain links. This works well for mostly-static storages but
 becomes a problem on more dynamic systems.
 
 Thus, periodic clean-up is required. This is achieved by creating a
-separate "core" Actor group which contains every system with persistent
+separate "Delete" Actor group which contains every system with persistent
 storage plus one system per network that's not already covered.
 
 When every node of this group is online, they periodically broadcast a
@@ -77,8 +77,8 @@ round.
 
 A node that receives this tuple compares the received first value with the
 last transmission's second. If it's higher, deletions may have been missed,
-most likely due to a network outage between that node and the closest core
+most likely due to a network outage between that node and the closest Delete
 member. Since the records are now gone, the node will connect to one of the
-core group members and send a list of each entry's last-change chain links.
+Delete group members and send a list of each entry's last-change chain links.
 The recipient will re-broadcast any misses as "new" deletions.
 

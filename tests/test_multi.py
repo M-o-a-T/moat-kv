@@ -45,7 +45,7 @@ async def test_10_many(autojump_clock):
 
             await ci._request(
                 "set_internal",
-                path=("core",),
+                path=("actor","del",),
                 value={"nodes": "test_2 test_3 test_4".split()},
             )
 
