@@ -52,9 +52,9 @@ class CoreActor:
 
     def purge_to(self, tock):
         """
-        Sufficient time has passed since this tock was seen, while all core
-        nodes were active. Finally flush the entries that have been deleted
-        before it.
+        Sufficient time has passed since this tock was seen, while all
+        Delete actor nodes were active. Finally flush the entries that have
+        been deleted before it.
         """
         while self.deleted and self.deleted[0][0] < tock:
             d = self.deleted.popleft()
@@ -71,8 +71,8 @@ class CoreActor:
 
     async def disable(self, n: int = 0):
         """
-        Disable this actor. It will still listen, and require N core
-        members in order to flush its deletion entries.
+        Disable this actor. It will still listen, and require N Delete
+        actor members in order to flush its deletion entries.
 
         Completely disable deletion flushing by passing n=0.
         """
