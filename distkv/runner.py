@@ -336,6 +336,7 @@ class RunnerRoot(ClientRoot):
 
                         await self._run_now_task.cancel()
                         # TODO if this is a DetagEvent, kill everything?
+                pass # end of actor task
 
     async def _run_now(self, evt):
         async with anyio.create_task_group() as tg:
