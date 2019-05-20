@@ -297,7 +297,7 @@ class RunnerRoot(ClientRoot):
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
             self.tg = tg
-            async with ClientActor(self.client, self.name, self.group, tg=tg, cfg=self._cfg.actor) as act:
+            async with ClientActor(self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg) as act:
                 self._act = act
                 psutil.cpu_percent(interval=None)
                 await self._act.set_value(0)
