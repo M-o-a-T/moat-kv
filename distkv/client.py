@@ -254,7 +254,7 @@ class ClientRoot(ClientEntry):
         if cfg is None:
             cfg = {}
         self._cfg = cfg
-        self._name = cfg.get("name", self.client.name)
+        self._name = self.client.name
 
         if need_wait:
             self._waiters = dict()
