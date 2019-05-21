@@ -6,7 +6,7 @@ This module's job is to run code, resp. to keep it running.
 
 import anyio
 from asyncserf.actor import Actor, NodeList
-from asyncserf.actor import PingEvent, TagEvent, UntagEvent
+from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from time import monotonic as time
 from copy import deepcopy
 import psutil
