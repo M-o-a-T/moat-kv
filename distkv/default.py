@@ -66,6 +66,7 @@ CFG = attrdict(
     ),
     runner=attrdict(  # for distkv.runner.RunnerRoot
         prefix=('.distkv','run'),  # storage location
+        state=('.distkv','state','any'),  # for distkv.runner.SingleRunnerRoot
         name="run-any",  # Serf event name, must be unique
         start_delay=1,  # time to wait between job starts. Not optional.
         actor=attrdict(  # Actor config
@@ -76,6 +77,7 @@ CFG = attrdict(
     ),
     singlerunner=attrdict(
         prefix=('.distkv','run-at'),  # for distkv.runner.SingleRunnerRoot
+        state=('.distkv','state','at'),  # for distkv.runner.SingleRunnerRoot
         start_delay=1,  # optional
         name="run-at",  # Serf event name, must be unique
         actor=attrdict(

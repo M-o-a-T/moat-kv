@@ -226,7 +226,8 @@ class AttrClientEntry(ClientEntry):
                 except AttributeError:
                     pass
                 else:
-                    res[attr] = v
+                    if v is not NotGiven:
+                        res[attr] = v
             r = await super().update(value=res, _locked=True, nchain=3 if wait else 0)
             if wait:
                 await self.root.wait_chain(r.chain)
@@ -261,26 +262,29 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg=None):
+    async def as_handler(cls, client, cfg=None, key="prefix"):
         """Return a (or "the") instance of this class.
         
         The handler is created if it doesn't exist.
 
-        INstances are distinguished by their prefix (from config).
+        Instances are distinguished by their prefix (from config).
         """
         d = []
         if cfg is not None:
             d.append(cfg)
-        defcfg = CFG[cls.CFG]
+        defcfg = CFG.get(cls.CFG, None)
         if cfg:
-            cfg = combine_dict(cfg, defcfg)
+            if defcfg:
+                cfg = combine_dict(cfg, defcfg)
         else:
+            if not defcfg:
+                raise RuntimeError("no config")
             cfg = defcfg
 
         def make():
-            return client.mirror(*cfg["prefix"], root_type=cls, need_wait=True, cfg=cfg)
+            return client.mirror(*cfg[key], root_type=cls, need_wait=True, cfg=cfg)
 
-        return await client.unique_helper(*cfg["prefix"], factory=make)
+        return await client.unique_helper(*cfg[key], factory=make)
 
     @classmethod
     def child_type(cls, name):
@@ -310,7 +314,7 @@ class ClientRoot(ClientEntry):
         ``.follow(*path)``. To allow that, set ``unsafe``, though a better
         idea is to structure your data that this is not necessary.
         """
-        if not unsafe and len(path) == 1 and isinstance(path, (list, tuple)):
+        if not unsafe and len(path) == 1 and isinstance(path[0], (list, tuple)):
             raise RuntimeError("You seem to have used 'path' instead of '*path'.")
 
         node = self

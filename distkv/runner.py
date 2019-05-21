@@ -5,6 +5,7 @@ This module's job is to run code, resp. to keep it running.
 """
 
 import anyio
+from weakref import ref
 from asyncserf.actor import Actor, NodeList
 from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from time import monotonic as time
@@ -16,6 +17,7 @@ from asyncserf.client import Serf
 from .codec import packer, unpacker
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
+from .util import NotGiven
 
 try:
     from contextlib import asynccontextmanager
@@ -47,16 +49,11 @@ class RunnerEntry(AttrClientEntry):
     On error, it will run ``delay`` seconds later (if >0), multiplied by 2**backoff.
 
     Arguments:
-      code (tuple): The actual code that should be started.
-      data (dict): Some data to go with the code.
       started (float): timestamp when the job was last started
       stopped (float): timestamp when the job last terminated
       delay (float): time before restarting the job on error
       repeat (float): time before restarting on success
       target (float): time the job should be started at
-      backoff (int): how often the job terminated with an error
-      result: the return value, assuming the job succeeded
-      node (str): the node which is running this job, None if not executing
 
     The code runs with these additional keywords::
       _entry: this object
@@ -68,20 +65,18 @@ class RunnerEntry(AttrClientEntry):
     Messages are defined in :module:`distkv.actor`.
     """
 
-    ATTRS = "code data started stopped result node backoff delay repeat target".split()
+    ATTRS = "code data delay repeat target".split()
 
-    started = 0  # timestamp
-    stopped = 0  # timestamp
     delay = 100  # timedelta, before restarting
-    backoff = 1  # how often a retry failed
     repeat = 0
     target = 0
 
-    node = None  # on which the code is currently running
     code = None  # what to execute
+    data = None
     scope = None  # scope to kill off
     _comment = None  # used for error entries, i.e. mainly Cancel
     _q = None  # send events to the running task. Async tasks only.
+    _running = False  # .run is active. Careful with applying updates.
 
     def __init__(self, *a, **k):
         super().__init__(*a, **k)
@@ -90,13 +85,22 @@ class RunnerEntry(AttrClientEntry):
         self.code = None  # code location
         self.data = {}  # local data
 
+    def __repr__(self):
+        return "<%s %r:%r>" % (self.__class__.__name__, self.subpath, self.code)
+
+    @property
+    def state(self):
+        return self.root.state.follow(*self.subpath, create=True)
+
     async def run(self):
         if self.code is None:
             return  # nothing to do here
+
+        state = self.state
         try:
             try:
-                if self.node is not None:
-                    raise RuntimeError("already running on %s", self.node)
+                if state.node is not None:
+                    raise RuntimeError("already running on %s", state.node)
                 code = self.root.code.follow(*self.code, create=False)
                 data = deepcopy(self.data)
 
@@ -107,12 +111,12 @@ class RunnerEntry(AttrClientEntry):
                 data["_entry"] = self
                 data["_client"] = self.root.client
 
-                self.started = time.time()
-                self.node = self.root.name
+                state.started = time.time()
+                state.node = self.root.name
 
-                await self.save(wait=True)
-                if self.node != self.root.name:
-                    raise RuntimeError("Rudely taken away from us.")
+                await state.save(wait=True)
+                if state.node != self.root.name:
+                    raise RuntimeError("Rudely taken away from us.", state.node, self.root.name)
 
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
@@ -130,17 +134,17 @@ class RunnerEntry(AttrClientEntry):
             await self.root.err.record_exc(
                 "run", *self._path, exc=exc, data=data, comment=c
             )
-            self.backoff += 1
-            if self.node == self.root.name:
-                self.node = None
+            state.backoff += 1
+            if state.node == self.root.name:
+                state.node = None
         else:
-            self.result = res
+            state.result = res
             self.backoff = 0
-            self.node = None
+            state.node = None
         finally:
-            self.stopped = t
-            if self.backoff > 0:
-                self.retry = t + (1 << self.backoff) * self.delay
+            state.stopped = t
+            if state.backoff > 0:
+                self.retry = t + (1 << state.backoff) * self.delay
             else:
                 self.retry = None
             try:
@@ -157,11 +161,12 @@ class RunnerEntry(AttrClientEntry):
                 self._q = None
 
     async def seems_down(self):
-        self.node = None
-        await self.save()
+        state = self.state
+        state.node = None
+        if not self._running:
+            await state.save(wait=True)
 
     async def set_value(self, val):
-        n = self.node
         c = self.code
         await super().set_value(val)
 
@@ -172,21 +177,6 @@ class RunnerEntry(AttrClientEntry):
             # The code changed.
             self._comment = "Cancel: Code changed"
             await self.scope.cancel()
-        elif self.node == n:
-            # Nothing changed.
-            return
-        elif n == self.root.name:
-            # Owch. Our job got taken away from us.
-            self._comment = "Cancel: Node set to %r" % (self.node,)
-            await self.scope.cancel()
-        elif n is not None:
-            logger.warning(
-                "Runner %s at %r: running but node is %s",
-                self.root.name,
-                self.subpath,
-                n,
-            )
-        # otherwise this is the change where we took the thing
 
         await self.root.trigger_rescan()
 
@@ -195,7 +185,9 @@ class RunnerEntry(AttrClientEntry):
         """Next run at this time.
         """
         self.target = t
-        await self.save()
+        if not self._running:
+            await self.save(wait=True)
+
 
     def should_start(self, t=None):
         """Tell whether this job might want to be started.
@@ -207,17 +199,20 @@ class RunnerEntry(AttrClientEntry):
 
         """
 
+        state = self.state
         if self.code is None:
             return False
-        if self.node is not None:
+        if state.node is not None:
             return False
         if t is None:
             t = time.time()
 
-        if self.target > self.started:
+        if self.target > state.started:
             return self.target - t
-        elif self.backoff:
-            return self.stopped + self.delay * (1 << self.backoff) - t
+        elif state.backoff:
+            return state.stopped + state.delay * (1 << state.backoff) - t
+        elif self.repeat:
+            return state.stopped + self.repeat
         else:
             return False
 
@@ -234,7 +229,7 @@ class RunnerEntry(AttrClientEntry):
 
     @property
     def age(self):
-        return time.time() - self.started
+        return time.time() - self.state.started
 
 
 class RunnerNode:
@@ -259,6 +254,65 @@ class RunnerNode:
         pass
 
 
+class StateEntry(AttrClientEntry):
+    ATTRS = "started stopped result node backoff".split()
+
+    started = 0  # timestamp
+    stopped = 0  # timestamp
+    node = None  # on which the code is currently running
+    result = NotGiven
+    backoff = 0
+
+    @property
+    def runner(self):
+        return self.root.runner.follow(*self.subpath, create=False)
+
+    async def set_value(self, value):
+        n = self.node
+        run = self.runner
+        await super().set_value(value)
+
+        # Check whether running code needs to be killed off
+        if run.scope is None:
+            return
+        if self.node == n:
+            # Nothing changed.
+            return
+        elif n == self.root.name:
+            # Owch. Our job got taken away from us.
+            self._comment = "Cancel: Node set to %r" % (self.node,)
+            await run.scope.cancel()
+        elif n is not None:
+            logger.warning(
+                "Runner %s at %r: running but node is %s",
+                self.root.name,
+                self.subpath,
+                n,
+            )
+
+        await run.root.trigger_rescan()
+
+
+class StateRoot(ClientRoot):
+    """Base class for handling the state of entries.
+
+    This is separate from the RunnerRoot hierarchy because the latter may
+    be changed by anybody while this subtree may only be affected by the
+    actual runner. Otherwise we get interesting race conditions.
+    """
+
+    @classmethod
+    def child_type(cls, name):
+        return StateEntry
+
+    @property
+    def runner(self):
+        return self._runner()
+
+    def set_runner(self, runner):
+        self._runner = ref(runner)
+
+
 class _BaseRunnerRoot(ClientRoot):
     """common code for RunnerRoot and SingleRunnerRoot"""
     _active: ActorState = None
@@ -279,6 +333,8 @@ class _BaseRunnerRoot(ClientRoot):
 
         self.err = await ErrorRoot.as_handler(self.client)
         self.code = await CodeRoot.as_handler(self.client)
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, key="state")
+        self.state.set_runner(self)
 
         g = ["run"]
         if "name" in self._cfg:
@@ -373,7 +429,6 @@ class RunnerRoot(_BaseRunnerRoot):
                 self.seen_load = None
 
                 async for msg in act:
-                    logger.debug("MSG %r",msg)
                     if isinstance(msg, PingEvent):
                         await act.set_value(
                             100 - psutil.cpu_percent(interval=None)
