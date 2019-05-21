@@ -64,21 +64,23 @@ CFG = attrdict(
     modules=attrdict(
         prefix=('.distkv','code','module'),
     ),
-    runner=attrdict(
-        prefix=('.distkv','run'),
-        start_delay=1,
-        actor=attrdict(
+    runner=attrdict(  # for distkv.runner.RunnerRoot
+        prefix=('.distkv','run'),  # storage location
+        name="run-any",  # Serf event name, must be unique
+        start_delay=1,  # time to wait between job starts. Not optional.
+        actor=attrdict(  # Actor config
             cycle=5,
-            nodes=-1,
+            nodes=-1,  # required for Runner
             splits=5,
         ),
     ),
     singlerunner=attrdict(
-        prefix=('.distkv','run'),
-        start_delay=1,
+        prefix=('.distkv','run-at'),  # for distkv.runner.SingleRunnerRoot
+        start_delay=1,  # optional
+        name="run-at",  # Serf event name, must be unique
         actor=attrdict(
             cycle=5,
-            nodes=3,
+            nodes=3,  # size of core group
             splits=5,
         ),
     ),
