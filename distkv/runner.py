@@ -512,8 +512,8 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
         if oac is not ac:
             self._active = ac
-            for n in self.this_root.all_children():
-                await n.send_event(evt)
+            for n in self.this_root.all_children:
+                await n.send_event(ac)
 
     async def run_starting(self):
         self.this_root = self.get(self.name)
