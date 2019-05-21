@@ -207,6 +207,8 @@ class RunnerEntry(AttrClientEntry):
 
         """
 
+        if self.code is None:
+            return False
         if self.node is not None:
             return False
         if t is None:
@@ -316,10 +318,12 @@ class _BaseRunnerRoot(ClientRoot):
 
                 for j in self.this_root.all_children:
                     d = j.should_start()
-                    if d < 0:
+                    if d is False:
+                        continue
+                    if d <= 0:
                         await self.tg.spawn(j.run)
                         await anyio.sleep(self._start_delay)
-                    elif d_next > d > 0:
+                    elif d_next > d:
                         d_next = d
 
             async with anyio.move_on_after(d_next):
