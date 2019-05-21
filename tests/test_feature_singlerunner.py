@@ -12,7 +12,7 @@ from distkv.client import ServerError
 from distkv.util import PathLongener
 
 from distkv.code import CodeRoot
-from distkv.runner import RunnerRoot
+from distkv.runner import SingleRunnerRoot
 from distkv.errors import ErrorRoot
 import logging
 
@@ -30,7 +30,7 @@ async def test_83_run(autojump_clock):
                 break
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
-            r = await RunnerRoot.as_handler(c)
+            r = await SingleRunnerRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
             c._test_evt = anyio.create_event()
             await cr.add(
@@ -45,7 +45,7 @@ async def test_83_run(autojump_clock):
                 """,
                 is_async=True,
             )
-            ru = r.follow("foo", "test")
+            ru = r.follow(r.name, "foo", "test")
             ru.code = ("forty", "two")
             await ru.run_at(time.time())
             logger.info("Start sleep")
