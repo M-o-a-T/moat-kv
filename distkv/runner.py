@@ -303,9 +303,9 @@ class RunnerRoot(ClientRoot):
                 await self._act.set_value(0)
                 self.seen_load = None
 
-                async for msg in self._act:
+                async for msg in act:
                     if isinstance(msg, PingEvent):
-                        await self._act.set_value(
+                        await act.set_value(
                             100 - psutil.cpu_percent(interval=None)
                         )
 
@@ -318,7 +318,7 @@ class RunnerRoot(ClientRoot):
 
                     elif isinstance(msg, TagEvent):
                         load = 100 - psutil.cpu_percent(interval=None)
-                        await self._act.set_value(load)
+                        await act.set_value(load)
                         if self.seen_load is not None:
                             pass  # TODO
 
@@ -329,7 +329,7 @@ class RunnerRoot(ClientRoot):
                         await evt.wait()
 
                     elif isinstance(msg, UntagEvent):
-                        await self._act.set_value(
+                        await act.set_value(
                             100 - psutil.cpu_percent(interval=None)
                         )
                         self.seen_load = 0
