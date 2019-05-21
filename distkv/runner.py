@@ -333,16 +333,6 @@ class RunnerRoot(_BaseRunnerRoot):
     """
     This class represents the root of a code runner. Its job is to start
     (and periodically restart, if required) the entry points stored under it.
-
-    Config file:
-
-    Arguments:
-      path (tuple): the location this entry is stored at. Defaults to
-        ``('.distkv', 'run')``.
-      name (str): this runner's name. Defaults to the client's name plus
-        the name stored in the root node, if any.
-      actor (dict): the configuration for the underlying actor. See
-        ``asyncserf.actor`` for details.
     """
 
     CFG = "runner"
