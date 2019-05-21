@@ -310,10 +310,10 @@ class _BaseRunnerRoot(ClientRoot):
     async def _run_now(self, evt = None):
         async with anyio.create_task_group() as tg:
             self._run_now_task = tg.cancel_scope
-            self._trigger = anyio.create_event()
             if evt is not None:
                 await evt.set()
             while True:
+                self._trigger = anyio.create_event()
                 d_next = 99999
 
                 for j in self.this_root.all_children:
@@ -326,8 +326,8 @@ class _BaseRunnerRoot(ClientRoot):
                     elif d_next > d:
                         d_next = d
 
-            async with anyio.move_on_after(d_next):
-                await self._trigger.wait()
+                async with anyio.move_on_after(d_next):
+                    await self._trigger.wait()
 
 class RunnerRoot(_BaseRunnerRoot):
     """
