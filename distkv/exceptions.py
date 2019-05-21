@@ -1,3 +1,7 @@
+"""
+This module affords all DistKV exceptions.
+"""
+
 class DistKVError(RuntimeError):
     """Superclass of all DistKV errors.
 
