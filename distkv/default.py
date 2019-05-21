@@ -73,6 +73,15 @@ CFG = attrdict(
             splits=5,
         ),
     ),
+    singlerunner=attrdict(
+        prefix=('.distkv','run'),
+        start_delay=1,
+        actor=attrdict(
+            cycle=5,
+            nodes=3,
+            splits=5,
+        ),
+    ),
 
     server=attrdict(
         # server-side configuration

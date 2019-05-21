@@ -6,6 +6,7 @@ a DistKV client.
 import anyio
 from asyncserf.actor import Actor
 from ..codec import packer, unpacker
+from ..util import singleton
 
 
 class ClientActor(Actor):
@@ -31,4 +32,27 @@ class ClientActor(Actor):
 
     async def send_event(self, prefix, msg):
         await self._client.serf_send(prefix, msg)
+
+
+# The following events are used by Runner etc. to notify runing jobs
+# about the current connectivity state.
+#
+class ActorState:
+    """abstract base class for states"""
+    pass
+
+@singleton
+class DetachedState(ActorState):
+	"""I am detached, my actor group is not visible"""
+	pass
+
+@singleton
+class PartialState(ActorState):
+	"""Some but not all members of my actor group are visible"""
+	pass
+
+@singleton
+class CompleteState(ActorState):
+	"""All members of my actor group are visible"""
+	pass
 
