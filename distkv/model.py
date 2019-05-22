@@ -133,7 +133,7 @@ class Node:
         """
         All entries in this rangeset are deleted.
 
-        This is a shortcut for calling :meth:`_clear_deleted` on each item.
+        This is a shortcut for calling :meth:`clear_deleted` on each item.
         """
         self._known += r
         self._deleted -= r
@@ -206,7 +206,7 @@ class Node:
 
     @property
     def local_known(self):
-        """Values I have seen: they either exist or I know they've been superseded"""
+        """Values I have seen – they either exist or I know they've been superseded"""
         return self._known
 
     @property
@@ -696,6 +696,9 @@ class Entry:
         return c
 
     def purge_deleted(self):
+        """
+        Call :meth:`Node.clear_deleted` on each link in this entry's chain.
+        """
         c,self.chain = self.chain,None
         if c is None:
             return
@@ -722,7 +725,7 @@ class Entry:
 
         Args:
           event: The :class:`NodeEvent` to base the update on.
-          data (Any): whatever the node should contains. Use :class:`distkv.util.NotGiven`
+          data (Any): whatever the node should contains. Use :any:`distkv.util.NotGiven`
             to delete.
           local (bool): Flag whether the event should be forwarded to watchers.
 

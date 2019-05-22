@@ -297,7 +297,7 @@ class MsgWriter(_MsgRW):
         
     Exactly one of ``path`` and ``stream`` must be used.
 
-    The stream is buffered. Call :meth:`flush` to flush the buffer.
+    The stream is buffered. Call :meth:`distkv.util.MsgWriter.flush` to flush the buffer.
     """
 
     _mode = "wb"
@@ -321,6 +321,7 @@ class MsgWriter(_MsgRW):
             await super().__aexit__(*tb)
 
     async def __call__(self, msg):
+        """Write a message (bytes) to the buffer."""
         msg = packer(msg)
         self.buf.append(msg)
         self.curlen += len(msg)
@@ -335,6 +336,7 @@ class MsgWriter(_MsgRW):
             await self.stream.write(wb)
 
     async def flush(self):
+        """Flush the buffer."""
         if self.buf:
             buf = b"".join(self.buf)
             self.buf = []

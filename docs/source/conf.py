@@ -28,6 +28,8 @@ nitpicky = True
 nitpick_ignore = [
     # Format is ("sphinx reference type", "string"), e.g.:
     ("py:obj", "bytes-like"),
+    ("py:class", "RangeSet"),
+    ("py:class", "Any"),
 ]
 
 autodoc_inherit_docstrings = False

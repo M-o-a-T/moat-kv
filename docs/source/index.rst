@@ -46,9 +46,11 @@ an etcd2 compatibility service yet.
 .. toctree::
    :maxdepth: 2
 
+   overview.rst
    client_protocol.rst
    server_protocol.rst
    auth.rst
+   model.rst
    translator.rst
    history.rst
 

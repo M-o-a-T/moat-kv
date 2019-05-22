@@ -150,7 +150,6 @@ of 2-tuples with that conversion's source value and its result. "in"
 corresponds to decoding, "out" to encoding – much like Python's binary
 codecs.
 
-.. autofunction:: distkv.util.combine_dict
 
 Converters
 ==========

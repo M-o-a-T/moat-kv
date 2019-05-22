@@ -52,7 +52,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, yaml, verbose, script, encode, decode):
+async def get(obj, path, yaml, verbose, script, encode, decode):
     """Read type information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
