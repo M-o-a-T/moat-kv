@@ -99,7 +99,7 @@ def cmd():
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
-    except ClientError as err:
+    except (EnvironmentError, ClientError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)
     except BaseException as exc:
