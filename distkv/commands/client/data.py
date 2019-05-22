@@ -189,7 +189,7 @@ async def set(obj, path, value, eval, chain, prev, last, new, yaml):
         pprint(res)
 
 
-@cli.command("Delete an entry / subtree")
+@cli.command(short_help="Delete an entry / subtree")
 @click.argument("path", nargs=-1)
 @click.option(
     "-c",
