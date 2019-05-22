@@ -721,13 +721,13 @@ class Entry:
         """This entry is updated by that event.
 
         Args:
-          event: The :cls:`NodeEvent` to base the update on.
-          data (Any): whatever the node should contains. Use :cls:`distkv.util.NotGiven`
+          event: The :class:`NodeEvent` to base the update on.
+          data (Any): whatever the node should contains. Use :class:`distkv.util.NotGiven`
             to delete.
           local (bool): Flag whether the event should be forwarded to watchers.
 
         Returns:
-          The :cls:`UpdateEvent` that has been generated and applied.
+          The :class:`UpdateEvent` that has been generated and applied.
         """
         event = event.attach(self.chain, server=server)
         evt = UpdateEvent(event, self, data, self._data, tock=tock)

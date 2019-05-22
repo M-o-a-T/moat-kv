@@ -289,7 +289,7 @@ class ClientRoot(ClientEntry):
     @classmethod
     def child_type(cls, name):
         """Given a node, return the type which the child with that name should have.
-        The default is :cls:`ClientEntry`.
+        The default is :class:`ClientEntry`.
         """
         return ClientEntry
 
@@ -1030,7 +1030,7 @@ class Client:
           min_depth (int): min level of nodes to retrieve.
           max_depth (int): max level of nodes to retrieve.
 
-        The result should be passed through a :cls:`distkv.util.PathLongener`.
+        The result should be passed through a :class:`distkv.util.PathLongener`.
 
         If ``fetch`` is set, a ``state="uptodate"`` message will be sent
         as soon as sending the current state is completed.
@@ -1046,7 +1046,7 @@ class Client:
 
         Arguments:
           root_type (type): The class to use for the root. Must be
-            :cls:`ClientRoot` or a subclass.
+            :class:`ClientRoot` or a subclass.
 
         Returns: the root of this tree.
 

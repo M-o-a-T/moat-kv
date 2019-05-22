@@ -49,7 +49,7 @@ def combine_dict(*d, cls=dict):
 
     Args:
       cls (type): a class to instantiate the result with. Default: dict.
-        Often used: :cls:`attrdict`.
+        Often used: :class:`attrdict`.
     """
     res = cls()
     keys = {}

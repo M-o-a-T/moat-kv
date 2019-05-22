@@ -1,5 +1,5 @@
 """
-This module implements a :cls:`asyncserf.actor.Actor` which works on top of
+This module implements a :class:`asyncserf.actor.Actor` which works on top of
 a DistKV client.
 """
 
