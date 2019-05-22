@@ -43,8 +43,8 @@ class NullObj:
         raise self._exc
 
     def __getattr__(self, k):
-        if k[0] == '_':
-            return object.__getattr__(self, k)
+        if k[0] == '_' and k != '_request':
+            return object.__getattribute__(self, k)
         raise self._exc
 
 
