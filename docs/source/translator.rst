@@ -68,9 +68,7 @@ Putting it all together
 =======================
 
 Given the following structure, values stored at ("foo", anything, "bar")
-must be integers. The DistKV content of testcase
-``tests/test_feature_typecheck.py::test_72_cmd`` looks like this, when
-dumped with the command ``get -ryd_``::
+must be integers::
 
     _: 123
     null:
@@ -100,6 +98,9 @@ dumped with the command ``get -ryd_``::
         bar:
           _: 55
 
+The above is the server content at the end of the testcase
+``tests/test_feature_typecheck.py::test_72_cmd``, when
+dumped with the command ``distkv client get -ryd_``.
 
 
 +++++++++++
@@ -154,9 +155,10 @@ codecs.
 Converters
 ==========
 
-While the ``(None,"map")`` contains a single mapping, ``(None,"conv")``
-contains an additional single level of names. A mapping must be applied to
-a user before it is used. This change is instantaneous, i.e. an existing
+While the ``(None,"map")`` subtree contains a single mapping, ``(None,"conv")``
+uses an additional single level of codec group names. A mapping must be
+applied to a user (by adding a "conv=GROUPNAME" to the user's aux data
+field) before it is used. This change is instantaneous, i.e. an existing
 user does not need to reconnect.
 
 Below that, converter naming works like that for mappings. Of course, the
@@ -215,5 +217,6 @@ stored as integers::
             _: 99
     
 
-The above is the content at the enf of the testcase
-``tests/test_feature_convert.py::test_71_basic``.
+The above is the server content at the end of the testcase
+``tests/test_feature_convert.py::test_71_basic``, when
+dumped with the command ``distkv client get -ryd_``.
