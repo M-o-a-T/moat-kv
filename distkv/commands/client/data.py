@@ -262,15 +262,20 @@ async def watch(obj, path, chain, yaml, state):
     """Watch a DistKV subtree"""
     if yaml:
         import yaml
+    flushing = not state
     async with obj.client.watch(*path, nchain=chain, fetch=state) as res:
         pl = PathLongener(path)
         async for r in res:
             pl(r)
+            if not flushing and r.get('state','') == "uptodate":
+                flushing = True
             del r["seq"]
             if yaml:
                 print(yaml.safe_dump(r, default_flow_style=False))
             else:
                 pprint(r)
+            if flushing:
+                sys.stdout.flush()
 
 
 @cli.command()
