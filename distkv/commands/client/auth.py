@@ -209,7 +209,7 @@ async def add_mod_user(obj, args, modify, add):
     else:
         u._chain = ou._chain
     await u.send(obj.client)
-    print("Added" if u._chain is None else "Modified", u.ident)
+    print(u.ident)
 
 
 @user.command(name="auth")
