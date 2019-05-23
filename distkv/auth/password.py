@@ -147,7 +147,7 @@ class ClientUserMaker(BaseClientAuthMaker):
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
-        m = client._request(
+        m = await client._request(
             action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
         # just to verify that the user exists
