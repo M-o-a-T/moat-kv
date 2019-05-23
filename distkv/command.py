@@ -20,6 +20,14 @@ from .client import open_client, StreamedRequest
 from .default import CFG
 from .server import Server
 
+from .auth import loader, gen_auth
+from .exceptions import ClientError, ServerError
+
+import logging
+from logging.config import dictConfig
+
+logger = logging.getLogger(__name__)
+
 
 class Loader(click.Group):
     """
@@ -74,15 +82,6 @@ class Loader(click.Group):
             return super().get_command(ctx, name)
 
 
-from .auth import loader, gen_auth
-from .exceptions import ClientError
-
-import logging
-from logging.config import dictConfig
-
-logger = logging.getLogger(__name__)
-
-
 def cmd():
     """
     The main command entry point, as declared in ``setup.py``.
@@ -99,7 +98,7 @@ def cmd():
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
-    except (EnvironmentError, ClientError) as err:
+    except (EnvironmentError, ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)
     except BaseException as exc:
