@@ -49,7 +49,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, yaml, verbose, script, schema):
+async def get(obj, path, yaml, verbose, script, schema):
     """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -94,10 +94,17 @@ async def get(obj, path, chain, yaml, verbose, script, schema):
 @click.option(
     "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
 )
-@click.option("-y", "--yaml", is_flag=True, help="load everything from this file")
+@click.option("-y", "--yaml", is_flag=True, help="load everything from the 'script' file")
+@click.option(
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
+)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, good, bad, verbose, script, schema, yaml):
+async def set(obj, path, chain, good, bad, verbose, script, schema, yaml):
     """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -108,6 +115,9 @@ async def set(obj, path, good, bad, verbose, script, schema, yaml):
         msg = yaml.safe_load(script)
     else:
         msg = {}
+    if "value" in msg:
+        chain = msg.get('chain', chain)
+        msg = msg['value']
     msg.setdefault("good", [])
     msg.setdefault("bad", [])
     for x in good:
@@ -140,9 +150,13 @@ async def set(obj, path, good, bad, verbose, script, schema, yaml):
         path=("type",) + path,
         iter=False,
         nchain=3 if verbose else 0,
+        **({"chain":chain} if chain else {})
     )
     if verbose:
-        print(res.tock)
+        if yaml:
+            print(yaml.safe_dump(res, default_flow_style=False))
+        else:
+            print(res.tock)
 
 
 @cli.command()
@@ -156,9 +170,10 @@ async def set(obj, path, good, bad, verbose, script, schema, yaml):
     "-t", "--type", multiple=True, help="Type to link to. Multiple for subytpes."
 )
 @click.option("-d", "--delete", help="Use to delete this mapping.")
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def match(obj, path, type, delete, verbose):
+async def match(obj, path, type, delete, verbose, yaml):
     """Match a type to a path (read, if no type given)"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -169,9 +184,16 @@ async def match(obj, path, type, delete, verbose):
         await obj.client._request(action="delete_internal", path=("type",) + path)
         return
 
-    msg = {"type": type}
+    msg = {}
+    if type:
+        msg['type'] = type
+        act = "set_internal"
+    elif delete:
+        act = "delete_internal"
+    else:
+        act = "get_internal"
     res = await obj.client._request(
-        action="set_internal",
+        action=act,
         value=msg,
         path=("match",) + path,
         iter=False,
@@ -179,9 +201,17 @@ async def match(obj, path, type, delete, verbose):
     )
     if type or delete:
         print(res.tock)
-    elif verbose:
-        pprint(res)
     else:
-        print(" ".join(res.type))
+        if not verbose:
+            res = res['type']
+        if yaml:
+            import yaml
+
+            print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
+        else:
+            if verbose:
+                pprint(res)
+            else:
+                print(" ".join(res.type))
 
 
