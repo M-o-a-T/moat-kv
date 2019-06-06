@@ -12,7 +12,7 @@ from distkv.client import ServerError
 from distkv.util import PathLongener
 
 from distkv.code import CodeRoot
-from distkv.runner import RunnerRoot
+from distkv.runner import AnyRunnerRoot
 from distkv.errors import ErrorRoot
 import logging
 
@@ -30,8 +30,8 @@ async def test_83_run(autojump_clock):
                 break
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
-            r = await RunnerRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
+            r = await AnyRunnerRoot.as_handler(c, code=cr)
             c._test_evt = anyio.create_event()
             await cr.add(
                 "forty",

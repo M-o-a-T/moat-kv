@@ -314,7 +314,7 @@ class StateRoot(ClientRoot):
 
 
 class _BaseRunnerRoot(ClientRoot):
-    """common code for RunnerRoot and SingleRunnerRoot"""
+    """common code for AnyRunnerRoot and SingleRunnerRoot"""
     _active: ActorState = None
     _trigger: anyio.abc.Event = None
     _run_now_task: anyio.abc.CancelScope = None
@@ -385,13 +385,13 @@ class _BaseRunnerRoot(ClientRoot):
                 async with anyio.move_on_after(d_next):
                     await self._trigger.wait()
 
-class RunnerRoot(_BaseRunnerRoot):
+class AnyRunnerRoot(_BaseRunnerRoot):
     """
     This class represents the root of a code runner. Its job is to start
     (and periodically restart, if required) the entry points stored under it.
     """
 
-    CFG = "runner"
+    CFG = "anyrunner"
 
     @classmethod
     def child_type(cls, name):
@@ -504,7 +504,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
     This class represents the root of a code runner. Its job is to start
     (and periodically restart, if required) the entry points stored under it.
 
-    While :class:`RunnerRoot` tries to ensure that the code in question runs
+    While :class:`AnyRunnerRoot` tries to ensure that the code in question runs
     on any cluster member, this class runs tasks on a single node.
     The code is able to check whether any and/or all of the cluster's main
     nodes are reachable; this way, the code can default to local operation
