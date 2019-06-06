@@ -49,6 +49,8 @@ class RunnerEntry(AttrClientEntry):
     On error, it will run ``delay`` seconds later (if >0), multiplied by 2**backoff.
 
     Arguments:
+      code (list): pointer to the code that's to be started.
+      data (dict): additional data for the code.
       started (float): timestamp when the job was last started
       stopped (float): timestamp when the job last terminated
       delay (float): time before restarting the job on error

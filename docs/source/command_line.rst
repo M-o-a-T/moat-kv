@@ -693,7 +693,59 @@ data are not converted.
 
 Manipulate code stored in DistKV.
 
-XXX TODO XXX
+
+.. program:: distkv client code get
+
+
+.. program:: distkv client code set
+
+Store or replace Python code stored in the server.
+
+This code will not run in the server; the purpose of these calls is to
+upload code for use by client-side runners.
+
+.. option:: -y, --yaml
+
+   Read the script file as YAML data.
+
+   This will be the default soon, except for the schema file.
+
+.. option:: -v, --verbose
+
+   Print (some of) the server's return value.
+
+.. option:: -s, --script <filename>
+
+   Load the code from this file. Default: Use stdin.
+
+.. option:: -a, --async
+
+   The code will run asynchronously, i.e. it may use ``async`` and ``await`` statements.
+
+   You should use the ``anyio`` module for sleeping, locking etc. unless
+   you *know* which async runtime is in use.
+
+.. option:: -t, --thread
+
+   The code will run in a worker thread.
+
+   This option is incompatible with ``--async``.
+
+.. option:: name…
+
+   The path to the code to set, below ``.distkv code proc`` or whatever
+   else is configured under ``codes``.
+
+Old versions of the code continue to run; DistKV does not yet restart users.
+XXX TODO
+
+
+.. program:: distkv client code module
+
+Manipulate modules stored in DistKV.
+
+Modules are replaced immediately, but code using them is **not**
+auto-restarted.
 
 
 .. program:: distkv client run
