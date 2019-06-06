@@ -79,11 +79,12 @@ class RunnerEntry(AttrClientEntry):
     _running = False  # .run is active. Careful with applying updates.
 
     def __init__(self, *a, **k):
+        self.data = {}  # local data
+
         super().__init__(*a, **k)
 
         self._task = None
         self.code = None  # code location
-        self.data = {}  # local data
 
     def __repr__(self):
         return "<%s %r:%r>" % (self.__class__.__name__, self.subpath, self.code)
