@@ -326,14 +326,18 @@ class _BaseRunnerRoot(ClientRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
+        self.err = kw.get('err')
+        self.code = kw.get('code')
         self._nodes = {}
 
     async def run_starting(self):
         from .errors import ErrorRoot
         from .code import CodeRoot
 
-        self.err = await ErrorRoot.as_handler(self.client)
-        self.code = await CodeRoot.as_handler(self.client)
+        if self.err is None:
+            self.err = await ErrorRoot.as_handler(self.client)
+        if self.code is None:
+            self.code = await CodeRoot.as_handler(self.client)
         self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, key="state")
         self.state.set_runner(self)
 
