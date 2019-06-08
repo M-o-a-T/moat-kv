@@ -88,6 +88,10 @@ def cmd():
     """
     try:
         main(standalone_mode=False)
+    except click.exceptions.MissingParameter as exc:
+        print("You need to provide an argument '%s'.\n" % (exc.param.name.upper()), file=sys.stderr)
+        print(exc.cmd.get_help(exc.ctx), file=sys.stderr)
+        sys.exit(2)
     except click.exceptions.UsageError as exc:
         try:
             s = str(exc)
@@ -95,6 +99,7 @@ def cmd():
             logger.exception(repr(exc), exc_info=exc)
         else:
             print(s, file=sys.stderr)
+        sys.exit(2)
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
@@ -103,8 +108,8 @@ def cmd():
         sys.exit(1)
     except BaseException as exc:
         raise
-        print(exc)
-        sys.exit(1)
+        # print(exc)
+        # sys.exit(1)
 
 
 @click.command(cls=partial(Loader,__file__, 'commands'))
