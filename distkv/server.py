@@ -1915,17 +1915,17 @@ class Server:
 
     _saver_prev = None
 
-    async def _saver(self, path: str, done, save_state=False):
+    async def _saver(self, path: str = None, stream=None, done: trio.Event = None, save_state=False):
 
         with trio.CancelScope() as s:
             self._saver_prev = s
             try:
-                await self.save_stream(path=path, done=done, save_state=save_state)
+                await self.save_stream(path=path, stream=stream, done=done, save_state=save_state)
             finally:
                 if self._saver_prev is s:
                     self._saver_prev = None
 
-    async def run_saver(self, path: str = None, stream=None, save_state=False):
+    async def run_saver(self, path: str = None, stream=None, save_state=False, wait: bool = True):
         """
         Start a task that continually saves to disk.
 
