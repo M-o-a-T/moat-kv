@@ -140,7 +140,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     `distkv.default.CFG`.
     """
     ctx.ensure_object(attrdict)
-    ctx.obj.debug = verbose - quiet
+    ctx.obj.debug = max(verbose - quiet + 1, 0)
     ctx.obj._DEBUG = debug
     
     if cfg:
