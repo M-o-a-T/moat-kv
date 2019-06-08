@@ -126,7 +126,12 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     res = await obj.client.get(*path, nchain=chain)
     if not verbose:
-        res = res.value
+        try:
+            res = res.value
+        except AttributeError:
+            if obj.debug:
+                print("No data at", repr(path), file=sys.stderr)
+            sys.exit(1)
     if yaml:
         import yaml
 
