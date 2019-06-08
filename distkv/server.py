@@ -1938,14 +1938,16 @@ class Server:
           stream (anyio.abc.Stream): the stream to save to.
           save_state (bool): Flag whether to write the current state.
             If ``False`` (the default), only write changes.
+          wait: wait for the save to really start.
         
         """
-        done = trio.Event()
+        done = trio.Event() if wait else None
         s = self._saver_prev
         await self.spawn(
             self._saver, path=path, stream=stream, save_state=save_state, done=done
         )
-        await done.wait()
+        if wait:
+            await done.wait()
         if s is not None:
             await s.cancel()
 
@@ -2016,7 +2018,7 @@ class Server:
             await self.spawn(self._delete_also)
 
             if log_path is not None:
-                await self.run_saver(path=log_path, save_state=True)
+                await self.run_saver(path=log_path, save_state=True, wait=False)
 
             # Link up our "user_*" code
             for d in dir(self):
