@@ -163,12 +163,16 @@ class PathShortener:
         self.path = []
 
     def __call__(self, res):
-        if res.path[: self.depth] != self.prefix:
+        try:
+            p = res['path']
+        except KeyError:
+            return
+        if p[: self.depth] != self.prefix:
             raise RuntimeError(
-                "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
+                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
             )
 
-        p = res["path"][self.depth :]  # noqa: E203
+        p = p[self.depth :]  # noqa: E203
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
