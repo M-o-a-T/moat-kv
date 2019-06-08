@@ -1909,7 +1909,9 @@ class Server:
                     await done.set()
 
                 async for msg in updates:
-                    await mw(msg.serialize(), shorter)
+                    msg = msg.serialize()
+                    shorter(msg)
+                    await mw(msg)
 
     _saver_prev = None
 
