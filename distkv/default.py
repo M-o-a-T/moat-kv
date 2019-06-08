@@ -105,7 +105,6 @@ CFG = attrdict(
             ssl=False,
         ),
 
-        state=None,  # path to a file load/save system state
         change=attrdict(length=5),  # chain length: use max nr of network sections +1
         ping=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for ping
         delete=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for deletion

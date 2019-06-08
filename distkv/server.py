@@ -2013,9 +2013,6 @@ class Server:
             await self.spawn(self._run_del, delay3)
             await self.spawn(self._delete_also)
 
-            if self.cfg.server.state is not None:
-                await self.spawn(self.save, self.cfg.server.state)
-
             if log_path is not None:
                 await self.run_saver(path=log_path, save_state=True)
 
