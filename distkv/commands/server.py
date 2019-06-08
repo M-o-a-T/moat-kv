@@ -74,6 +74,9 @@ async def cli(obj, name, host, port, load, save, init, eval):
     a previously-saved DistKV state. Otherwise, no client connections will
     be accepted until synchronization with the other servers in your DistKV
     network is complete.
+
+    This command requires a unique NAME argument. The name identifies this
+    server on the network. Never start two servers with the same name!
     """
     if host is not None:
         obj.cfg.server.serf.host = host
