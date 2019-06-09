@@ -379,6 +379,40 @@ Stream a list of changes from standard input to DistKV.
 Control your server.  XXX TODO
 
 
+.. program:: distkv client log
+
+
+Control logging of changes on the server.
+
+
+.. program:: distkv client log dest
+
+Set the file to log to. The old file is closed as soon as the new file is
+ready (i.e. the current state is saved).
+
+.. option:: -i, --incremental
+
+   The save file will only contain changes, but not the current state.
+
+.. option:: path
+
+   The file to write to. Note that this file is on the server.
+
+
+.. program:: distkv client log save
+
+Save the current state of the server to this file.
+
+.. option:: path
+
+   The file to write to. Note that this file is on the server.
+
+
+.. program:: distkv client log stop
+
+Stop logging.
+
+
 .. program:: distkv client auth
 
 Set up and change client authorization.

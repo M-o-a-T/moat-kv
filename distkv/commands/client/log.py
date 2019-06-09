@@ -36,25 +36,28 @@ async def cli(obj):
     pass
 
 @cli.command()
-@click.option("-o", "--one-shot", is_flag=True, help="Don't write continuously")
 @click.option("-i", "--incremental", is_flag=True, help="Don't write the initial state")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def dest(obj, path, one_shot, incremental):
+async def dest(obj, path, incremental):
     """
     Log changes to a file.
 
-    If you read a sub-tree recursively, be aware that the whole subtree
-    will be read before anything is printed. Use the "watch --state" subcommand
-    for incremental output.
+    Any previously open log (on the server you talk to) is closed as soon
+    as the new one is opened and ready.
     """
-    if one_shot and incremental:
-        raise click.UsageError("You can't write nothing.")
+    res = await obj.client._request("log", path=path, fetch=not incremental)
+    pprint(res)
 
-    if one_shot:
-        res = await obj.client._request("save", path=path)
-    else:
-        res = await obj.client._request("log", path=path, fetch=not incremental)
+
+@cli.command()
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def save(obj, path):
+    """
+    Write the server's current state to a file.
+    """
+    res = await obj.client._request("save", path=path)
     pprint(res)
 
 
