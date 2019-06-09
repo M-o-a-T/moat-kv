@@ -1922,6 +1922,9 @@ class Server:
             that the old save file (if any) may safely be closed.
         
         Exactly one of ``stream`` or ``path`` must be set.
+
+        This task flushes the current buffer to disk when one second
+        passes without updates, or every 100 messages.
         """
         shorter = PathShortener([])
 
@@ -1932,16 +1935,27 @@ class Server:
                 if save_state:
                     await self._save(mw, shorter)
 
-                msg = await self.get_state(nodes=True, known=True, deleted=True)
-                await mw(msg)
                 await mw.flush()
                 if done is not None:
                     await done.set()
 
-                async for msg in updates:
-                    msg = msg.serialize()
-                    shorter(msg)
-                    await mw(msg)
+                cnt = 0
+                while True:
+                    try:
+                        with anyio.fail_after(1 if cnt else 99999):
+                            msg = updates.__anext__()
+                    except TimeoutError:
+                        await mw.flush()
+                        cnt = 0
+                    else:
+                        msg = msg.serialize()
+                        shorter(msg)
+                        await mw(msg)
+                        if cnt >= 100:
+                            await mw.flush()
+                            cnt = 1
+                        else:
+                            cnt += 1
 
     _saver_prev = None
 
