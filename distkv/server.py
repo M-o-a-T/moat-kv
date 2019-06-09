@@ -1887,6 +1887,8 @@ class Server:
         """
 
         async def saver(entry):
+            if entry.data is NotGiven:
+                return
             res = entry.serialize(nchain=nchain)
             shorter(res)
             await writer(res)
