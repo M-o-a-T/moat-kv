@@ -547,7 +547,7 @@ class ServerClient:
     _dh_key = None
     conv = ConvNull
 
-    def __init__(self, server: "Server", stream: Stream):
+    def __init__(self, server: "Server", stream: anyio.abc.Stream):
         self.server = server
         self.root = server.root
         self.metaroot = self.root.follow(None, create=True, nulls_ok=True)
