@@ -58,3 +58,13 @@ async def dest(obj, path, one_shot, incremental):
     pprint(res)
 
 
+@cli.command()
+@click.pass_obj
+async def stop(obj):
+    """
+    Stop logging changes.
+    """
+    res = await obj.client._request("log")  # no path == stop
+    pprint(res)
+
+

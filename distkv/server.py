@@ -1978,7 +1978,8 @@ class Server:
         is on disk (if told to do so) and it is ready to start writing.
 
         Args:
-          path (str): The file to save to.
+          path (str): The file to save to. If ``None``, simply stop any
+            already-running log.
           stream (anyio.abc.Stream): the stream to save to.
           save_state (bool): Flag whether to write the current state.
             If ``False`` (the default), only write changes.
@@ -1986,12 +1987,13 @@ class Server:
         
         """
         done = anyio.create_event() if wait else None
-        s = self._saver_prev
-        await self.spawn(
-            self._saver, path=path, stream=stream, save_state=save_state, done=done
-        )
-        if wait:
-            await done.wait()
+        s = self._saver_prev  # cleared when _saver ends
+        if path is not None:
+            await self.spawn(
+                self._saver, path=path, stream=stream, save_state=save_state, done=done
+            )
+            if wait:
+                await done.wait()
         if s is not None:
             await s.cancel()
 
