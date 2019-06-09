@@ -47,6 +47,7 @@ an etcd2 compatibility service yet.
    :maxdepth: 2
 
    overview.rst
+   tutorial.rst
    command_line.rst
    client_protocol.rst
    server_protocol.rst
