@@ -1517,15 +1517,41 @@ class Server:
                         Node(msg_node, val, cache=self._nodes)
 
     async def _get_host_port(self, host):
-        """Retrieve the remote system to connect to"""
+        """Retrieve the remote system to connect to.
+        
+        WARNING: While this is nice, there'a chicken-and-egg problem here.
+        While you can use the hostmap to temporarily add new hosts with
+        unusual addresses, the new host still needs a config entry.
+        """
         port = self.cfg.server.serf.port
         domain = self.cfg.domain
-        hostmap = self.cfg.hostmap
-        if host in hostmap:
-            host = hostmap[host]
-            if not isinstance(host, str):
-                host, port = host
-        elif domain is not None:
+        try:
+            # First try to read the host name from the meta-root's
+            # "hostmap" entry, if any.
+            hme = self.metaroot.follow('hostmap',host, create=False)
+            if hme.data is not NotGiven:
+                raise KeyError(host)
+        except KeyError:
+            hostmap = self.cfg.hostmap
+            if host in hostmap:
+                host = hostmap[host]
+                if not isinstance(host, str):
+                    # must be a 2-element tuple
+                    host, port = host
+                else:
+                    # If it's a string, the port may have been passed as
+                    # part of the hostname. (Notably on the command line.)
+                    try:
+                        host, port = host.rsplit(":",1)
+                    except ValueError:
+                        pass
+                    else:
+                        port = int(port)
+        else:
+            # The hostmap entry in the database must be a tuple
+            host, port = hme.data
+
+        if domain is not None and '.' not in host and host != "localhost":
             host += "." + domain
         return (host, port)
 
