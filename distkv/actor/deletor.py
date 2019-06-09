@@ -81,7 +81,7 @@ class DeleteActor:
         self.n_pings = 0
         self.n_nodes = n
 
-    async def run(self, evt=None):
+    async def run(self, evt: anyio.abc.Event = None):
         """
         The task that monitors the Delete actor.
         """
@@ -99,7 +99,7 @@ class DeleteActor:
                 ) as actor:
                     self.actor = actor
                     if evt is not None:
-                        evt.set()
+                        await evt.set()
                     async for evt in actor:
                         if isinstance(evt, PingEvent):
                             val = evt.value
