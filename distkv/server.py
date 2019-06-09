@@ -1897,7 +1897,7 @@ class Server:
         await writer(msg)
         await self.root.walk(saver)
 
-    async def save(self, path: str = None, stream=None, delay: trio.Event = None):
+    async def save(self, path: str = None, stream=None):
         """Save the current state to ``path`` or ``stream``."""
         shorter = PathShortener([])
         async with MsgWriter(path=path, stream=stream) as mw:
