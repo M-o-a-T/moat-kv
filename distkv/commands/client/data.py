@@ -101,7 +101,10 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
                         yy = yy.setdefault(p, {})
                     if "chain" in r:
                         yy["chain"] = r.chain
-                    yy[as_dict] = r.pop("value")
+                    try:
+                        yy[as_dict] = r.pop("value")
+                    except KeyError:
+                        pass
                     if verbose:
                         yy.update(r)
                 else:
