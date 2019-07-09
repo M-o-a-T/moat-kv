@@ -281,7 +281,7 @@ class ErrorRoot(ClientRoot):
         if not create:
             return None
         tock = await self.client.get_tock()
-        return self.follow(self._name, tock)
+        return self.follow(self._name, tock, create=True)
 
     async def _unique(self, entry):
         """
