@@ -2128,7 +2128,7 @@ class Server:
             self._clients.add(c)
             await c.run()
         except BaseException as exc:
-            if isinstance(exc, anyio.excepions.ExceptionGroup):
+            if isinstance(exc, anyio.exceptions.ExceptionGroup):
                 exc = exc.filter(anyio.get_cancelled_exc_class())
             if exc is not None and not isinstance(exc, anyio.get_cancelled_exc_class()):
                 self.logger.exception("Client connection killed", exc_info=exc)
