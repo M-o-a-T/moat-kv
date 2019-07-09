@@ -2,8 +2,8 @@ import weakref
 import jsonschema
 
 from .model import Entry
-from .util import make_proc, NotGiven
-from .exceptions import ClientError
+from .util import make_proc, NotGiven, singleton
+from .exceptions import ClientError, ACLError
 
 
 # TYPES
@@ -119,6 +119,107 @@ class MatchEntry(MetaEntry):
 
 MatchEntry.SUBTYPE = MatchEntry
 
+class NodeFinder:
+    """A generic object that can walk down a possibly-wildcard-equipped path.
+    
+    Example: given a path `one.two.three` and a root `bar` with subtree `bar.#.three`,
+    `NodeFinder(bar).step(one).step(two).step(three)` will return the node
+    at `bar.#.three` (assuming that nothing more specific hangs off `bar`).
+    """
+
+    def __init__(self, meta):
+        if isinstance(meta, list):
+            self.steps = meta
+        else:
+            self.steps = ((meta,False),)
+
+    def step(self, name, new=False):
+        steps = []
+        for node,keep in self.steps:
+            if name in node:
+                steps.append((node[name],False))
+            if '+' in node:
+                steps.append((node['+'],False))
+            if '#' in node:
+                steps.append((node['#'],True))
+            if keep:
+                steps.append((node,True))
+            # Nodes found with '#' stay on the list
+            # so that they can match multiple entries.
+        if not steps:
+            raise KeyError(name)
+        if new:
+            return type(self)(steps, **self.copy_args)
+        else:
+            self.steps = steps
+            return self
+
+    @property
+    def copy_args(self):
+        return {}
+
+    @property
+    def result(self):
+        for node,keep in self.steps:
+            if node._data is not NotGiven:
+                return node
+        return None
+
+
+class ACLFinder(NodeFinder):
+    """A NodeFinder which expects ACL strings as elements"""
+    _block = ''
+
+    @property
+    def copy_args(self):
+        return {'blocked': self._block}
+
+    def __init__(self, acl, blocked=None):
+        if isinstance(acl, ACLFinder):
+            if blocked is None:
+                blocked = acl._block
+            acl = acl.steps
+        super().__init__(acl)
+        if blocked is not None:
+            self._block = blocked
+
+    def allows(self, x):
+        if x in self._block:
+            return False
+
+        r = self.result
+        if r is None:
+            return True
+        return x in r.data
+
+    def block(self, c):
+        if c not in self._block:
+            self._block += c
+
+    def check(self, x):
+        if not self.allows(x):
+            raise ACLError(self.result, x)
+
+class ACLStepper(ACLFinder):
+    """An ACLFinder which returns a copy of itself at every `step`."""
+    def step(self, name, new=True):
+        return super().step(name, new=new)
+
+@singleton
+class NullACL(ACLStepper):
+    """This singleton represents an ACL that never checks anything."""
+    result = "-"
+    def __init__(self):
+        pass
+    def allows(self, x):
+        return x != 'a'
+    def check(self, x):
+        return
+    def block(self, x):
+        pass
+    def step(self, name, new=None):
+        return self
+
 
 class MetaPathEntry(MetaEntry):
     def _find_node(self, entry):
@@ -126,26 +227,10 @@ class MetaPathEntry(MetaEntry):
 
         Match entries whose values are missing are not considered.
         """
-        p = entry.path
-        checks = [(self, 0)]
-        n_p = len(p)
-        while checks:
-            node, off = checks.pop()
-            if off == n_p:
-                if node._data is not NotGiven:
-                    return node
-                continue
-            if "#" in node:
-                nn = node["#"]
-                pos = n_p
-                while pos > off:
-                    checks.append((nn, pos))
-                    pos -= 1
-            if "+" in node:
-                checks.append((node["+"], off + 1))
-            if p[off] in node:
-                checks.append((node[p[off]], off + 1))
-        return None
+        f = NodeFinder(self)
+        for n in entry.path:
+            f.step(n.name)
+        return f.result
 
 
 class MatchRoot(MetaPathEntry):
@@ -319,6 +404,46 @@ class ConvRoot(MetaEntry):
             raise ValueError("This node can't have data.")
 
 
+class AclEntry(MetaEntry):
+    """I represent an ACL.
+
+    My data must be a string of ACLish characters.
+    """
+
+    async def set(self, value):
+        if not isinstance(value, str):
+            raise ValueError("ACL is not a string")
+        await super().set(value)
+
+
+AclEntry.SUBTYPE = AclEntry
+
+
+
+class AclName(MetaPathEntry):
+    """I am a named tree for ACL entries.
+    """
+    SUBTYPE = AclEntry
+
+    async def check(self, entry, typ):
+        acl = self._find_node(entry)
+        if acl is None:
+            return None
+        return typ in acl.value
+
+    async def set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+
+class AclRoot(MetaEntry):
+    SUBTYPE = AclName
+
+    async def set(self, value):
+        if value is not None:
+            raise ValueError("This node can't have data.")
+
+
 class DelRoot(Entry):
     SUBTYPE = None
 
@@ -343,6 +468,7 @@ class MetaRootEntry(Entry):  # not MetaEntry
     SUBTYPES = {
         "type": TypeRoot,
         "match": MatchRoot,
+        "acl": AclRoot,
         "codec": CodecRoot,
         "conv": ConvRoot,
         "actor": ActorRoot,

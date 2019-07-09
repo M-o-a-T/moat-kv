@@ -12,9 +12,10 @@ from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
 from collections import defaultdict
+from pprint import pprint
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
-from .types import RootEntry, ConvNull
+from .types import RootEntry, ConvNull, NullACL, ACLFinder
 from .actor.deletor import DeleteActor
 from .default import CFG
 from .codec import packer, unpacker
@@ -31,7 +32,7 @@ from .util import (
     byte2num,
     NotGiven,
 )
-from .exceptions import ClientError, NoAuthError, CancelledError
+from .exceptions import ClientError, NoAuthError, CancelledError, ACLError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -234,6 +235,7 @@ class SCmd_auth(StreamCommand):
                 client.user = user
 
                 client.conv = user.aux_conv(client.root)
+                client.acl = user.aux_acl(client.root)
         finally:
             client._user = None
 
@@ -357,7 +359,8 @@ class SCmd_auth_set(StreamCommand):
             raise RuntimeError("Cannot write tenant users")
         kind = msg.get("kind", "user")
 
-        client.root.follow(*root, None, "auth", nulls_ok=2, create=True)
+        # just ensure that the 'auth' base node exists
+        client.root.follow_acl(*root, None, "auth", nulls_ok=2, create=True)
         cls = loader(msg.typ, kind, server=True, make=True)
 
         user = await cls.recv(self, msg)
@@ -381,10 +384,16 @@ class SCmd_get_tree(StreamCommand):
 
     multiline = True
 
-    async def run(self):
+    async def run(self, root=None):
         msg = self.msg
         client = self.client
-        entry = client.root.follow(*msg.path, create=False, nulls_ok=client.nulls_ok)
+
+        if root is None:
+            root = client.root
+            entry, acl = root.follow_acl(*msg.path, create=False, nulls_ok=client.nulls_ok, acl=client.acl, acl_key='e')
+        else:
+            entry, _ = root.follow_acl(*msg.path, create=False, nulls_ok=client.nulls_ok)
+            acl = NullACL
 
         kw = {}
         nchain = msg.get("nchain", 0)
@@ -398,14 +407,27 @@ class SCmd_get_tree(StreamCommand):
         if min_depth is not None:
             kw["min_depth"] = min_depth
 
-        async def send_sub(entry):
+        async def send_sub(entry, acl):
             if entry.data is NotGiven:
                 return
             res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
+            if not acl.allows('r'):
+                res.pop('value', None)
             ps(res)
             await self.send(**res)
 
-        await entry.walk(send_sub, **kw)
+            if not acl.allows('e'):
+                raise StopAsyncIteration
+            if not acl.allows('x'):
+                acl.block('r')
+
+        await entry.walk(send_sub, acl=acl, **kw)
+
+
+class SCmd_get_tree_internal(SCmd_get_tree):
+    """Get a subtree (internal data)."""
+    async def run(self):
+        return await super().run(root=self.client.metaroot)
 
 
 class SCmd_watch(StreamCommand):
@@ -427,7 +449,7 @@ class SCmd_watch(StreamCommand):
         msg = self.msg
         client = self.client
         conv = client.conv
-        entry = client.root.follow(*msg.path, create=True, nulls_ok=client.nulls_ok)
+        entry, acl = client.root.follow_acl(*msg.path, acl=client.acl, acl_key="x", create=True, nulls_ok=client.nulls_ok)
         nchain = msg.get("nchain", 0)
         max_depth = msg.get("max_depth", -1)
         min_depth = msg.get("min_depth", 0)
@@ -441,7 +463,7 @@ class SCmd_watch(StreamCommand):
                     async def orig_state():
                         kv = {"max_depth": max_depth, "min_depth": min_depth}
 
-                        async def worker(entry):
+                        async def worker(entry, acl):
                             if entry.tock < tock:
                                 res = entry.serialize(
                                     chop_path=client._chop_path,
@@ -449,9 +471,16 @@ class SCmd_watch(StreamCommand):
                                     conv=conv,
                                 )
                                 shorter(res)
+                                if not acl.allows('r'):
+                                    res.pop('value', None)
                                 await self.send(**res)
 
-                        await entry.walk(worker, **kv)
+                            if not acl.allows('e'):
+                                raise StopAsyncIteration
+                            if not acl.allows('x'):
+                                acl.block('r')
+
+                        await entry.walk(worker, acl=acl, **kv)
                         await self.send(state="uptodate")
 
                     await tg.spawn(orig_state)
@@ -462,11 +491,21 @@ class SCmd_watch(StreamCommand):
                         continue
                     if max_depth > 0 and ml > max_depth:
                         continue
-                    res = m.entry.serialize(
-                        chop_path=client._chop_path, nchain=nchain, conv=conv
-                    )
-                    shorter(res)
-                    await self.send(**res)
+                    a = acl
+                    for p in m.path[shorter.depth:]:
+                        if not a.allows('e'):
+                            break
+                        if not acl.allows('x'):
+                            a.block('r')
+                        a = a.step(p)
+                    else:
+                        res = m.entry.serialize(
+                            chop_path=client._chop_path, nchain=nchain, conv=conv
+                        )
+                        shorter(res)
+                        if not a.allows('r'):
+                            res.pop('value', None)
+                        await self.send(**res)
 
 
 class SCmd_serfmon(StreamCommand):
@@ -546,6 +585,7 @@ class ServerClient:
     user = None  # authorized user
     _dh_key = None
     conv = ConvNull
+    acl = NullACL
 
     def __init__(self, server: "Server", stream: anyio.abc.Stream):
         self.server = server
@@ -628,7 +668,9 @@ class ServerClient:
     def _chroot(self, root):
         if not root:
             return
-        entry = self.root.follow(*root, nulls_ok=False)
+        acl = self.client.acl
+        entry, acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
+        
         self.root = entry
         self.is_chroot = True
         self._chop_path += len(root)
@@ -688,11 +730,59 @@ class ServerClient:
     async def cmd_set_internal(self, msg):
         return await self.cmd_set_value(msg, root=self.metaroot)
 
+    async def cmd_enum_internal(self, msg):
+        return await self.cmd_enumerate(msg, root=self.metaroot)
+
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
 
     async def cmd_get_tock(self, msg):
         return {"tock": self.server.tock}
+
+    async def cmd_test_acl(self, msg):
+        """Check which ACL a path matches."""
+        root = self.root
+        path = msg.path
+        mode = msg.get('mode') or 'x'
+        acl = self.acl
+        acl2 = msg.get('acl', None)
+        first=True
+        try:
+            entry, acl = root.follow_acl(*msg.path, acl=self.acl, acl_key='a' if acl2 is None else mode, nulls_ok=False, create=None)
+
+            if acl2 is not None:
+                ok = acl.allows('a')
+                acl2 = root.follow(None, "acl", acl2, create=False, nulls_ok=True)
+                acl2 = ACLFinder(acl2)
+                entry, acl = root.follow_acl(*msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None)
+                if not ok:
+                    acl.block('a')
+                acl.check(mode)
+        except ACLError:
+            return {'access': False}
+        else:
+            return {'access': acl.result.data if acl.allows('a') else True}
+
+
+    async def cmd_enumerate(self, msg, with_data=False, _nulls_ok=None, root=None):
+        """Get all sub-nodes.
+        """
+        if root is None:
+            root = self.root
+        entry, acl = root.follow_acl(*msg.path, acl=self.acl, acl_key='e', create=False, nulls_ok=_nulls_ok)
+        if with_data:
+            res = {}
+            for k,v in entry.items():
+                a = acl.step(k)
+                if a.allows('r') and v.data is not NotGiven:
+                    res[k] = self.conv.enc_value(v.data, entry=v)
+        else:
+            res = []
+            for k,v in entry.items():
+                if v.data is not NotGiven:
+                    res.append(k)
+        return res
+
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
@@ -708,7 +798,7 @@ class ServerClient:
         if root is None:
             root = self.root
         try:
-            entry = root.follow(*msg.path, create=False, nulls_ok=_nulls_ok)
+            entry,acl = root.follow_acl(*msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok)
         except KeyError:
             entry = {}
             if msg.get("nchain", 0):
@@ -741,7 +831,10 @@ class ServerClient:
 
         if root is None:
             root = self.root
-        entry = root.follow(*msg.path, nulls_ok=_nulls_ok)
+            acl = self.acl
+        else:
+            acl = NullACL
+        entry, acl = root.follow_acl(*msg.path, acl=acl, acl_key="w", nulls_ok=_nulls_ok)
         if root is self.root and "match" in self.metaroot:
             try:
                 self.metaroot["match"].check_value(
@@ -852,13 +945,13 @@ class ServerClient:
         ps = PathShortener(msg.path)
 
         try:
-            entry = self.root.follow(*msg.path, nulls_ok=self.nulls_ok)
+            entry, acl = self.root.follow_acl(*msg.path, acl=self.acl, acl_key='d', nulls_ok=self.nulls_ok)
         except KeyError:
             return False
 
-        async def _del(entry):
+        async def _del(entry, acl):
             res = 0
-            if entry.data is not None:
+            if entry.data is not None and acl.allows('d'):
                 async with self.server.next_event() as event:
                     evt = await entry.set_data(
                         event,
@@ -878,11 +971,14 @@ class ServerClient:
                         ps(r)
                         await self.send(r)
                 res += 1
+            if not acl.allows('e') or not acl.allows('x'):
+                return
             for v in entry.values():
-                res += await _del(v)
+                a = acl.step(v, new=True)
+                res += await _del(v, a)
             return res
 
-        res = await _del(entry)
+        res = await _del(entry, acl)
         if nchain:
             await self.send({"seq": seq, "state": "end"})
         else:
@@ -1528,8 +1624,8 @@ class Server:
         try:
             # First try to read the host name from the meta-root's
             # "hostmap" entry, if any.
-            hme = self.metaroot.follow('hostmap',host, create=False)
-            if hme.data is not NotGiven:
+            hme = self.root.follow(None,'hostmap',host, create=False, nulls_ok=True)
+            if hme.data is NotGiven:
                 raise KeyError(host)
         except KeyError:
             hostmap = self.cfg.hostmap

@@ -41,6 +41,12 @@ class ServerConnectionError(ServerError):
     pass
 
 
+class ACLError(ServerError):
+    """An ACL did not match"""
+
+    pass
+
+
 class CancelledError(ClientError):
     """A client call was cancelled."""
 

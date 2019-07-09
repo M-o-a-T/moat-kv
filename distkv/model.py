@@ -29,7 +29,7 @@ class NodeDataSkipped(Exception):
 
 
 ConvNull = None  # imported later, if/when needed
-
+NullACL = None  # imported later, if/when needed
 
 class Node:
     """Represents one DistKV participant.
@@ -607,30 +607,64 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow(self, *path, create=True, nulls_ok=False):
+    def follow_acl(self, *path, create=True, nulls_ok=False, acl=None, acl_key=None):
         """Follow this path.
 
         If ``create`` is True (default), unknown nodes are silently created.
-        Otherwise they cause a `KeyError`.
+        Otherwise they cause a `KeyError`. If ``None``, assume
+        ``create=True`` but only check the ACLs.
 
         If ``nulls_ok`` is False (default), `None` is not allowed as a path
         element. If 2, it is allowed anywhere; if True, only as the first
         element.
+
+        If ``acl`` is not ``None``, then ``acl_key`` is the ACL letter to
+        check for. ``acl`` must be an :class:`ACLFinder` created from the
+        root of the ACL in question.
+
+        The ACL key 'W' is special: it checks 'c' if the node is new, else
+        'w'.
+
+        Returns tuple (node, acl) tuple.
         """
+        if acl is None:
+            global NullACL
+            if NullACL is None:
+                from .types import NullACL
+            acl = NullACL
+
+        first = True
         for name in path:
             if name is None and not nulls_ok:
                 raise ValueError("Null path element")
             if nulls_ok == 1:  # root only
                 nulls_ok = False
-            child = self._sub.get(name, None)
+            child = self._sub.get(name, None) if self is not None else None
             if child is None:
-                if not create:
+                if create is False:
                     raise KeyError(name)
-                child = self.SUBTYPES.get(name, self.SUBTYPE)(
-                    name, self, tock=self.tock
-                )
+                acl.check('n')
+                if create is not None:
+                    child = self.SUBTYPES.get(name, self.SUBTYPE)(
+                        name, self, tock=self.tock
+                    )
+            else:
+                acl.check('x')
+            acl = acl.step(name, new=first)
+            first = False
             self = child
-        return self
+
+        # If the caller doesn't know if the node exists, help them out.
+        if acl_key == 'W':
+            acl_key = 'w' if self is not None and self._data is not NotGiven else 'c'
+        acl.check(acl_key)
+        return (self, acl)
+
+    def follow(self, *a, **kw):
+        """
+        As :meth:`follow_acl`, but only returns the node.
+        """
+        return self.follow_acl(*a, **kw)[0]
 
     def __getitem__(self, name):
         return self._sub[name]
@@ -800,15 +834,29 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(self, proc, max_depth=-1, min_depth=0, _depth=0):
-        """Call ``proc`` on this node and all its children)."""
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0):
+        """
+        Call coroutine ``proc`` on this node and all its children).
+
+        If `acl` (must be an ACLStepper) is given, `proc` is called with
+        the acl as second argument.
+
+        If `proc` raises `StopAsyncIteration`, chop this subtree.
+        """
         if min_depth <= _depth:
-            await proc(self)
+            try:
+                if acl is not None:
+                    await proc(self, acl)
+                else:
+                    await proc(self)
+            except StopAsyncIteration:
+                return
         if max_depth == _depth:
             return
         _depth += 1
-        for v in list(self._sub.values()):
-            await v.walk(proc, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
+        for k,v in list(self._sub.items()):
+            a = acl.step(k) if acl is not None else None
+            await v.walk(proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
     def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.

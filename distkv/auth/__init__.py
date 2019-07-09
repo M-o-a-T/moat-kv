@@ -68,6 +68,7 @@ from ..model import Entry
 from ..server import StreamCommand, ServerClient
 from ..util import split_one, attrdict
 from ..exceptions import NoAuthModuleError
+from ..types import ACLFinder, NullACL
 
 # Empty schema
 null_schema = {"type": "object", "additionalProperties": False}
@@ -77,7 +78,10 @@ add_schema = {
     "user": {
         "type": "object",
         "additionalProperties": False,
-        "properties": {"conv": {type: "string", "minLength": 1}},
+        "properties": {
+            "acl": {type: "string", "minLength": 1},
+            "conv": {type: "string", "minLength": 1},
+        },
     }
 }
 
@@ -326,9 +330,20 @@ class BaseServerAuth:
             conv = self._aux.get("conv")
             if conv is None:
                 return ConvNull
-            return root.follow(None, "conv", conv, create=False, nulls_ok=True)
+            res,_ = root.follow_acl(None, "conv", conv, create=False, nulls_ok=True)
+            return res
         except (KeyError, AttributeError):
             return ConvNull
+
+    def aux_acl(self, root: Entry):
+        try:
+            acl = self._aux.get("acl")
+            if acl is None:
+                return NullACL
+            acl,_ = root.follow_acl(None, "acl", acl, create=False, nulls_ok=True)
+            return ACLFinder(acl)
+        except (KeyError, AttributeError):
+            return NullACL
 
     def info(self):
         """

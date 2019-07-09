@@ -137,6 +137,19 @@ to use for logging in. ``typ`` contains the auth type to use; this
 If this is not the first message, the authorization is verified but the
 resulting user identity is ignored.
 
+test_acl
+--------
+
+Check whether the given ``path`` is accessible with the given  ``mode``.
+
+The ``acl`` to test may be specified. The user's ACL, if any, is also
+tested; the return message's ``access`` element may contain ``False``
+(access not allowed), ``True`` (access allowed but no ACL details
+available) or the actual ACL characters.
+
+Access will not be granted if you try to check a specific ACL when your
+own rights don't include 'a' (for accessing ACLs).
+
 stop
 ----
 
