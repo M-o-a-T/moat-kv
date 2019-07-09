@@ -2123,8 +2123,9 @@ class Server:
         pass  # unwinding serf_client (cancelled or error)
 
     async def _connect(self, stream):
-        c = ServerClient(server=self, stream=stream)
+        c = None
         try:
+            c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
         except BaseException as exc:
@@ -2139,5 +2140,6 @@ class Server:
             except Exception:
                 pass
         finally:
-            self._clients.remove(c)
+            if c is not None:
+                self._clients.remove(c)
             await stream.aclose()
