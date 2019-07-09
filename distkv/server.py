@@ -1612,6 +1612,7 @@ class Server:
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
+                    pl = PathLongener(())
                     res = await client._request(
                         "get_tree",
                         iter=True,
@@ -1620,6 +1621,7 @@ class Server:
                         path=(),
                     )
                     async for r in res:
+                        pl(r)
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
                         )
