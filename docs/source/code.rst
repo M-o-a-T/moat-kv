@@ -6,7 +6,7 @@ DistKV can store Python code and modules, either for direct use by your
 client or for a runner daemon.
 
 TODO: There is no dependency resolution. Thus, while you can store Python
-modules in DistKV, there's no guarantee yet that they'll actually be loaded 
+modules in DistKV, there's no guarantee yet that they'll actually be present
 when your code loads.
 
 
@@ -16,8 +16,8 @@ Code
 
 Python code stored in DistKV is wrapped with a procedure context, mainly to
 make returning a result more straightforward. This is done by indenting the
-code before compiling it, so you can't depend on multi-line strings to be
-flush left.
+code before compiling it: don't depend on multi-line strings to be flush
+left.
 
 Storage
 =======

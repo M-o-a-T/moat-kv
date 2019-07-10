@@ -218,7 +218,7 @@ key name::
 Access restrictions
 ===================
 
-TODO
+A user can be restricted from accessing or modifying DistKV data.
 
-A user can be restricted to either access DistKV data, or to modify
-the server itself. 
+   one $ dkv() { distkv client -a "password name=joe password=test123" "$@" }
+   one $ dkv user add foo password=bar
