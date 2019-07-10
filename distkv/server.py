@@ -492,7 +492,7 @@ class SCmd_watch(StreamCommand):
                     if max_depth > 0 and ml > max_depth:
                         continue
                     a = acl
-                    for p in m.path[shorter.depth:]:
+                    for p in getattr(m,'path',[])[shorter.depth:]:
                         if not a.allows('e'):
                             break
                         if not acl.allows('x'):
