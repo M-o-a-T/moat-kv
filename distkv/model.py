@@ -13,6 +13,7 @@ from collections import defaultdict
 from typing import List, Any
 
 from .util import attrdict, NotGiven
+from .exceptions import ACLError
 from anyio import create_queue
 
 from logging import getLogger
@@ -650,7 +651,10 @@ class Entry:
                     )
             else:
                 acl.check('x')
-            acl = acl.step(name, new=first)
+            try:
+                acl = acl.step(name, new=first)
+            except KeyError:
+                raise ACLError(acl.result, name) from None
             first = False
             self = child
 
