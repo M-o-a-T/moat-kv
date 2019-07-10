@@ -470,7 +470,6 @@ class StreamedRequest:
             self.end_msg = msg
             if self.q is not None:
                 await self.q.put(None)
-                self.q = None
             return False
 
         else:
@@ -485,7 +484,6 @@ class StreamedRequest:
                 await self.q.put(outcome.Value(msg))
                 if self._reply_stream is False:
                     await self.q.put(None)
-                    self.q = None
 
     async def get(self):
         """Receive a single reply"""
@@ -506,8 +504,6 @@ class StreamedRequest:
         return self
 
     async def __anext__(self):
-        if self.q is None:
-            raise StopAsyncIteration
         res = await self.q.get()
         if res is None:
             raise StopAsyncIteration
@@ -543,7 +539,6 @@ class StreamedRequest:
     async def aclose(self, timeout=0.2):
         if self.q is not None:
             await self.q.put(None)
-            self.q = None
         if self._stream == 2:
             await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
@@ -693,7 +688,11 @@ class Client:
 
     async def _send(self, **params):
         async with self._send_lock:
-            await self._socket.send_all(_packer(params))
+            sock = self._socket
+            if sock is None:
+                raise ServerClosedError("Disconnected")
+
+            await sock.send_all(_packer(params))
 
     async def _reader(self, *, evt=None):
         """Main loop for reading
