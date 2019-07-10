@@ -155,7 +155,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     # One-Shot-Hack the config file.
     for k in conf:
         try:
-            k,v = k.split('=')
+            k,v = k.split('=',1)
         except ValueError:
             v = NotGiven
         else:
