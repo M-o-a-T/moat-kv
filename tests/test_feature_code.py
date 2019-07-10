@@ -11,7 +11,6 @@ from distkv.client import ServerError
 from distkv.util import PathLongener
 
 from distkv.code import CodeRoot, ModuleRoot
-from distkv.runner import RunnerRoot
 from distkv.errors import ErrorRoot
 import logging
 
