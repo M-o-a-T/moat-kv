@@ -65,7 +65,7 @@ class ServerUserMaker(BaseServerAuthMaker):
         await cmd.send(step="SendWant")
         msg = await cmd.recv()
         assert msg.step == "WantName"
-        await cmd.send(step="SendName", name=self.name, chain=self._chain)
+        await cmd.send(step="SendName", name=self.name, chain=self._chain.serialize(nchain=3))
         msg = await cmd.recv()
 
     # Annoying methods to read+save the user name from/to KV
