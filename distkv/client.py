@@ -11,6 +11,7 @@ import socket
 import weakref
 import heapq
 import random
+from functools import partial
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
@@ -262,7 +263,7 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg=None, key="prefix"):
+    async def as_handler(cls, client, cfg=None, key="prefix", **kw):
         """Return a (or "the") instance of this class.
         
         The handler is created if it doesn't exist.
@@ -282,7 +283,7 @@ class ClientRoot(ClientEntry):
             cfg = defcfg
 
         def make():
-            return client.mirror(*cfg[key], root_type=cls, need_wait=True, cfg=cfg)
+            return client.mirror(*cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw)
 
         return await client.unique_helper(*cfg[key], factory=make)
 
