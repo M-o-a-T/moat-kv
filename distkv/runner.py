@@ -604,7 +604,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                 self._act = act
                 await tg.spawn(self._age_notifier)
                 await self.spawn(self._run_now)
-                await self._act.set_value(0)
+                await act.set_value(0)
 
                 async for msg in act:
                     if isinstance(msg, AuthPingEvent):
