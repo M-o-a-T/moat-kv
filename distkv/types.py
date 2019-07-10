@@ -138,6 +138,8 @@ class NodeFinder:
         for node,keep in self.steps:
             if name in node:
                 steps.append((node[name],False))
+            if name is None:
+                continue
             if '+' in node:
                 steps.append((node['+'],False))
             if '#' in node:
