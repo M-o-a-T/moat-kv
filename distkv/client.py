@@ -506,6 +506,7 @@ class StreamedRequest:
     async def __anext__(self):
         res = await self.q.get()
         if res is None:
+            self.q = None  # prevent deadlock if called again
             raise StopAsyncIteration
         try:
             return res.unwrap()
