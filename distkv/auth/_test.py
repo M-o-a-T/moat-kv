@@ -115,8 +115,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             assert m.step == "SendName", m
             assert m.name == ident
 
-            self = cls()
-            self.name = m.name
+            self = cls(name=m.name)
             self._chain = m.chain
             return self
 
