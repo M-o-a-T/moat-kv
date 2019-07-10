@@ -1,6 +1,10 @@
 Open issues
 ===========
 
-* when a server starts with stored data, wait until it decides that it's
-  alone or has synced up.
+* We need path translation. Idea: store an extension element in the
+  destination path, which would pick the appropriate parts from the
+  source path when processed.
+
+  2-element tuples would probably work also, given that it's unlikely that
+  people use complex elements in their path, but why limit ourselves?
 

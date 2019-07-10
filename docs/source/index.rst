@@ -52,8 +52,12 @@ an etcd2 compatibility service yet.
    client_protocol.rst
    server_protocol.rst
    auth.rst
+   acl.rst
+   code.rst
    model.rst
    translator.rst
+
+   TODO.rst
    history.rst
 
 ====================
