@@ -834,7 +834,7 @@ class ServerClient:
             acl = self.acl
         else:
             acl = NullACL
-        entry, acl = root.follow_acl(*msg.path, acl=acl, acl_key="w", nulls_ok=_nulls_ok)
+        entry, acl = root.follow_acl(*msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok)
         if root is self.root and "match" in self.metaroot:
             try:
                 self.metaroot["match"].check_value(
