@@ -18,13 +18,16 @@ An ACL entry controls these access modes:
 * r: read: retrieve the data at this node
 * w: write: change the data at this node
 * c: create: add new data to this node
-* W: check for 'c' if new node, else 'w'
 * d: delete: remove the data at this node
 * x: access: read specific sub-nodes below this one
 * e: enumerate: list sub-nodes of this one
 * n: new: create new nodes below this one
 
-Enumeration will not check the ACL entry of each sub-node for accessibility.
+In the DistKV sources you'll also encounter these modes in calls to
+``follow_acl`` (i.e. these flags can be checked for but you cannot set
+them):
+
+* W: check 'c' if the node is new or has no data, else 'w'
 
 ACLs can use wildcards '+' (one level) and '#' (one or more levels).
 Search is depth-first; more specific keys are checked first.
@@ -34,8 +37,9 @@ Association
 ===========
 
 You change a user's ACL entry by adding an "acl=ACLNAME" field to the
-user's aux data. This change is instantaneous, i.e. an existing user
-does not need to reconnect.
+user's aux data. The user is affected as soon as they log back in.
+
+Updated ACL records are effective immediately.
 
 
 Putting it all together
@@ -73,3 +77,4 @@ back. However, any other access is not possible::
 The above is the server content at the end of the testcase
 ``tests/test_feature_acls.py::test_81_basic``, when
 dumped with the command ``distkv client get -ryd_``.
+

@@ -8,3 +8,5 @@ Open issues
   2-element tuples would probably work also, given that it's unlikely that
   people use complex elements in their path, but why limit ourselves?
 
+* ACLs for system data, i.e. those stored below ``None``.
+

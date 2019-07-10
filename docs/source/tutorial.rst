@@ -12,19 +12,8 @@ use this script::
 
    #!/usr/bin/env python3
 
-   __requires__ = 'distkv'
-   import re
    import sys
-   import os
-   sys.path[0:0] = (".", "../asyncserf")
-
-   try:
-      from pkg_resources import load_entry_point
-   except Exception as exc:
-      pass
-   else:
-      sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
-      sys.exit(load_entry_point('distkv', 'console_scripts', 'distkv')())
+   # sys.path[0:0] = (".", "../asyncserf")  # for development
 
    from distkv.command import cmd
    cmd()
@@ -45,7 +34,7 @@ You can configure the destination by adapting the config file::
 
    one $ distkv -C server.serf.host=my-serfer server -i Root $(hostname)
 
-You can then retrieve the root value::
+You can now retrieve the root value::
 
    one $ distkv client data get
    "Root"
@@ -73,7 +62,7 @@ You can now kill the first server and restart it::
 
 You must **never** start a server with the ``-i`` option, unless you're
 creating a new and separate DistKV network. (You can create entirely
-separate networks with the ``server.root`` config variable.)
+separate networks by changing the ``server.root`` config variable.)
 
 
 Data commands
@@ -82,12 +71,7 @@ Data commands
 You might want to add an alias for "distkv client data" so that you don't
 have to type so much::
 
-   one $ cat >/usr/local/bin/dkd <<'_'
-   #!/bin/sh
-   exec distkv client data "$*"
-   _
-
-   one $ chmod +x /usr/local/bin/dkd
+   one $ dkd() { distkv client data "$@"; }
 
 Then, you can store arbitrary data at random DistKV nodes::
 
@@ -117,6 +101,9 @@ hierarchically, (among other reasons) for ease of retrieval::
             five:
               _: Duh
     one $
+
+The root value is not special; by convention, it identifies the DistKV
+network.
 
 
 Persistent storage
@@ -214,11 +201,61 @@ key name::
      foo:
        _: bar
 
+For experimentation, there's also a ``_test`` method which only exposes a
+user name::
+
+   one $ distkv client auth -m _test user add name=joe
+   one $ distkv client auth -m _test user add name=root
+   one $ distkv client auth -m _test init
+   one $ distkv client data get
+   ClientAuthRequiredError: You need to log in using: _test
+   one $ dkv() { distkv client -a "_test name=joe" "$@"; }
+   one $ dkv data get
+   123
+   one $
+
+We'll use that user and alias in the following sections.
+
+ACLs and distributed servers
+----------------------------
+
+DistKV servers use the client protocol when they sync up. Thus, when you
+set up authorization, you must teach your servers to authenticate to their
+peer::
+
+   one $ distkv -C connect.auth="_test name=joe" server $(hostname)
+
 
 Access restrictions
 ===================
 
 A user can be restricted from accessing or modifying DistKV data.
 
-   one $ dkv() { distkv client -a "password name=joe password=test123" "$@" }
-   one $ dkv user add foo password=bar
+Let's say that we'd like to create a "write-only" data storage::
+
+   one $ dkv acl set writeonly -a "xc" wom '#'
+   one $ dkv data set -ev 42 wom foo bar
+   one $ dkv data set -ev 43 wom foo bar
+   ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'w')
+   one $ dkv data get wom foo
+   ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'r')
+   one $
+
+As you can see, this allows the user to write to arbitrary values, but Joe
+cannot change anything, nor can he read the values which he wrote.
+
+Note that we also created a "root" user who doesn't have ACL restrictions.
+If we had not, we'd now be locked out of our DistKV storage because "no
+matching ACL" means "no access".
+
+A user who has an ACL set can no longer modify the system, because the
+``None`` element that separates system data from the rest cannot match a
+wildcard. ACLs for system entries are on the TODO list.
+
+
+
+Code execution
+==============
+
+DistKV doesn't just store passive data: you can also use it to distribute
+actual computing. We'll demonstrate that here.

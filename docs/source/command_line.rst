@@ -176,13 +176,15 @@ for incremental output.
 
 .. option:: -d, --as-dict <text>
 
-When emitting YAML recursively, the standard way is to print every entry as
-an independent data structure with a ``path`` member. When you use this
-option, the data is printed as a nested dictionary. The argument of this
-option controls which key is used for the actual value; obviously, this
-string should not occur as a path element.
+   When you use this option, the data is printed as a dictionary.
+   The argument of this option controls which key is used for the actual
+   value; this string should not occur as a path element.
 
-The customary value to use is a single underscore, if possible.
+   The customary value to use is a single underscore.
+
+   Using this option in conjunction with ``--recursive`` requires keeping
+   the whole data set in memory before starting to print anything. This may
+   take a long time or eat a lot of memory.
 
 .. option:: -m, --mindepth <integer>
 
@@ -721,6 +723,118 @@ data are not converted.
 
    The DistKV entry to affect. Path elements '+' and '#' match exactly-one and
    one-or-more subpaths. The most specific path wins.
+
+
+.. program:: distkv client acl
+
+Manipulate access control lists stored in DistKV.
+
+
+.. program:: distkv client acl list
+
+Generate a list of known ACLs.
+
+
+.. program:: distkv client acl get
+
+Retrieve the flags at a specific ACL path.
+
+If the path does not contain any flags, print ``-``.
+
+.. option:: -v, --verbose
+
+   Add metadata. Default: a single string.
+
+.. option:: -y, --yaml
+
+   Print as YAML. Default. Python (if verbose) or a single string.
+
+.. option:: <acl>
+
+   The ACL to modify. Mandatory.
+
+.. option:: <path>
+
+   The ACL path from which to retrieve the flags.
+
+
+.. program:: distkv client acl set
+
+Set the flags at a specific ACL path.
+
+Nothing is printed if neither ``--verbose`` nor ``--yaml`` is used.
+
+.. option:: -v, --verbose
+
+   Print the resulting metadata.
+
+.. option:: -y, --yaml
+
+   Print as YAML. Default. Python.
+
+.. option:: -a, --acl <MODES>
+
+   The flag values to set. Start with ``+`` to add, ``-`` to remove modes.
+   Use an empty argument (``''``) to remove all rights. A lone ``-``
+   removes the entry.
+
+.. option:: <acl>
+
+   The ACL to modify. Mandatory.
+
+.. option:: <path>
+
+   The ACL path to add or modify.
+
+
+.. program:: distkv client acl test
+
+Check whether an ACL allows access.
+
+.. option:: -v, --verbose
+
+   Print a more verbose record. Default: One of ``+`` or ``-``.
+
+.. option:: -m, --mode <mode>
+
+   Check this mode (single letter). The default is "x".
+
+.. option:: -a, --acl <acl>
+
+   In addition to the user's current ACL, also check the flag on the named ACL.
+
+   There is no indication which of the two failed. This is intentional.
+
+.. option:: <path>
+
+   The path to check.
+
+
+.. program:: distkv client acl dump
+
+Dump an ACL's content.
+
+.. option:: -y, --yaml
+
+   Print as YAML. Default. Python.
+
+.. option:: -d, --as-dict TEXT
+
+   Print as dictionary. ``TEXT`` is the key used for the ACL data.
+
+   Default: Emit a list.
+
+   Using this flag requires storing the whole ACL in memory, which is
+   usually not a problem (unlike for data).
+
+.. option:: <name>
+
+   The name of the ACL to dump. Mandatory.
+
+.. option:: <path>
+
+   The path to start dumping at. Default: the root.
+
 
 
 .. program:: distkv client code
