@@ -508,10 +508,7 @@ class StreamedRequest:
         if res is None:
             self.q = None  # prevent deadlock if called again
             raise StopAsyncIteration
-        try:
-            return res.unwrap()
-        except CancelledError:
-            raise StopAsyncIteration
+        return res.unwrap()
 
     async def send(self, **params):
         # logger.debug("Send %s", params)
