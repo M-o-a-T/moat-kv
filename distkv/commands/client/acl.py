@@ -57,34 +57,44 @@ async def list(obj, yaml, verbose):
 
 @cli.command()
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
-@click.option("-d", "--as-dict", is_flag=True, help="Dump as a dict. Default: List.")
+@click.option(
+    "-d",
+    "--as-dict", 
+    default=None,
+    help="YAML: structure as dictionary. The argument is the key to use "
+    "for values. Default: return as list",
+)
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def dump(obj, name, path):
+async def dump(obj, name, path, yaml, as_dict):
     """Dump a complete (or partial) ACL."""
     res = await obj.client._request(
         action="get_tree_internal",
         path=("acl",name)+path,
         iter=True,
-        nchain=3 if verbose else 0,
     )
     if yaml:
         import yaml
-    y = {} if as_dict else []
+    y = {} if as_dict or yaml else []
     async for r in res:
-        if yaml:
-            if as_dict:
-                yy = y
-                for p in r.pop("path"):
-                    yy = yy.setdefault(p, {})
-                if "chain" in r:
-                    yy["chain"] = r.chain
-                yy[as_dict] = r.pop("value")
-            else:
-                y.append((res.path,res.value))
+        if as_dict is not None:
+            yy = y
+            for p in r.pop("path"):
+                yy = yy.setdefault(p, {})
+            if "chain" in r:
+                yy["chain"] = r.chain
+            yy[as_dict] = r.pop("value")
+        elif yaml:
+            y = {}
+            y[r.path] = r.value
+            print(yaml.safe_dump([y], default_flow_style=False), file=sys.stdout)
+        else:
+            y.append((r.path,r.value))
 
-    if yaml:
+    if as_dict is None and yaml:
+        pass
+    elif yaml:
         print(yaml.safe_dump(y, default_flow_style=False), file=sys.stdout)
     else:
         pprint(y)
@@ -116,11 +126,14 @@ async def get(obj, name, path, yaml, verbose):
     )
 
     if not verbose:
-        res = res.value
+        res = getattr(res,'value', '-')
     if yaml:
         import yaml
 
         print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
+
+    elif isinstance(res,str):
+        print(res)
     else:
         pprint(res)
 
@@ -205,9 +218,10 @@ async def set_(obj, acl, name, path, verbose, yaml):
 )
 @click.option('-m','--mode',default=None, help="Mode letter to test.")
 @click.option('-a','--acl',default=None, help="ACL to test. Default: current")
+@click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def test(obj, path, acl, verbose, mode):
+async def test(obj, name, path, acl, verbose, mode):
     """Test which ACL entry matches a path"""
     if not path:
         raise click.UsageError("You need a non-empty path.")

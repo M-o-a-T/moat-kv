@@ -82,6 +82,9 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     will be read before anything is printed. Use the "watch --state" subcommand
     for incremental output.
     """
+    if yaml:
+        import yaml
+
     if recursive:
         kw = {}
         if maxdepth is not None:
@@ -90,40 +93,51 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             kw["min_depth"] = mindepth
         res = await obj.client.get_tree(*path, nchain=chain, **kw)
         pl = PathLongener(path)
-        y = {} if as_dict is not None else []
+        y = {}
         async for r in res:
             pl(r)
             r.pop("seq", None)
-            if yaml:
-                if as_dict is not None:
-                    yy = y
-                    for p in r.pop("path"):
-                        yy = yy.setdefault(p, {})
-                    if "chain" in r:
-                        yy["chain"] = r.chain
+            path = r.pop('path')
+            if as_dict is not None:
+                yy = y
+                for p in path:
+                    yy = yy.setdefault(p, {})
+                if "chain" in r:
+                    yy["chain"] = r.chain
+                try:
+                    yy[as_dict] = r.pop("value")
+                except KeyError:
+                    pass
+                if verbose:
+                    yy.update(r)
+            elif yaml:
+                y = {}
+                if verbose:
+                    y[path] = r
+                else:
                     try:
-                        yy[as_dict] = r.pop("value")
+                        y[path] = r.pop("value")
                     except KeyError:
                         pass
-                    if verbose:
-                        yy.update(r)
-                else:
-                    if verbose:
-                        y.append(r)
-                    else:
-                        yr = {"path": r.path, "value": r.value}
-                        if "chain" in r:
-                            yr["chain"] = r.chain
-                        y.append(yr)
+                print(yaml.safe_dump([y], default_flow_style=False))
             else:
-                if verbose:
-                    pprint(r)
+                try:
+                    val = r.value
+                except AttributeError:
+                    pass
                 else:
-                    print("%s: %s" % (" ".join(r.path), repr(r.value)))
-        if yaml:
+                    if verbose:
+                        pprint(r)
+                    else:
+                        print("%s: %s" % (" ".join(str(x) for x in path), repr(r.value)))
+        if as_dict is None:
+            pass
+        elif yaml:
             import yaml
 
             print(yaml.safe_dump(y, default_flow_style=False))
+        else:
+            pprint(y)
         return
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
@@ -239,8 +253,6 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
             args["prev"] = prev
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
-
-    res = await obj.client.set(*path, value=value, nchain=chain, **args)
 
     res = await obj.client._request(
         action="delete_tree" if recursive else "delete_value", path=path, nchain=chain, **args
