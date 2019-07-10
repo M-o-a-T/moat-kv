@@ -32,7 +32,7 @@ from .util import (
     byte2num,
     NotGiven,
 )
-from .exceptions import ClientError, NoAuthError, CancelledError, ACLError
+from .exceptions import ClientError, NoAuthError, CancelledError, ACLError, ServerClosedError
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -119,6 +119,8 @@ class StreamCommand:
 
     async def recv(self):
         msg = await self.in_q.get()
+        if msg is None:
+            raise ServerClosedError
 
         if "error" in msg:
             raise ClientError(msg.error)
