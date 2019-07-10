@@ -1351,7 +1351,12 @@ class Server:
         for n in nodes:
             try:
                 host, port = await self._get_host_port(n)
-                async with distkv_client.open_client(host, port) as client:
+                cfg = combine_dict({"host":host, "port":port, "name":self.node.name}, self.cfg.connect, cls=attrdict)
+                auth = cfg.get('auth', None)
+                if isinstance(auth,str):
+                    from .auth import gen_auth
+                    cfg['auth'] = gen_auth(auth)
+                async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -1707,6 +1712,10 @@ class Server:
             try:
                 host, port = await self._get_host_port(n)
                 cfg = combine_dict({"host":host, "port":port, "name":self.node.name}, self.cfg.connect, cls=attrdict)
+                auth = cfg.get('auth', None)
+                if isinstance(auth,str):
+                    from .auth import gen_auth
+                    cfg['auth'] = gen_auth(auth)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
