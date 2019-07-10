@@ -229,7 +229,7 @@ class MetaPathEntry(MetaEntry):
         """
         f = NodeFinder(self)
         for n in entry.path:
-            f.step(n.name)
+            f.step(n)
         return f.result
 
 
