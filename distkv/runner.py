@@ -14,7 +14,6 @@ import psutil
 import time
 from asyncserf.client import Serf
 
-from .codec import packer, unpacker
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
 from .util import NotGiven
@@ -51,20 +50,19 @@ class RunnerEntry(AttrClientEntry):
     Arguments:
       code (list): pointer to the code that's to be started.
       data (dict): additional data for the code.
-      started (float): timestamp when the job was last started
-      stopped (float): timestamp when the job last terminated
       delay (float): time before restarting the job on error
       repeat (float): time before restarting on success
       target (float): time the job should be started at
 
     The code runs with these additional keywords::
+
       _entry: this object
       _client: the DistKV client connection
       _info: a queue to send events to the task. A message of ``None``
-        signals that the queue was overflowing and no further messages will
-        be delivered.
+          signals that the queue was overflowing and no further messages will
+          be delivered.
 
-    Messages are defined in :module:`distkv.actor`.
+    Messages are defined in :mod:`distkv.actor`.
     """
 
     ATTRS = "code data delay repeat target".split()
@@ -196,7 +194,7 @@ class RunnerEntry(AttrClientEntry):
         """Tell whether this job might want to be started.
 
         Returns:
-          False: No, it's running (or has run and doesn't restart).
+          ``False``: No, it's running (or has run and doesn't restart).
           n>0: wait for n seconds before thinking again.
           n<0: should have been started n seconds ago, do something!
 
@@ -258,6 +256,17 @@ class RunnerNode:
 
 
 class StateEntry(AttrClientEntry):
+    """
+    This is the actual state associated with a RunnerEntry.
+    It mmust only be managed by the node that actually runs the code.
+
+    Arguments:
+      started (float): timestamp when the job was last started
+      stopped (float): timestamp when the job last terminated
+      result (Any): the code's return value
+      node (str): the node running this code
+      backoff (float): on error, the multiplier to apply to the restart timeout
+    """
     ATTRS = "started stopped result node backoff".split()
 
     started = 0  # timestamp

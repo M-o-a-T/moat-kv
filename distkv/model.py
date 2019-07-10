@@ -620,8 +620,8 @@ class Entry:
         element.
 
         If ``acl`` is not ``None``, then ``acl_key`` is the ACL letter to
-        check for. ``acl`` must be an :class:`ACLFinder` created from the
-        root of the ACL in question.
+        check for. ``acl`` must be an :class:`~distkv.types.ACLFinder`
+        created from the root of the ACL in question.
 
         The ACL key 'W' is special: it checks 'c' if the node is new, else
         'w'.

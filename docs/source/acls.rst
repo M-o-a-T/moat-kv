@@ -41,7 +41,9 @@ does not need to reconnect.
 Putting it all together
 =======================
 
-TODO
+Given the following data structure, the user "aclix" will only be able to
+write initial data to ``one`` and ``one two``. They can also read the data
+back. However, any other access is not possible::
 
     null:
       auth:
@@ -49,44 +51,25 @@ TODO
           current: _test
         _test:
           user:
-            con:
+            aclix:
               _:
                 _aux:
-                  conv: foo
+                  acl: foo
             std:
               _:
                 _aux: {}
-      codec:
-        int:
-          _:
-            decode: assert isinstance(value,str); return int(value)
-            encode: return str(value)
-            in:
-            - [ '1', 1 ]
-            - [ '2', 2 ]
-            - [ '3', 3 ]
-            out:
-            - [ 1, '1' ]
-            - [ 2, '2' ]
-            - [ -3, '-3' ]
-      conv:
+      acl:
         foo:
-          inty:
-            '#':
-              _:
-                codec:
-                - int
-    inty:
-      _: hello
-      ten:
-        _: 10
-      yep:
-        yepyepyep:
-          _: 13
-          yep:
-            _: 99
+          one:
+            _: rxnc
+            two:
+              _: rc
+    one:
+      _: 10
+      two:
+        _: 11
     
 
 The above is the server content at the end of the testcase
-``tests/test_feature_convert.py::test_71_basic``, when
+``tests/test_feature_acls.py::test_81_basic``, when
 dumped with the command ``distkv client get -ryd_``.
