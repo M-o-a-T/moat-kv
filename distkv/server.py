@@ -2202,6 +2202,9 @@ class Server:
                 await self._ready2.set()
                 if ready_evt is not None:
                     await ready_evt.set()
+                pass # end of server taskgroup
+            pass # end of server
+        pass # end of serf client
 
     async def _accept_clients(self, cfg, n, evt):
         ssl_ctx = gen_ssl(cfg['ssl'], server=True)
