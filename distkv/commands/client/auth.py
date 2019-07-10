@@ -148,7 +148,7 @@ async def list(obj, yaml, chain):
             del r["tock"]
         if yaml:
             print(yaml.safe_dump(r, default_flow_style=False))
-        elif obj.debug > 0:
+        elif obj.debug > 1:
             print(r)
         else:
             print(r.ident)
