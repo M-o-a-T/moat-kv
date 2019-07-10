@@ -326,10 +326,10 @@ class _BaseRunnerRoot(ClientRoot):
     code = None
     this_root = None
 
-    def __init__(self, *a, **kw):
+    def __init__(self, *a, err=None, code=None, **kw):
         super().__init__(*a, **kw)
-        self.err = kw.get('err')
-        self.code = kw.get('code')
+        self.err = err
+        self.code = code
         self._nodes = {}
 
     async def run_starting(self):
