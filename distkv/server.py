@@ -8,6 +8,7 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 import io
+import time
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
@@ -2071,6 +2072,11 @@ class Server:
         shorter = PathShortener([])
 
         async with MsgWriter(path=path, stream=stream) as mw:
+            msg = await self.get_state(nodes=True, known=True, deleted=True)
+            await mw(msg)
+            last_saved = time.monotonic()
+            last_saved_count = 0
+
             async with Watcher(self.root) as updates:
                 await self._ready.wait()
 
@@ -2083,8 +2089,20 @@ class Server:
 
                 cnt = 0
                 while True:
+                    # This dance ensures that we save the system state often enough.
+                    t = time.monotonic()
+                    td = t-last_saved
+                    if td >= 60 or last_saved_count > 1000:
+                        msg = await self.get_state(nodes=True, known=True, deleted=True)
+                        await mw(msg)
+                        await mw.flush()
+                        last_saved = time.monotonic()
+                        last_saved_count = 0
+                        td = -99999 # translates to something large, below
+                        cnt = 0
+
                     try:
-                        with anyio.fail_after(1 if cnt else 99999):
+                        with anyio.fail_after(1 if cnt else 60-td):
                             msg = updates.__anext__()
                     except TimeoutError:
                         await mw.flush()
@@ -2092,10 +2110,11 @@ class Server:
                     else:
                         msg = msg.serialize()
                         shorter(msg)
+                        last_saved_count += 1
                         await mw(msg)
                         if cnt >= 100:
                             await mw.flush()
-                            cnt = 1
+                            cnt = 0
                         else:
                             cnt += 1
 
