@@ -413,7 +413,9 @@ class AclEntry(MetaEntry):
     """
 
     async def set(self, value):
-        if not isinstance(value, str):
+        if value is NotGiven:
+            pass
+        elif not isinstance(value, str):
             raise ValueError("ACL is not a string")
         await super().set(value)
 
