@@ -1475,6 +1475,7 @@ class Server:
                 lk = n.remote_missing
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
+        res['node'] = self.node.name
         return res
 
     async def user_update(self, msg):
