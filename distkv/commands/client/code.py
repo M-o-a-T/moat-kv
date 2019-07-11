@@ -62,7 +62,12 @@ async def get(obj, path, yaml, verbose, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    pprint(res)
+    if yaml:
+        import yaml
+
+        print(yaml.safe_dump(res, default_flow_style=False))
+    else:
+        pprint(res)
 
 
 @cli.command()
@@ -177,7 +182,12 @@ async def get(obj, path, yaml, verbose, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    pprint(res)
+    if yaml:
+        import yaml
+
+        print(yaml.safe_dump(res, default_flow_style=False))
+    else:
+        pprint(res)
 
 
 @mod.command()
