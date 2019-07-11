@@ -70,18 +70,32 @@ async def state(obj, yaml, **flags):
 @click.pass_obj
 async def mark(obj, deleted, source, node, items, yaml, broadcast):
     """
-    Fix internal state.
+    Fix internal state. Use no items to fetch the current list from the
+    server's ``missing`` state. Use an empty node name to add the whole
+    list, not just a single node's.
 
     This is a dangerous command.
     """
 
-    r = RangeSet()
-    for i in items:
-        r.add(i)
     k = "deleted" if deleted else "known"
+    if not items:
+        r = await obj.client._request("get_state", iter=False, missing=True)
+        r = r['missing']
+        if node != '':
+            r = {node: r[node]}
+    elif node == '':
+        raise click.UsageError("You can't do that with an empty node")
+    else:
+        r = RangeSet()
+        for i in items:
+            r.add(i)
+        r = {node: r.__getstate__()}
+
     msg = {k: {node: r.__getstate__()}, "node":source}
 
-    await obj.client._request("fake_info_send" if broadcast else "fake_info", iter=False, **msg)
+    await obj.client._request("fake_info", iter=False, **msg)
+    if broadcast:
+        await obj.client._request("fake_info_send", iter=False, **msg)
 
     res = await obj.client._request("get_state", iter=False, **{k: True})
     if yaml:
