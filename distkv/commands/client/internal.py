@@ -64,7 +64,7 @@ async def state(obj, yaml, **flags):
 @click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-n", "--node", "source", default='?', help="The node this message is faked as being from.")
-@click.option("-b", "-broadcast", is_flag=True, help="Send to all servers")
+@click.option("-b", "--broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
 @click.argument("items", type=int, nargs=-1)
 @click.pass_obj
@@ -91,7 +91,7 @@ async def mark(obj, deleted, source, node, items, yaml, broadcast):
             r.add(i)
         r = {node: r.__getstate__()}
 
-    msg = {k: {node: r.__getstate__()}, "node":source}
+    msg = {k: r, "node":source}
 
     await obj.client._request("fake_info", iter=False, **msg)
     if broadcast:
