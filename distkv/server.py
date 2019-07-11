@@ -718,7 +718,7 @@ class ServerClient:
         msg['tick'] = 0
         msg.pop('tock', None)
         self.logger.warning("Fake Info SEND %s", pformat(msg))
-        await self._send_event("info", msg)
+        await self.server._send_event("info", msg)
 
     async def cmd_auth_get(self, msg):
         class AuthGet(SingleMixin, SCmd_auth_get):
