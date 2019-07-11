@@ -60,16 +60,19 @@ You can now kill the first server and restart it::
    one $ distkv server $(hostname)
    Running.
 
-You must **never** start a server with the ``-i`` option, unless you're
-creating a new and separate DistKV network. (You can create entirely
-separate networks by changing the ``server.root`` config variable.)
+You must **never** start a server with the ``-i`` option unless you're
+creating a new and separate DistKV network.
+
+You can create separate networks by changing the ``server.root`` config
+variable. Such networks do not collide with each other, other than sharing
+Serf gossip bandwidth.
 
 
 Data commands
 =============
 
 You might want to add an alias for "distkv client data" so that you don't
-have to type so much::
+have to type so much. In ``bash``::
 
    one $ dkd() { distkv client data "$@"; }
 
@@ -114,9 +117,10 @@ survive a power outage, you might want to tell your server to save them::
 
    one $ distkv client log dest /var/local/lib/distkv.$(date +%Y%m%d).state
 
-This command writes the current state to this file. The server keeps it
-open and appends new records to it. The ``log dest`` has options to either
-not start with a complete state dump, or to just write a one-shot dump.
+This command writes the current state to this file. The server keeps the
+file open and appends new records to it. The ``log dest`` has options to
+either write an incremental change record, or to just write a one-shot
+dump.
 
 When you need to restart your DistKV system from scratch, simply pass the
 newest saved state file::
@@ -124,10 +128,16 @@ newest saved state file::
     one $ distkv server -l $(ls -t /var/local/lib/distkv.*.state | head -1) $(hostname)
     Running.
 
-This command is somewhat safe to use on a network that's already running;
-your node may run with old state for a few seconds, until it retrieves the
-updates that happened while it was down. An option to delay startup until
-that process has completed is on the TODO list.
+Obviously, if your state dump files are incremental, you should instead do
+something like this::
+
+    one $ distkv server -l <(cat /var/local/lib/distkv.*.state) $(hostname)
+    Running.
+
+These commands are somewhat safe to use on a network that's already
+running; your node may run with old state for a few seconds until it
+retrieves the updates that happened while it was down. An option to delay
+startup until that process has completed is on the TODO list.
 
 In a typical DistKV network, at most two or three nodes will use persistent
 storage; all others simply syncs up with their peers whenever they are

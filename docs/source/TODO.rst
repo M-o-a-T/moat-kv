@@ -10,3 +10,6 @@ Open issues
 
 * ACLs for system data, i.e. those stored below ``None``.
 
+* after starting with initial data, wait until the Actor is up and we're
+  synced to the other nodes
+

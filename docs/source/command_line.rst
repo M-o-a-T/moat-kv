@@ -903,6 +903,93 @@ Execute the code stored in DistKV.
 XXX TODO XXX
 
 
+.. program:: distkv client internal
+
+Subcommand for viewing and modifying the internal state of a DistKV server.
+
+
+.. program:: distkv client internal state
+
+This command queries the internal state of a DistKV server.
+
+All lists of ``tick`` values are sorted and consist of either single
+entries, or ``[begin,end)`` tuples, i.e. the starting value is part of the
+range but the end is not.
+
+.. option:: -y, --yaml
+
+   Print the result of this operation as YAML data.
+
+.. option:: -n, --nodes
+
+   Add a list of known nodes and their current ``tick`` value.
+
+.. option:: -d, --deleted
+
+   Add a list of per-node deleted ``tick`` values, i.e. those whose entries
+   have been purged from the system.
+
+.. option:: -k, --known
+
+   Add a list of per-node known  ``tick`` values, i.e. those which have
+   been superseded by subsequent changes.
+
+.. option:: -m, --missing
+
+   Add a list of per-node missing ``tick`` values, i.e. those neither in
+   the ``known`` list nor seen in any entries' chains.
+
+.. option:: -r, --remote-missing
+
+   Add a list of per-node missing ``tick`` values that have been requested
+   from other servers.
+
+See `Server protocol <server_protocol>` for details.
+
+
+.. program:: distkv client internal mark
+
+Mark ticks as known or deleted. This is used to clean up the ``missing``
+range(s) when there's a consistency problem.
+
+.. option:: -d, --deleted
+
+   Add the nodes to the ``deleted`` list instead of the ``known`` list. The
+   effect is that if they subsequently re-surcace they'll be ignored.
+
+.. option:: -b, --broadcast
+
+   Send the changes to the whole network, not just the node you're a client
+   of. (The local node is still targeted first, to ensure that if your
+   message should crash the server at least it'll only crash one.)
+
+.. option:: <node>
+
+   The node whose ticks shall be used.
+
+.. option:: <item> …
+
+   The tick values you want to clear. Taken from the current ``missing``
+   list if not specified here; in this case, an empty ``node`` means to
+   take the whole list, not just the ones for ``node``.
+
+
+.. program:: distkv client internal deleter
+
+Manage the list of nodes that are used to manage cleaning deleted entries
+from the DistKV tree.
+
+.. option:: -d, --delete
+
+   Remove the mentioned nodes. Default is to add them
+
+.. option:: <node> …
+
+   Nodes to add or delete. If none are given, list the current state, or (with
+   ``--delete``) clear the list, disabling node deletion. (If you want to shut
+   that down temporarily, you can also add a nonexistent node to the list.)
+
+
 .. program:: distkv pdb
 
 This subcommand imports the debugger and then continues to process arguments.
@@ -914,4 +1001,5 @@ breakpoints, or whatever.
 
    Stepping over async function calls may or may not work. If not, your
    best bet is to set a breakpoint on the next line.
+
 

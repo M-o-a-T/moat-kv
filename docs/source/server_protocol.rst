@@ -18,12 +18,36 @@ make sense.
 Data types
 ++++++++++
 
-Chains
-++++++
+Node
+++++
+
+A node represents a server that has injected at least one data item into
+the DiskKV network. Each node has an associated "tick", which is the
+sequence number of the last change that this node injected into the
+network. An empty node starts with a counter of zero; the network's first
+node starts with 1.
+
+Entry
++++++
+
+An entry is some data stored in DistKV. The entry has a name, or (more
+correctly) a path, i.e. a sequence of names leading from the server's root
+to the entry. An entry can store one chunk of data, or it can be empty.
+
+Path members may be UTF-8 strings, byte strings, or numbers. The empty
+UTF-8 and byte strings are considered equivalent, any other values are not.
+If you want to use the DistKV command line to access data, you should limit
+yourself to UTF-8 strings.
+
+For ensuring consistency, each entry also has an associated chain, which
+documents which node(s) last changed that entry.
+
+Chain
++++++
 
 A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
 
-* ``node`` is the name of DistKV node that effected a change.
+* ``node`` is the node that effected a change.
   
 * ``tick`` is a node-specific counter which increments by one when any
   entry on that node is changed.
@@ -33,7 +57,7 @@ not been initialized yet. Such entries are only valid in ``ping`` chains.
 
 Chains are governed by three rules:
 
-* The latest change is at the front of the chain.
+* The most recent change is at the front of the chain.
 
 * Any node may only appear on the chain once, with the ``tick`` of the
   latest change by that node. If a node changes an entry again, the old
@@ -44,12 +68,9 @@ Chains are governed by three rules:
 * Their length is bounded. If a new entry causes the chain to grow too
   long, the oldest entry is removed.
 
-If an entry is removed from the chain, its ``node, tick`` value is stored
-in a per-node ``known`` list.
-
 Chains are typically represented by ``(node,tick,prev)`` maps, where
-``prev`` is either ``Null`` (the chain ends here), nonexistent (the chain
-was truncated here), or another chain triple (the previous change on a
+``prev`` is either ``None`` (the chain ends here), nonexistent (the chain
+was truncated here), or another chain triple (the last previous change on a
 different node).
 
 Ticks increment sequentially so that every node can verify that it
@@ -64,32 +85,75 @@ The default chain length should be two larger than the maximum of
 
 * the number of partitions a DistKV system might break up into,
   
-* the number of hosts within one partition that might change any single value.
+* the number of hosts within one partition that might change any single entry.
   Ideally, this number should be two: one for the host that does it as a
   matter of fact, e.g. a measurement system, and one for any manual intercession.
 
-ticks
-++++++
-
-All tick values are 63-bit unsigned integers. As this space requires 20 mio
-years to wrap around, assuming ten messages per millisecond (which is way
-above the capacity of a typical Serf network), this protocol does not
-specify what shall happen if this value overflows.
-
-Ranges
-++++++
-
-Tick ranges are used to signal known (or missing) messages. They are
-transmitted as sorted lists which contain either single elements or
-``[begin,end)`` pairs (that is, the ``begin`` value is part of the interval
-but ``end`` is not).
-
-Path
+tick
 ++++
 
-Every entry is associated with a path, i.e. a list of names leading to it.
-Names may be UTF-8 strings, byte strings, or numbers. The empty UTF-8 and
-byte strings are considered equivalent, any other values are not.
+Each node has an associated tick, which is a contiguous counter of changes
+by that node. Each value between one and a node's ``tick`` must be
+present either in exactly one entry's chain or in that node's ``known``
+range.
+
+Tick values are 63-bit unsigned integers. As this space requires 20 mio
+years to wrap around, assuming ten messages per millisecond (which is way
+above the capacity of a typical Serf network), the DistKV protocol does not
+specify what shall happen if this value overflows.
+
+tock
+++++
+
+The ``tock`` counter is a system-wide number that's incremented whenever
+something interesting happens on a node (most important: some entry is
+changed). All messages carry the current ``tock`` value; entries store the
+``tock`` from their last change. Whenever a DistKV server receives a
+message with a ``tock`` higher than its own, the local ``tock`` is set to
+the incoming message's ``tock`` value.
+
+The main purpose of this value is to establish rough temporal consistency
+(in the absence of network splits). Secondarily, when a split is healed, 
+their ``tock`` value resolves the resulting Actor conflict. (The tie
+breaker is the name of the current group leaders.)
+
+Coordination
+++++++++++++
+
+Nodes coordinate so that any housekeeping messages are transmitted by
+exactly one node instead of flooding the network. This is facilitated by
+the ``asyncserf.actor`` module.
+
+When a network split is healed, the Actor protocol notices. It then
+triggers ``info`` messages that retrieve any missed changes.
+
+Putting it all together
++++++++++++++++++++++++
+
+Each node has a tick counter that increments when you change anything; it's
+also broadcast periodically. Thus, each node notices when there's missing
+data and will send a message seeking the missing items.
+
+Each node is associated with a ``known`` range, which says "yes I have once
+seen this message, but it's been superseded since then, so that's OK".
+
+The entries' ``chain`` data ensures that stale data cannot overwrite more
+recent messages.
+
+Deletion of entries
++++++++++++++++++++
+
+The entries' change chains determine that no entry gets lost, but that
+mechanism depends on the entries themselves to exist. In a DistKV system
+that's highly dynamic, this is undesireable and would cause a lot of stale
+entries to accumulate. Removing these entries must be coordinated: if a
+removal is lost for any reason, the system cannot recover without manual
+intervention.
+
+Therefore, each node also carries a ``deleted`` list which marks entries
+that have been cleared. Deleted entries will only be cleared if all nodes
+that are on the internal "deleter" list are online.
+
 
 ++++++++++++
 Common items
