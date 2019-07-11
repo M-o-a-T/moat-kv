@@ -412,20 +412,16 @@ class SCmd_get_tree(StreamCommand):
 
         async def send_sub(entry, acl):
             if entry.data is NotGiven:
-                client.logger.debug("NoData %r", entry)
                 return
             res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
             if not acl.allows('r'):
-                client.logger.debug("NoACL %r", entry)
                 res.pop('value', None)
             ps(res)
             await self.send(**res)
 
             if not acl.allows('e'):
-                client.logger.debug("NoEnum %r",entry)
                 raise StopAsyncIteration
             if not acl.allows('x'):
-                client.logger.debug("NoACLTrav %r", entry)
                 acl.block('r')
 
         await entry.walk(send_sub, acl=acl, **kw)
@@ -1053,9 +1049,6 @@ class ServerClient:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
-            except TypeError:
-                import pdb;pdb.set_trace()
-                raise
             except anyio.exceptions.ClosedResourceError:
                 self.logger.error("Trying to send %d %r", self._client_nr, msg)
                 self._send_lock = None
@@ -1576,7 +1569,6 @@ class Server:
             avoid consistency problems on startup.
         """
         cmd = getattr(self, "user_" + action)
-        self.logger.debug("Listen %s", action)
         try:
             async with self.serf.stream(
                 "user:%s.%s" % (self.cfg.server.root, action)
@@ -1747,7 +1739,6 @@ class Server:
                 if isinstance(auth,str):
                     from .auth import gen_auth
                     cfg['auth'] = gen_auth(auth)
-                self.logger.debug("FetchSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
@@ -1760,7 +1751,6 @@ class Server:
                         path=(),
                     )
                     async for r in res:
-                        self.logger.debug("FetchSync: %r", r)
                         pl(r)
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
@@ -1768,7 +1758,6 @@ class Server:
                         await r.entry.apply(
                             r, server=self, root=self.paranoid_root
                         )
-                        self.logger.debug("FetchSync NEXT")
                     await self.tock_seen(res.end_msg.tock)
 
                     res = await client._request(
