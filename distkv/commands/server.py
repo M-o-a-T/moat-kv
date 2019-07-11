@@ -24,19 +24,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-@main.command(short_help="Start the DistKV server")
+@main.command(short_help="Run the DistKV server.")
 @click.option(
     "-h",
     "--host",
     default=None,
-    help="Address to bind to. Default: %s" % (CFG.server.serf.host),
+    help="Address to bind to. Default: %s" % (CFG.server.bind_default.host),
 )
 @click.option(
     "-p",
     "--port",
     type=int,
     default=None,
-    help="Port to bind to. Default: %d" % (CFG.server.serf.port,),
+    help="Port to bind to. Default: %d" % (CFG.server.bind_default.port,),
 )
 @click.option(
     "-l",

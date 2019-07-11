@@ -193,9 +193,3 @@ async def pdb(args):  # safe
         return
     return await main.main(args)
 
-@main.command()
-@click.pass_obj
-async def dumpcfg(obj):
-    """emit the current configuration as a YAML file."""
-    import yaml
-    yaml.safe_dump(obj.cfg, stream=sys.stdout)

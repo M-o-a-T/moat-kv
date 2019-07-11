@@ -12,7 +12,7 @@ from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
 from collections import defaultdict
-from pprint import pprint
+from pprint import pformat
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull, NullACL, ACLFinder
@@ -411,16 +411,20 @@ class SCmd_get_tree(StreamCommand):
 
         async def send_sub(entry, acl):
             if entry.data is NotGiven:
+                client.logger.debug("NoData %r", entry)
                 return
             res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
             if not acl.allows('r'):
+                client.logger.debug("NoACL %r", entry)
                 res.pop('value', None)
             ps(res)
             await self.send(**res)
 
             if not acl.allows('e'):
+                client.logger.debug("NoEnum %r",entry)
                 raise StopAsyncIteration
             if not acl.allows('x'):
+                client.logger.debug("NoACLTrav %r", entry)
                 acl.block('r')
 
         await entry.walk(send_sub, acl=acl, **kw)
@@ -701,6 +705,10 @@ class ServerClient:
         if self._dh_key is None:
             raise RuntimeError("The client has not executed DH key exchange")
         return self._dh_key
+
+    async def cmd_fake_info(self, msg):
+        self.logger.warning("Fake Info %s", pformat(msg))
+        await self.server.user_info(msg)
 
     async def cmd_auth_get(self, msg):
         class AuthGet(SingleMixin, SCmd_auth_get):
@@ -1035,6 +1043,9 @@ class ServerClient:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
+            except TypeError:
+                import pdb;pdb.set_trace()
+                raise
             except anyio.exceptions.ClosedResourceError:
                 self.logger.error("Trying to send %d %r", self._client_nr, msg)
                 self._send_lock = None
@@ -1224,7 +1235,7 @@ class Server:
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
         self.crypto_limiter = anyio.create_semaphore(3)
-        self.logger = logging.getLogger("distv.server." + name)
+        self.logger = logging.getLogger("distkv.server." + name)
         self._delete_also_nodes = NodeSet()
 
         self._evt_lock = anyio.create_lock()
@@ -1324,6 +1335,7 @@ class Server:
         if "tick" not in msg:
             msg["tick"] = self.node.tick
         omsg = msg
+        self.logger.debug("Send %s: %r", action, msg)
         msg = _packer(msg)
         await self.serf.event(self.cfg.server.root + "." + action, msg, coalesce=coalesce)
 
@@ -1333,6 +1345,7 @@ class Server:
         """
         async with Watcher(self.root) as watcher:
             async for msg in watcher:
+                self.logger.debug("Watch: %r", msg)
                 if msg.event.node != self.node:
                     continue
                 if self.node.tick is None:
@@ -1356,6 +1369,7 @@ class Server:
                 if isinstance(auth,str):
                     from .auth import gen_auth
                     cfg['auth'] = gen_auth(auth)
+                self.logger.debug("DelSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
                     nodes = NodeSet()
@@ -1524,7 +1538,10 @@ class Server:
 
         deleted = msg.get("deleted", None)
         if deleted is not None:
-            for n, r in deleted.items():
+            for n, k in deleted.items():
+                n = Node(n, cache=self._nodes)
+                r = RangeSet()
+                r.__setstate__(k)
                 n.report_deleted(r, self)
 
     async def _delete_also(self):
@@ -1548,6 +1565,7 @@ class Server:
             avoid consistency problems on startup.
         """
         cmd = getattr(self, "user_" + action)
+        self.logger.debug("Listen %s", action)
         try:
             async with self.serf.stream(
                 "user:%s.%s" % (self.cfg.server.root, action)
@@ -1559,6 +1577,7 @@ class Server:
                     msg = msgpack.unpackb(
                         resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
                     )
+                    self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
         except (CancelledError, SerfCancelledError):
@@ -1691,6 +1710,7 @@ class Server:
             if not len(msg):  # others already did the work, this time
                 continue
             msg = attrdict(missing=msg)
+            self.logger.warning("Missing data: %r", msg)
             await self._send_event("info", msg)
 
         self.logger.debug("send-missing ended")
@@ -1716,6 +1736,7 @@ class Server:
                 if isinstance(auth,str):
                     from .auth import gen_auth
                     cfg['auth'] = gen_auth(auth)
+                self.logger.debug("FetchSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
@@ -1728,6 +1749,7 @@ class Server:
                         path=(),
                     )
                     async for r in res:
+                        self.logger.debug("FetchSync: %r", r)
                         pl(r)
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
@@ -1735,6 +1757,7 @@ class Server:
                         await r.entry.apply(
                             r, server=self, root=self.paranoid_root
                         )
+                        self.logger.debug("FetchSync NEXT")
                     await self.tock_seen(res.end_msg.tock)
 
                     res = await client._request(
