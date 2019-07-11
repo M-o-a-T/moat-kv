@@ -65,7 +65,7 @@ CFG = attrdict(
         prefix=('.distkv','code','module'),
     ),
     anyrunner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=('.distkv','run-any'),  # storage location
+        prefix=('.distkv','run','any'),  # storage location
         state=('.distkv','state','any'),  # for distkv.runner.SingleRunnerRoot
         name="run-any",  # Serf event name, must be unique
         start_delay=1,  # time to wait between job starts. Not optional.
@@ -76,7 +76,7 @@ CFG = attrdict(
         ),
     ),
     singlerunner=attrdict(
-        prefix=('.distkv','run-at'),  # for distkv.runner.SingleRunnerRoot
+        prefix=('.distkv','run','at'),  # for distkv.runner.SingleRunnerRoot
         state=('.distkv','state','at'),  # for distkv.runner.SingleRunnerRoot
         start_delay=1,  # optional
         name="run-at",  # Serf event name, must be unique
