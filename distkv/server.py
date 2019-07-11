@@ -2102,8 +2102,8 @@ class Server:
                         cnt = 0
 
                     try:
-                        with anyio.fail_after(1 if cnt else 60-td):
-                            msg = updates.__anext__()
+                        async with anyio.fail_after(1 if cnt else 60-td):
+                            msg = await updates.__anext__()
                     except TimeoutError:
                         await mw.flush()
                         cnt = 0
