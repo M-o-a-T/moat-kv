@@ -115,7 +115,10 @@ async def deleter(obj, delete, nodes, yaml):
     )
     val = set(res.get('value', []))
     if delete:
-        val -= set(nodes)
+        if nodes:
+            val -= set(nodes)
+        else:
+            val = set()
     elif nodes:
         val |= set(nodes)
     else:
