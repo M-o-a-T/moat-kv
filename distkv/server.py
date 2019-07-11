@@ -707,8 +707,17 @@ class ServerClient:
         return self._dh_key
 
     async def cmd_fake_info(self, msg):
-        self.logger.warning("Fake Info %s", pformat(msg))
+        msg['node'] = ''
+        msg['tick'] = 0
+        self.logger.warning("Fake Info LOCAL %s", pformat(msg))
         await self.server.user_info(msg)
+
+    async def cmd_fake_info_send(self, msg):
+        msg['node'] = ''
+        msg['tick'] = 0
+        msg.pop('tock', None)
+        self.logger.warning("Fake Info SEND %s", pformat(msg))
+        await self._send_event("info", msg)
 
     async def cmd_auth_get(self, msg):
         class AuthGet(SingleMixin, SCmd_auth_get):

@@ -64,10 +64,11 @@ async def state(obj, yaml, **flags):
 @click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-n", "--node", "source", default='?', help="The node this message is faked as being from.")
+@click.option("-b", "-broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
 @click.argument("items", type=int, nargs=-1)
 @click.pass_obj
-async def mark(obj, deleted, source, node, items, yaml):
+async def mark(obj, deleted, source, node, items, yaml, broadcast):
     """
     Fix internal state.
 
@@ -80,7 +81,7 @@ async def mark(obj, deleted, source, node, items, yaml):
     k = "deleted" if deleted else "known"
     msg = {k: {node: r.__getstate__()}, "node":source}
 
-    await obj.client._request("fake_info", iter=False, **msg)
+    await obj.client._request("fake_info_send" if broadcast else "fake_info", iter=False, **msg)
 
     res = await obj.client._request("get_state", iter=False, **{k: True})
     if yaml:
