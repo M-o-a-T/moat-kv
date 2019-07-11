@@ -93,3 +93,51 @@ async def mark(obj, deleted, source, node, items, yaml, broadcast):
 
 
 
+@cli.command()
+@click.option("-d", "--delete", is_flag=True, help="Remove these nodes")
+@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
+@click.argument("nodes", nargs=-1)
+@click.pass_obj
+async def deleter(obj, delete, nodes, yaml):
+    """
+    Manage the Deleter list, which is the set of nodes that must be online
+    for entry removal to happen.
+
+    There should be one such node in every possible network partition.
+    Also, all nodes with permanent storage should be on the list.
+    """
+
+    res = await obj.client._request(
+        action="get_internal",
+        path=("del",),
+        iter=False,
+        nchain=3 if delete or nodes else 2,
+    )
+    val = set(res.get('value', []))
+    if delete:
+        val -= set(nodes)
+    elif nodes:
+        val |= set(nodes)
+    else:
+        if yaml:
+            import yaml
+            print(yaml.safe_dump(res, default_flow_style=False))
+        else:
+            pprint(res)
+        return
+
+    val = list(val)
+    res = await obj.client._request(
+        action="set_internal",
+        path=("del",),
+        iter=False,
+        chain=res.chain,
+        value=val
+    )
+    res.value = val
+    if yaml:
+        import yaml
+        print(yaml.safe_dump(res, default_flow_style=False))
+    else:
+        pprint(res)
+
