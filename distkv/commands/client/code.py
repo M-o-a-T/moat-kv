@@ -77,7 +77,7 @@ async def get(obj, path, yaml, verbose, script):
     is_flag=True,
     help="Print the complete result. Default: just the value",
 )
-@click.option("-a", "--async", is_flag=True, help="The code is async")
+@click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the code"
@@ -92,13 +92,11 @@ async def get(obj, path, yaml, verbose, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, thread, verbose, script, yaml, **kw):
+async def set(obj, path, chain, thread, verbose, script, yaml, async_):
     """Save Python code."""
-    if kw.get('async', False):
+    if async_:
         if thread:
             raise click.UsageError("You can't specify both '--async' and '--thread'.")
-        else:
-            async_ = True
     else:
         if thread:
             async_ = False
