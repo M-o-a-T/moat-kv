@@ -1827,7 +1827,7 @@ class Server:
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.report_deleted(r, add=add)
+            nn.report_deleted(r, self)
 
         # remote_missing: per-node range of ticks that should be re-sent
         # This is used when loading data from a state file
