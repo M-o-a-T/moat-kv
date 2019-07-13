@@ -204,6 +204,7 @@ class Node:
         # Mark as deleted. The system will flush them later.
         self._deleted += r
         self._known += r
+        self._reported -= r
 
     @property
     def local_known(self):
