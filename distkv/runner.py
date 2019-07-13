@@ -8,7 +8,6 @@ import anyio
 from weakref import ref
 from asyncserf.actor import Actor, NodeList
 from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
-from time import monotonic as time
 from copy import deepcopy
 import psutil
 import time
@@ -65,11 +64,12 @@ class RunnerEntry(AttrClientEntry):
     Messages are defined in :mod:`distkv.actor`.
     """
 
-    ATTRS = "code data delay repeat target".split()
+    ATTRS = "code data delay repeat backoff target".split()
 
     delay = 100  # timedelta, before restarting
     repeat = 0
     target = 0
+    backoff = 1.4
 
     code = None  # what to execute
     data = None
@@ -99,6 +99,7 @@ class RunnerEntry(AttrClientEntry):
 
         state = self.state
         try:
+            self._running = True
             try:
                 if state.node is not None:
                     raise RuntimeError("already running on %s", state.node)
@@ -113,12 +114,13 @@ class RunnerEntry(AttrClientEntry):
                 data["_client"] = self.root.client
 
                 state.started = time.time()
-                state.node = self.root.name
+                state.node = state.root.name
 
                 await state.save(wait=True)
-                if state.node != self.root.name:
-                    raise RuntimeError("Rudely taken away from us.", state.node, self.root.name)
+                if state.node != state.root.name:
+                    raise RuntimeError("Rudely taken away from us.", state.node, state.root.name)
 
+                logger.debug("Start %r with %r",self._path,self.code)
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
                     res = code(**data)
@@ -126,32 +128,36 @@ class RunnerEntry(AttrClientEntry):
                         res = await res
                     await sc.cancel()
             finally:
+                logger.debug("End %r",self._path)
                 self.scope = None
                 self._q = None
                 t = time.time()
 
         except BaseException as exc:
             c, self._comment = self._comment, None
-            await self.root.err.record_exc(
-                "run", *self._path, exc=exc, data=data, comment=c
-            )
+            async with anyio.move_on_after(2, shield=True):
+                await self.root.err.record_error(
+                    "run", *self._path, message="Exception", exc=exc, data=data, comment=c
+                )
             state.backoff += 1
-            if state.node == self.root.name:
-                state.node = None
         else:
             state.result = res
-            self.backoff = 0
-            state.node = None
+            state.backoff = 0
+            await self.root.err.record_working("run", *self._path)
         finally:
+            if state.node == state.root.name:
+                state.node = None
+            self._running = False
             state.stopped = t
             if state.backoff > 0:
-                self.retry = t + (1 << state.backoff) * self.delay
+                self.retry = t + (self.backoff ** state.backoff) * self.delay
             else:
                 self.retry = None
-            try:
-                await self.save()
-            except ServerError:
-                logger.exception("Could not save")
+            async with anyio.move_on_after(2, shield=True):
+                try:
+                    await state.save()
+                except ServerError:
+                    logger.exception("Could not save")
 
     async def send_event(self, evt):
         if self._q is not None:
@@ -172,12 +178,14 @@ class RunnerEntry(AttrClientEntry):
         await super().set_value(val)
 
         # Check whether running code needs to be killed off
-        if self.scope is None:
-            return
-        if c != self.code:
-            # The code changed.
-            self._comment = "Cancel: Code changed"
-            await self.scope.cancel()
+        if self.scope is not None:
+            if val is NotGiven or c != self.code:
+                # The code changed.
+                self._comment = "Cancel: Code changed"
+                await self.scope.cancel()
+            elif not getattr(self,'target', None):
+                self._comment = "Cancel: target zeroed"
+                await self.scope.cancel()
 
         await self.root.trigger_rescan()
 
@@ -190,7 +198,7 @@ class RunnerEntry(AttrClientEntry):
             await self.save(wait=True)
 
 
-    def should_start(self, t=None):
+    def should_start(self, t):
         """Tell whether this job might want to be started.
 
         Returns:
@@ -205,17 +213,18 @@ class RunnerEntry(AttrClientEntry):
             return False
         if state.node is not None:
             return False
-        if t is None:
-            t = time.time()
+        assert not state.started or state.stopped
 
-        if self.target > state.started:
-            return self.target - t
+        if self.target > t:
+            return self.target
         elif state.backoff:
-            return state.stopped + state.delay * (1 << state.backoff) - t
+            return state.stopped + self.delay * (self.backoff ** state.backoff)
         elif self.repeat:
             return state.stopped + self.repeat
-        else:
+        elif self.started:
             return False
+        else:
+            return 0
 
     def __hash__(self):
         return hash(self.subpath)
@@ -236,6 +245,8 @@ class RunnerEntry(AttrClientEntry):
 class RunnerNode:
     """
     Represents all nodes in this runner group.
+
+    This is used for load balancing and such. TODO.
     """
 
     seen = 0
@@ -279,18 +290,48 @@ class StateEntry(AttrClientEntry):
     def runner(self):
         return self.root.runner.follow(*self.subpath, create=False)
 
+    async def startup(self):
+        try:
+            run = self.runner
+        except KeyError:
+            # The code entry doesn't exist any more.
+            await self.delete()
+            return
+        
+        if self.node is None or self.node != self.root.name:
+            return
+
+        self.stopped = time.time()
+        self.node = None
+        self.backoff += 1
+        await self.root.runner.err.record_error("run", *self.runner._path, message="Runner restarted")
+        await self.save()
+
+    async def stale(self):
+        self.stopped = time.time()
+        self.node = None
+        self.backoff += 2
+        await self.root.runner.err.record_error("run", *self.runner._path, client_name=self.node, message="Runner {node} {state}", data={'node': self.node, 'state': "offline" if self.stopped else "stale"})
+        await self.save()
+
     async def set_value(self, value):
         n = self.node
-        run = self.runner
+
         await super().set_value(value)
+        if not self.root.runner.ready:
+            return
+        try:
+            run = self.runner
+        except KeyError:
+            return
 
         # Check whether running code needs to be killed off
         if run.scope is None:
             return
-        if self.node == n:
+        if self.node is not None and self.node == n:
             # Nothing changed.
             return
-        elif n == self.root.name:
+        elif self.node is None or n == self.root.runner.name:
             # Owch. Our job got taken away from us.
             self._comment = "Cancel: Node set to %r" % (self.node,)
             await run.scope.cancel()
@@ -318,12 +359,25 @@ class StateRoot(ClientRoot):
         return StateEntry
 
     @property
+    def name(self):
+        return self.client.client_name
+
+    @property
     def runner(self):
         return self._runner()
 
     def set_runner(self, runner):
         self._runner = ref(runner)
 
+    async def runner_running(self):
+        for n in self.all_children:
+            await n.startup()
+
+    async def kill_stale_nodes(self, names):
+        """States with node names in the "names" set are stale. Kill them."""
+        for s in self.all_children:
+            if s.node in names:
+                await s.stale()
 
 class _BaseRunnerRoot(ClientRoot):
     """common code for AnyRunnerRoot and SingleRunnerRoot"""
@@ -334,6 +388,7 @@ class _BaseRunnerRoot(ClientRoot):
     err = None
     code = None
     this_root = None
+    ready = False
 
     def __init__(self, *a, err=None, code=None, **kw):
         super().__init__(*a, **kw)
@@ -366,10 +421,24 @@ class _BaseRunnerRoot(ClientRoot):
     @property
     def name(self):
         """my node name"""
-        return self._name
+        return self.client.client_name
+
+    def get_node(self, name):
+        """
+        If the runner keeps track of "foreign" nodes, allocate them
+        """
+        return None
 
     async def running(self):
         await self._tg.spawn(self._run_actor)
+
+        # the next block needs to be atomic
+        for n in self.this_root.all_children:
+            print(n)
+        self.ready = True
+
+        await self.state.runner_running()
+        await super().running()
 
     async def _run_actor(self):
         raise RuntimeError("You want to override me.""")
@@ -388,10 +457,12 @@ class _BaseRunnerRoot(ClientRoot):
                 self._trigger = anyio.create_event()
                 d_next = 99999
 
+                t = time.time()
                 for j in self.this_root.all_children:
-                    d = j.should_start()
+                    d = j.should_start(t)
                     if d is False:
                         continue
+                    d -= t
                     if d <= 0:
                         await self.tg.spawn(j.run)
                         await anyio.sleep(self._start_delay)
@@ -409,17 +480,14 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
     CFG = "anyrunner"
 
+    _stale_times = None
+
     @classmethod
     def child_type(cls, name):
         return RunnerEntry
 
     def get_node(self, name):
         return RunnerNode(self, name)
-
-    @property
-    def name(self):
-        """my node name"""
-        return self._name
 
     @property
     def max_age(self):
@@ -445,6 +513,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                 self.seen_load = None
 
                 async for msg in act:
+                    logger.debug("Actor %r",msg)
                     if isinstance(msg, PingEvent):
                         await act.set_value(
                             100 - psutil.cpu_percent(interval=None)
@@ -479,19 +548,41 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                         # TODO if this is a DetagEvent, kill everything?
                 pass # end of actor task
 
+    async def find_stale_nodes(self, cur):
+        """
+        Find stale nodes (i.e. last seen < cur) and clean them.
+        """
+        if self._stale_times is None:
+            self._stale_times = []
+        self._stale_times.append(cur)
+        if self._stale_times[0] > cur-self.max_age:
+            return
+        if len(self._stale_times) < 5:
+            return
+        cut = self._stale_times.pop(0)
+        
+        dropped = []
+        for node in self._nodes.values():
+            if node.seen < cut:
+                dropped.append(node)
+        names = set()
+        for node_ in dropped:
+            names.add(node.name)
+            del self._nodes[node.name]
+        if names:
+            await self.state.kill_stale_nodes(names)
 
     async def _age_killer(self):
         t1 = time.time()
         while self._age_q is not None:
+            await self.find_stale_nodes(t1)
             async with anyio.move_on_after(self.max_age) as sc:
-                logger.debug("T1 %f", self.max_age)
                 await self._age_q.get()
                 t1 = time.time()
                 continue
             t2 = time.time()
             if t1 + self.max_age < t2:
-                logger.debug("T3")
-                raise NotSelected(self.max_age, t, time.time())
+                raise NotSelected(self.max_age, t2, t1)
             t1 = t2
 
     async def _cleanup_nodes(self):
@@ -587,6 +678,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                 await n.send_event(ac)
 
     async def run_starting(self):
+        """Hook to set the local root"""
         self.this_root = self.get(self.name)
         await super().run_starting()
 
