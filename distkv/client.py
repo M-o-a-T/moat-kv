@@ -12,6 +12,7 @@ import weakref
 import heapq
 import random
 from functools import partial
+import socket
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
@@ -905,9 +906,11 @@ class Client:
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
-            stream = await ex.enter_async_context(
-                await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
-            )
+            try:
+                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
+            except socket.gaierror:
+                raise ServerConnectionError(host, port)
+            stream = await ex.enter_async_context(ctx)
 
             if ssl:
                 await stream.start_tls()
