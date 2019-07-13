@@ -2034,7 +2034,6 @@ class Server:
                             k.add(t)
                 if k:
                     known[n.name] = k.__getstate__()
-                assert not (n.remote_missing & n.local_known)
 
                 d = n.remote_missing & n.local_deleted
                 if d:
