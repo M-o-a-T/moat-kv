@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 import anyio
+try:
+    from trio import BrokenResourceError as trioBrokenResourceError
+except ImportError:
+    class trioBrokenResourceError(Exception):
+        pass
 from async_generator import asynccontextmanager
 import msgpack
 import asyncserf
@@ -1048,7 +1053,7 @@ class ServerClient:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(_packer(msg))
-            except anyio.exceptions.ClosedResourceError:
+            except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
                 self.logger.error("Trying to send %d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
@@ -1133,12 +1138,11 @@ class ServerClient:
                 except (
                     ConnectionResetError,
                     anyio.exceptions.ClosedResourceError,
-                    #trio.BrokenResourceError,
+                    trioBrokenResourceError,
                 ):
-                    return  # closed/reset/whatever
+                    raise anyio.exceptions.ClosedResourceError from None
                 if len(buf) == 0:  # Connection was closed.
-                    return  # done
-                # self.logger.debug("FEED %r",buf)
+                    raise anyio.exceptions.ClosedResourceError from None
                 unpacker.feed(buf)
 
 
