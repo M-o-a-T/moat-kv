@@ -871,11 +871,10 @@ class ServerClient:
             if msg.chain is None:
                 if entry.data is not NotGiven:
                     raise ClientError("This entry already exists")
-            elif entry.data is not NotGiven:
-                if entry.chain != msg.chain:
-                    raise ClientError("Chain is %s" % (repr(entry.chain),))
-            else:
+            elif entry.data is NotGiven:
                 raise ClientError("This entry is new")
+            elif entry.chain != msg.chain:
+                raise ClientError("Chain is %s" % (repr(entry.chain),))
             send_prev = False
 
         res = attrdict()

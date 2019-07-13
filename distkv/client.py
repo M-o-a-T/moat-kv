@@ -178,11 +178,21 @@ class ClientEntry:
         elif hasattr(self, "value"):
             del self.value
 
+    def mark_inconsistent(self, r):
+        """There has been an inconsistent update.
+
+        This call will immediately be followed by a call to
+        :meth:`set_value`, thus it is not async.
+
+        The default action is to do nothing.
+        """
+        pass
+
 
 def _node_gt(self, other):
-    if other is None:
+    if other is None and self is not None:
         return True
-    if self == other:
+    if self is None or self == other:
         return False
     while self["node"] != other["node"]:
         self = self["prev"]
@@ -372,11 +382,15 @@ class ClientRoot(ClientEntry):
                         pl(r)
                         entry = self.follow(*r.path, create=True, unsafe=True)
                         try:
-                            assert _node_gt(r.chain, entry.chain)
+                            if entry.chain == r.chain or _node_gt(entry.chain, r.chain):
+                                continue
+                            if not _node_gt(r.chain, entry.chain):
+                                await entry.mark_inconsistent(r)
                         except AttributeError:
                             pass
-                        await entry.set_value(r.get("value", NotGiven))
-                        entry.chain = r.get("chain", None)
+                        val = r.get("value", NotGiven)
+                        await entry.set_value(val)
+                        entry.chain = None if val is NotGiven else r.get("chain", None)
 
                         if not self._need_wait or "chain" not in r:
                             continue
