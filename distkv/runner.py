@@ -396,6 +396,7 @@ class _BaseRunnerRoot(ClientRoot):
         self.err = err
         self.code = code
         self._nodes = {}
+        self._trigger = anyio.create_event()
 
     async def run_starting(self):
         from .errors import ErrorRoot
@@ -451,7 +452,6 @@ class _BaseRunnerRoot(ClientRoot):
 
     async def _run_now(self, evt = None):
         t_next = self._run_next
-        self._trigger = anyio.create_event()
         async with anyio.open_cancel_scope() as sc:
             self._run_now_task = sc
             if evt is not None:
@@ -461,7 +461,7 @@ class _BaseRunnerRoot(ClientRoot):
                 if t_next > t:
                     async with anyio.move_on_after(t_next - t):
                         await self._trigger.wait()
-                    self._trigger = anyio.create_event()
+                        self._trigger = anyio.create_event()
 
                 t = time.time()
                 t_next = t+99999
