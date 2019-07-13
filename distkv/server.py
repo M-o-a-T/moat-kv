@@ -24,7 +24,7 @@ from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull, NullACL, ACLFinder
 from .actor.deletor import DeleteActor
 from .default import CFG
-from .codec import packer, unpacker
+from .codec import packer, unpacker, stream_unpacker
 from .util import (
     attrdict,
     PathShortener,
@@ -1068,9 +1068,7 @@ class ServerClient:
 
     async def run(self):
         """Main loop for this client connection."""
-        unpacker = msgpack.Unpacker(
-            object_pairs_hook=attrdict, raw=False, use_list=False
-        )
+        unpacker = stream_unpacker()
 
         async with anyio.create_task_group() as tg:
             self.tg = tg
