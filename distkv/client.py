@@ -778,7 +778,7 @@ class Client:
         Any other keywords are forwarded to the server.
         """
         if self._handlers is None:
-            raise anyio.ClosedResourceError()
+            raise anyio.exceptions.ClosedResourceError()
         if seq is None:
             act = "action"
             self._seq += 1
