@@ -81,7 +81,7 @@ class Node:
         return self.entries.get(item, default)
 
     def __contains__(self, item):
-        return item in self.entries or item in self._known
+        return item in self.entries
 
     def __repr__(self):
         return "<%s: %s @%s>" % (self.__class__.__name__, self.name, self.tick)
