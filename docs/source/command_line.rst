@@ -836,7 +836,6 @@ Dump an ACL's content.
    The path to start dumping at. Default: the root.
 
 
-
 .. program:: distkv client code
 
 Manipulate code stored in DistKV.
@@ -844,8 +843,101 @@ Manipulate code stored in DistKV.
 
 .. program:: distkv client code get
 
+Retrieve Python code stored in the server.
+
+.. option:: -y, --yaml
+
+   Use YAML output
+
+.. option:: -v, --verbose
+
+   Include metadata
+
+.. option:: -s, --script <filename>
+
+   Save the code to <filename> instead of including it in the output
+
+.. option:: <path> …
+
+   Path to the code in question.
+
 
 .. program:: distkv client code set
+
+Store or replace Python code stored in the server.
+
+This code will not run in the server; the purpose of these calls is to
+upload code for use by client runners.
+
+.. option:: -y, --yaml
+
+   Read the script file as YAML data.
+
+   This will be the default soon, except for the schema file.
+
+.. option:: -v, --verbose
+
+   Print (some of) the server's return value.
+
+.. option:: -s, --script <filename>
+
+   Load the code from this file. Default: Use stdin.
+
+.. option:: -a, --async
+
+   The code will run asynchronously, i.e. it may use ``async`` and ``await`` statements.
+
+   You should only use the ``anyio`` module for sleeping, locking etc. unless
+   you *know* which async runtime is in use.
+
+.. option:: -t, --thread
+
+   The code will run in a worker thread.
+
+   This option is incompatible with ``--async``.
+
+.. option:: name…
+
+   The path to the code to set, below ``.distkv code proc`` or whatever
+   else is configured under ``codes``.
+
+TODO: Old versions of the code continue to run; DistKV does not yet restart users.
+
+
+.. program:: distkv client code module
+
+Manipulate modules stored in DistKV.
+
+Modules are replaced immediately, but code using them is **not**
+auto-restarted.
+
+This code is experimental and frankly just plain wrong: Module loading is
+not deferred until "import" time. This code needs sever refactoring. For now, please store modules
+in the file system.
+
+
+.. program:: distkv client code module get
+
+Retrieve Python module stored in the server.
+
+.. option:: -y, --yaml
+
+   Use YAML output
+
+.. option:: -v, --verbose
+
+   Include metadata.
+
+.. option:: -s, --script <filename>
+
+   Save the code to <filename> instead of including it in the output
+
+.. option:: <path> …
+
+   Path to the code in question.
+
+
+.. program:: distkv client code module set
 
 Store or replace Python code stored in the server.
 
@@ -884,23 +976,49 @@ upload code for use by client-side runners.
    The path to the code to set, below ``.distkv code proc`` or whatever
    else is configured under ``codes``.
 
-Old versions of the code continue to run; DistKV does not yet restart users.
-XXX TODO
+TODO: Old versions of the code continue to run; DistKV does not yet restart users.
 
-
-.. program:: distkv client code module
-
-Manipulate modules stored in DistKV.
-
-Modules are replaced immediately, but code using them is **not**
-auto-restarted.
 
 
 .. program:: distkv client run
 
-Execute the code stored in DistKV.
+Subcommand for controlling and executing code stored in DistKV.
 
-XXX TODO XXX
+.. option:: -n, --node <node>
+
+   The node where the code in question might run.
+
+   Not using this option means that the code in question may run on any
+   node.
+
+
+.. program:: distkv client run all
+
+This is the actual runner, i.e. the program that runs stored tasks.
+
+This program does not terminate.
+
+
+.. program:: distkv client run list
+
+List available run entries.
+
+.. option:: -y, --yaml
+
+   More verbose listing, yaml-formatted.
+
+.. option:: <prefix> …
+
+Limit listing to this prefix.
+
+
+.. program:: distkv client run get
+
+Read a runner entry.
+
+.. option:: -n, --node <node>
+
+   The node where the code in question might run.
 
 
 .. program:: distkv client internal

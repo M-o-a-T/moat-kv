@@ -269,3 +269,19 @@ Code execution
 
 DistKV doesn't just store passive data: you can also use it to distribute
 actual computing. We'll demonstrate that here.
+
+First we feed some interesting code into DtstKV::
+
+    one $ dkv code set the answer <<END
+    > print("Forty-Two!")
+    > return 42
+    > END
+
+Then we set up a one-shot run-anywhere instance::
+
+   one $ dkv run set -c "the answer" -t now a question
+
+This doesn't actually execute any code because the executor is not part of
+the DistKV server. (The server may gain an option to do that too, but
+not yet.)
+
