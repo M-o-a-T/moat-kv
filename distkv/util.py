@@ -331,17 +331,19 @@ class MsgWriter(_MsgRW):
             await super().__aexit__(*tb)
 
     async def __call__(self, msg):
-        """Write a message (bytes) to the buffer."""
+        """Write a message (bytes) to the buffer.
+        
+        Flushing writes a multiple of ``buflen`` bytes."""
         msg = packer(msg)
         self.buf.append(msg)
         self.curlen += len(msg)
-        if self.curlen >= self.buflen - self.excess:
+        if self.curlen + self.excess >= self.buflen:
             buf = b"".join(self.buf)
-            pos = self.buflen * int(self.curlen / self.buflen) - self.excess
+            pos = self.buflen * int((self.curlen + self.excess) / self.buflen)
             assert pos > 0
             wb, buf = buf[:pos], buf[pos:]
-            self.buf = [buf]
             self.curlen = len(buf)
+            self.buf = [buf]
             self.excess = 0
             await self.stream.write(wb)
 
