@@ -49,13 +49,13 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(name=None, **cfg):
+async def open_client(**cfg):
     """
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the Serf connection should fail.
     """
-    client = Client(name, cfg)
+    client = Client(cfg)
     async with anyio.create_task_group() as tg:
         async with client._connected(tg) as client:
             yield client
@@ -609,16 +609,17 @@ class Client:
     _dh_key = None
     exit_stack = None
 
-    def __init__(self, name: str, cfg: dict):
+    server_name = None
+    client_name = None
+
+    def __init__(self, cfg: dict):
         self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
 
         self._seq = 0
         self._handlers = {}
         self._send_lock = anyio.create_lock()
         self._helpers = {}
-        if name is None:
-            name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
-        self._name = name
+        self._name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
 
     @property
     def name(self):
@@ -902,6 +903,8 @@ class Client:
                 await self.tg.spawn(self._reader)
                 async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
+                    self.server_name = self._server_init.node
+                    self.client_name = self._cfg['name'] or self.server_name
                     await self._run_auth(auth)
                 yield self
             except socket.error as e:

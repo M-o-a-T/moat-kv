@@ -54,6 +54,8 @@ CFG = attrdict(
         # ssl=attrdict(cert='/path/to/cert.pem',key='/path/to/cert.key'),
         init_timeout=5,  # time to wait for connection plus greeting
         auth=None,  # no auth used
+
+        name=None,  # defaults to the server's name
     ),
     errors=attrdict(
         prefix=('.distkv','error'),
