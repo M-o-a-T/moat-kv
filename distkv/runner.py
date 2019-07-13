@@ -198,7 +198,7 @@ class RunnerEntry(AttrClientEntry):
             await self.save(wait=True)
 
 
-    def should_start(self, t):
+    def should_start(self):
         """Tell whether this job might want to be started.
 
         Returns:
@@ -215,7 +215,7 @@ class RunnerEntry(AttrClientEntry):
             return False
         assert not state.started or state.stopped
 
-        if self.target > t:
+        if self.target > state.started:
             return self.target
         elif state.backoff:
             return state.stopped + self.delay * (self.backoff ** state.backoff)
@@ -389,6 +389,7 @@ class _BaseRunnerRoot(ClientRoot):
     code = None
     this_root = None
     ready = False
+    _run_next = 0
 
     def __init__(self, *a, err=None, code=None, **kw):
         super().__init__(*a, **kw)
@@ -449,28 +450,30 @@ class _BaseRunnerRoot(ClientRoot):
             await self._trigger.set()
 
     async def _run_now(self, evt = None):
-        async with anyio.create_task_group() as tg:
-            self._run_now_task = tg.cancel_scope
+        t_next = self._run_next
+        self._trigger = anyio.create_event()
+        async with anyio.open_cancel_scope() as sc:
+            self._run_now_task = sc
             if evt is not None:
                 await evt.set()
+            t = time.time()
             while True:
-                self._trigger = anyio.create_event()
-                d_next = 99999
+                if t_next > t:
+                    async with anyio.move_on_after(t_next - t):
+                        await self._trigger.wait()
+                    self._trigger = anyio.create_event()
 
                 t = time.time()
+                t_next = t+99999
                 for j in self.this_root.all_children:
-                    d = j.should_start(t)
+                    d = j.should_start()
                     if d is False:
                         continue
-                    d -= t
-                    if d <= 0:
+                    if d <= t:
                         await self.tg.spawn(j.run)
                         await anyio.sleep(self._start_delay)
-                    elif d_next > d:
-                        d_next = d
-
-                async with anyio.move_on_after(d_next):
-                    await self._trigger.wait()
+                    elif t_next > d:
+                        t_next = d
 
 class AnyRunnerRoot(_BaseRunnerRoot):
     """
