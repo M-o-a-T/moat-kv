@@ -146,19 +146,22 @@ async def get(obj, name, path, yaml, verbose):
     help="Print the complete result. Default: just the value",
 )
 @click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
-@click.option("-a", "--acl", help="The value to set. Start with '+' to add, '-' to remove rights.")
+@click.option("-a", "--acl", default="+x", help="The value to set. Start with '+' to add, '-' to remove rights.")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def set_(obj, acl, name, path, verbose, yaml):
     """Set or change an ACL."""
+    if yaml:
+        import yaml
+
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if acl[0] in "+-":
+    if len(acl) == 1 and acl in "+-":
         mode = acl[0]
         acl = acl[1:]
     else:
-        mode = "r"
+        mode = "x"
     acl = set(acl)
 
     if acl - ACL:
@@ -189,7 +192,7 @@ async def set_(obj, acl, name, path, verbose, yaml):
         elif mode == '-':
             v = ov-acl
         else:
-            v=acl
+            v = acl
         res = await obj.client._request(
             action="set_internal",
             path=("acl", name) + path,
