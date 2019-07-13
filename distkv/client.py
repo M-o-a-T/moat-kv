@@ -94,13 +94,14 @@ class ClientEntry:
 
     @property
     def all_children(self):
-        """Iterate all child nodes.
+        """Iterate all child nodes with data.
         You can send ``True`` to the iterator if you want to skip a subtree.
         """
         for k in self:
-            res = (yield k)
-            if res is True:
-                continue
+            if hasattr(k, 'value'):
+                res = (yield k)
+                if res is True:
+                    continue
             yield from iter(k)
 
     def get(self, name):
