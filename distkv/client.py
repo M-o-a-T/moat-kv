@@ -103,7 +103,7 @@ class ClientEntry:
                 res = (yield k)
                 if res is True:
                     continue
-            yield from iter(k)
+            yield from k.all_children
 
     def get(self, name):
         """
