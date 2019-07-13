@@ -165,7 +165,7 @@ class StreamCommand:
                     await self.send(**res)
             except Exception as exc:
                 if not isinstance(exc, SerfCancelledError):
-                    self.client.logger.exception("ERS%d: %r", self.seq, self.msg)
+                    self.client.logger.exception("ERS%d %r", self.client._client_nr, self.msg)
                 await self.send(error=repr(exc))
             finally:
                 await self.send(state="end")
@@ -1045,7 +1045,7 @@ class ServerClient:
         return await self.cmd_set_value(msg, _nulls_ok=True)
 
     async def send(self, msg):
-        self.logger.debug("OUT%d: %s", self._client_nr, msg)
+        self.logger.debug("OUT%d %s", self._client_nr, msg)
         if self._send_lock is None:
             return
         async with self._send_lock:
@@ -1057,7 +1057,7 @@ class ServerClient:
             try:
                 await self.stream.send_all(_packer(msg))
             except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
-                self.logger.error("Trying to send %d %r", self._client_nr, msg)
+                self.logger.error("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
 
@@ -1109,7 +1109,7 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        # self.logger.debug("IN %d: %s", self._client_nr, msg)
+                        self.logger.debug("IN %d %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -2349,6 +2349,8 @@ class Server:
             c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
+        except anyio.exceptions.ClosedResourceError:
+            self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             if isinstance(exc, anyio.exceptions.ExceptionGroup):
                 exc = exc.filter(anyio.get_cancelled_exc_class())
