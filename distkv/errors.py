@@ -36,10 +36,6 @@ Each error is stored as a record with these arguments:
 
   The timestamp (unixtime) when the problem last occurred.
 
-* message
-
-  Some textual explanation of the error.
-
 (path,subsystem) must be unique.
 
 
@@ -59,15 +55,22 @@ structure:
 
   A multi-line textual error message
 
-* str
+* comment
 
-  Generally the ``repr`` of the error.
+  The ``repr`` of the error, or an explicit commenting text.
+
+* message
+
+  Some textual explanation of the error.
 
 * data
 
   Any additional data required to reproduce the problem; e.g. if a
   stored procedure triggered an exception, the location of the actual code
   and the parameters used when invoking it.
+
+The message text must be fixed. It must be format-able using the "data"
+of this record.
 
 """
 
@@ -78,8 +81,11 @@ from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
 from .client import AttrClientEntry, ClientEntry, ClientRoot
-from .util import PathLongener, Cache
+from .util import PathLongener, Cache, attrdict
+from .codec import packer
 
+import logging
+logger = logging.getLogger(__name__)
 
 class ErrorSubEntry(AttrClientEntry):
     """
@@ -125,7 +131,7 @@ class ErrorEntry(AttrClientEntry):
         self.resolved = True
         await self.save()
 
-    async def add_exc(self, node, exc, data, comment=None):
+    async def add_exc(self, node, exc, data, comment=None, message=None):
         """
         Store a detail record for this error.
 
@@ -136,18 +142,41 @@ class ErrorEntry(AttrClientEntry):
           exc (Exception): The actual exception
           data (dict): any relevant data to reproduce the problem.
         """
-        res = dict(
+        res = attrdict(
             seen=time(),
             tock=await self.root.client.get_tock(),
-            trace=traceback.format_exception(type(exc), exc, exc.__traceback__),
-            str=comment or repr(exc),
-            data=data,
+            comment=comment or repr(exc),
         )
+        if exc is not None:
+            res.trace = traceback.format_exception(type(exc), exc, exc.__traceback__)
+        if message is not None:
+            res.message = message
+        if data is not None:
+            res.data = data
+
+        if message:
+            if data:
+                m = message.format(**data)
+            else:
+                m = message
+            if exc:
+                m += ": "+str(exc)
+            elif exc:
+                m = repr(exc)
+            elif comment:
+                m = comment
+            elif data:
+                m = repr(data)
+            logger.warning("Error %r %s: %s", self._path, node, m)
+
         try:
             await self.root.client.set(*self._path, node, value=res)
         except TypeError:
             for k, v in data.items():
-                data[k] = repr(v)
+                try:
+                    packer(v)
+                except TypeError:
+                    data[k] = repr(v)
             await self.root.client.set(*self._path, node, value=res)
 
     async def add_comment(self, node, comment, data):
@@ -158,9 +187,10 @@ class ErrorEntry(AttrClientEntry):
         res = dict(
             seen=time(),
             tock=await self._store._client.get_tock(),
-            str=comment,
+            comment=comment,
             data=data,
         )
+        logger.info("Comment %s: %s", node, comment)
         await self.root.client.set(*self._path, self._tock, node, value=res)
 
     async def delete(self):
@@ -239,7 +269,7 @@ class ErrorRoot(ClientRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self._name = self.client.name
+        self._name = self.client.client_name
         self._loaded = anyio.create_event()
         self._errors = defaultdict(dict)  # node > tock > Entry
         self._active = defaultdict(dict)  # subsystem > path > Entry
@@ -340,12 +370,13 @@ class ErrorRoot(ClientRoot):
             rec.add_comment(self._name, comment, data)
         return rec
 
-    async def record_exc(
+    async def record_error(
         self,
         subsystem,
         *path,
         exc=None,
         reason=None,
+        client_name=None,
         data={},
         severity=0,
         message=None,
@@ -362,11 +393,9 @@ class ErrorRoot(ClientRoot):
           severity (int): error gravity.
           force (bool): Flag whether a low-priority exception should
             override a high-prio one.
-          message (str): some human-readable text to add to the error.
+          message (str): some text to add to the error. It is formatted
+            with the data when printed.
         """
-        if message is None:
-            message = repr(exc)
-
         rec = await self.get_error_record(subsystem, *path)
         try:
             if not force and rec.severity < severity:
@@ -378,12 +407,11 @@ class ErrorRoot(ClientRoot):
         rec.subsystem = subsystem
         rec.path = path
         rec.resolved = False
-        rec.message = message
         rec.count += 1
         rec.last_seen = time()
 
         await rec.save()
-        await rec.add_exc(self._name, exc, data, comment=comment)
+        await rec.add_exc(client_name or self._name, exc=exc, data=data, comment=comment, message=message)
         return rec
 
     async def _pop(self, entry):
