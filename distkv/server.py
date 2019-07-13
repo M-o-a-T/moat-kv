@@ -19,6 +19,7 @@ from asyncserf.util import CancelledError as SerfCancelledError
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
 from collections import defaultdict
 from pprint import pformat
+from collections.abc import Mapping
 
 from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull, NullACL, ACLFinder
@@ -51,6 +52,8 @@ _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
 _client_nr = 0
 
+SERF_MAXLEN=450
+SERF_LEN_DELTA=15
 
 def max_n(a, b):
     if a is None:
@@ -1244,6 +1247,9 @@ class Server:
 
         self._evt_lock = anyio.create_lock()
         self._clients = set()
+        self._part_len = SERF_MAXLEN-SERF_LEN_DELTA-len(self.node.name)
+        self._part_seq = 0
+        self._part_cache = dict()
 
     @asynccontextmanager
     async def next_event(self):
@@ -1320,7 +1326,7 @@ class Server:
                 old_evt.node.supersede(old_evt.tick)
             old_evt = old_evt.prev
 
-    async def _send_event(self, action: str, msg: dict, coalesce=False):
+    async def _send_event(self, action: str, msg: dict):
         """
         Helper to send a Serf event to the ``action`` endpoint.
 
@@ -1340,8 +1346,8 @@ class Server:
             msg["tick"] = self.node.tick
         omsg = msg
         self.logger.debug("Send %s: %r", action, msg)
-        msg = _packer(msg)
-        await self.serf.event(self.cfg.server.root + "." + action, msg, coalesce=coalesce)
+        for m in self._pack_multiple(msg):
+            await self.serf.event(self.cfg.server.root + "." + action, m, coalesce=False)
 
     async def watcher(self):
         """
@@ -1559,6 +1565,66 @@ class Server:
                 self._del_actor.add_deleted(self._delete_also_nodes)
                 self._delete_also_nodes = NodeSet()
 
+    def _pack_multiple(self, msg):
+        """
+        """
+        # protect against mistakenly encoded multi-part messages
+        # TODO use a msgpack extension instead
+        if isinstance(msg,Mapping):
+            i=0
+            while ("_p%d"%i) in msg:
+                i += 1
+            while i:
+                i -= 1
+                msg['_p%d' % (i+1)] = msg['_p%d' % i]
+            msg['_p0'] = ''
+
+        p = _packer(msg)
+        pl = self._part_len
+        if len(p) > SERF_MAXLEN: 
+            # Owch. We need to split this thing.
+            self._part_seq = seq = self._part_seq+1
+            i=0
+            while i>=0:
+                px,p = p[pl:],p[:pl]
+                if not p:
+                    i = -i
+                px = {'_p0':(self.node.name,seq,i,px)}
+                yield _packer(px)
+            return
+        yield p
+
+    async def _unpack_multiple(self, msg):
+        """
+        Undo the effects of _pack_multiple.
+        """
+
+        if isinstance(msg,Mapping) and '_p0' in msg:
+            p = msg['_p0']
+            if p != '':
+                nn,seq,i,p = p
+                s = self._part_cache.get((nn,seq), None)
+                if s is None:
+                    self._part_cache[seq] = s = [None]
+                if i < 0:
+                    i = -i
+                    s[0] = b''
+                while len(s) <= i+1:
+                    s.append(None)
+                s[i+1] = p
+                if None in s:
+                    return None
+                p = b''.join(s)
+                del self._part_cache[(nn,seq)]
+
+            i=0
+            while ('_p%d'%(i+1)) in msg:
+                msg['_p%d' % i] = msg['_p%d' % (i+1)]
+                i += 1
+            del msg['_p%d' % i]
+        return msg
+
+
     async def monitor(self, action: str, delay: anyio.abc.Event = None):
         """
         The task that hooks to Serf's event stream for receiving messages.
@@ -1581,6 +1647,9 @@ class Server:
                     msg = msgpack.unpackb(
                         resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
                     )
+                    msg = await self._unpack_multiple(msg)
+                    if msg is None:
+                        continue
                     self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
