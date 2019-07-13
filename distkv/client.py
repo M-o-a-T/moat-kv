@@ -142,6 +142,18 @@ class ClientEntry:
             self.value = value
             return r
 
+    async def delete(self, _locked=False, nchain=0):
+        """Delete this node's value.
+
+        This is a coroutine.
+        """
+        async with NoLock if _locked else self._lock:
+            r = await self.root.client.delete(
+                *self._path, chain=self.chain, nchain=nchain
+            )
+            self.chain = None
+            return r
+
     async def add(self, name, value):
         """Add a child node with that value.
 
