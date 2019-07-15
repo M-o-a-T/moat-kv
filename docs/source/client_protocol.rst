@@ -365,7 +365,7 @@ you can retrieve the whole subtree::
     Recv {'value': 1, 'path': ('bar', 'baz'), 'depth': 1, 'seq': 1}
     Recv {'seq': 1, 'state': 'end'}
 
-Retrieving this tree with ``distkv client get -ryd ':val' test`` would print::
+Retrieving this tree with ``distkv client get -rd ':val' test`` would print::
 
     test:
       :val: 1

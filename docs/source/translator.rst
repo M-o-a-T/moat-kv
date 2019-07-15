@@ -97,7 +97,7 @@ must be integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_typecheck.py::test_72_cmd``, when
-dumped with the command ``distkv client get -ryd_``.
+dumped with the command ``distkv client get -rd_``.
 
 
 +++++++++++
@@ -214,7 +214,7 @@ stored as integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_convert.py::test_71_basic``, when
-dumped with the command ``distkv client get -ryd_``.
+dumped with the command ``distkv client get -rd_``.
 
 Paths
 =====
