@@ -114,8 +114,10 @@ async def mark(obj, deleted, source, node, items, yaml, broadcast):
 @click.pass_obj
 async def deleter(obj, delete, nodes, yaml):
     """
-    Manage the Deleter list, which is the set of nodes that must be online
-    for entry removal to happen.
+    Manage the Deleter list
+    
+    This is the set of nodes that must be online for removal of deleted
+    entries from DistKV's data.
 
     There should be one such node in every possible network partition.
     Also, all nodes with permanent storage should be on the list.

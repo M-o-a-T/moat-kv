@@ -62,7 +62,7 @@ async def all(obj):
     "-v",
     "--verbose",
     is_flag=True,
-    help="Print complete results. Default: just the value",
+    help="Print complete results.",
 )
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.option("-S", "--state-only", is_flag=True, help="Show only state data")
@@ -76,7 +76,7 @@ async def all(obj):
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def list(obj, state, state_only, as_dict, verbose, path):
-    """List runners.
+    """List run entries.
     """
     if not path:
         path = ()
@@ -175,7 +175,7 @@ async def state(obj, path, verbose, result):
     "-v",
     "--verbose",
     is_flag=True,
-    help="Print the complete result. Default: just the value",
+    help="Print the complete entry.",
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj

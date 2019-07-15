@@ -861,11 +861,11 @@ Retrieve Python code stored in the server.
 
 .. option:: -v, --verbose
 
-   Include metadata
+   Include metadata.
 
 .. option:: -s, --script <filename>
 
-   Save the code to <filename> instead of including it in the output
+   Save the code to <filename> instead of including it in the output.
 
 .. option:: <path> …
 
@@ -1013,27 +1013,76 @@ This program does not terminate.
 
 List available run entries.
 
-.. option:: -y, --yaml
+.. option:: -s, --state
 
-   More verbose listing, yaml-formatted.
+   Add the current state.
+
+.. option:: -S, --state-only
+
+   Only print the current state.
+
+.. option:: -v, --verbose
+
+   Verbose listing, yaml-formatted.
 
 .. option:: <prefix> …
 
-Limit listing to this prefix.
+   Limit listing to this prefix.
 
 
 .. program:: distkv client run get
 
 Read a runner entry.
 
-.. option:: -n, --node <node>
+.. option:: -v, --verbose
 
-   The node where the code in question might run.
+   Print the complete entry.
+
+
+.. program:: distkv client run set
+
+Create or change a runner entry.
+
+.. option:: -c, --code <code>
+
+   Path to the code that this entry should execute. This value is either
+   split by spaces or, if ``--eval`` is used, interpreted as a Python
+   expression.
+
+.. option:: -t, --time <when>
+
+   Time at which the runner should fire next. Seconds in the future.
+
+.. option:: -r, --repeat <seconds>
+
+   Time after a successful execution when the runner should fire again.
+
+.. option:: -d, --delay <seconds>
+
+   Time after an unsuccessful execution when the runner should fire again.
+
+.. option:: -b, --backoff
+
+   Back-off exponent. The effective delay is ``delay * backoff ^ n_failures``.
+
+   To retry a failure immediately, simply use ``--time now``.
 
 
 .. program:: distkv client internal
 
 Subcommand for viewing and modifying the internal state of a DistKV server.
+
+
+.. program:: distkv client internal dump
+
+This command emits DistKV's internal state.
+
+The output is comparable to ``distkv client data dump -rd_``, but for internal
+data.
+
+.. option:: <path> …
+
+   Path prefix for DistKV's internal data structure.
 
 
 .. program:: distkv client internal state
@@ -1104,18 +1153,22 @@ range(s) when there's a consistency problem.
 
 .. program:: distkv client internal deleter
 
-Manage the list of nodes that are used to manage cleaning deleted entries
-from the DistKV tree.
+Manage the list of nodes that collectively manage cleaning deleted entries from
+the DistKV tree.
+
+All of these nodes must be online for clean-up to work.
 
 .. option:: -d, --delete
 
-   Remove the mentioned nodes. Default is to add them
+   Remove the mentioned nodes. Default is to add them.
 
 .. option:: <node> …
 
    Nodes to add or delete. If none are given, list the current state, or (with
-   ``--delete``) clear the list, disabling node deletion. (If you want to shut
-   that down temporarily, you can also add a nonexistent node to the list.)
+   ``--delete``) clear the list, disabling node deletion.
+
+   If you want to shut deletion down temporarily, you can also add a
+   nonexistent node to the list.
 
 
 .. program:: distkv pdb
