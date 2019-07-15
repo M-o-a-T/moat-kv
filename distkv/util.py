@@ -199,7 +199,7 @@ class PathLongener:
     attributes is a no-op.
     """
 
-    def __init__(self, prefix):
+    def __init__(self, prefix=()):
         self.depth = len(prefix)
         self.path = prefix
 
