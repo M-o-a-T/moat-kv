@@ -37,12 +37,6 @@ async def cli(obj):
 
 @cli.command()
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
-@click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the script here"
 )
 @click.option(
@@ -51,7 +45,7 @@ async def cli(obj):
 @click.option("-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, verbose, script, schema, yaml_):
+async def get(obj, path, script, schema, yaml_):
     """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -59,10 +53,10 @@ async def get(obj, path, verbose, script, schema, yaml_):
         action="get_internal",
         path=("type",) + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
     r = res.value
-    if not verbose:
+    if not obj.meta:
         res = res.value
     if script:
         script.write(r.pop('code'))
@@ -75,12 +69,6 @@ async def get(obj, path, verbose, script, schema, yaml_):
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
 @click.option("-d", "--data", "data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
@@ -100,7 +88,7 @@ async def get(obj, path, verbose, script, schema, yaml_):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, good, bad, verbose, script, schema, yaml_, data):
+async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
     """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -147,20 +135,14 @@ async def set(obj, path, chain, good, bad, verbose, script, schema, yaml_, data)
         value=msg,
         path=("type",) + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
         **({"chain":chain} if chain else {})
     )
-    if verbose:
+    if obj.meta:
         yprint(res)
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option(
     "-R",
     "--raw",
@@ -173,7 +155,7 @@ async def set(obj, path, chain, good, bad, verbose, script, schema, yaml_, data)
 @click.option("-d", "--delete", help="Use to delete this mapping.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def match(obj, path, type, delete, verbose, raw):
+async def match(obj, path, type, delete, raw):
     """Match a type to a path (read, if no type given)"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -184,7 +166,7 @@ async def match(obj, path, type, delete, verbose, raw):
 
     if delete:
         res = await obj.client._request(action="delete_internal", path=("type",) + path)
-        if verbose:
+        if obj.meta:
             yprint(res)
         return
 
@@ -201,9 +183,9 @@ async def match(obj, path, type, delete, verbose, raw):
         value=msg,
         path=("match",) + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
-    if verbose:
+    if obj.meta:
         yprint(res)
     elif type or delete:
         pass

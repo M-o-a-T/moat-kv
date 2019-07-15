@@ -58,12 +58,6 @@ async def all(obj):
         await anyio.sleep(99999)
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print complete results.",
-)
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.option("-S", "--state-only", is_flag=True, help="Show only state data")
 @click.option(
@@ -75,7 +69,7 @@ async def all(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(obj, state, state_only, as_dict, verbose, path):
+async def list(obj, state, state_only, as_dict, path):
     """List run entries.
     """
     if not path:
@@ -95,7 +89,7 @@ async def list(obj, state, state_only, as_dict, verbose, path):
         action="get_tree",
         path=path,
         iter=True,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
 
     y = {}
@@ -104,10 +98,10 @@ async def list(obj, state, state_only, as_dict, verbose, path):
             yy = y
             for p in r.pop("path"):
                 yy = yy.setdefault(p, {})
-            yy[as_dict] = r if verbose else r.pop("value")
+            yy[as_dict] = r if obj.meta else r.pop("value")
         else:
             yy = {}
-            if verbose:
+            if obj.meta:
                 yy[r.pop('path')] = r
             else:
                 yy[r.path] = r.value
@@ -117,10 +111,10 @@ async def list(obj, state, state_only, as_dict, verbose, path):
                 action="get_value",
                 path=state,
                 iter=False,
-                nchain=3 if verbose else 0,
+                nchain=3 if obj.meta else 0,
             )
             if 'value' in rs:
-                if not verbose:
+                if not obj.meta:
                     rs = rs.value
                 yy['state'] = rs
             else:
@@ -134,18 +128,12 @@ async def list(obj, state, state_only, as_dict, verbose, path):
 
 @cli.command()
 @click.option("-r", "--result", is_flag=True, help="Just print the actual result.")
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def state(obj, path, verbose, result):
+async def state(obj, path, result):
     """Get the status of a runner entry.
     """
-    if result and verbose:
+    if result and obj.meta:
         raise click.UsageError("You can't use '-v' and '-r' at the same time.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -158,28 +146,22 @@ async def state(obj, path, verbose, result):
         action="get_value",
         path=path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
     if 'value' not in res:
         if obj.debug:
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
-    if not verbose:
+    if not obj.meta:
         res = res.value
 
     yprint(res)
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete entry.",
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, verbose):
+async def get(obj, path):
     """Read a runner entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -192,9 +174,9 @@ async def get(obj, path, verbose):
         action="get_value",
         path=path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
-    if not verbose:
+    if not obj.meta:
         res = res.value
 
     yprint(res)

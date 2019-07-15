@@ -36,17 +36,11 @@ async def cli(obj):
 
 @cli.command()
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
-@click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, verbose, script):
+async def get(obj, path, script):
     """Read a code entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -54,9 +48,9 @@ async def get(obj, path, verbose, script):
         action="get_value",
         path=obj.cfg['codes']['prefix'] + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
-    if not verbose:
+    if not obj.meta:
         res = res.value
     if script:
         code = res.pop("code", None)
@@ -66,12 +60,6 @@ async def get(obj, path, verbose, script):
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option(
@@ -87,7 +75,7 @@ async def get(obj, path, verbose, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, thread, verbose, script, yaml_, async_):
+async def set(obj, path, chain, thread, script, yaml_, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -124,10 +112,10 @@ async def set(obj, path, chain, thread, verbose, script, yaml_, async_):
         value=msg,
         path=obj.cfg['codes']['prefix'] + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
         **({"chain":chain} if chain else {})
     )
-    if verbose:
+    if obj.meta:
         yprint(res)
 
 
@@ -140,17 +128,11 @@ async def mod(obj):
 
 @mod.command()
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
-@click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, verbose, script):
+async def get(obj, path, script):
     """Read a module entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -158,9 +140,9 @@ async def get(obj, path, verbose, script):
         action="get_value",
         path=obj.cfg['modules']['prefix'] + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
-    if not verbose:
+    if not obj.meta:
         res = res.value
     if script:
         code = res.pop("code", None)
@@ -171,12 +153,6 @@ async def get(obj, path, verbose, script):
 
 
 @mod.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
 )
@@ -190,7 +166,7 @@ async def get(obj, path, verbose, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, verbose, script, yaml_):
+async def set(obj, path, chain, script, yaml_):
     """Save a Python module to DistKV."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -216,8 +192,8 @@ async def set(obj, path, chain, verbose, script, yaml_):
         value=msg,
         path=obj.cfg['modules']['prefix'] + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
         **({"chain":chain} if chain else {})
     )
-    if verbose:
+    if obj.meta:
         yprint(res)

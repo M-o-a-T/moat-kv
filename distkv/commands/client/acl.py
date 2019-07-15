@@ -37,21 +37,15 @@ async def cli(obj):
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.pass_obj
-async def list(obj, verbose):
+async def list(obj):
     """List ACLs.
     """
     res = await obj.client._request(
         action="enum_internal",
         path=("acl",),
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
     yprint(res)
 
@@ -92,16 +86,10 @@ async def dump(obj, name, path, as_dict):
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, name, path, verbose):
+async def get(obj, name, path):
     """Read an ACL.
     
     This command does not test a path. Use "… acl test …" for that.
@@ -112,10 +100,10 @@ async def get(obj, name, path, verbose):
         action="get_internal",
         path=("acl", name) + path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
     )
 
-    if not verbose:
+    if not obj.meta:
         try:
             res = res.value
         except KeyError:
@@ -126,17 +114,11 @@ async def get(obj, name, path, verbose):
 
 
 @cli.command(name="set")
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option("-a", "--acl", default="+x", help="The value to set. Start with '+' to add, '-' to remove rights.")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set_(obj, acl, name, path, verbose):
+async def set_(obj, acl, name, path):
     """Set or change an ACL."""
 
     if not path:
@@ -155,7 +137,7 @@ async def set_(obj, acl, name, path, verbose):
         action="get_internal",
         path=("acl", name) + path,
         iter=False,
-        nchain=3 if verbose else 1,
+        nchain=3 if obj.meta else 1,
     )
     ov = set(res.get('value', ''))
     if ov - ACL:
@@ -185,7 +167,7 @@ async def set_(obj, acl, name, path, verbose):
             chain=res.get('chain', None),
         )
 
-    if verbose:
+    if obj.meta:
         res = {"old": "".join(ov), "new": "".join(v), "chain":res.chain, "tock":res.tock}
         yprint(res)
     else:
@@ -194,18 +176,12 @@ async def set_(obj, acl, name, path, verbose):
 
 
 @cli.command()
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.option('-m','--mode',default=None, help="Mode letter to test.")
 @click.option('-a','--acl',default=None, help="ACL to test. Default: current")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def test(obj, name, path, acl, verbose, mode):
+async def test(obj, name, path, acl, mode):
     """Test which ACL entry matches a path"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -216,11 +192,11 @@ async def test(obj, name, path, acl, verbose, mode):
         action="test_acl",
         path=path,
         iter=False,
-        nchain=3 if verbose else 0,
+        nchain=3 if obj.meta else 0,
         **({} if mode is None else {'mode': mode}),
         **({} if acl is None else {'acl': acl}),
     )
-    if verbose:
+    if obj.meta:
         pprint(res)
     elif isinstance(res.access, bool):
         print('+' if res.access else '-')

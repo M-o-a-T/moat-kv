@@ -51,12 +51,6 @@ async def cli(obj):
     "for values. Default: return as list",
 )
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
-@click.option(
     "-m",
     "--maxdepth",
     type=int,
@@ -74,7 +68,7 @@ async def cli(obj):
 @click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, verbose, recursive, as_dict, maxdepth, mindepth):
+async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
     """
     Read a DistKV value.
 
@@ -82,6 +76,9 @@ async def get(obj, path, chain, verbose, recursive, as_dict, maxdepth, mindepth)
     will be read before anything is printed. Use the "watch --state" subcommand
     for incremental output.
     """
+
+    if chain and not obj.meta:
+        raise click.UsageError("You can't get chain data without metadata (… client -m data …)")
 
     if recursive:
         if raw:
@@ -100,23 +97,16 @@ async def get(obj, path, chain, verbose, recursive, as_dict, maxdepth, mindepth)
                 yy = y
                 for p in path:
                     yy = yy.setdefault(p, {})
-                if "chain" in r:
-                    yy["chain"] = r.chain
                 try:
-                    yy[as_dict] = r.pop("value")
-                except KeyError:
-                    pass
-                if verbose:
-                    yy.update(r)
+                    yy[as_dict] = r if obj.meta else r.value
+                except AttributeError:
+                    continue
             else:
                 y = {}
-                if verbose:
-                    y[path] = r
-                else:
-                    try:
-                        y[path] = r.pop("value")
-                    except KeyError:
-                        pass
+                try:
+                    y[path] = r if obj.meta else r.value
+                except AttributeError:
+                    continue
                 yprint([y])
 
         if as_dict is not None:
@@ -128,7 +118,7 @@ async def get(obj, path, chain, verbose, recursive, as_dict, maxdepth, mindepth)
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
     res = await obj.client.get(*path, nchain=chain)
-    if not verbose:
+    if not obj.meta:
         try:
             res = res.value
         except AttributeError:

@@ -66,8 +66,11 @@ class NullObj:
     default=None,
     help="Auth params. =file or 'type param=value…' Default: _anon",
 )
+@click.option(
+    "-m", "--metadata", is_flag=True, help="Include/print metadata."
+)
 @click.pass_context
-async def cli(ctx, host, port, auth):
+async def cli(ctx, host, port, auth, metadata):
     """Talk to a DistKV server."""
     obj = ctx.obj
     cfg = attrdict()
@@ -82,6 +85,8 @@ async def cli(ctx, host, port, auth):
             cfg.auth._DEBUG = True
 
     cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+
+    obj.meta = metadata
 
     try:
         obj.client = await ctx.enter_async_context(open_client(**cfg))

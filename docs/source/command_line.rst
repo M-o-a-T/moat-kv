@@ -144,6 +144,11 @@ This subcommand collects all sub-subcommand which talk to a DistKV server.
 
    The default is ``_anon``, i.e. no authorization.
 
+.. option:: -m, --metadata
+
+   The results of many commands will include the metadata associated with the
+   entry or entries in question. This allows you to safely modify a value.
+
 
 .. program:: distkv client data
 
@@ -159,10 +164,6 @@ Read a DistKV value.
 If you read a sub-tree recursively, be aware that the whole subtree will
 be read before anything is printed. Use the ``watch --state`` subcommand
 for incremental output.
-
-.. option:: -v, --verbose
-
-   Print a complete data structure, not just the value.
 
 .. option:: -r, --recursive
 
@@ -503,10 +504,6 @@ Retrieve a type entry.
 
    Emit the schema as YAML data. Default: JSON.
 
-.. option:: -v, --verbose
-
-   Include metadata.
-
 .. option:: -s, --script <filename>
 
    Save the script to this file. Default: include in the output.
@@ -541,10 +538,6 @@ file ``data``, then restore with ``distkv client type set -d <data> <path>…``.
 
    Read the schema as YAML. Default: JSON.
 
-.. option:: -v, --verbose
-
-   Print (some of) the server's return value.
-
 .. option:: -s, --script <filename>
 
    Load the script from this file. Default: no script.
@@ -574,10 +567,6 @@ file ``data``, then restore with ``distkv client type set -d <data> <path>…``.
 
 Read, set or delete type matches, i.e. which part of your DistKV tree is
 constricted by which type.
-
-.. option:: -v, --verbose
-
-   Print a complete record, not just the value.
 
 .. option:: -t, type <name>
 
@@ -688,10 +677,6 @@ Which codec group to apply to a given user is stored in that user's
 auxiliary data as ``conv=NAME``. If no such entry is present, that user's
 data are not converted.
 
-.. option:: -v, --verbose
-   
-   Be more verbose. The usual.
-
 .. option:: -c, --codec
 
    The codec to use on the given path. Use this option multiple times if
@@ -724,10 +709,6 @@ Retrieve the flags at a specific ACL path.
 
 If the path does not contain any flags, print ``-``.
 
-.. option:: -v, --verbose
-
-   Add metadata.
-
 .. option:: <acl>
 
    The ACL to modify. Mandatory.
@@ -740,12 +721,6 @@ If the path does not contain any flags, print ``-``.
 .. program:: distkv client acl set
 
 Set the flags at a specific ACL path.
-
-Nothing is printed if neither ``--verbose`` nor ``--yaml`` is used.
-
-.. option:: -v, --verbose
-
-   Print the resulting metadata.
 
 .. option:: -a, --acl <MODES>
 
@@ -765,10 +740,6 @@ Nothing is printed if neither ``--verbose`` nor ``--yaml`` is used.
 .. program:: distkv client acl test
 
 Check whether an ACL allows access.
-
-.. option:: -v, --verbose
-
-   Print a more verbose record. Default: One of ``+`` or ``-``.
 
 .. option:: -m, --mode <mode>
 
@@ -816,10 +787,6 @@ Manipulate code stored in DistKV.
 
 Retrieve Python code stored in the server.
 
-.. option:: -v, --verbose
-
-   Include metadata.
-
 .. option:: -s, --script <filename>
 
    Save the code to <filename> instead of including it in the output.
@@ -835,10 +802,6 @@ Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
-
-.. option:: -v, --verbose
-
-   Print (some of) the server's return value.
 
 .. option:: -s, --script <filename>
 
@@ -881,10 +844,6 @@ in the file system.
 
 Retrieve Python module stored in the server.
 
-.. option:: -v, --verbose
-
-   Include metadata.
-
 .. option:: -s, --script <filename>
 
    Save the code to <filename> instead of including it in the output
@@ -900,10 +859,6 @@ Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
-
-.. option:: -v, --verbose
-
-   Print (some of) the server's return value.
 
 .. option:: -s, --script <filename>
 
@@ -962,10 +917,6 @@ List available run entries.
 
    Only print the current state.
 
-.. option:: -v, --verbose
-
-   Verbose listing, yaml-formatted.
-
 .. option:: <prefix> …
 
    Limit listing to this prefix.
@@ -974,10 +925,6 @@ List available run entries.
 .. program:: distkv client run get
 
 Read a runner entry.
-
-.. option:: -v, --verbose
-
-   Print the complete entry.
 
 
 .. program:: distkv client run set

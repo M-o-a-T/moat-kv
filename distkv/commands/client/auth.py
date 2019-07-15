@@ -137,17 +137,11 @@ async def user(obj):
     default=0,
     help="Length of change list to return. Default: 0",
 )
-@click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print the complete result. Default: just the value",
-)
 @click.pass_obj
-async def list(obj, chain, verbose):
+async def list(obj, chain):
     """List all users (raw data)."""
     async for r in enum_typ(obj, nchain=chain):
-        if not verbose:
+        if not obj.meta:
             del r["seq"]
             del r["tock"]
         yprint(r)
@@ -207,8 +201,12 @@ async def add_mod_user(obj, args, modify, add):
         u._chain = None  # new user
     else:
         u._chain = ou._chain
-    await u.send(obj.client)
-    print(u.ident)
+    res = await u.send(obj.client)
+    if obj.meta:
+        res.ident = u.ident
+        yprint(res)
+    else:
+        print(u.ident)
 
 
 @user.command(name="auth")
@@ -224,7 +222,7 @@ async def auth_(obj, auth):
     """Test user authorization."""
     user = gen_auth(auth)
     await user.auth(obj.client)
-    if obj.debug >= 0:
+    if obj.debug > 0:
         print("OK.")
 
 
