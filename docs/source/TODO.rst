@@ -1,6 +1,9 @@
 Open issues
 ===========
 
+* chroot operation: add and test proper sub-roots, including auth and
+  whatnot
+
 * We need path translation. Idea: store an extension element in the
   destination path, which would pick the appropriate parts from the
   source path when processed.
@@ -19,3 +22,9 @@ Open issues
 
 * Rate limiting. Currently the server can flood the client with data and no
   other call can get a word in edgewise.
+
+* AnyRunner: Do proper load balancing; the leader should be able to tell
+  some other node to run a job if it's busy.
+
+* Keep an error index on the server?  Something more general?
+
