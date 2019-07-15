@@ -2351,9 +2351,10 @@ class Server:
         except anyio.exceptions.ClosedResourceError:
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
+            CancelExc = anyio.get_cancelled_exc_class()
             if isinstance(exc, anyio.exceptions.ExceptionGroup):
-                exc = exc.filter(anyio.get_cancelled_exc_class())
-            if exc is not None and not isinstance(exc, anyio.get_cancelled_exc_class()):
+                exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
+            if exc is not None and not isinstance(exc, CancelExc):
                 self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 async with anyio.move_on_after(2) as cs:
