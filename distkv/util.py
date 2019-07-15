@@ -34,7 +34,7 @@ def yprint(data, stream=sys.stdout):
 #   elif isinstance(data, bytes):
 #       os.write(sys.stdout.fileno(), data)
     else:
-        yaml.safe_dump(data, stream=sys.stdout, default_flow_style=False)
+        yaml.safe_dump(data, stream=stream, default_flow_style=False)
 
 
 from yaml.emitter import Emitter
