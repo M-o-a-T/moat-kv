@@ -803,9 +803,13 @@ Store or replace Python code stored in the server.
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
 
+.. option:: -d, --data <filename>
+
+   Load the metadata from this file.
+
 .. option:: -s, --script <filename>
 
-   Load the code from this file. Default: Use stdin.
+   Load the code from this file.
 
 .. option:: -a, --async
 
@@ -860,22 +864,13 @@ Store or replace Python code stored in the server.
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
 
+.. option:: -d, --data <filename>
+
+   Load the metadata from this file.
+
 .. option:: -s, --script <filename>
 
-   Load the code from this file. Default: Use stdin.
-
-.. option:: -a, --async
-
-   The code will run asynchronously, i.e. it may use ``async`` and ``await`` statements.
-
-   You should use the ``anyio`` module for sleeping, locking etc. unless
-   you *know* which async runtime is in use.
-
-.. option:: -t, --thread
-
-   The code will run in a worker thread.
-
-   This option is incompatible with ``--async``.
+   Load the module's code from this file.
 
 .. option:: name…
 

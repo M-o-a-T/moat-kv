@@ -65,7 +65,7 @@ async def get(obj, path, script):
 )
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option(
-    "-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML"
+    "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.option(
     "-c",
@@ -76,7 +76,7 @@ async def get(obj, path, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, thread, script, yaml_, async_):
+async def set(obj, path, chain, thread, script, data, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -90,8 +90,8 @@ async def set(obj, path, chain, thread, script, yaml_, async_):
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml_:
-        msg = yaml.safe_load(script)
+    if data:
+        msg = yaml.safe_load(data)
     else:
         msg = {}
     if "value" in msg:
@@ -159,7 +159,7 @@ async def get(obj, path, script):
     "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
 )
 @click.option(
-    "-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML"
+    "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.option(
     "-c",
@@ -170,13 +170,13 @@ async def get(obj, path, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, script, yaml_):
+async def set(obj, path, chain, script, data):
     """Save a Python module to DistKV."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml_:
-        msg = yaml.safe_load(script)
+    if data:
+        msg = yaml.safe_load(data)
     else:
         msg = {}
     if "value" in msg:
