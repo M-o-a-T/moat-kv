@@ -62,7 +62,7 @@ async def get(obj, path, script, schema, yaml_):
         script.write(r.pop('code'))
     if schema:
         if yaml_:
-            yprint(r.pop('schema'), file=schema)
+            yprint(r.pop('schema'), stream=schema)
         else:
             json.dump(r.pop('schema'), schema)
     yprint(res)

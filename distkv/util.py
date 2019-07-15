@@ -25,8 +25,8 @@ except ImportError:
 def singleton(cls):
     return cls()
 
-def yprint(data, file=sys.stdout):
-    print(yaml.safe_dump(data, default_flow_style=False), file=file)
+def yprint(data, stream=sys.stdout):
+    print(yaml.safe_dump(data, default_flow_style=False), stream=file)
 
 
 class TimeOnlyFormatter(logging.Formatter):
