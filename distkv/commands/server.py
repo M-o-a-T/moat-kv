@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 
 from distkv.util import (
     attrdict,
@@ -92,7 +91,8 @@ async def cli(obj, name, host, port, load, save, init, eval):
 
     class RunMsg:
         async def set(self):
-            print("Running.")
+            if obj.debug:
+                print("Running.")
 
     s = Server(name, cfg=obj.cfg, **kw)
     if load is not None:
