@@ -202,7 +202,7 @@ async def get(obj, path, verbose):
 
 @cli.command()
 @click.option("-c", "--code", help="Path to the code that should run. Space separated path.")
-@click.option("-t", "--time", "tm", help="time the code should next run at")
+@click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
@@ -259,12 +259,7 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
     if repeat is not None:
         res['repeat'] = repeat
     if tm is not None:
-        t = time.time()
-        if tm == "now":
-            pass
-        else:
-            t += float(time)
-        res['target'] = t
+        res['target'] = time.time() + tm
         
     res = await obj.client._request(
         action="set_value",
