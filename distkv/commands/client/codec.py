@@ -87,10 +87,12 @@ async def get(obj, path, yaml, verbose, script, encode, decode):
 @click.option("-e", "--encode", type=click.File(mode="r"), help="File with the encoder")
 @click.option("-d", "--decode", type=click.File(mode="r"), help="File with the decoder")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the rest")
+@click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
+@click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
 @click.option("-y", "--yaml", is_flag=True, help="load everything from this file")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, verbose, encode, decode, script, yaml):
+async def set(obj, path, verbose, encode, decode, script, yaml, in_, out):
     """Save codec information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -121,6 +123,10 @@ async def set(obj, path, verbose, encode, decode, script, yaml):
         msg["decode"] = decode
     elif decode and not yaml:
         raise click.UsageError("Duplicate decode parameter")
+    if in_:
+        msg['in'] = [ (eval(a),eval(b)) for a,b in in_ ]
+    if out:
+        msg['out'] = [ (eval(a),eval(b)) for a,b in out ]
 
     res = await obj.client._request(
         action="set_internal",
@@ -131,7 +137,7 @@ async def set(obj, path, verbose, encode, decode, script, yaml):
     )
     if verbose:
         pprint(res)
-    elif obj.verbose:
+    elif obj.debug > 1:
         print(res.tock)
 
 

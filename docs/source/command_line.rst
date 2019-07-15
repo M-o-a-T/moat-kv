@@ -676,6 +676,16 @@ Add or modify a codec.
 
    The file which contains the decoder's Python code.
 
+.. option:: -i, --in <source> <dest>
+
+   A pair of test values for the decoding branch of the codec.
+   Both are ``eval``-uated.
+
+.. option:: -o, --out <source> <dest>
+
+   A pair of test values for the encoding branch of the codec.
+   Both are ``eval``-uated.
+
 .. option:: -s, --script <file>
 
    The YAML file which contains any other data.
