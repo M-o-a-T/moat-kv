@@ -27,9 +27,6 @@ against (None,"type","int"), then against (None,"type","int","percent").
 
 Type checkers cannot modify data.
 
-A value of ``None`` may represent a deleted entry and thus is never
-typechecked.
-
 Type check entries *must* be accompanied by "good" and "bad" values, which
 must be non-empty arrays of values which pass or fail this type check. For
 subordinate types, both kinds must pass the supertype check: if you
@@ -110,7 +107,7 @@ Translation
 Sometimes, clients need special treatment. For instance, an IoT-MQTT message
 that reports turning on a light might send "ON" to topic
 ``/home/state/bath/light``, while what you'd really like to do is to change
-the Boolean ``state`` attribute of ``home.bath.lights``. Or maybe the value
+the Boolean ``state`` attribute of ``home.bath.light``. Or maybe the value
 is a percentage and you'd like to ensure that the stored value is 0.5
 instead of "50%", and that no rogue client can set it to -20 or "gotcha".
 
@@ -129,8 +126,6 @@ DistKV entries and back.
 
 * "map" entries are activated per client (via command, or controlled by its
   login) and describe the path position to which a codec applies
-
-All of these are stored below the global (``None``) top-level path.
 
 
 Codecs
@@ -220,3 +215,22 @@ stored as integers::
 The above is the server content at the end of the testcase
 ``tests/test_feature_convert.py::test_71_basic``, when
 dumped with the command ``distkv client get -ryd_``.
+
+Paths
+=====
+
+Currently, DistKV does not offer automatic path translation. If you need
+that, the best way is to code two active object hierarchies, and
+let their ``set_value`` methods shuffle data to the "other" side.
+
+There are some caveats:
+
+* All such data are stored twice.
+
+* Don't change a value that didn't in fact change; if you do, you'll
+  generate an endless loop.
+
+* You need to verify that the two trees match when you start up, and decide
+  which is more correct. (The ``tock`` stamp will help you here.) Don't
+  accidentally overwrite changes that arrive while you do that.
+

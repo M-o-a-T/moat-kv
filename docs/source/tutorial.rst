@@ -26,18 +26,18 @@ Start the server
 
 You start an initial server with this command::
 
-   one $ distkv server -i Root $(hostname)
+   one $ distkv server -i Testing $(hostname)
    Running.
 
 By default, your DistKV server will talk to the local Serf process.
 You can configure the destination by adapting the config file::
 
-   one $ distkv -C server.serf.host=my-serfer server -i Root $(hostname)
+   one $ distkv -C server.serf.host=my-serfer server -i Testing $(hostname)
 
 You can now retrieve the root value::
 
    one $ distkv client data get
-   "Root"
+   "Testing"
    one $
 
 As the purpose of DistKV is to be a *distributed* key-value storage, 
@@ -51,8 +51,11 @@ This will take a few seconds for the servers to sync up with each other.
 You can verify that the second server has successfully synced up::
 
    two $ distkv client data get
-   "Root"
+   "Testing"
    two $
+
+(NB: The root value is not special; by convention, it identifies the DistKV
+network.)
 
 You can now kill the first server and restart it::
 
@@ -91,22 +94,22 @@ The ``-e`` flag tells the ``set`` command to evaluate the given data as a
 Python expression. You can store numbers, True/False/None, binary and
 Unicode strings, lists/tuples, and hashes composed of these.
 
-All values are independent. DistKV's storage is still organized
+All entries' values are independent. DistKV's storage is organized
 hierarchically, (among other reasons) for ease of retrieval::
 
-    one $ dkd get -ryd_ one
-    one:
-      two:
-        three:
-          _: 123
-          four:
-            _: 1234
-            five:
-              _: Duh
+    one $ dkd get -rd_ one
+    two:
+      three:
+        _: 123
+        four:
+          _: 1234
+          five:
+            _: Duh
     one $
 
-The root value is not special; by convention, it identifies the DistKV
-network.
+DistKV's internal data are stored under a special ``null`` root key.
+You can use ``distkv client internal dump`` to display them. This command
+behaves like ``distkv client data get -rd_``. It accepts a path prefix.
 
 
 Persistent storage
@@ -168,7 +171,7 @@ After this point, you can no longer use DistKV without a password::
     ClientAuthRequiredError: You need to log in using: password
     one $
 
-    one $ ./kv client -a "password name=joe password?=Code" data get
+    one $ distkv client -a "password name=joe password?=Code" data get
     Code: ******
     "Root"
     one $
@@ -176,7 +179,7 @@ After this point, you can no longer use DistKV without a password::
 Internal data are stored in a separate DistKV subtree that starts with a ``None`` value.
 You can display it::
 
-    one $ distkv client -a "password name=joe password=test123" data get -ryd_
+    one $ distkv client -a "password name=joe password=test123" data get -rd_
     null:
       auth:
         _:
@@ -205,7 +208,7 @@ NB: nothing prevents you from using the string ``"null"`` as an ordinary
 key name::
 
    one $ distkv client -a "password name=joe password=test123" data set -v bar null foo
-   one $ distkv client -a "password name=joe password=test123" data get -ryd_
+   one $ distkv client -a "password name=joe password=test123" data get -rd_
    …
    'null':
      foo:
@@ -279,9 +282,275 @@ First we feed some interesting code into DtstKV::
 
 Then we set up a one-shot run-anywhere instance::
 
-   one $ dkv run set -c "the answer" -t now a question
+   one $ dkv run set -c "the answer" -t 0 a question
 
 This doesn't actually execute any code because the executor is not part of
 the DistKV server. (The server may gain an option to do that too, but
-not yet.)
+not yet.) So we run it::
+
+   one $ dkv run all
+   Forty-Two!
+
+(Initially this takes some time, because the ``run`` command needs to
+co-ordinate with other runners. There are none currently, but it can't know
+that.)
+
+The code will not run again unless we either re-set ``--time``, or set a
+repeat timer with ``--repeat``.
+
+Start times are mostly-accurate. There are two reasons why they might not
+be:
+
+* the co-ordination system has a periodic window where it waits for the
+  next message. This causes a delay of up to two seconds.
+
+* TODO: The current leader might decide that it's too busy and wants to
+  delegate starting a particular job to some other node in the cluster.
+  This incurs some delay, more if the recipient is no longer available.
+
+This method will run the code in question on any node. You can also run
+code on one specific node; simply do
+
+   one $ dkv run -n $(hostname) set -c "same answer" -t 0 a question
+   one $ dkv run -n $(hostname) all
+
+The one-node-only runner and the any-node runner are distinct.
+
+
+Errors
+======
+
+Nobody is perfect, and neither is code. Sometimes things break.
+DistKV remembers errors. To demonstrate, let's first provoke one::
+
+    one $ dkv code set the error <<END
+    > raise RuntimeError("Owch")
+    > END
+    one $ dkv run set -c "the error" -t 0 what me worry
+    one $ dkv run all  # if it's not still running
+    20:24:13.935 WARNING:distkv.errors:Error ('.distkv', 'error', 'test1', 16373) test1: Exception: Owch
+
+The list of errors is now no longer empty::
+
+   one $ dkv error list -d_
+   [ some YAML ]
+
+You can limit the error list to specific subtrees. This command has the
+same effect::
+
+   one $ dkv error list -d_ .distkv run any
+
+except that the path is shortened for improved useability.
+
+Error details are available; add the ``-a`` option. You can also filter
+errors on a specific node, which only includes that node's details.
+
+
+The Python API
+==============
+
+Command lines are all well and good, but DistKV gets really interesting
+when you use it from Python.
+
+Let's start by simply setting some value::
+
+   import anyio
+   from distkv.client import open_client
+
+   async def dkv_example():
+      async with open_client() as client:
+         client.set("one","two","three", value=("Test",42,False), chain=None)
+
+   anyio.run(dkv_example)
+
+That was easy. Now we'd like to update that entry::
+
+   async def dkv_example():
+      async with open_client() as client:
+         res = client.get("one","two","three")
+         ret = client.set("one","two","three", value=("Test",v[1]+1,False), chain=res.chain)
+         assert res.chain != ret.chain
+
+The ``chain`` parameter is important: it tells DistKV which change caused
+the old value. So if somebody else changed your ``one two three`` entry
+while your program was running, you'd get a collision and the ``set`` would
+fail.
+
+``set`` returns a new chain so you can update your value multiple times.
+
+Deleting an entry clears the chain: the source of a non-existing value
+doesn't matter.
+
+Watching for Changes
+--------------------
+
+The result of the previous ``get`` was static. If somebody else
+subsequently changes it, you wouldn't know. Let's fix that::
+
+   async def dkv_example():
+      async with open_client() as client:
+         async with client.watch("one", fetch=True) as watcher:
+            async for res in watcher:
+               if 'path' not in res:
+                  continue
+               path = ' '.join(str(x) for x in res.path)
+               if 'value' in res:
+                  print(f"{path}= {res.value}")
+               else:
+                  print(f"{path}: deleted")
+
+``fetch=True`` will send the current state in addition to any changes.
+The ``'path' not in res`` test filters the notification that tells you that
+the subtree you requested is complete.
+
+Active objects
+--------------
+
+While watching for changes is nice, organizing the resulting objects tends
+to be tedious. DistKV comes with a method that does this for you::
+
+   from distkv.client import ClientRoot, ClientEntry, NotGiven
+
+   class OneEntry(ClientEntry):
+      async def set(self, value):
+         await super().set_value()
+         path = ' '.join(str(x) for x in self.subpath)
+         if value is NotGiven:
+            print(f"{path}= {value}")
+         else:
+            print(f"{path}: deleted")
+
+   class OneRoot(ClientRoot):
+      @classmethod
+      def child_type(cls, name):
+         return OneEntry
+
+   async def dkv_example():
+      async with open_client() as client:
+         async with client.mirror("one", root_type=OneRoot) as root:
+            # At this point you have the sub-tree in memory
+            assert root['two']['three'].value[1] >= 42
+
+            while True:
+               await anyio.sleep(99999)
+         pass
+         # at this point the sub-tree is still there, but won't be updated
+
+except that in a real program you'd do some real work instead of sleeping.
+
+Verification
+============
+
+Complex data should be clean. Storing ``"Hello there!"`` in a value that
+the rest of your code expects to be an integer is likely to have unwanted
+effects. For instance, we'd like to enforce that all ``quota`` values in our
+site statistics are integer percentages.
+
+First, we define the type::
+
+    one $ ./kv client type set -g 0 -g -2 -g 123 -b 1.2 -b '"Hello"' int <<END
+    > if int(value) != value: raise ValueError("not an integer")
+    > END
+    one $
+
+As you can see, data types must be accompanied by example values that include
+both "good" and "bad" examples.
+
+You can also declare subtypes::
+
+    one $ dkv type set -g 0 -g 99 -g 100 -b -1 -b 101 int percent <<END
+    > if not (0 <= value <= 100): raise ValueError("not a percentage")
+    > END
+    one $
+
+The example values must pass the supertype's checks.
+
+Now we associate the test with our data::
+
+    one $ dkv type match -t int -t percent stats '#' quota
+
+Then we store some value::
+
+    one $ dkv data set -v 123 stats foo bar quota
+    ServerError: ValueError("not an integer")
+
+Oops. We forgot that arguments are strings::
+
+    one $ dkv data set -ev 123 stats foo bar quota
+    ServerError: ValueError('not a percentage')
+    one $ dkv data set -ev 12 stats foo bar quota
+
+DistKV does not test that existing values match your restrictions.
+
+
+Data mangling
+=============
+
+Structured data are great, but some clients want boring single-value items.
+For instance, some home automation systems want to use ``"ON"`` and
+``"OFF"`` messages, while your active code is much happier with a ``bool``
+value – or even a mapping that also carries the time of last change, so that
+a ``turn off after 15 minutes`` rule will actually work.
+
+Let's write a simple number codec::
+
+    one $ dkv codec set -i '"12.5"' 12.5 -o 13.25 '"13.25"' floatstr
+    Enter the Python script to encode 'value'.
+    return str(value)
+    Enter the Python script to decode 'value'.
+    return float(value)
+    ^D
+
+As you can see, you need to give the codec some examples. Here they're
+symmetric but that's not a requirement; for instance, a ``bool`` codec for our
+home automation system could accept a wide range of ``true``-ish or
+``false``-ish strings but it would always output ``ON`` and ``OFF``.
+
+Associating this codec with a path is slightly more involved::
+
+    one $ dkv codec convert -c floatstr floatval monitor '#' value
+
+This associates
+
+* the float-to-string codec we just created
+
+* all paths that start with ``monitor`` and end with ``value``
+
+with the name ``floatval``. As not every user needs stringified numbers, we now
+need to tell DistKV which users to apply this codec to::
+
+    one $ dkv auth user modify --aux codec=floatval name=joe
+	
+Thus, Joe will read and write values as strings::
+
+    one $ dkv data set -v 99.5 monitor a b c value
+    one $ dkv data set -v 12.3 monitor a b c thing
+    one $ dkv data get -rd_ monitor
+    a:
+      b:
+        c:
+          value:
+            _:
+              99.5
+          thing:
+            _:
+              '12.3'
+
+This is especially helpful if Joe is an MQTT gateway which only transmits
+(binary) strings.
+
+
+DistKV currently can't translate paths, or merge many values to one entry's attributes.
+
+Your best bet is to use active objects and add some code to their ``set_value``
+methods that translates between one and the other. There are some caveats:
+
+* All such data are stored twice.
+
+* Don't change a value that didn't in fact change; otherwise you'll generate an endless loop.
+
+* You need to verify that the two trees match when you start up, and decide
+  which is more correct. (The ``tock`` stamp will help you here.) Don't
+overwrite changes that arrive while you do that.
+
 
