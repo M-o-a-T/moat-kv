@@ -471,6 +471,7 @@ class StreamedRequest:
         self.n_msg = 0
         self._report_start = report_start
         self._started = anyio.create_event()
+        self._path_long = lambda x: x
         # None: no message yet; True: begin seen; False: end or single message seen
 
     async def set(self, msg):
@@ -536,7 +537,9 @@ class StreamedRequest:
         if res is None:
             self.q = None  # prevent deadlock if called again
             raise StopAsyncIteration
-        return res.unwrap()
+        res = res.unwrap()
+        self._path_long(res)
+        return res
 
     async def send(self, **params):
         # logger.debug("Send %s", params)
@@ -857,6 +860,8 @@ class Client:
         if self._handlers is None:
             raise anyio.exceptions.ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
+        if 'path' in params and params.get('long_path', False):
+            res._path_long = PathLongener(params['path'])
         await res.send(action=action, **params)
         await res.wait_started()
         try:
@@ -1008,7 +1013,7 @@ class Client:
             action="delete_value", path=path, iter=False, nchain=nchain, **kw
         )
 
-    def get_tree(self, *path, **kw):
+    async def get_tree(self, *path, long_path=True, **kw):
         """
         Retrieve a complete DistKV subtree.
 
@@ -1023,9 +1028,15 @@ class Client:
           nchain (int): Length of change chain to add to the results, for updating.
           min_depth (int): min level of nodes to retrieve.
           max_depth (int): max level of nodes to retrieve.
+          long_path (bool): if set (the default), pass the result through PathLongener
 
         """
-        return self._request(action="get_tree", path=path, iter=True, **kw)
+        if long_path:
+            lp = PathLongener()
+        async for r in await self._request(action="get_tree", path=path, iter=True, long_path=True, **kw):
+            if long_path:
+                lp(r)
+            yield r
 
     def delete_tree(self, *path, nchain=0):
         """
@@ -1049,7 +1060,7 @@ class Client:
         """
         return self._request(task=seq)
 
-    def watch(self, *path, **kw):
+    def watch(self, *path, long_path=True, **kw):
         """
         Return an async iterator of changes to a subtree.
 
@@ -1069,7 +1080,7 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._stream(action="watch", path=path, iter=True, **kw)
+        return self._stream(action="watch", path=path, iter=True, long_path=long_path, **kw)
 
     def mirror(self, *path, root_type=ClientRoot, **kw):
         """An async context manager that affords an update-able mirror
