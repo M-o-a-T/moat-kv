@@ -161,7 +161,7 @@ bad:
 code: "if not isinstance(value,int): raise ValueError('not an int')"
 """
                 )
-            await rr("type", "set", "-y", "-s", str(path), "int")
+            await rr("type", "set", "-d", str(path), "int")
 
             with io.open(path, "w") as f:
                 f.write("if not 0<=value<=100: raise ValueError('not a percentage')\n")
