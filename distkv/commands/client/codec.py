@@ -68,18 +68,18 @@ async def get(obj, path, script, encode, decode):
 @cli.command()
 @click.option("-e", "--encode", type=click.File(mode="r"), help="File with the encoder")
 @click.option("-d", "--decode", type=click.File(mode="r"), help="File with the decoder")
-@click.option("-s", "--script", type=click.File(mode="r"), help="File with the rest")
+@click.option("-d", "--data", type=click.File(mode="r"), help="File with the rest")
 @click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
 @click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, encode, decode, script, in_, out):
+async def set(obj, path, encode, decode, data, in_, out):
     """Save codec information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if script:
-        msg = yaml.safe_load(script)
+    if data:
+        msg = yaml.safe_load(data)
     else:
         msg = {}
     if "encode" in msg:

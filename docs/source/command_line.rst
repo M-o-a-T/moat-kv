@@ -531,8 +531,8 @@ percent" must be accepted by "int".
 Tests can use Python code, a JSON schema, or both. In the latter case the
 schema is tested first.
 
-To modify a record, use ``distkv client type get <path>… > data``, edit the
-file ``data``, then restore with ``distkv client type set -d <data> <path>…``.
+To modify a record, use ``distkv client type get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``distkv client type set -d <tempfile> <path>…``.
 
 .. option:: -y, --yaml
 
@@ -604,11 +604,15 @@ Retrieve information about a codec, including its scripts.
 
 .. option:: -e, --encode <file>
 
-   The file to which to write the encoder's Python code.
+   The file which the encoder's Python code is written to.
+
+   If this option is not used, the code is part of the script's output.
 
 .. option:: -d, --decode <file>
 
-   The file which contains the decoder's Python code.
+   The file which the decoder's Python code is written to.
+
+   If this option is not used, the code is part of the script's output.
 
 .. option:: -s, --script <file>
 
@@ -630,6 +634,9 @@ Retrieve information about a codec, including its scripts.
 
 Add or modify a codec.
 
+To modify a codec, use ``distkv client codec get <path>… > <tempfile>``, edit the
+tempfile, then restore with ``distkv client codec set -d <tempfile> <path>…``.
+
 .. option:: -e, --encode <file>
 
    The file which contains the encoder's Python code.
@@ -648,7 +655,7 @@ Add or modify a codec.
    A pair of test values for the encoding branch of the codec.
    Both are ``eval``-uated.
 
-.. option:: -s, --script <file>
+.. option:: -d, --data <file>
 
    The YAML file which contains any other data.
    
@@ -803,6 +810,9 @@ Store or replace Python code stored in the server.
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
 
+To modify some code, use ``distkv client code get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``distkv client code set -d <tempfile> <path>…``.
+
 .. option:: -d, --data <filename>
 
    Load the metadata from this file.
@@ -815,8 +825,7 @@ upload code for use by client runners.
 
    The code will run asynchronously, i.e. it may use ``async`` and ``await`` statements.
 
-   You should only use the ``anyio`` module for sleeping, locking etc. unless
-   you *know* which async runtime is in use.
+   You should only use the ``anyio`` module for sleeping, locking etc..
 
 .. option:: -t, --thread
 
@@ -826,8 +835,7 @@ upload code for use by client runners.
 
 .. option:: name…
 
-   The path to the code to set, below ``.distkv code proc`` or whatever
-   else is configured under ``codes``.
+   The path to the code to write.
 
 TODO: Old versions of the code continue to run; DistKV does not yet restart users.
 
@@ -863,6 +871,9 @@ Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
+
+To modify a module, use ``distkv client code module get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``distkv client code module set -d <tempfile> <path>…``.
 
 .. option:: -d, --data <filename>
 

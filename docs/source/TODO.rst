@@ -28,3 +28,5 @@ Open issues
 
 * Keep an error index on the server?  Something more general?
 
+* Restart code that's been changed (without waiting for restart/retry).
+
