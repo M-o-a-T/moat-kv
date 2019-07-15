@@ -158,3 +158,26 @@ async def deleter(obj, delete, nodes, yaml):
     else:
         pprint(res)
 
+
+@cli.command()
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def dump(obj, path):
+    """
+    Dump internal state.
+
+    This displays DistKV's internal state.
+    """
+    import yaml
+
+    y = {}
+    async for r in await obj.client._request("get_tree_internal", path=path, iter=True, nchain=0):
+        path = r['path']
+        yy = y
+        for p in path:
+            yy = yy.setdefault(p, {})
+        try:
+            yy['_'] = r["value"]
+        except KeyError:
+            pass
+    print(yaml.safe_dump(y, default_flow_style=False))
