@@ -860,6 +860,8 @@ class Entry:
             return
         _depth += 1
         for k,v in list(self._sub.items()):
+            if k is None:
+                continue
             a = acl.step(k) if acl is not None else None
             await v.walk(proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
