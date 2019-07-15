@@ -5,7 +5,6 @@ import sys
 import trio_click as click
 import time
 import anyio
-from pprint import pprint
 
 from distkv.util import (
     attrdict,
@@ -120,10 +119,10 @@ async def list(obj, state, state_only, as_dict, path):
             else:
                 yy['state'] = None
         if as_dict is None:
-            yprint([yy])
+            yprint([yy], stream=obj.stdout)
 
     if as_dict is not None:
-        yprint(y)
+        yprint(y, stream=obj.stdout)
 
 
 @cli.command()
@@ -155,7 +154,7 @@ async def state(obj, path, result):
     if not obj.meta:
         res = res.value
 
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -179,7 +178,7 @@ async def get(obj, path):
     if not obj.meta:
         res = res.value
 
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -251,6 +250,6 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
         nchain=3,
         **({"chain":chain} if chain else {})
     )
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 

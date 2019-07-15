@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import json
 
 from distkv.util import (
@@ -47,7 +46,8 @@ async def dest(obj, path, incremental):
     as the new one is opened and ready.
     """
     res = await obj.client._request("log", path=path, fetch=not incremental)
-    pprint(res)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -58,7 +58,8 @@ async def save(obj, path):
     Write the server's current state to a file.
     """
     res = await obj.client._request("save", path=path)
-    pprint(res)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -68,6 +69,7 @@ async def stop(obj):
     Stop logging changes.
     """
     res = await obj.client._request("log")  # no path == stop
-    pprint(res)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
 
 

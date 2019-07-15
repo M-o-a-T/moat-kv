@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import json
 
 from distkv.util import (
@@ -103,7 +102,7 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
 async def list(obj):
     """List known auth methods"""
     async for auth in enum_auth(obj):
-        print(auth)
+        print(auth, file=obj.stdout)
 
 
 @cli.command()
@@ -117,9 +116,9 @@ async def init(obj, switch):
     await obj.client._request(action="set_auth_typ", typ=obj.auth)
     if obj.debug >= 0:
         if obj.auth:
-            print("Authorization switched to", obj.auth)
+            print("Authorization switched to", obj.auth, file=obj.stdout)
         else:
-            print("Authorization turned off.")
+            print("Authorization turned off.", file=obj.stdout)
 
 
 @cli.group()
@@ -141,10 +140,13 @@ async def user(obj):
 async def list(obj, chain):
     """List all users (raw data)."""
     async for r in enum_typ(obj, nchain=chain):
-        if not obj.meta:
-            del r["seq"]
-            del r["tock"]
-        yprint(r)
+        if obj.meta:
+            if obj.debug < 2:
+                del r["seq"]
+                del r["tock"]
+            yprint(r, stream=obj.stdout)
+        else:
+            print(r.ident, file=obj.stdout)
 
 
 @user.command()
@@ -157,7 +159,7 @@ async def get(obj, ident):
         lv._length = 16
 
     u = await lv.recv(obj.client, ident)
-    pprint(u.export())
+    yprint(u.export(), stream=obj.stdout)
 
 
 @user.command()
@@ -204,9 +206,9 @@ async def add_mod_user(obj, args, modify, add):
     res = await u.send(obj.client)
     if obj.meta:
         res.ident = u.ident
-        yprint(res)
+        yprint(res, stream=obj.stdout)
     else:
-        print(u.ident)
+        print(u.ident, file=obj.stdout)
 
 
 @user.command(name="auth")
@@ -223,6 +225,6 @@ async def auth_(obj, auth):
     user = gen_auth(auth)
     await user.auth(obj.client)
     if obj.debug > 0:
-        print("OK.")
+        print("OK.", file=obj.stdout)
 
 

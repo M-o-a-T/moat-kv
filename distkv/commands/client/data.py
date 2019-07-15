@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 
 from distkv.util import (
     attrdict,
@@ -107,10 +106,10 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
                     y[path] = r if obj.meta else r.value
                 except AttributeError:
                     continue
-                yprint([y])
+                yprint([y], stream=obj.stdout)
 
         if as_dict is not None:
-            yprint(y)
+            yprint(y, stream=obj.stdout)
         return
 
     if maxdepth is not None or mindepth is not None:
@@ -127,11 +126,11 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
             sys.exit(1)
 
     if not raw:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
     elif isinstance(res, bytes):
-        os.write(sys.stdout.fileno(), res)
+        os.write(obj.stdout.fileno(), res)
     else:
-        sys.stdout.write(str(res))
+        obj.stdout.write(str(res))
 
 
 @cli.command(short_help="Add or update an entry")
@@ -178,7 +177,7 @@ async def set(obj, path, value, eval, chain, prev, last, new):
 
     res = await obj.client.set(*path, value=value, nchain=chain, **args)
     if chain:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command(short_help="Delete an entry / subtree")
@@ -231,9 +230,11 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
         pl = PathLongener(path)
         async for r in res:
             pl(r)
-            pprint(r)
+            if obj.meta:
+                yprint(r, stream=obj.stdout)
     else:
-        pprint(res)
+        if obj.meta:
+            yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -257,9 +258,9 @@ async def watch(obj, path, chain, state):
             if not flushing and r.get('state','') == "uptodate":
                 flushing = True
             del r["seq"]
-            yprint(r)
+            yprint(r, stream=obj.stdout)
             if flushing:
-                sys.stdout.flush()
+                obj.stdout.flush()
 
 
 @cli.command()

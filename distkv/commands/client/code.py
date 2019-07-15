@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import yaml
 
 from distkv.util import (
@@ -56,7 +55,7 @@ async def get(obj, path, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    yprint(res)
+    yprint(res, file=obj.stdout)
 
 
 @cli.command()
@@ -116,7 +115,7 @@ async def set(obj, path, chain, thread, script, yaml_, async_):
         **({"chain":chain} if chain else {})
     )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
 
 
 @cli.group('module')
@@ -149,7 +148,7 @@ async def get(obj, path, script):
         if code is not None:
             print(code, file=script)
 
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @mod.command()
@@ -196,4 +195,4 @@ async def set(obj, path, chain, script, yaml_):
         **({"chain":chain} if chain else {})
     )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)

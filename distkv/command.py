@@ -135,7 +135,8 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     ctx.ensure_object(attrdict)
     ctx.obj.debug = max(verbose - quiet + 1, 0)
     ctx.obj._DEBUG = debug
-    
+    ctx.obj.stdout = CFG.get('_stdout', sys.stdout)  # used for testing
+
     if cfg:
         logger.debug("Loading %s", cfg)
 

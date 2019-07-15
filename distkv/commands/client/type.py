@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import json
 import yaml
 
@@ -65,7 +64,7 @@ async def get(obj, path, script, schema, yaml_):
             yprint(r.pop('schema'), stream=schema)
         else:
             json.dump(r.pop('schema'), schema)
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -139,7 +138,7 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
         **({"chain":chain} if chain else {})
     )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -167,7 +166,7 @@ async def match(obj, path, type, delete, raw):
     if delete:
         res = await obj.client._request(action="delete_internal", path=("type",) + path)
         if obj.meta:
-            yprint(res)
+            yprint(res, stream=obj.stdout)
         return
 
     msg = {}
@@ -186,10 +185,10 @@ async def match(obj, path, type, delete, raw):
         nchain=3 if obj.meta else 0,
     )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
     elif type or delete:
         pass
     else:
-        print(" ".join(str(x) for x in res.type))
+        print(" ".join(str(x) for x in res.type), file=obj.stdout)
 
 

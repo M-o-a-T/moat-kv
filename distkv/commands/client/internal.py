@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 
 from range_set import RangeSet
 from distkv.util import (
@@ -48,7 +47,7 @@ async def state(obj, **flags):
     Dump the server's state.
     """
     res = await obj.client._request("get_state", iter=False, **flags)
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -88,7 +87,7 @@ async def mark(obj, deleted, source, node, items, broadcast):
         await obj.client._request("fake_info_send", iter=False, **msg)
 
     res = await obj.client._request("get_state", iter=False, **{k: True})
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -121,7 +120,7 @@ async def deleter(obj, delete, nodes):
     elif nodes:
         val |= set(nodes)
     else:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
         return
 
     val = list(val)
@@ -133,7 +132,7 @@ async def deleter(obj, delete, nodes):
         value=val
     )
     res.value = val
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -156,5 +155,5 @@ async def dump(obj, path):
             yy['_'] = r["value"]
         except KeyError:
             pass
-    yprint(y)
+    yprint(y, stream=obj.stdout)
 

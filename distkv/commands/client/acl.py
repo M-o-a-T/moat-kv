@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import json
 
 from distkv.util import (
@@ -47,7 +46,7 @@ async def list(obj):
         iter=False,
         nchain=3 if obj.meta else 0,
     )
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 @cli.command()
 @click.option(
@@ -79,10 +78,10 @@ async def dump(obj, name, path, as_dict):
         else:
             y = {}
             y[r.path] = r.value
-            yprint([y])
+            yprint([y], stream=obj.stdout)
 
     if as_dict:
-        yprint(y)
+        yprint(y, stream=obj.stdout)
 
 
 @cli.command()
@@ -110,7 +109,7 @@ async def get(obj, name, path):
             if obj.debug:
                 print("No value.", file=sys.stderr)
             return
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command(name="set")
@@ -169,10 +168,10 @@ async def set_(obj, acl, name, path):
 
     if obj.meta:
         res = {"old": "".join(ov), "new": "".join(v), "chain":res.chain, "tock":res.tock}
-        yprint(res)
+        yprint(res, stream=obj.stdout)
     else:
         res = {"old": "".join(ov), "new": "".join(v)}
-        yprint(res)
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -197,8 +196,8 @@ async def test(obj, name, path, acl, mode):
         **({} if acl is None else {'acl': acl}),
     )
     if obj.meta:
-        pprint(res)
+        yprint(res, stream=obj.stdout)
     elif isinstance(res.access, bool):
-        print('+' if res.access else '-')
+        print('+' if res.access else '-', file=obj.stdout)
     else:
-        print(res.access)
+        print(res.access, file=obj.stdout)

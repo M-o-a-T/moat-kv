@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 import yaml
 
 from distkv.util import (
@@ -63,7 +62,7 @@ async def get(obj, path, script, encode, decode):
 
     if not obj.meta:
         res = res.value
-    yprint(res)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -115,7 +114,7 @@ async def set(obj, path, encode, decode, script, in_, out):
         nchain=3 if obj.meta else 0,
     )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -147,8 +146,8 @@ async def convert(obj, path, codec, name, delete):
             nchain=3 if obj.meta else 0,
         )
     if obj.meta:
-        yprint(res)
+        yprint(res, stream=obj.stdout)
     elif type or delete:
-        print(res.tock)
+        print(res.tock, file=obj.stdout)
     else:
-        print(" ".join(res.type))
+        print(" ".join(res.type), file=obj.stdout)

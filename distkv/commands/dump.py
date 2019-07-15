@@ -3,7 +3,6 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
 from distkv.util import MsgReader
 
 from distkv.util import (
@@ -37,7 +36,7 @@ async def cli(obj):
 @click.pass_obj
 async def cfg(obj):
     """emit the current configuration as a YAML file."""
-    yprint(obj.cfg)
+    yprint(obj.cfg, stream=obj.stdout)
 
 @cli.command()
 @click.argument("file", nargs=1)
@@ -46,5 +45,5 @@ async def file(obj, file):
     """Read a MsgPack file and dump as YAML."""
     async with MsgReader(path=file) as f:
         async for msg in f:
-            yprint(msg)
-            print("---")
+            yprint(msg, stream=obj.stdout)
+            print("---", file=obj.stdout)

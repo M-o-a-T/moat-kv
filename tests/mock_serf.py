@@ -17,7 +17,7 @@ from distkv.default import CFG
 from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict, combine_dict
+from distkv.util import attrdict, combine_dict, NotGiven
 from asyncserf.util import ValueEvent
 from asyncserf.stream import SerfEvent
 from anyio import create_queue
@@ -31,9 +31,19 @@ otm = time.time
 
 @asynccontextmanager
 async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
-    TESTCFG = copy.deepcopy(CFG)
+    C_OUT = CFG.get('_stdout', NotGiven)
+    if C_OUT is not NotGiven:
+        del CFG['_stdout']
+    try:
+        TESTCFG = copy.deepcopy(CFG)
+    except TypeError:
+        import pdb;pdb.set_trace()
+        raise
     TESTCFG.server.port = None
     TESTCFG.root = "test"
+    if C_OUT is not NotGiven:
+        CFG['_stdout'] = C_OUT
+        TESTCFG['_stdout'] = C_OUT
 
     if ssl:
         import ssl
