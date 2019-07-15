@@ -20,6 +20,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -129,7 +130,6 @@ async def user(obj):
 
 
 @user.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-c",
     "--chain",
@@ -137,21 +137,20 @@ async def user(obj):
     default=0,
     help="Length of change list to return. Default: 0",
 )
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print the complete result. Default: just the value",
+)
 @click.pass_obj
-async def list(obj, yaml, chain):
+async def list(obj, chain, verbose):
     """List all users (raw data)."""
-    if yaml:
-        import yaml
     async for r in enum_typ(obj, nchain=chain):
-        if obj.debug < 2:
+        if not verbose:
             del r["seq"]
             del r["tock"]
-        if yaml:
-            print(yaml.safe_dump(r, default_flow_style=False))
-        elif obj.debug > 1:
-            print(r)
-        else:
-            print(r.ident)
+        yprint(r)
 
 
 @user.command()

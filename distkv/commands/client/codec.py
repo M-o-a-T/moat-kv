@@ -4,7 +4,7 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
-import json
+import yaml
 
 from distkv.util import (
     attrdict,
@@ -20,6 +20,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -34,7 +35,6 @@ async def cli(obj):
 
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -52,7 +52,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, yaml, verbose, script, encode, decode):
+async def get(obj, path, verbose, script, encode, decode):
     """Read type information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -69,12 +69,7 @@ async def get(obj, path, yaml, verbose, script, encode, decode):
 
     if not verbose:
         res = res.value
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
-    else:
-        pprint(res)
+    yprint(res)
 
 
 @cli.command()
@@ -89,44 +84,40 @@ async def get(obj, path, yaml, verbose, script, encode, decode):
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the rest")
 @click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
 @click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
-@click.option("-y", "--yaml", is_flag=True, help="load everything from this file")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, verbose, encode, decode, script, yaml, in_, out):
+async def set(obj, path, verbose, encode, decode, script, in_, out):
     """Save codec information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml:
-        import yaml
-
+    if script:
         msg = yaml.safe_load(script)
     else:
         msg = {}
-    if "encode" not in msg:
+    if "encode" in msg:
+        if encode:
+            raise click.UsageError("Duplicate encode script")
+    else:
         if not encode:
-            if os.isatty(sys.stdin.fileno()):
-                print("Enter the Python script to encode 'value'.")
-            encode = sys.stdin.read()
-        else:
-            encode = encode.read()
-        msg["encode"] = encode
-    elif encode and not yaml:
-        raise click.UsageError("Duplicate encode parameter")
-    if "decode" not in msg:
+            raise click.UsageError("Missing encode script")
+        msg["encode"] = encode.read()
+    if "decode" in msg:
+        if decode:
+            raise click.UsageError("Duplicate decode script")
+    else:
         if not decode:
-            if os.isatty(sys.stdin.fileno()):
-                print("Enter the Python script to decode 'value'.")
-            decode = sys.stdin.read()
-        else:
-            decode = decode.read()
-        msg["decode"] = decode
-    elif decode and not yaml:
-        raise click.UsageError("Duplicate decode parameter")
+            raise click.UsageError("Missing decode script")
+        msg["decode"] = decode.read()
     if in_:
         msg['in'] = [ (eval(a),eval(b)) for a,b in in_ ]
     if out:
         msg['out'] = [ (eval(a),eval(b)) for a,b in out ]
+
+    if not msg['in']:
+        raise click.UsageError("Missing decode tests")
+    if not msg['out']:
+        raise click.UsageError("Missing encode tests")
 
     res = await obj.client._request(
         action="set_internal",

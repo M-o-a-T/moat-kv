@@ -4,7 +4,6 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
-import json
 
 from distkv.util import (
     attrdict,
@@ -20,6 +19,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -43,12 +43,11 @@ async def cli(obj):
     default=0,
     help="Length of change list to return. Default: 0",
 )
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-d",
     "--as-dict",
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use "
+    help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
 @click.option(
@@ -72,9 +71,10 @@ async def cli(obj):
     help="Starting depth. Default: whole tree",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
+@click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, mindepth):
+async def get(obj, path, chain, verbose, recursive, as_dict, maxdepth, mindepth):
     """
     Read a DistKV value.
 
@@ -82,10 +82,11 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
     will be read before anything is printed. Use the "watch --state" subcommand
     for incremental output.
     """
-    if yaml:
-        import yaml
 
     if recursive:
+        if raw:
+            raise click.UsageError("'raw' cannot be used with 'recursive'")
+
         kw = {}
         if maxdepth is not None:
             kw["max_depth"] = maxdepth
@@ -107,7 +108,7 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
                     pass
                 if verbose:
                     yy.update(r)
-            elif yaml:
+            else:
                 y = {}
                 if verbose:
                     y[path] = r
@@ -116,28 +117,16 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
                         y[path] = r.pop("value")
                     except KeyError:
                         pass
-                print(yaml.safe_dump([y], default_flow_style=False))
-            else:
-                try:
-                    val = r.value
-                except AttributeError:
-                    pass
-                else:
-                    if verbose:
-                        pprint(r)
-                    else:
-                        print("%s: %s" % (" ".join(str(x) for x in path), repr(r.value)))
-        if as_dict is None:
-            pass
-        elif yaml:
-            import yaml
+                yprint([y])
 
-            print(yaml.safe_dump(y, default_flow_style=False))
-        else:
-            pprint(y)
+        if as_dict is not None:
+            yprint(y)
         return
+
     if maxdepth is not None or mindepth is not None:
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
+    if as_dict is not None:
+        raise click.UsageError("'as-dict' only works with 'recursive'")
     res = await obj.client.get(*path, nchain=chain)
     if not verbose:
         try:
@@ -146,12 +135,13 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             if obj.debug:
                 print("No data at", repr(path), file=sys.stderr)
             sys.exit(1)
-    if yaml:
-        import yaml
 
-        print(yaml.safe_dump(res, default_flow_style=False))
+    if not raw:
+        yprint(res)
+    elif isinstance(res, bytes):
+        os.write(sys.stdout.fileno(), res)
     else:
-        pprint(res)
+        sys.stdout.write(str(res))
 
 
 @cli.command(short_help="Add or update an entry")
@@ -169,12 +159,9 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
-@click.option(
-    "-y", "--yaml", is_flag=True, help="Print result as YAML. Default: Python."
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, value, eval, chain, prev, last, new, yaml):
+async def set(obj, path, value, eval, chain, prev, last, new):
     """
     Store a value at some DistKV position.
 
@@ -200,12 +187,8 @@ async def set(obj, path, value, eval, chain, prev, last, new, yaml):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client.set(*path, value=value, nchain=chain, **args)
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False))
-    elif chain:
-        pprint(res)
+    if chain:
+        yprint(res)
 
 
 @cli.command(short_help="Delete an entry / subtree")
@@ -272,13 +255,10 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
     help="Length of change list to return. Default: 0",
 )
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def watch(obj, path, chain, yaml, state):
+async def watch(obj, path, chain, state):
     """Watch a DistKV subtree"""
-    if yaml:
-        import yaml
     flushing = not state
     async with obj.client.watch(*path, nchain=chain, fetch=state) as res:
         pl = PathLongener(path)
@@ -287,10 +267,7 @@ async def watch(obj, path, chain, yaml, state):
             if not flushing and r.get('state','') == "uptodate":
                 flushing = True
             del r["seq"]
-            if yaml:
-                print(yaml.safe_dump(r, default_flow_style=False))
-            else:
-                pprint(r)
+            yprint(r)
             if flushing:
                 sys.stdout.flush()
 
@@ -299,7 +276,7 @@ async def watch(obj, path, chain, yaml, state):
 @click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
 @click.option(
-    "-i", "--infile", type=click.File("rb"), help="Print as YAML. Default: Python."
+    "-i", "--infile", type=click.File("rb"), help="File to read (msgpack)."
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
@@ -308,7 +285,7 @@ async def update(obj, path, infile, local, force):
     if local and force:
         raise click.UsageError("'local' and 'force' are mutually exclusive")
 
-    ps = PathShortener()
+    ps = PathShortener(path)
     async with MsgReader(path=path) as reader:
         with obj.client._stream(
             action="update", path=path, force=force, local=local

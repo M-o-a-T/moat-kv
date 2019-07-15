@@ -4,7 +4,6 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
-import json
 
 from distkv.util import (
     attrdict,

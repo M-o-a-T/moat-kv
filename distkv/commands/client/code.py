@@ -4,7 +4,7 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
-import json
+import yaml
 
 from distkv.util import (
     attrdict,
@@ -20,6 +20,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -34,7 +35,6 @@ async def cli(obj):
 
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -46,7 +46,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, yaml, verbose, script):
+async def get(obj, path, verbose, script):
     """Read a code entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -62,12 +62,7 @@ async def get(obj, path, yaml, verbose, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False))
-    else:
-        pprint(res)
+    yprint(res)
 
 
 @cli.command()
@@ -82,7 +77,7 @@ async def get(obj, path, yaml, verbose, script):
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the code"
 )
-@click.option("-y", "--yaml", is_flag=True, help="load everything from the 'script' file")
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML")
 @click.option(
     "-c",
     "--chain",
@@ -92,7 +87,7 @@ async def get(obj, path, yaml, verbose, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, thread, verbose, script, yaml, async_):
+async def set(obj, path, chain, thread, verbose, script, yaml_, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -106,9 +101,7 @@ async def set(obj, path, chain, thread, verbose, script, yaml, async_):
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml:
-        import yaml
-
+    if yaml_:
         msg = yaml.safe_load(script)
     else:
         msg = {}
@@ -118,16 +111,13 @@ async def set(obj, path, chain, thread, verbose, script, yaml, async_):
     if async_ is not None or 'is_async' not in msg:
         msg['is_async'] = async_
 
-    if "code" not in msg:
+    if "code" in msg:
+        if script:
+            raise click.UsageError("Duplicate script")
+    else:
         if not script:
-            if os.isatty(sys.stdin.fileno()):
-                print("Enter the Python script to run here.")
-            script = sys.stdin.read()
-        else:
-            script = script.read()
-        msg["code"] = script
-    elif script and not yaml:
-        raise click.UsageError("Duplicate script parameter")
+            raise click.UsageError("Missing script")
+        msg["code"] = script.read()
 
     res = await obj.client._request(
         action="set_value",
@@ -138,10 +128,7 @@ async def set(obj, path, chain, thread, verbose, script, yaml, async_):
         **({"chain":chain} if chain else {})
     )
     if verbose:
-        if yaml:
-            print(yaml.safe_dump(res, default_flow_style=False))
-        else:
-            print(res.tock)
+        yprint(res)
 
 
 @cli.group('module')
@@ -152,7 +139,6 @@ async def mod(obj):
     """
 
 @mod.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -164,7 +150,7 @@ async def mod(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, yaml, verbose, script):
+async def get(obj, path, verbose, script):
     """Read a module entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -180,12 +166,8 @@ async def get(obj, path, yaml, verbose, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    if yaml:
-        import yaml
 
-        print(yaml.safe_dump(res, default_flow_style=False))
-    else:
-        pprint(res)
+    yprint(res)
 
 
 @mod.command()
@@ -198,7 +180,7 @@ async def get(obj, path, yaml, verbose, script):
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
 )
-@click.option("-y", "--yaml", is_flag=True, help="load everything from the 'script' file")
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML")
 @click.option(
     "-c",
     "--chain",
@@ -208,14 +190,12 @@ async def get(obj, path, yaml, verbose, script):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, verbose, script, yaml):
+async def set(obj, path, chain, verbose, script, yaml_):
     """Save a Python module to DistKV."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml:
-        import yaml
-
+    if yaml_:
         msg = yaml.safe_load(script)
     else:
         msg = {}
@@ -224,15 +204,12 @@ async def set(obj, path, chain, verbose, script, yaml):
         msg = msg['value']
 
     if "code" not in msg:
+        if script:
+            raise click.UsageError("Duplicate script")
+    else:
         if not script:
-            if os.isatty(sys.stdin.fileno()):
-                print("Enter the Python module here.")
-            script = sys.stdin.read()
-        else:
-            script = script.read()
-        msg["code"] = script
-    elif script and not yaml:
-        raise click.UsageError("Duplicate script parameter")
+            raise click.UsageError("Missing script")
+        msg["code"] = script.read()
 
     res = await obj.client._request(
         action="set_value",
@@ -243,7 +220,4 @@ async def set(obj, path, chain, verbose, script, yaml):
         **({"chain":chain} if chain else {})
     )
     if verbose:
-        if yaml:
-            print(yaml.safe_dump(res, default_flow_style=False))
-        else:
-            print(res.tock)
+        yprint(res)

@@ -20,6 +20,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -36,7 +37,6 @@ async def cli(obj):
 
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -44,7 +44,7 @@ async def cli(obj):
     help="Print the complete result. Default: just the value",
 )
 @click.pass_obj
-async def list(obj, yaml, verbose):
+async def list(obj, verbose):
     """List ACLs.
     """
     res = await obj.client._request(
@@ -53,30 +53,27 @@ async def list(obj, yaml, verbose):
         iter=False,
         nchain=3 if verbose else 0,
     )
-    pprint(res)
+    yprint(res)
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-d",
     "--as-dict", 
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use "
+    help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def dump(obj, name, path, yaml, as_dict):
+async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
     res = await obj.client._request(
         action="get_tree_internal",
         path=("acl",name)+path,
         iter=True,
     )
-    if yaml:
-        import yaml
-    y = {} if as_dict or yaml else []
+    y = {}
     async for r in res:
         if as_dict is not None:
             yy = y
@@ -85,23 +82,16 @@ async def dump(obj, name, path, yaml, as_dict):
             if "chain" in r:
                 yy["chain"] = r.chain
             yy[as_dict] = r.pop("value")
-        elif yaml:
+        else:
             y = {}
             y[r.path] = r.value
-            print(yaml.safe_dump([y], default_flow_style=False), file=sys.stdout)
-        else:
-            y.append((r.path,r.value))
+            yprint([y])
 
-    if as_dict is None and yaml:
-        pass
-    elif yaml:
-        print(yaml.safe_dump(y, default_flow_style=False), file=sys.stdout)
-    else:
-        pprint(y)
+    if as_dict:
+        yprint(y)
 
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -111,7 +101,7 @@ async def dump(obj, name, path, yaml, as_dict):
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, name, path, yaml, verbose):
+async def get(obj, name, path, verbose):
     """Read an ACL.
     
     This command does not test a path. Use "… acl test …" for that.
@@ -126,16 +116,13 @@ async def get(obj, name, path, yaml, verbose):
     )
 
     if not verbose:
-        res = getattr(res,'value', '-')
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
-
-    elif isinstance(res,str):
-        print(res)
-    else:
-        pprint(res)
+        try:
+            res = res.value
+        except KeyError:
+            if obj.debug:
+                print("No value.", file=sys.stderr)
+            return
+    yprint(res)
 
 
 @cli.command(name="set")
@@ -145,15 +132,12 @@ async def get(obj, name, path, yaml, verbose):
     is_flag=True,
     help="Print the complete result. Default: just the value",
 )
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-a", "--acl", default="+x", help="The value to set. Start with '+' to add, '-' to remove rights.")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set_(obj, acl, name, path, verbose, yaml):
+async def set_(obj, acl, name, path, verbose):
     """Set or change an ACL."""
-    if yaml:
-        import yaml
 
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -203,13 +187,10 @@ async def set_(obj, acl, name, path, verbose, yaml):
 
     if verbose:
         res = {"old": "".join(ov), "new": "".join(v), "chain":res.chain, "tock":res.tock}
-        if yaml:
-            print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
-        else:
-            pprint(res)
-    elif yaml:
+        yprint(res)
+    else:
         res = {"old": "".join(ov), "new": "".join(v)}
-        print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
+        yprint(res)
 
 
 @cli.command()

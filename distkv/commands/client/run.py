@@ -6,7 +6,6 @@ import trio_click as click
 import time
 import anyio
 from pprint import pprint
-import yaml
 
 from distkv.util import (
     attrdict,
@@ -24,6 +23,7 @@ from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError, ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot
+from distkv.util import yprint
 
 import logging
 
@@ -70,7 +70,7 @@ async def all(obj):
     "-d",
     "--as-dict", 
     default=None,
-    help="YAML: structure as dictionary. The argument is the key to use "
+    help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
 @click.argument("path", nargs=-1)
@@ -126,10 +126,10 @@ async def list(obj, state, state_only, as_dict, verbose, path):
             else:
                 yy['state'] = None
         if as_dict is None:
-            print(yaml.safe_dump([yy], default_flow_style=False), file=sys.stdout)
+            yprint([yy])
 
     if as_dict is not None:
-        print(yaml.safe_dump(y, default_flow_style=False), file=sys.stdout)
+        yprint(y)
 
 
 @cli.command()
@@ -167,7 +167,7 @@ async def state(obj, path, verbose, result):
     if not verbose:
         res = res.value
 
-    print(yaml.safe_dump(res, default_flow_style=False))
+    yprint(res)
 
 
 @cli.command()
@@ -197,7 +197,7 @@ async def get(obj, path, verbose):
     if not verbose:
         res = res.value
 
-    print(yaml.safe_dump(res, default_flow_style=False))
+    yprint(res)
 
 
 @cli.command()
@@ -269,6 +269,6 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
         nchain=3,
         **({"chain":chain} if chain else {})
     )
-    print(yaml.safe_dump(res, default_flow_style=False))
+    yprint(res)
 
 

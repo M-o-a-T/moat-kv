@@ -4,7 +4,6 @@ import os
 import sys
 import trio_click as click
 from pprint import pprint
-import json
 
 from range_set import RangeSet
 from distkv.util import (
@@ -21,6 +20,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -37,38 +37,28 @@ async def cli(obj):
     pass
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-n", "--nodes", is_flag=True, help="Get node status.")
 @click.option("-d", "--deleted", is_flag=True, help="Get deletion status.")
 @click.option("-m", "--missing", is_flag=True, help="Get missing-node status.")
 @click.option("-r", "--remote-missing", "remote_missing", is_flag=True, help="Get remote-missing-node status.")
 @click.option("-k", "--known", is_flag=True, help="Get known-data status.")
 @click.pass_obj
-async def state(obj, yaml, **flags):
+async def state(obj, **flags):
     """
     Dump the server's state.
     """
-    if yaml:
-        import yaml
-
     res = await obj.client._request("get_state", iter=False, **flags)
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False))
-    else:
-        pprint(res)
+    yprint(res)
 
 
 @cli.command()
 @click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option("-n", "--node", "source", default='?', help="The node this message is faked as being from.")
 @click.option("-b", "--broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
 @click.argument("items", type=int, nargs=-1)
 @click.pass_obj
-async def mark(obj, deleted, source, node, items, yaml, broadcast):
+async def mark(obj, deleted, source, node, items, broadcast):
     """
     Fix internal state. Use no items to fetch the current list from the
     server's ``missing`` state. Use an empty node name to add the whole
@@ -98,21 +88,14 @@ async def mark(obj, deleted, source, node, items, yaml, broadcast):
         await obj.client._request("fake_info_send", iter=False, **msg)
 
     res = await obj.client._request("get_state", iter=False, **{k: True})
-    if yaml:
-        import yaml
-
-        print(yaml.safe_dump(res, default_flow_style=False))
-    else:
-        pprint(res)
-
+    yprint(res)
 
 
 @cli.command()
 @click.option("-d", "--delete", is_flag=True, help="Remove these nodes")
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("nodes", nargs=-1)
 @click.pass_obj
-async def deleter(obj, delete, nodes, yaml):
+async def deleter(obj, delete, nodes):
     """
     Manage the Deleter list
     
@@ -138,11 +121,7 @@ async def deleter(obj, delete, nodes, yaml):
     elif nodes:
         val |= set(nodes)
     else:
-        if yaml:
-            import yaml
-            print(yaml.safe_dump(res, default_flow_style=False))
-        else:
-            pprint(res)
+        yprint(res)
         return
 
     val = list(val)
@@ -154,11 +133,7 @@ async def deleter(obj, delete, nodes, yaml):
         value=val
     )
     res.value = val
-    if yaml:
-        import yaml
-        print(yaml.safe_dump(res, default_flow_style=False))
-    else:
-        pprint(res)
+    yprint(res)
 
 
 @cli.command()
@@ -170,7 +145,6 @@ async def dump(obj, path):
 
     This displays DistKV's internal state.
     """
-    import yaml
 
     y = {}
     async for r in await obj.client._request("get_tree_internal", path=path, iter=True, nchain=0):
@@ -182,4 +156,5 @@ async def dump(obj, path):
             yy['_'] = r["value"]
         except KeyError:
             pass
-    print(yaml.safe_dump(y, default_flow_style=False))
+    yprint(y)
+

@@ -3,6 +3,9 @@ This module contains various helper functions and classes.
 """
 import trio
 import anyio
+import yaml
+import sys
+
 from getpass import getpass
 from collections import deque
 from collections.abc import Mapping
@@ -10,7 +13,6 @@ from types import ModuleType
 from typing import Union, Dict, Optional
 from ssl import SSLContext
 from functools import partial
-import sys
 
 import logging
 
@@ -22,6 +24,9 @@ except ImportError:
 
 def singleton(cls):
     return cls()
+
+def yprint(data, file=sys.stdout):
+    print(yaml.safe_dump(data, default_flow_style=False), file=file)
 
 
 class TimeOnlyFormatter(logging.Formatter):

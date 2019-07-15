@@ -5,6 +5,7 @@ import sys
 import trio_click as click
 from pprint import pprint
 import json
+import yaml
 
 from distkv.util import (
     attrdict,
@@ -20,6 +21,7 @@ from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
 from distkv.exceptions import ClientError
+from distkv.util import yprint
 
 import logging
 
@@ -34,7 +36,6 @@ async def cli(obj):
 
 
 @cli.command()
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.option(
     "-v",
     "--verbose",
@@ -47,9 +48,10 @@ async def cli(obj):
 @click.option(
     "-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here"
 )
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, yaml, verbose, script, schema):
+async def get(obj, path, verbose, script, schema, yaml_):
     """Read type checker information"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -59,24 +61,17 @@ async def get(obj, path, yaml, verbose, script, schema):
         iter=False,
         nchain=3 if verbose else 0,
     )
+    r = res.value
     if not verbose:
         res = res.value
-    if yaml:
-        import yaml
-
-        if schema and res.get("schema", None) is not None:
-            print(
-                yaml.safe_dump(res.pop("schema"), default_flow_style=False), file=schema
-            )
-        print(yaml.safe_dump(res, default_flow_style=False), file=script or sys.stdout)
-    else:
-        if script:
-            code = res.pop("code", None)
-            if code is not None:
-                print(code, file=script)
-        if schema and res.get("schema", None) is not None:
-            json.dump(res.pop("schema"), schema)
-        pprint(res)
+    if script:
+        script.write(r.pop('code'))
+    if schema:
+        if yaml_:
+            yprint(r.pop('schema'), file=schema)
+        else:
+            json.dump(r.pop('schema'), schema)
+    yprint(res)
 
 
 @cli.command()
@@ -88,13 +83,14 @@ async def get(obj, path, yaml, verbose, script, schema):
 )
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
+@click.option("-d", "--data", "data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the checking script"
 )
 @click.option(
     "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
 )
-@click.option("-y", "--yaml", is_flag=True, help="load everything from the 'script' file")
+@click.option("-y", "--yaml", is_flag=True, help="load the schema as YAML. Default: JSON")
 @click.option(
     "-c",
     "--chain",
@@ -104,15 +100,13 @@ async def get(obj, path, yaml, verbose, script, schema):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, good, bad, verbose, script, schema, yaml):
+async def set(obj, path, chain, good, bad, verbose, script, schema, yaml_, data):
     """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
 
-    if yaml:
-        import yaml
-
-        msg = yaml.safe_load(script)
+    if data:
+        msg = yaml.safe_load(data)
     else:
         msg = {}
     if "value" in msg:
@@ -124,25 +118,29 @@ async def set(obj, path, chain, good, bad, verbose, script, schema, yaml):
         msg["good"].append(eval(x))
     for x in bad:
         msg["bad"].append(eval(x))
-    if "code" not in msg:
+
+    if "code" in msg:
+        if script:
+            raise click.UsageError("Duplicate script")
+    else:
         if not script:
-            if os.isatty(sys.stdin.fileno()):
-                print("Enter the Python script to verify 'value'.")
-            script = sys.stdin.read()
+            raise click.UsageError("Missing script")
+        msg["code"] = script.read()
+
+    if "schema" in msg:
+        raise click.UsageError("Missing schema")
+    else:
+        if not schema:
+            raise click.UsageError("Missing schema")
+        if yaml_:
+            msg["schema"] = yaml.safe_load(schema)
         else:
-            script = script.read()
-        msg["code"] = script
-    elif script and not yaml:
-        raise click.UsageError("Duplicate script parameter")
-    if "schema" not in msg:
-        if schema:
-            if yaml:
-                schema = yaml.safe_load(schema)
-            else:
-                schema = json.load(schema)
-            msg["schema"] = schema
-    elif schema:
-        raise click.UsageError("Duplicate schema parameter")
+            msg["schema"] = json.load(schema)
+
+    if len(msg['good']) < 2:
+        raise click.UsageError("Missing known-good test values (at least two)")
+    if not msg['bad']:
+        raise click.UsageError("Missing known-bad test values")
 
     res = await obj.client._request(
         action="set_internal",
@@ -153,10 +151,7 @@ async def set(obj, path, chain, good, bad, verbose, script, schema, yaml):
         **({"chain":chain} if chain else {})
     )
     if verbose:
-        if yaml:
-            print(yaml.safe_dump(res, default_flow_style=False))
-        else:
-            print(res.tock)
+        yprint(res)
 
 
 @cli.command()
@@ -167,21 +162,30 @@ async def set(obj, path, chain, good, bad, verbose, script, schema, yaml):
     help="Print the complete result. Default: just the value",
 )
 @click.option(
+    "-R",
+    "--raw",
+    is_flag=True,
+    help="Print just the path."
+)
+@click.option(
     "-t", "--type", multiple=True, help="Type to link to. Multiple for subytpes."
 )
 @click.option("-d", "--delete", help="Use to delete this mapping.")
-@click.option("-y", "--yaml", is_flag=True, help="Print as YAML. Default: Python.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def match(obj, path, type, delete, verbose, yaml):
+async def match(obj, path, type, delete, verbose, raw):
     """Match a type to a path (read, if no type given)"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
     if type and delete:
         raise click.UsageError("You can't both set and delete a path.")
+    if raw and (type or delete):
+        raise click.UsageError("You can only print the raw path when reading a match.")
 
     if delete:
-        await obj.client._request(action="delete_internal", path=("type",) + path)
+        res = await obj.client._request(action="delete_internal", path=("type",) + path)
+        if verbose:
+            yprint(res)
         return
 
     msg = {}
@@ -199,19 +203,11 @@ async def match(obj, path, type, delete, verbose, yaml):
         iter=False,
         nchain=3 if verbose else 0,
     )
-    if type or delete:
-        print(res.tock)
+    if verbose:
+        yprint(res)
+    elif type or delete:
+        pass
     else:
-        if not verbose:
-            res = res['type']
-        if yaml:
-            import yaml
-
-            print(yaml.safe_dump(res, default_flow_style=False), file=sys.stdout)
-        else:
-            if verbose:
-                pprint(res)
-            else:
-                print(" ".join(res.type))
+        print(" ".join(str(x) for x in res.type))
 
 

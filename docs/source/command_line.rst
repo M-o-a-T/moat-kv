@@ -160,12 +160,6 @@ If you read a sub-tree recursively, be aware that the whole subtree will
 be read before anything is printed. Use the ``watch --state`` subcommand
 for incremental output.
 
-.. option:: -y, --yaml
-
-   Emit the value(s) as YAML.
-
-   This will be the default soon.
-
 .. option:: -v, --verbose
 
    Print a complete data structure, not just the value.
@@ -265,12 +259,6 @@ accidentally overwrite something.
 
    This value is also affected by ``--eval``.
 
-.. option:: -y, --yaml
-
-   Print the result of this operation as YAML data.
-
-   This will be the default soon.
-
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -317,12 +305,6 @@ Recursive changes only check the entry you mention on the command line.
 
    This value is also affected by ``--eval``.
 
-.. option:: -y, --yaml
-
-   Print the result of this operation as YAML data.
-
-   This will be the default soon.
-
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -352,9 +334,9 @@ Monitor changes to the state of an entry, or rather its subtree.
 
 .. option:: -m, --msgpack
 
-   Interpret the input as ``MsgPack`` data. XXX TODO
+   Write the output as ``MsgPack`` data. XXX TODO
 
-   The default is to use YAML. XXX TODO
+   The default is to use YAML.
 
 .. option:: path…
 
@@ -519,15 +501,7 @@ Retrieve a type entry.
 
 .. option:: -y, --yaml
 
-   Print the result of this operation as YAML data.
-
-   This will be the default soon, except for the schema file.
-
-.. option:: -a, --all
-
-   Save the complete record in the ``script`` file.
-
-   XXX TODO, this is currently the default when using YAML
+   Emit the schema as YAML data. Default: JSON.
 
 .. option:: -v, --verbose
 
@@ -560,11 +534,12 @@ percent" must be accepted by "int".
 Tests can use Python code, a JSON schema, or both. In the latter case the
 schema is tested first.
 
+To modify a record, use ``distkv client type get <path>… > data``, edit the
+file ``data``, then restore with ``distkv client type set -d <data> <path>…``.
+
 .. option:: -y, --yaml
 
-   Read the script file as YAML data.
-
-   This will be the default soon, except for the schema file.
+   Read the schema as YAML. Default: JSON.
 
 .. option:: -v, --verbose
 
@@ -586,6 +561,10 @@ schema is tested first.
 
    A known-bad value to test the codec. It will be Python-evaluated.
 
+.. option:: -a, --all
+
+   Load the complete record from the ``script`` file.
+
 .. option:: name…
 
    The type data to set.
@@ -604,12 +583,6 @@ constricted by which type.
 
    The type name to use. Use multiple `--type`` options to access subtypes.
    Skip this option to display which type corresponds to the given path.
-
-.. option:: -y, --yaml
-
-  Emit the value(s) as YAML.
-
-  This will be the default if verbose.
 
 .. option:: -d, --delete
 
@@ -753,11 +726,7 @@ If the path does not contain any flags, print ``-``.
 
 .. option:: -v, --verbose
 
-   Add metadata. Default: a single string.
-
-.. option:: -y, --yaml
-
-   Print as YAML. Default. Python (if verbose) or a single string.
+   Add metadata.
 
 .. option:: <acl>
 
@@ -777,10 +746,6 @@ Nothing is printed if neither ``--verbose`` nor ``--yaml`` is used.
 .. option:: -v, --verbose
 
    Print the resulting metadata.
-
-.. option:: -y, --yaml
-
-   Print as YAML. Default. Python.
 
 .. option:: -a, --acl <MODES>
 
@@ -824,10 +789,6 @@ Check whether an ACL allows access.
 
 Dump an ACL's content.
 
-.. option:: -y, --yaml
-
-   Print as YAML. Default. Python.
-
 .. option:: -d, --as-dict TEXT
 
    Print as dictionary. ``TEXT`` is the key used for the ACL data.
@@ -855,10 +816,6 @@ Manipulate code stored in DistKV.
 
 Retrieve Python code stored in the server.
 
-.. option:: -y, --yaml
-
-   Use YAML output
-
 .. option:: -v, --verbose
 
    Include metadata.
@@ -878,12 +835,6 @@ Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
-
-.. option:: -y, --yaml
-
-   Read the script file as YAML data.
-
-   This will be the default soon, except for the schema file.
 
 .. option:: -v, --verbose
 
@@ -930,10 +881,6 @@ in the file system.
 
 Retrieve Python module stored in the server.
 
-.. option:: -y, --yaml
-
-   Use YAML output
-
 .. option:: -v, --verbose
 
    Include metadata.
@@ -953,12 +900,6 @@ Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
-
-.. option:: -y, --yaml
-
-   Read the script file as YAML data.
-
-   This will be the default soon, except for the schema file.
 
 .. option:: -v, --verbose
 
