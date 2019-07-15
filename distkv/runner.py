@@ -26,9 +26,11 @@ from .exceptions import ServerError
 from .client import AttrClientEntry, ClientRoot, ClientEntry
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 QLEN = 10
+
 
 class NotSelected(RuntimeError):
     """
@@ -107,7 +109,7 @@ class RunnerEntry(AttrClientEntry):
                 data = deepcopy(self.data)
 
                 if code.is_async:
-                    data['_info'] = self._q = anyio.create_queue(QLEN)
+                    data["_info"] = self._q = anyio.create_queue(QLEN)
                     if self.root._active is not None:
                         await self._q.put(self.root._active)
                 data["_entry"] = self
@@ -118,9 +120,11 @@ class RunnerEntry(AttrClientEntry):
 
                 await state.save(wait=True)
                 if state.node != state.root.name:
-                    raise RuntimeError("Rudely taken away from us.", state.node, state.root.name)
+                    raise RuntimeError(
+                        "Rudely taken away from us.", state.node, state.root.name
+                    )
 
-                logger.debug("Start %r with %r",self._path,self.code)
+                logger.debug("Start %r with %r", self._path, self.code)
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
                     res = code(**data)
@@ -128,7 +132,7 @@ class RunnerEntry(AttrClientEntry):
                         res = await res
                     await sc.cancel()
             finally:
-                logger.debug("End %r",self._path)
+                logger.debug("End %r", self._path)
                 self.scope = None
                 self._q = None
                 t = time.time()
@@ -137,7 +141,12 @@ class RunnerEntry(AttrClientEntry):
             c, self._comment = self._comment, None
             async with anyio.move_on_after(2, shield=True):
                 await self.root.err.record_error(
-                    "run", *self._path, message="Exception", exc=exc, data=data, comment=c
+                    "run",
+                    *self._path,
+                    message="Exception",
+                    exc=exc,
+                    data=data,
+                    comment=c
                 )
             state.backoff += 1
         else:
@@ -161,9 +170,9 @@ class RunnerEntry(AttrClientEntry):
 
     async def send_event(self, evt):
         if self._q is not None:
-            if self._q.qsize() < QLEN-1:
+            if self._q.qsize() < QLEN - 1:
                 await self._q.put(evt)
-            elif self._q.qsize() == QLEN-1:
+            elif self._q.qsize() == QLEN - 1:
                 await self._q.put(None)
                 self._q = None
 
@@ -183,12 +192,11 @@ class RunnerEntry(AttrClientEntry):
                 # The code changed.
                 self._comment = "Cancel: Code changed"
                 await self.scope.cancel()
-            elif not getattr(self,'target', None):
+            elif not getattr(self, "target", None):
                 self._comment = "Cancel: target zeroed"
                 await self.scope.cancel()
 
         await self.root.trigger_rescan()
-
 
     async def run_at(self, t: float):
         """Next run at this time.
@@ -196,7 +204,6 @@ class RunnerEntry(AttrClientEntry):
         self.target = t
         if not self._running:
             await self.save(wait=True)
-
 
     def should_start(self):
         """Tell whether this job might want to be started.
@@ -278,6 +285,7 @@ class StateEntry(AttrClientEntry):
       node (str): the node running this code
       backoff (float): on error, the multiplier to apply to the restart timeout
     """
+
     ATTRS = "started stopped result node backoff".split()
 
     started = 0  # timestamp
@@ -297,21 +305,29 @@ class StateEntry(AttrClientEntry):
             # The code entry doesn't exist any more.
             await self.delete()
             return
-        
+
         if self.node is None or self.node != self.root.name:
             return
 
         self.stopped = time.time()
         self.node = None
         self.backoff += 1
-        await self.root.runner.err.record_error("run", *self.runner._path, message="Runner restarted")
+        await self.root.runner.err.record_error(
+            "run", *self.runner._path, message="Runner restarted"
+        )
         await self.save()
 
     async def stale(self):
         self.stopped = time.time()
         self.node = None
         self.backoff += 2
-        await self.root.runner.err.record_error("run", *self.runner._path, client_name=self.node, message="Runner {node} {state}", data={'node': self.node, 'state': "offline" if self.stopped else "stale"})
+        await self.root.runner.err.record_error(
+            "run",
+            *self.runner._path,
+            client_name=self.node,
+            message="Runner {node} {state}",
+            data={"node": self.node, "state": "offline" if self.stopped else "stale"}
+        )
         await self.save()
 
     async def set_value(self, value):
@@ -379,8 +395,10 @@ class StateRoot(ClientRoot):
             if s.node in names:
                 await s.stale()
 
+
 class _BaseRunnerRoot(ClientRoot):
     """common code for AnyRunnerRoot and SingleRunnerRoot"""
+
     _active: ActorState = None
     _trigger: anyio.abc.Event = None
     _run_now_task: anyio.abc.CancelScope = None
@@ -443,14 +461,14 @@ class _BaseRunnerRoot(ClientRoot):
         await super().running()
 
     async def _run_actor(self):
-        raise RuntimeError("You want to override me.""")
+        raise RuntimeError("You want to override me." "")
 
     async def trigger_rescan(self):
         """Tell the run_now task to rescan our job list"""
         if self._trigger is not None:
             await self._trigger.set()
 
-    async def _run_now(self, evt = None):
+    async def _run_now(self, evt=None):
         t_next = self._run_next
         async with anyio.open_cancel_scope() as sc:
             self._run_now_task = sc
@@ -464,7 +482,7 @@ class _BaseRunnerRoot(ClientRoot):
                         self._trigger = anyio.create_event()
 
                 t = time.time()
-                t_next = t+99999
+                t_next = t + 99999
                 for j in self.this_root.all_children:
                     d = j.should_start()
                     if d is False:
@@ -474,6 +492,7 @@ class _BaseRunnerRoot(ClientRoot):
                         await anyio.sleep(self._start_delay)
                     elif t_next > d:
                         t_next = d
+
 
 class AnyRunnerRoot(_BaseRunnerRoot):
     """
@@ -505,7 +524,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         async with anyio.create_task_group() as tg:
             self.tg = tg
 
-            async with ClientActor(self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg) as act:
+            async with ClientActor(
+                self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg
+            ) as act:
                 self._act = act
 
                 self._age_q = anyio.create_queue(10)
@@ -516,11 +537,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                 self.seen_load = None
 
                 async for msg in act:
-                    logger.debug("Actor %r",msg)
+                    logger.debug("Actor %r", msg)
                     if isinstance(msg, PingEvent):
-                        await act.set_value(
-                            100 - psutil.cpu_percent(interval=None)
-                        )
+                        await act.set_value(100 - psutil.cpu_percent(interval=None))
 
                         node = self.get_node(msg.node)
                         node.load = msg.value
@@ -542,14 +561,12 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                         await evt.wait()
 
                     elif isinstance(msg, UntagEvent):
-                        await act.set_value(
-                            100 - psutil.cpu_percent(interval=None)
-                        )
+                        await act.set_value(100 - psutil.cpu_percent(interval=None))
                         self.seen_load = 0
 
                         await self._run_now_task.cancel()
                         # TODO if this is a DetagEvent, kill everything?
-                pass # end of actor task
+                pass  # end of actor task
 
     async def find_stale_nodes(self, cur):
         """
@@ -558,12 +575,12 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         if self._stale_times is None:
             self._stale_times = []
         self._stale_times.append(cur)
-        if self._stale_times[0] > cur-self.max_age:
+        if self._stale_times[0] > cur - self.max_age:
             return
         if len(self._stale_times) < 5:
             return
         cut = self._stale_times.pop(0)
-        
+
         dropped = []
         for node in self._nodes.values():
             if node.seen < cut:
@@ -650,7 +667,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
     async def set_value(self, val):
         await super().set_value(val)
         try:
-            cores = val['cores']
+            cores = val["cores"]
         except (TypeError, KeyError):
             if self._act is not None:
                 await self._act.disable(0)
@@ -695,7 +712,9 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             self.tg = tg
             self._age_q = anyio.create_queue(1)
 
-            async with ClientActor(self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg) as act:
+            async with ClientActor(
+                self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg
+            ) as act:
                 self._act = act
                 await tg.spawn(self._age_notifier)
                 await self.spawn(self._run_now)
@@ -707,7 +726,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                         await self._age_q.put(None)
                         await self.notify_active()
 
-                pass # end of actor task
+                pass  # end of actor task
 
     async def _age_notifier(self):
         while self._age_q is not None:
@@ -717,4 +736,3 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                 flag = True
             if not flag:
                 await self.notify_active()
-

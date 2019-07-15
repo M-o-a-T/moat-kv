@@ -32,6 +32,7 @@ class NullObj:
     This helper defers raising an exception until one of its attributes is
     actually accessed.
     """
+
     def __init__(self, exc):
         self._exc = exc
 
@@ -42,12 +43,12 @@ class NullObj:
         raise self._exc
 
     def __getattr__(self, k):
-        if k[0] == '_' and k != '_request':
+        if k[0] == "_" and k != "_request":
             return object.__getattribute__(self, k)
         raise self._exc
 
 
-@main.group(cls=partial(Loader,__file__,"client"))
+@main.group(cls=partial(Loader, __file__, "client"))
 @click.option(
     "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,)
 )
@@ -65,9 +66,7 @@ class NullObj:
     default=None,
     help="Auth params. =file or 'type param=value…' Default: _anon",
 )
-@click.option(
-    "-m", "--metadata", is_flag=True, help="Include/print metadata."
-)
+@click.option("-m", "--metadata", is_flag=True, help="Include/print metadata.")
 @click.pass_context
 async def cli(ctx, host, port, auth, metadata):
     """Talk to a DistKV server."""
@@ -93,4 +92,3 @@ async def cli(ctx, host, port, auth, metadata):
         obj.client = NullObj(exc)
     else:
         logger.debug("Connected.")
-

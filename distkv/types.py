@@ -119,6 +119,7 @@ class MatchEntry(MetaEntry):
 
 MatchEntry.SUBTYPE = MatchEntry
 
+
 class NodeFinder:
     """A generic object that can walk down a possibly-wildcard-equipped path.
     
@@ -131,21 +132,21 @@ class NodeFinder:
         if isinstance(meta, list):
             self.steps = meta
         else:
-            self.steps = ((meta,False),)
+            self.steps = ((meta, False),)
 
     def step(self, name, new=False):
         steps = []
-        for node,keep in self.steps:
+        for node, keep in self.steps:
             if name in node:
-                steps.append((node[name],False))
+                steps.append((node[name], False))
             if name is None:
                 continue
-            if '+' in node:
-                steps.append((node['+'],False))
-            if '#' in node:
-                steps.append((node['#'],True))
+            if "+" in node:
+                steps.append((node["+"], False))
+            if "#" in node:
+                steps.append((node["#"], True))
             if keep:
-                steps.append((node,True))
+                steps.append((node, True))
             # Nodes found with '#' stay on the list
             # so that they can match multiple entries.
         if not steps:
@@ -162,7 +163,7 @@ class NodeFinder:
 
     @property
     def result(self):
-        for node,keep in self.steps:
+        for node, keep in self.steps:
             if node._data is not NotGiven:
                 return node
         return None
@@ -170,11 +171,12 @@ class NodeFinder:
 
 class ACLFinder(NodeFinder):
     """A NodeFinder which expects ACL strings as elements"""
-    _block = ''
+
+    _block = ""
 
     @property
     def copy_args(self):
-        return {'blocked': self._block}
+        return {"blocked": self._block}
 
     def __init__(self, acl, blocked=None):
         if isinstance(acl, ACLFinder):
@@ -202,23 +204,32 @@ class ACLFinder(NodeFinder):
         if not self.allows(x):
             raise ACLError(self.result, x)
 
+
 class ACLStepper(ACLFinder):
     """An ACLFinder which returns a copy of itself at every `step`."""
+
     def step(self, name, new=True):
         return super().step(name, new=new)
+
 
 @singleton
 class NullACL(ACLStepper):
     """This singleton represents an ACL that never checks anything."""
+
     result = "-"
+
     def __init__(self):
         pass
+
     def allows(self, x):
-        return x != 'a'
+        return x != "a"
+
     def check(self, x):
         return
+
     def block(self, x):
         pass
+
     def step(self, name, new=None):
         return self
 
@@ -423,10 +434,10 @@ class AclEntry(MetaEntry):
 AclEntry.SUBTYPE = AclEntry
 
 
-
 class AclName(MetaPathEntry):
     """I am a named tree for ACL entries.
     """
+
     SUBTYPE = AclEntry
 
     async def check(self, entry, typ):
@@ -458,9 +469,7 @@ class DelRoot(Entry):
 
 class ActorRoot(Entry):
     SUBTYPE = None
-    SUBTYPES = {
-        "del": DelRoot,
-    }
+    SUBTYPES = {"del": DelRoot}
 
 
 # ROOT

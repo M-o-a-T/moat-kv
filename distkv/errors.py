@@ -85,7 +85,9 @@ from .util import PathLongener, Cache, attrdict
 from .codec import packer
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 class ErrorSubEntry(AttrClientEntry):
     """
@@ -148,7 +150,9 @@ class ErrorEntry(AttrClientEntry):
             comment=comment or repr(exc),
         )
         if exc is not None:
-            res.trace = ''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+            res.trace = "".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            )
         if message is not None:
             res.message = message
         if data is not None:
@@ -160,7 +164,7 @@ class ErrorEntry(AttrClientEntry):
             else:
                 m = message
             if exc:
-                m += ": "+str(exc)
+                m += ": " + str(exc)
             elif exc:
                 m = repr(exc)
             elif comment:
@@ -411,7 +415,13 @@ class ErrorRoot(ClientRoot):
         rec.last_seen = time()
 
         await rec.save()
-        await rec.add_exc(client_name or self._name, exc=exc, data=data, comment=comment, message=message)
+        await rec.add_exc(
+            client_name or self._name,
+            exc=exc,
+            data=data,
+            comment=comment,
+            message=message,
+        )
         return rec
 
     async def _pop(self, entry):

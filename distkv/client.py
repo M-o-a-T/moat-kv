@@ -21,7 +21,16 @@ except ImportError:
     from async_exit_stack import AsyncExitStack
 
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num, PathLongener, NoLock, NotGiven, combine_dict
+from .util import (
+    attrdict,
+    gen_ssl,
+    num2byte,
+    byte2num,
+    PathLongener,
+    NoLock,
+    NotGiven,
+    combine_dict,
+)
 from .default import CFG
 from .exceptions import (
     ClientAuthMethodError,
@@ -99,7 +108,7 @@ class ClientEntry:
         You can send ``True`` to the iterator if you want to skip a subtree.
         """
         for k in self:
-            if hasattr(k, 'value'):
+            if hasattr(k, "value"):
                 res = (yield k)
                 if res is True:
                     continue
@@ -307,7 +316,9 @@ class ClientRoot(ClientEntry):
             cfg = defcfg
 
         def make():
-            return client.mirror(*cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw)
+            return client.mirror(
+                *cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw
+            )
 
         return await client.unique_helper(*cfg[key], factory=make)
 
@@ -416,7 +427,7 @@ class ClientRoot(ClientEntry):
                 yield self
             finally:
                 await tg.cancel_scope.cancel()
-            pass # end of 'run', closing taskgroup
+            pass  # end of 'run', closing taskgroup
 
     async def cancel(self):
         """Stop the monitor"""
@@ -671,7 +682,7 @@ class Client:
                         await evt.set()
                         while True:
                             await anyio.sleep(99999)
-                        pass # exiting helper
+                        pass  # exiting helper
 
                 evt = anyio.create_event()
                 await self.tg.spawn(_run, factory, evt)
@@ -860,8 +871,8 @@ class Client:
         if self._handlers is None:
             raise anyio.exceptions.ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
-        if 'path' in params and params.get('long_path', False):
-            res._path_long = PathLongener(params['path'])
+        if "path" in params and params.get("long_path", False):
+            res._path_long = PathLongener(params["path"])
         await res.send(action=action, **params)
         await res.wait_started()
         try:
@@ -902,17 +913,19 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
-        host = self._cfg['host']
-        port = self._cfg['port']
-        auth = self._cfg['auth']
-        init_timeout = self._cfg['init_timeout']
-        ssl = gen_ssl(self._cfg['ssl'], server=False)
+        host = self._cfg["host"]
+        port = self._cfg["port"]
+        auth = self._cfg["auth"]
+        init_timeout = self._cfg["init_timeout"]
+        ssl = gen_ssl(self._cfg["ssl"], server=False)
 
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
             try:
-                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
+                ctx = await anyio.connect_tcp(
+                    host, port, ssl_context=ssl, autostart_tls=False
+                )
             except socket.gaierror:
                 raise ServerConnectionError(host, port)
             stream = await ex.enter_async_context(ctx)
@@ -926,7 +939,7 @@ class Client:
                 async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                     self.server_name = self._server_init.node
-                    self.client_name = self._cfg['name'] or self.server_name
+                    self.client_name = self._cfg["name"] or self.server_name
                     await self._run_auth(auth)
                 yield self
             except socket.error as e:
@@ -1033,7 +1046,9 @@ class Client:
         """
         if long_path:
             lp = PathLongener()
-        async for r in await self._request(action="get_tree", path=path, iter=True, long_path=True, **kw):
+        async for r in await self._request(
+            action="get_tree", path=path, iter=True, long_path=True, **kw
+        ):
             if long_path:
                 lp(r)
             yield r
@@ -1080,7 +1095,9 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._stream(action="watch", path=path, iter=True, long_path=long_path, **kw)
+        return self._stream(
+            action="watch", path=path, iter=True, long_path=long_path, **kw
+        )
 
     def mirror(self, *path, root_type=ClientRoot, **kw):
         """An async context manager that affords an update-able mirror

@@ -226,5 +226,3 @@ async def auth_(obj, auth):
     await user.auth(obj.client)
     if obj.debug > 0:
         print("OK.", file=obj.stdout)
-
-

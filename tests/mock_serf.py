@@ -31,19 +31,21 @@ otm = time.time
 
 @asynccontextmanager
 async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
-    C_OUT = CFG.get('_stdout', NotGiven)
+    C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
-        del CFG['_stdout']
+        del CFG["_stdout"]
     try:
         TESTCFG = copy.deepcopy(CFG)
     except TypeError:
-        import pdb;pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         raise
     TESTCFG.server.port = None
     TESTCFG.root = "test"
     if C_OUT is not NotGiven:
-        CFG['_stdout'] = C_OUT
-        TESTCFG['_stdout'] = C_OUT
+        CFG["_stdout"] = C_OUT
+        TESTCFG["_stdout"] = C_OUT
 
     if ssl:
         import ssl
@@ -135,21 +137,21 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             for i in range(n):
                 name = "test_" + str(i)
                 args = kw.get(name, kw.get("args", attrdict()))
-                args['cfg'] = combine_dict(args.get('cfg',{}), {
-                    "connect": {
-                        "ssl": client_ctx,
-                    },
-                    "server": {
-                        "bind_default": {
-                            "host":"127.0.0.1",
-                            "port":i+50120,
-                            "ssl": server_ctx,
+                args["cfg"] = combine_dict(
+                    args.get("cfg", {}),
+                    {
+                        "connect": {"ssl": client_ctx},
+                        "server": {
+                            "bind_default": {
+                                "host": "127.0.0.1",
+                                "port": i + 50120,
+                                "ssl": server_ctx,
+                            },
+                            "serf": {"i": i},
                         },
-                        "serf": {
-                            "i": i,
-                        },
                     },
-                }, TESTCFG)
+                    TESTCFG,
+                )
                 s = Server(name, **args)
                 # ex.enter_context(
                 #     mock.patch.object(
@@ -236,7 +238,7 @@ class MockServ:
 
     def stream(self, typ):
         """compat for supporting asyncserf.actor"""
-        if not typ.startswith('user:'):
+        if not typ.startswith("user:"):
             raise RuntimeError("not supported")
         typ = typ[5:]
         return self.serf_mon(typ)
@@ -275,6 +277,5 @@ class MockSerfStream:
     async def __anext__(self):
         res = await self.q.get()
         evt = SerfEvent(self)
-        evt.payload=res
+        evt.payload = res
         return evt
-

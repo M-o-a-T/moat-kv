@@ -41,7 +41,9 @@ async def cli(obj):
 @click.option(
     "-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here"
 )
-@click.option("-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON.")
+@click.option(
+    "-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON."
+)
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def get(obj, path, script, schema, yaml_):
@@ -58,26 +60,30 @@ async def get(obj, path, script, schema, yaml_):
     if not obj.meta:
         res = res.value
     if script:
-        script.write(r.pop('code'))
+        script.write(r.pop("code"))
     if schema:
         if yaml_:
-            yprint(r.pop('schema'), stream=schema)
+            yprint(r.pop("schema"), stream=schema)
         else:
-            json.dump(r.pop('schema'), schema)
+            json.dump(r.pop("schema"), schema)
     yprint(res, stream=obj.stdout)
 
 
 @cli.command()
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
-@click.option("-d", "--data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
+@click.option(
+    "-d", "--data", type=click.File(mode="r"), help="Load metadata from this YAML file."
+)
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the checking script"
 )
 @click.option(
     "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
 )
-@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON")
+@click.option(
+    "-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON"
+)
 @click.option(
     "-c",
     "--chain",
@@ -97,8 +103,8 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
     else:
         msg = {}
     if "value" in msg:
-        chain = msg.get('chain', chain)
-        msg = msg['value']
+        chain = msg.get("chain", chain)
+        msg = msg["value"]
 
     msg.setdefault("good", [])
     msg.setdefault("bad", [])
@@ -121,12 +127,12 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
         else:
             msg["schema"] = json.load(schema)
 
-    if 'schema' not in msg and 'code' not in msg:
+    if "schema" not in msg and "code" not in msg:
         raise click.UsageError("I need a schema, Python code, or both.")
 
-    if len(msg['good']) < 2:
+    if len(msg["good"]) < 2:
         raise click.UsageError("Missing known-good test values (at least two)")
-    if not msg['bad']:
+    if not msg["bad"]:
         raise click.UsageError("Missing known-bad test values")
 
     res = await obj.client._request(
@@ -135,19 +141,14 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
         path=("type",) + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain":chain} if chain else {})
+        **({"chain": chain} if chain else {})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
 @cli.command()
-@click.option(
-    "-R",
-    "--raw",
-    is_flag=True,
-    help="Print just the path."
-)
+@click.option("-R", "--raw", is_flag=True, help="Print just the path.")
 @click.option(
     "-t", "--type", multiple=True, help="Type to link to. Multiple for subytpes."
 )
@@ -171,7 +172,7 @@ async def match(obj, path, type, delete, raw):
 
     msg = {}
     if type:
-        msg['type'] = type
+        msg["type"] = type
         act = "set_internal"
     elif delete:
         act = "delete_internal"
@@ -190,5 +191,3 @@ async def match(obj, path, type, delete, raw):
         pass
     else:
         print(" ".join(str(x) for x in res.type), file=obj.stdout)
-
-

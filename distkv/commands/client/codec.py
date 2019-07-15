@@ -97,13 +97,13 @@ async def set(obj, path, encode, decode, script, in_, out):
             raise click.UsageError("Missing decode script")
         msg["decode"] = decode.read()
     if in_:
-        msg['in'] = [ (eval(a),eval(b)) for a,b in in_ ]
+        msg["in"] = [(eval(a), eval(b)) for a, b in in_]
     if out:
-        msg['out'] = [ (eval(a),eval(b)) for a,b in out ]
+        msg["out"] = [(eval(a), eval(b)) for a, b in out]
 
-    if not msg['in']:
+    if not msg["in"]:
         raise click.UsageError("Missing decode tests")
-    if not msg['out']:
+    if not msg["out"]:
         raise click.UsageError("Missing encode tests")
 
     res = await obj.client._request(

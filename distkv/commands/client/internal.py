@@ -26,7 +26,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 @main.group(short_help="Control internal state.")
 @click.pass_obj
 async def cli(obj):
@@ -35,11 +34,18 @@ async def cli(obj):
     """
     pass
 
+
 @cli.command()
 @click.option("-n", "--nodes", is_flag=True, help="Get node status.")
 @click.option("-d", "--deleted", is_flag=True, help="Get deletion status.")
 @click.option("-m", "--missing", is_flag=True, help="Get missing-node status.")
-@click.option("-r", "--remote-missing", "remote_missing", is_flag=True, help="Get remote-missing-node status.")
+@click.option(
+    "-r",
+    "--remote-missing",
+    "remote_missing",
+    is_flag=True,
+    help="Get remote-missing-node status.",
+)
 @click.option("-k", "--known", is_flag=True, help="Get known-data status.")
 @click.pass_obj
 async def state(obj, **flags):
@@ -52,7 +58,13 @@ async def state(obj, **flags):
 
 @cli.command()
 @click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
-@click.option("-n", "--node", "source", default='?', help="The node this message is faked as being from.")
+@click.option(
+    "-n",
+    "--node",
+    "source",
+    default="?",
+    help="The node this message is faked as being from.",
+)
 @click.option("-b", "--broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
 @click.argument("items", type=int, nargs=-1)
@@ -69,10 +81,10 @@ async def mark(obj, deleted, source, node, items, broadcast):
     k = "deleted" if deleted else "known"
     if not items:
         r = await obj.client._request("get_state", iter=False, missing=True)
-        r = r['missing']
-        if node != '':
+        r = r["missing"]
+        if node != "":
             r = {node: r[node]}
-    elif node == '':
+    elif node == "":
         raise click.UsageError("You can't do that with an empty node")
     else:
         r = RangeSet()
@@ -80,7 +92,7 @@ async def mark(obj, deleted, source, node, items, broadcast):
             r.add(i)
         r = {node: r.__getstate__()}
 
-    msg = {k: r, "node":source}
+    msg = {k: r, "node": source}
 
     await obj.client._request("fake_info", iter=False, **msg)
     if broadcast:
@@ -111,7 +123,7 @@ async def deleter(obj, delete, nodes):
         iter=False,
         nchain=3 if delete or nodes else 2,
     )
-    val = set(res.get('value', []))
+    val = set(res.get("value", []))
     if delete:
         if nodes:
             val -= set(nodes)
@@ -125,11 +137,7 @@ async def deleter(obj, delete, nodes):
 
     val = list(val)
     res = await obj.client._request(
-        action="set_internal",
-        path=("del",),
-        iter=False,
-        chain=res.chain,
-        value=val
+        action="set_internal", path=("del",), iter=False, chain=res.chain, value=val
     )
     res.value = val
     yprint(res, stream=obj.stdout)
@@ -146,14 +154,15 @@ async def dump(obj, path):
     """
 
     y = {}
-    async for r in await obj.client._request("get_tree_internal", path=path, iter=True, nchain=0):
-        path = r['path']
+    async for r in await obj.client._request(
+        "get_tree_internal", path=path, iter=True, nchain=0
+    ):
+        path = r["path"]
         yy = y
         for p in path:
             yy = yy.setdefault(p, {})
         try:
-            yy['_'] = r["value"]
+            yy["_"] = r["value"]
         except KeyError:
             pass
     yprint(y, stream=obj.stdout)
-

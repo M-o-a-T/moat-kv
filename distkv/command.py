@@ -6,11 +6,7 @@ import trio_click as click
 import yaml
 from functools import partial
 
-from .util import (
-    attrdict,
-    combine_dict,
-    NotGiven,
-)
+from .util import attrdict, combine_dict, NotGiven
 from .default import CFG
 
 from .auth import loader, gen_auth
@@ -44,14 +40,17 @@ class Loader(click.Group):
         async def cmd(self):
             print("I am", self.name)  # prints "subcmd"
     """
+
     def __init__(self, current_file, plugin_folder, *a, **kw):
-        self.__plugin_folder = os.path.join(os.path.dirname(current_file), plugin_folder)
+        self.__plugin_folder = os.path.join(
+            os.path.dirname(current_file), plugin_folder
+        )
         super().__init__(*a, **kw)
 
     def list_commands(self, ctx):
         rv = []
         for filename in os.listdir(self.__plugin_folder):
-            if filename.endswith('.py'):
+            if filename.endswith(".py"):
                 rv.append(filename[:-3])
         rv.sort()
 
@@ -59,16 +58,18 @@ class Loader(click.Group):
         return rv
 
     def get_command(self, ctx, name):
-        fn = os.path.join(self.__plugin_folder, name + '.py')
+        fn = os.path.join(self.__plugin_folder, name + ".py")
         if os.path.exists(fn):
-            ns = {'main': self, '__file__':fn}
+            ns = {"main": self, "__file__": fn}
             with open(fn) as f:
-                code = compile(f.read(), fn, 'exec')
+                code = compile(f.read(), fn, "exec")
                 eval(code, ns, ns)
             try:
-                cmd = ns['cli']
+                cmd = ns["cli"]
             except KeyError:
-                raise SyntaxError("%r in %r doesn't define 'cli'" % (name,self.__plugin_folder))
+                raise SyntaxError(
+                    "%r in %r doesn't define 'cli'" % (name, self.__plugin_folder)
+                )
             cmd.name = name
             return cmd
         else:
@@ -82,7 +83,10 @@ def cmd():
     try:
         main(standalone_mode=False)
     except click.exceptions.MissingParameter as exc:
-        print("You need to provide an argument '%s'.\n" % (exc.param.name.upper()), file=sys.stderr)
+        print(
+            "You need to provide an argument '%s'.\n" % (exc.param.name.upper()),
+            file=sys.stderr,
+        )
         print(exc.cmd.get_help(exc.ctx), file=sys.stderr)
         sys.exit(2)
     except click.exceptions.UsageError as exc:
@@ -105,7 +109,7 @@ def cmd():
         # sys.exit(1)
 
 
-@click.command(cls=partial(Loader,__file__, 'commands'))
+@click.command(cls=partial(Loader, __file__, "commands"))
 @click.option(
     "-v",
     "--verbose",
@@ -113,7 +117,10 @@ def cmd():
     help="Enable debugging. Use twice for more verbosity.",
 )
 @click.option(
-    "-l", "--log", multiple=True, help="Adjust log level. Example: '--log asyncserf.actor=DEBUG'."
+    "-l",
+    "--log",
+    multiple=True,
+    help="Adjust log level. Example: '--log asyncserf.actor=DEBUG'.",
 )
 @click.option(
     "-q", "--quiet", count=True, help="Disable debugging. Opposite of '--verbose'."
@@ -121,10 +128,17 @@ def cmd():
 @click.option(
     "-D", "--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc)."
 )
-@click.option("-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML).")
-@click.option("-C", "--conf", multiple=True, help="Override a config entry. Example: '-C server.bind_default.port=57586'")
+@click.option(
+    "-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML)."
+)
+@click.option(
+    "-C",
+    "--conf",
+    multiple=True,
+    help="Override a config entry. Example: '-C server.bind_default.port=57586'",
+)
 @click.pass_context
-async def main(ctx, verbose, quiet, debug, log, cfg,conf):
+async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     """
     This is the DistKV command. You need to add a subcommand for it to do
     anything.
@@ -135,7 +149,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     ctx.ensure_object(attrdict)
     ctx.obj.debug = max(verbose - quiet + 1, 0)
     ctx.obj._DEBUG = debug
-    ctx.obj.stdout = CFG.get('_stdout', sys.stdout)  # used for testing
+    ctx.obj.stdout = CFG.get("_stdout", sys.stdout)  # used for testing
 
     if cfg:
         logger.debug("Loading %s", cfg)
@@ -148,7 +162,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     # One-Shot-Hack the config file.
     for k in conf:
         try:
-            k,v = k.split('=',1)
+            k, v = k.split("=", 1)
         except ValueError:
             v = NotGiven
         else:
@@ -157,7 +171,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
             except Exception:
                 pass
         c = ctx.obj.cfg
-        *sl, s = k.split('.')
+        *sl, s = k.split(".")
         for k in sl:
             c = c[k]
         if v is NotGiven:
@@ -167,16 +181,26 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
 
     # Configure logging. This is a somewhat arcane art.
     lcfg = ctx.obj.cfg.logging
-    lcfg['root']['level'] = "DEBUG" if verbose > 2 else "INFO" if verbose > 1 else "WARNING" if verbose else "ERROR"
+    lcfg["root"]["level"] = (
+        "DEBUG"
+        if verbose > 2
+        else "INFO"
+        if verbose > 1
+        else "WARNING"
+        if verbose
+        else "ERROR"
+    )
     for k in log:
-        k,v = k.split('=')
-        lcfg['loggers'].setdefault(k, {})['level'] = v
+        k, v = k.split("=")
+        lcfg["loggers"].setdefault(k, {})["level"] = v
     dictConfig(lcfg)
     logging.captureWarnings(verbose > 0)
 
 
-@main.command(short_help="Import the debugger",
-        help="Imports PDB and then continues to process arguments.")
+@main.command(
+    short_help="Import the debugger",
+    help="Imports PDB and then continues to process arguments.",
+)
 @click.argument("args", nargs=-1)
 async def pdb(args):  # safe
     import pdb
@@ -185,4 +209,3 @@ async def pdb(args):  # safe
     if not args:
         return
     return await main.main(args)
-

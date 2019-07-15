@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate
 
+
 @main.group()
 @click.pass_obj
 async def cli(obj):
@@ -41,17 +42,15 @@ async def list(obj):
     """List ACLs.
     """
     res = await obj.client._request(
-        action="enum_internal",
-        path=("acl",),
-        iter=False,
-        nchain=3 if obj.meta else 0,
+        action="enum_internal", path=("acl",), iter=False, nchain=3 if obj.meta else 0
     )
     yprint(res, stream=obj.stdout)
+
 
 @cli.command()
 @click.option(
     "-d",
-    "--as-dict", 
+    "--as-dict",
     default=None,
     help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
@@ -62,9 +61,7 @@ async def list(obj):
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
     res = await obj.client._request(
-        action="get_tree_internal",
-        path=("acl",name)+path,
-        iter=True,
+        action="get_tree_internal", path=("acl", name) + path, iter=True
     )
     y = {}
     async for r in res:
@@ -113,7 +110,12 @@ async def get(obj, name, path):
 
 
 @cli.command(name="set")
-@click.option("-a", "--acl", default="+x", help="The value to set. Start with '+' to add, '-' to remove rights.")
+@click.option(
+    "-a",
+    "--acl",
+    default="+x",
+    help="The value to set. Start with '+' to add, '-' to remove rights.",
+)
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
@@ -130,7 +132,9 @@ async def set_(obj, acl, name, path):
     acl = set(acl)
 
     if acl - ACL:
-        raise click.UsageError("You're trying to set an unknown ACL flag: %r" % (acl-ACL,))
+        raise click.UsageError(
+            "You're trying to set an unknown ACL flag: %r" % (acl - ACL,)
+        )
 
     res = await obj.client._request(
         action="get_internal",
@@ -138,11 +142,13 @@ async def set_(obj, acl, name, path):
         iter=False,
         nchain=3 if obj.meta else 1,
     )
-    ov = set(res.get('value', ''))
+    ov = set(res.get("value", ""))
     if ov - ACL:
-        print("Warning: original ACL contains unknown: %r" % (ov-acl,), file=sys.stderr)
+        print(
+            "Warning: original ACL contains unknown: %r" % (ov - acl,), file=sys.stderr
+        )
 
-    if mode == '-' and not acl:
+    if mode == "-" and not acl:
         res = await obj.client._request(
             action="delete_internal",
             path=("acl", name) + path,
@@ -152,10 +158,10 @@ async def set_(obj, acl, name, path):
         v = "-"
 
     else:
-        if mode == '+':
-            v = ov+acl
-        elif mode == '-':
-            v = ov-acl
+        if mode == "+":
+            v = ov + acl
+        elif mode == "-":
+            v = ov - acl
         else:
             v = acl
         res = await obj.client._request(
@@ -163,11 +169,16 @@ async def set_(obj, acl, name, path):
             path=("acl", name) + path,
             value="".join(v),
             iter=False,
-            chain=res.get('chain', None),
+            chain=res.get("chain", None),
         )
 
     if obj.meta:
-        res = {"old": "".join(ov), "new": "".join(v), "chain":res.chain, "tock":res.tock}
+        res = {
+            "old": "".join(ov),
+            "new": "".join(v),
+            "chain": res.chain,
+            "tock": res.tock,
+        }
         yprint(res, stream=obj.stdout)
     else:
         res = {"old": "".join(ov), "new": "".join(v)}
@@ -175,8 +186,8 @@ async def set_(obj, acl, name, path):
 
 
 @cli.command()
-@click.option('-m','--mode',default=None, help="Mode letter to test.")
-@click.option('-a','--acl',default=None, help="ACL to test. Default: current")
+@click.option("-m", "--mode", default=None, help="Mode letter to test.")
+@click.option("-a", "--acl", default=None, help="ACL to test. Default: current")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
@@ -192,12 +203,12 @@ async def test(obj, name, path, acl, mode):
         path=path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({} if mode is None else {'mode': mode}),
-        **({} if acl is None else {'acl': acl}),
+        **({} if mode is None else {"mode": mode}),
+        **({} if acl is None else {"acl": acl}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
     elif isinstance(res.access, bool):
-        print('+' if res.access else '-', file=obj.stdout)
+        print("+" if res.access else "-", file=obj.stdout)
     else:
         print(res.access, file=obj.stdout)

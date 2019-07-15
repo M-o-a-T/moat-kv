@@ -8,7 +8,7 @@ from distkv.default import CFG
 
 async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:
-        CFG['_stdout'] = out = io.StringIO()
+        CFG["_stdout"] = out = io.StringIO()
     try:
         res = await main.main(args)
         return res
@@ -25,4 +25,4 @@ async def run(*args, expect_exit=0, do_stdout=True):
     finally:
         if do_stdout:
             res.stdout = out.getvalue()
-            CFG['_stdout'] = sys.stdout
+            CFG["_stdout"] = sys.stdout

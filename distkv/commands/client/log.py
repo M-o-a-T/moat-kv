@@ -25,7 +25,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 @main.group(short_help="Manage logging.")
 @click.pass_obj
 async def cli(obj):
@@ -33,6 +32,7 @@ async def cli(obj):
     This subcommand controls a server's logging.
     """
     pass
+
 
 @cli.command()
 @click.option("-i", "--incremental", is_flag=True, help="Don't write the initial state")
@@ -71,5 +71,3 @@ async def stop(obj):
     res = await obj.client._request("log")  # no path == stop
     if obj.meta:
         yprint(res, stream=obj.stdout)
-
-

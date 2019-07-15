@@ -31,8 +31,10 @@ async def test_81_basic(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            await c._request( "set_internal", path=("acl", "foo", "one"), value="rxnc")
-            await c._request( "set_internal", path=("acl", "foo", "one", "two"), value="rc")
+            await c._request("set_internal", path=("acl", "foo", "one"), value="rxnc")
+            await c._request(
+                "set_internal", path=("acl", "foo", "one", "two"), value="rc"
+            )
 
             um = loader("_test", "user", make=True, server=False)
             u = um.build({"name": "std"})

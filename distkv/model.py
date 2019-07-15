@@ -32,6 +32,7 @@ class NodeDataSkipped(Exception):
 ConvNull = None  # imported later, if/when needed
 NullACL = None  # imported later, if/when needed
 
+
 class Node:
     """Represents one DistKV participant.
     """
@@ -257,7 +258,7 @@ class NodeSet(defaultdict):
     def serialize(self):
         d = dict()
         for k, v in self.items():
-            assert not hasattr(k, 'name')
+            assert not hasattr(k, "name")
             d[k] = v.__getstate__()
         return d
 
@@ -278,7 +279,7 @@ class NodeSet(defaultdict):
         return res
 
     def add(self, node, tick):
-        assert not hasattr(node, 'name')
+        assert not hasattr(node, "name")
         self[node].add(tick)
 
     def __isub__(self, other):
@@ -645,13 +646,13 @@ class Entry:
             if child is None:
                 if create is False:
                     raise KeyError(name)
-                acl.check('n')
+                acl.check("n")
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)(
                         name, self, tock=self.tock
                     )
             else:
-                acl.check('x')
+                acl.check("x")
             try:
                 acl = acl.step(name, new=first)
             except KeyError:
@@ -660,8 +661,8 @@ class Entry:
             self = child
 
         # If the caller doesn't know if the node exists, help them out.
-        if acl_key == 'W':
-            acl_key = 'w' if self is not None and self._data is not NotGiven else 'c'
+        if acl_key == "W":
+            acl_key = "w" if self is not None and self._data is not NotGiven else "c"
         acl.check(acl_key)
         return (self, acl)
 
@@ -738,7 +739,7 @@ class Entry:
         """
         Call :meth:`Node.clear_deleted` on each link in this entry's chain.
         """
-        c,self.chain = self.chain,None
+        c, self.chain = self.chain, None
         if c is None:
             return
         for node, tick in c:
@@ -749,13 +750,13 @@ class Entry:
         """
         Remove a deleted entry (and possibly its parent).
         """
-        logger.debug("CHOP %r",self)
-        this,p = self,self.parent
+        logger.debug("CHOP %r", self)
+        this, p = self, self.parent
         while p is not None:
             del p._sub[this.name]
             if p._sub:
                 return
-            this,p = p,p.parent
+            this, p = p, p.parent
 
     async def set_data(
         self, event: NodeEvent, data: Any, local: bool = False, server=None, tock=None
@@ -795,7 +796,7 @@ class Entry:
                 "has:",
                 self._data,
                 "but should have:",
-                    evt.new_value,
+                evt.new_value,
             )
             return
 
@@ -811,7 +812,9 @@ class Entry:
                 logger.warn("*** inconsistency ***")
                 logger.warn("Node: %s", self.path)
                 logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.get('value',NotGiven))
+                logger.warn(
+                    "New: %s :%s: %r", evt.event, evt.tock, evt.get("value", NotGiven)
+                )
                 if evt.tock < self.tock:
                     logger.warn("New value ignored")
                     return
@@ -859,11 +862,13 @@ class Entry:
         if max_depth == _depth:
             return
         _depth += 1
-        for k,v in list(self._sub.items()):
+        for k, v in list(self._sub.items()):
             if k is None:
                 continue
             a = acl.step(k) if acl is not None else None
-            await v.walk(proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
+            await v.walk(
+                proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth
+            )
 
     def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.

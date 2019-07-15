@@ -30,9 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()
-@click.option(
-    "-n", "--node", help="node to run this code on. Empty: any one node"
-)
+@click.option("-n", "--node", help="node to run this code on. Empty: any one node")
 @click.pass_obj
 async def cli(obj, node):
     """Run code stored in DistKV."""
@@ -56,12 +54,13 @@ async def all(obj):
     while True:
         await anyio.sleep(99999)
 
+
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.option("-S", "--state-only", is_flag=True, help="Show only state data")
 @click.option(
     "-d",
-    "--as-dict", 
+    "--as-dict",
     default=None,
     help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
@@ -74,21 +73,18 @@ async def list(obj, state, state_only, as_dict, path):
     if not path:
         path = ()
     if obj.node is None:
-        path = obj.cfg['anyrunner'].prefix+path
+        path = obj.cfg["anyrunner"].prefix + path
         if state or state_only:
-            state = obj.cfg['anyrunner'].state+path
+            state = obj.cfg["anyrunner"].state + path
     else:
-        path = obj.cfg['singlerunner'].prefix+(obj.node,)+path
+        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
         if state or state_only:
-            state = obj.cfg['singlerunner'].state+(obj.node,)+path
+            state = obj.cfg["singlerunner"].state + (obj.node,) + path
     if state_only:
         path = state
         state = None
     res = await obj.client._request(
-        action="get_tree",
-        path=path,
-        iter=True,
-        nchain=3 if obj.meta else 0,
+        action="get_tree", path=path, iter=True, nchain=3 if obj.meta else 0
     )
 
     y = {}
@@ -101,23 +97,20 @@ async def list(obj, state, state_only, as_dict, path):
         else:
             yy = {}
             if obj.meta:
-                yy[r.pop('path')] = r
+                yy[r.pop("path")] = r
             else:
                 yy[r.path] = r.value
-                
+
         if state:
             rs = await obj.client._request(
-                action="get_value",
-                path=state,
-                iter=False,
-                nchain=3 if obj.meta else 0,
+                action="get_value", path=state, iter=False, nchain=3 if obj.meta else 0
             )
-            if 'value' in rs:
+            if "value" in rs:
                 if not obj.meta:
                     rs = rs.value
-                yy['state'] = rs
+                yy["state"] = rs
             else:
-                yy['state'] = None
+                yy["state"] = None
         if as_dict is None:
             yprint([yy], stream=obj.stdout)
 
@@ -137,17 +130,14 @@ async def state(obj, path, result):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     if obj.node is None:
-        path = obj.cfg['anyrunner'].state+path
+        path = obj.cfg["anyrunner"].state + path
     else:
-        path = obj.cfg['singlerunner'].state+(obj.node,)+path
+        path = obj.cfg["singlerunner"].state + (obj.node,) + path
 
     res = await obj.client._request(
-        action="get_value",
-        path=path,
-        iter=False,
-        nchain=3 if obj.meta else 0,
+        action="get_value", path=path, iter=False, nchain=3 if obj.meta else 0
     )
-    if 'value' not in res:
+    if "value" not in res:
         if obj.debug:
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
@@ -165,15 +155,12 @@ async def get(obj, path):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     if obj.node is None:
-        path = obj.cfg['anyrunner'].prefix+path
+        path = obj.cfg["anyrunner"].prefix + path
     else:
-        path = obj.cfg['singlerunner'].prefix+(obj.node,)+path
+        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
 
     res = await obj.client._request(
-        action="get_value",
-        path=path,
-        iter=False,
-        nchain=3 if obj.meta else 0,
+        action="get_value", path=path, iter=False, nchain=3 if obj.meta else 0
     )
     if not obj.meta:
         res = res.value
@@ -182,14 +169,16 @@ async def get(obj, path):
 
 
 @cli.command()
-@click.option("-c", "--code", help="Path to the code that should run. Space separated path.")
+@click.option(
+    "-c", "--code", help="Path to the code that should run. Space separated path."
+)
 @click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
-@click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option(
-    "-i", "--info", help="Short human-readable information"
+    "-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)"
 )
+@click.option("-i", "--info", help="Short human-readable information")
 @click.option(
     "-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)"
 )
@@ -201,24 +190,21 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
         raise click.UsageError("You need a non-empty path.")
     if eval_:
         code = eval(code)
-        if not isinstance(code, (list,tuple)):
+        if not isinstance(code, (list, tuple)):
             raise click.UsageError("'code' must be a list")
     elif code is not None:
-        code = code.split(' ')
+        code = code.split(" ")
 
     if obj.node is None:
-        path = obj.cfg['anyrunner'].prefix+path
+        path = obj.cfg["anyrunner"].prefix + path
     else:
-        path = obj.cfg['singlerunner'].prefix+(obj.node,)+path
+        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
 
     try:
         res = await obj.client._request(
-            action="get_value",
-            path=path,
-            iter=False,
-            nchain=3,
+            action="get_value", path=path, iter=False, nchain=3
         )
-        if 'value' not in res:
+        if "value" not in res:
             raise ServerError
     except ServerError:
         if code is None:
@@ -226,30 +212,28 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
         res = {}
         chain = None
     else:
-        chain = res['chain']
-        res = res['value']
+        chain = res["chain"]
+        res = res["value"]
 
     if code is not None:
-        res['code'] = code
+        res["code"] = code
     if info is not None:
-        res['info'] = info
+        res["info"] = info
     if backoff is not None:
-        res['backoff'] = backoff
+        res["backoff"] = backoff
     if delay is not None:
-        res['delay'] = delay
+        res["delay"] = delay
     if repeat is not None:
-        res['repeat'] = repeat
+        res["repeat"] = repeat
     if tm is not None:
-        res['target'] = time.time() + tm
-        
+        res["target"] = time.time() + tm
+
     res = await obj.client._request(
         action="set_value",
         value=res,
         path=path,
         iter=False,
         nchain=3,
-        **({"chain":chain} if chain else {})
+        **({"chain": chain} if chain else {})
     )
     yprint(res, stream=obj.stdout)
-
-

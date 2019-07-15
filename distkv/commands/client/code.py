@@ -45,7 +45,7 @@ async def get(obj, path, script):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_value",
-        path=obj.cfg['codes']['prefix'] + path,
+        path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
     )
@@ -60,11 +60,13 @@ async def get(obj, path, script):
 
 @cli.command()
 @click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
-@click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option(
-    "-s", "--script", type=click.File(mode="r"), help="File with the code"
+    "-t", "--thread", is_flag=True, help="The code should run in a worker thread"
 )
-@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML")
+@click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
+@click.option(
+    "-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML"
+)
 @click.option(
     "-c",
     "--chain",
@@ -93,10 +95,10 @@ async def set(obj, path, chain, thread, script, yaml_, async_):
     else:
         msg = {}
     if "value" in msg:
-        chain = msg.get('chain', chain)
-        msg = msg['value']
-    if async_ is not None or 'is_async' not in msg:
-        msg['is_async'] = async_
+        chain = msg.get("chain", chain)
+        msg = msg["value"]
+    if async_ is not None or "is_async" not in msg:
+        msg["is_async"] = async_
 
     if "code" in msg:
         if script:
@@ -109,21 +111,22 @@ async def set(obj, path, chain, thread, script, yaml_, async_):
     res = await obj.client._request(
         action="set_value",
         value=msg,
-        path=obj.cfg['codes']['prefix'] + path,
+        path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain":chain} if chain else {})
+        **({"chain": chain} if chain else {})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
-@cli.group('module')
+@cli.group("module")
 @click.pass_obj
 async def mod(obj):
     """
     Change the code of a module stored in DistKV
     """
+
 
 @mod.command()
 @click.option(
@@ -137,7 +140,7 @@ async def get(obj, path, script):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_value",
-        path=obj.cfg['modules']['prefix'] + path,
+        path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
     )
@@ -155,7 +158,9 @@ async def get(obj, path, script):
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
 )
-@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML")
+@click.option(
+    "-y", "--yaml", "yaml_", is_flag=True, help="load the 'script' file as YAML"
+)
 @click.option(
     "-c",
     "--chain",
@@ -175,8 +180,8 @@ async def set(obj, path, chain, script, yaml_):
     else:
         msg = {}
     if "value" in msg:
-        chain = msg.get('chain', chain)
-        msg = msg['value']
+        chain = msg.get("chain", chain)
+        msg = msg["value"]
 
     if "code" not in msg:
         if script:
@@ -189,10 +194,10 @@ async def set(obj, path, chain, script, yaml_):
     res = await obj.client._request(
         action="set_value",
         value=msg,
-        path=obj.cfg['modules']['prefix'] + path,
+        path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain":chain} if chain else {})
+        **({"chain": chain} if chain else {})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

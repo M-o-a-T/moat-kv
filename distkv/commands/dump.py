@@ -24,6 +24,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @main.group(short_help="Manage data.")
 @click.pass_obj
 async def cli(obj):
@@ -32,11 +33,13 @@ async def cli(obj):
     """
     pass
 
+
 @cli.command()
 @click.pass_obj
 async def cfg(obj):
     """emit the current configuration as a YAML file."""
     yprint(obj.cfg, stream=obj.stdout)
+
 
 @cli.command()
 @click.argument("file", nargs=1)

@@ -22,6 +22,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @main.command(short_help="Run the DistKV server.")
 @click.option(
     "-h",
@@ -98,5 +99,3 @@ async def cli(obj, name, host, port, load, save, init, eval):
     if load is not None:
         await s.load(path=load, local=True)
     await s.serve(log_path=save, ready_evt=RunMsg())
-
-

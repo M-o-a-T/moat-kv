@@ -26,23 +26,30 @@ except ImportError:
 def singleton(cls):
     return cls()
 
+
 def yprint(data, stream=sys.stdout):
-    if isinstance(data, (int,float)):
+    if isinstance(data, (int, float)):
         print(data, file=stream)
-    elif isinstance(data, (str,bytes)):
+    elif isinstance(data, (str, bytes)):
         print(repr(data), file=stream)
-#   elif isinstance(data, bytes):
-#       os.write(sys.stdout.fileno(), data)
+    #   elif isinstance(data, bytes):
+    #       os.write(sys.stdout.fileno(), data)
     else:
         yaml.safe_dump(data, stream=stream, default_flow_style=False)
 
 
 from yaml.emitter import Emitter
+
 _expect_node = Emitter.expect_node
+
+
 def expect_node(self, *a, **kw):
     _expect_node(self, *a, **kw)
     self.root_context = False
+
+
 Emitter.expect_node = _expect_node
+
 
 class TimeOnlyFormatter(logging.Formatter):
     default_time_format = "%H:%M:%S"
@@ -120,12 +127,15 @@ from yaml.representer import SafeRepresenter
 
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
+
 def str_presenter(dumper, data):
-    if '\n' in data:  # check for multiline string
-        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
-    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+    if "\n" in data:  # check for multiline string
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
 
 SafeRepresenter.add_representer(str, str_presenter)
+
 
 def count(it):
     n = 0
@@ -190,7 +200,7 @@ class PathShortener:
 
     def __call__(self, res):
         try:
-            p = res['path']
+            p = res["path"]
         except KeyError:
             return
         if p[: self.depth] != self.prefix:
@@ -437,7 +447,9 @@ async def create_tcp_server(**args) -> _Server:
             yield server
 
 
-def gen_ssl(ctx: Union[bool, SSLContext, Dict[str, str]] = False, server: bool = True) -> Optional[SSLContext]:
+def gen_ssl(
+    ctx: Union[bool, SSLContext, Dict[str, str]] = False, server: bool = True
+) -> Optional[SSLContext]:
     """
     Generate a SSL config from the given context.
 

@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import anyio
+
 try:
     from trio import BrokenResourceError as trioBrokenResourceError
 except ImportError:
+
     class trioBrokenResourceError(Exception):
         pass
+
+
 from async_generator import asynccontextmanager
 import msgpack
 import asyncserf
@@ -39,7 +43,13 @@ from .util import (
     byte2num,
     NotGiven,
 )
-from .exceptions import ClientError, NoAuthError, CancelledError, ACLError, ServerClosedError
+from .exceptions import (
+    ClientError,
+    NoAuthError,
+    CancelledError,
+    ACLError,
+    ServerClosedError,
+)
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
 
@@ -52,8 +62,9 @@ _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
 _client_nr = 0
 
-SERF_MAXLEN=450
-SERF_LEN_DELTA=15
+SERF_MAXLEN = 450
+SERF_LEN_DELTA = 15
+
 
 def max_n(a, b):
     if a is None:
@@ -165,7 +176,9 @@ class StreamCommand:
                     await self.send(**res)
             except Exception as exc:
                 if not isinstance(exc, SerfCancelledError):
-                    self.client.logger.exception("ERS%d %r", self.client._client_nr, self.msg)
+                    self.client.logger.exception(
+                        "ERS%d %r", self.client._client_nr, self.msg
+                    )
                 await self.send(error=repr(exc))
             finally:
                 await self.send(state="end")
@@ -401,9 +414,17 @@ class SCmd_get_tree(StreamCommand):
 
         if root is None:
             root = client.root
-            entry, acl = root.follow_acl(*msg.path, create=False, nulls_ok=client.nulls_ok, acl=client.acl, acl_key='e')
+            entry, acl = root.follow_acl(
+                *msg.path,
+                create=False,
+                nulls_ok=client.nulls_ok,
+                acl=client.acl,
+                acl_key="e"
+            )
         else:
-            entry, _ = root.follow_acl(*msg.path, create=False, nulls_ok=client.nulls_ok)
+            entry, _ = root.follow_acl(
+                *msg.path, create=False, nulls_ok=client.nulls_ok
+            )
             acl = NullACL
 
         kw = {}
@@ -422,21 +443,22 @@ class SCmd_get_tree(StreamCommand):
             if entry.data is NotGiven:
                 return
             res = entry.serialize(chop_path=client._chop_path, nchain=nchain, conv=conv)
-            if not acl.allows('r'):
-                res.pop('value', None)
+            if not acl.allows("r"):
+                res.pop("value", None)
             ps(res)
             await self.send(**res)
 
-            if not acl.allows('e'):
+            if not acl.allows("e"):
                 raise StopAsyncIteration
-            if not acl.allows('x'):
-                acl.block('r')
+            if not acl.allows("x"):
+                acl.block("r")
 
         await entry.walk(send_sub, acl=acl, **kw)
 
 
 class SCmd_get_tree_internal(SCmd_get_tree):
     """Get a subtree (internal data)."""
+
     async def run(self):
         return await super().run(root=self.client.metaroot)
 
@@ -460,7 +482,13 @@ class SCmd_watch(StreamCommand):
         msg = self.msg
         client = self.client
         conv = client.conv
-        entry, acl = client.root.follow_acl(*msg.path, acl=client.acl, acl_key="x", create=True, nulls_ok=client.nulls_ok)
+        entry, acl = client.root.follow_acl(
+            *msg.path,
+            acl=client.acl,
+            acl_key="x",
+            create=True,
+            nulls_ok=client.nulls_ok
+        )
         nchain = msg.get("nchain", 0)
         max_depth = msg.get("max_depth", -1)
         min_depth = msg.get("min_depth", 0)
@@ -482,14 +510,14 @@ class SCmd_watch(StreamCommand):
                                     conv=conv,
                                 )
                                 shorter(res)
-                                if not acl.allows('r'):
-                                    res.pop('value', None)
+                                if not acl.allows("r"):
+                                    res.pop("value", None)
                                 await self.send(**res)
 
-                            if not acl.allows('e'):
+                            if not acl.allows("e"):
                                 raise StopAsyncIteration
-                            if not acl.allows('x'):
-                                acl.block('r')
+                            if not acl.allows("x"):
+                                acl.block("r")
 
                         await entry.walk(worker, acl=acl, **kv)
                         await self.send(state="uptodate")
@@ -503,19 +531,19 @@ class SCmd_watch(StreamCommand):
                     if max_depth > 0 and ml > max_depth:
                         continue
                     a = acl
-                    for p in getattr(m,'path',[])[shorter.depth:]:
-                        if not a.allows('e'):
+                    for p in getattr(m, "path", [])[shorter.depth :]:
+                        if not a.allows("e"):
                             break
-                        if not acl.allows('x'):
-                            a.block('r')
+                        if not acl.allows("x"):
+                            a.block("r")
                         a = a.step(p)
                     else:
                         res = m.entry.serialize(
                             chop_path=client._chop_path, nchain=nchain, conv=conv
                         )
                         shorter(res)
-                        if not a.allows('r'):
-                            res.pop('value', None)
+                        if not a.allows("r"):
+                            res.pop("value", None)
                         await self.send(**res)
 
 
@@ -681,7 +709,7 @@ class ServerClient:
             return
         acl = self.client.acl
         entry, acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
-        
+
         self.root = entry
         self.is_chroot = True
         self._chop_path += len(root)
@@ -712,15 +740,15 @@ class ServerClient:
         return self._dh_key
 
     async def cmd_fake_info(self, msg):
-        msg['node'] = ''
-        msg['tick'] = 0
+        msg["node"] = ""
+        msg["tick"] = 0
         self.logger.warning("Fake Info LOCAL %s", pformat(msg))
         await self.server.user_info(msg)
 
     async def cmd_fake_info_send(self, msg):
-        msg['node'] = ''
-        msg['tick'] = 0
-        msg.pop('tock', None)
+        msg["node"] = ""
+        msg["tick"] = 0
+        msg.pop("tock", None)
         self.logger.warning("Fake Info SEND %s", pformat(msg))
         await self.server._send_event("info", msg)
 
@@ -767,46 +795,54 @@ class ServerClient:
         """Check which ACL a path matches."""
         root = self.root
         path = msg.path
-        mode = msg.get('mode') or 'x'
+        mode = msg.get("mode") or "x"
         acl = self.acl
-        acl2 = msg.get('acl', None)
-        first=True
+        acl2 = msg.get("acl", None)
+        first = True
         try:
-            entry, acl = root.follow_acl(*msg.path, acl=self.acl, acl_key='a' if acl2 is None else mode, nulls_ok=False, create=None)
+            entry, acl = root.follow_acl(
+                *msg.path,
+                acl=self.acl,
+                acl_key="a" if acl2 is None else mode,
+                nulls_ok=False,
+                create=None
+            )
 
             if acl2 is not None:
-                ok = acl.allows('a')
+                ok = acl.allows("a")
                 acl2 = root.follow(None, "acl", acl2, create=False, nulls_ok=True)
                 acl2 = ACLFinder(acl2)
-                entry, acl = root.follow_acl(*msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None)
+                entry, acl = root.follow_acl(
+                    *msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None
+                )
                 if not ok:
-                    acl.block('a')
+                    acl.block("a")
                 acl.check(mode)
         except ACLError:
-            return {'access': False}
+            return {"access": False}
         else:
-            return {'access': acl.result.data if acl.allows('a') else True}
-
+            return {"access": acl.result.data if acl.allows("a") else True}
 
     async def cmd_enumerate(self, msg, with_data=False, _nulls_ok=None, root=None):
         """Get all sub-nodes.
         """
         if root is None:
             root = self.root
-        entry, acl = root.follow_acl(*msg.path, acl=self.acl, acl_key='e', create=False, nulls_ok=_nulls_ok)
+        entry, acl = root.follow_acl(
+            *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
+        )
         if with_data:
             res = {}
-            for k,v in entry.items():
+            for k, v in entry.items():
                 a = acl.step(k)
-                if a.allows('r') and v.data is not NotGiven:
+                if a.allows("r") and v.data is not NotGiven:
                     res[k] = self.conv.enc_value(v.data, entry=v)
         else:
             res = []
-            for k,v in entry.items():
+            for k, v in entry.items():
                 if v.data is not NotGiven:
                     res.append(k)
         return res
-
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
@@ -822,7 +858,9 @@ class ServerClient:
         if root is None:
             root = self.root
         try:
-            entry,acl = root.follow_acl(*msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok)
+            entry, acl = root.follow_acl(
+                *msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok
+            )
         except KeyError:
             entry = {}
             if msg.get("nchain", 0):
@@ -858,7 +896,9 @@ class ServerClient:
             acl = self.acl
         else:
             acl = NullACL
-        entry, acl = root.follow_acl(*msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok)
+        entry, acl = root.follow_acl(
+            *msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok
+        )
         if root is self.root and "match" in self.metaroot:
             try:
                 self.metaroot["match"].check_value(
@@ -968,19 +1008,18 @@ class ServerClient:
         ps = PathShortener(msg.path)
 
         try:
-            entry, acl = self.root.follow_acl(*msg.path, acl=self.acl, acl_key='d', nulls_ok=self.nulls_ok)
+            entry, acl = self.root.follow_acl(
+                *msg.path, acl=self.acl, acl_key="d", nulls_ok=self.nulls_ok
+            )
         except KeyError:
             return False
 
         async def _del(entry, acl):
             res = 0
-            if entry.data is not None and acl.allows('d'):
+            if entry.data is not None and acl.allows("d"):
                 async with self.server.next_event() as event:
                     evt = await entry.set_data(
-                        event,
-                        NotGiven,
-                        server=self,
-                        tock=self.server.tock,
+                        event, NotGiven, server=self, tock=self.server.tock
                     )
                     if nchain:
                         r = evt.serialize(
@@ -994,7 +1033,7 @@ class ServerClient:
                         ps(r)
                         await self.send(r)
                 res += 1
-            if not acl.allows('e') or not acl.allows('x'):
+            if not acl.allows("e") or not acl.allows("x"):
                 return
             for v in entry.values():
                 a = acl.step(v, new=True)
@@ -1247,7 +1286,7 @@ class Server:
 
         self._evt_lock = anyio.create_lock()
         self._clients = set()
-        self._part_len = SERF_MAXLEN-SERF_LEN_DELTA-len(self.node.name)
+        self._part_len = SERF_MAXLEN - SERF_LEN_DELTA - len(self.node.name)
         self._part_seq = 0
         self._part_cache = dict()
 
@@ -1347,7 +1386,9 @@ class Server:
         omsg = msg
         self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
-            await self.serf.event(self.cfg.server.root + "." + action, m, coalesce=False)
+            await self.serf.event(
+                self.cfg.server.root + "." + action, m, coalesce=False
+            )
 
     async def watcher(self):
         """
@@ -1374,11 +1415,16 @@ class Server:
         for n in nodes:
             try:
                 host, port = await self._get_host_port(n)
-                cfg = combine_dict({"host":host, "port":port, "name":self.node.name}, self.cfg.connect, cls=attrdict)
-                auth = cfg.get('auth', None)
-                if isinstance(auth,str):
+                cfg = combine_dict(
+                    {"host": host, "port": port, "name": self.node.name},
+                    self.cfg.connect,
+                    cls=attrdict,
+                )
+                auth = cfg.get("auth", None)
+                if isinstance(auth, str):
                     from .auth import gen_auth
-                    cfg['auth'] = gen_auth(auth)
+
+                    cfg["auth"] = gen_auth(auth)
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
@@ -1388,7 +1434,10 @@ class Server:
                     async def send_nodes():
                         nonlocal nodes, n_nodes
                         res = await client._request(
-                            "check_deleted", iter=False, nchain=-1, nodes=nodes.serialize()
+                            "check_deleted",
+                            iter=False,
+                            nchain=-1,
+                            nodes=nodes.serialize(),
                         )
                         nodes.clear()
                         n_nodes = 0
@@ -1407,11 +1456,11 @@ class Server:
                     if n_nodes > 0:
                         await send_nodes()
 
-#           except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
-#               raise
+            #           except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
+            #               raise
             except Exception:
                 raise
-#               self.logger.exception("Unable to connect to %s" % (nodes,))
+            #               self.logger.exception("Unable to connect to %s" % (nodes,))
             else:
                 # The recipient will broadcast "info.deleted" messages for
                 # whatever it doesn't have, so we're done here.
@@ -1476,7 +1525,7 @@ class Server:
                 lk = n.remote_missing
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
-        res['node'] = self.node.name
+        res["node"] = self.node.name
         return res
 
     async def user_update(self, msg):
@@ -1484,7 +1533,7 @@ class Server:
         Process an update message: deserialize it and apply the result.
         """
         msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
-        await msg.entry.apply(msg, server=self, root=self.paranoid_root, )
+        await msg.entry.apply(msg, server=self, root=self.paranoid_root)
 
     async def user_info(self, msg):
         """
@@ -1570,26 +1619,26 @@ class Server:
         """
         # protect against mistakenly encoded multi-part messages
         # TODO use a msgpack extension instead
-        if isinstance(msg,Mapping):
-            i=0
-            while ("_p%d"%i) in msg:
+        if isinstance(msg, Mapping):
+            i = 0
+            while ("_p%d" % i) in msg:
                 i += 1
             while i:
                 i -= 1
-                msg['_p%d' % (i+1)] = msg['_p%d' % i]
-            msg['_p0'] = ''
+                msg["_p%d" % (i + 1)] = msg["_p%d" % i]
+            msg["_p0"] = ""
 
         p = _packer(msg)
         pl = self._part_len
-        if len(p) > SERF_MAXLEN: 
+        if len(p) > SERF_MAXLEN:
             # Owch. We need to split this thing.
-            self._part_seq = seq = self._part_seq+1
-            i=0
-            while i>=0:
-                px,p = p[pl:],p[:pl]
+            self._part_seq = seq = self._part_seq + 1
+            i = 0
+            while i >= 0:
+                px, p = p[pl:], p[:pl]
                 if not p:
                     i = -i
-                px = {'_p0':(self.node.name,seq,i,px)}
+                px = {"_p0": (self.node.name, seq, i, px)}
                 yield _packer(px)
             return
         yield p
@@ -1599,31 +1648,30 @@ class Server:
         Undo the effects of _pack_multiple.
         """
 
-        if isinstance(msg,Mapping) and '_p0' in msg:
-            p = msg['_p0']
-            if p != '':
-                nn,seq,i,p = p
-                s = self._part_cache.get((nn,seq), None)
+        if isinstance(msg, Mapping) and "_p0" in msg:
+            p = msg["_p0"]
+            if p != "":
+                nn, seq, i, p = p
+                s = self._part_cache.get((nn, seq), None)
                 if s is None:
                     self._part_cache[seq] = s = [None]
                 if i < 0:
                     i = -i
-                    s[0] = b''
-                while len(s) <= i+1:
+                    s[0] = b""
+                while len(s) <= i + 1:
                     s.append(None)
-                s[i+1] = p
+                s[i + 1] = p
                 if None in s:
                     return None
-                p = b''.join(s)
-                del self._part_cache[(nn,seq)]
+                p = b"".join(s)
+                del self._part_cache[(nn, seq)]
 
-            i=0
-            while ('_p%d'%(i+1)) in msg:
-                msg['_p%d' % i] = msg['_p%d' % (i+1)]
+            i = 0
+            while ("_p%d" % (i + 1)) in msg:
+                msg["_p%d" % i] = msg["_p%d" % (i + 1)]
                 i += 1
-            del msg['_p%d' % i]
+            del msg["_p%d" % i]
         return msg
-
 
     async def monitor(self, action: str, delay: anyio.abc.Event = None):
         """
@@ -1645,7 +1693,10 @@ class Server:
 
                 async for resp in stream:
                     msg = msgpack.unpackb(
-                        resp.payload, object_pairs_hook=attrdict, raw=False, use_list=False
+                        resp.payload,
+                        object_pairs_hook=attrdict,
+                        raw=False,
+                        use_list=False,
                     )
                     msg = await self._unpack_multiple(msg)
                     if msg is None:
@@ -1683,7 +1734,8 @@ class Server:
                 name=self.node.name,
                 cfg=self.cfg.server.ping,
                 tg=tg,
-                packer=packer, unpacker=unpacker,
+                packer=packer,
+                unpacker=unpacker,
             ) as actor:
                 self._actor = actor
                 await self._check_ticked()
@@ -1723,7 +1775,7 @@ class Server:
         try:
             # First try to read the host name from the meta-root's
             # "hostmap" entry, if any.
-            hme = self.root.follow(None,'hostmap',host, create=False, nulls_ok=True)
+            hme = self.root.follow(None, "hostmap", host, create=False, nulls_ok=True)
             if hme.data is NotGiven:
                 raise KeyError(host)
         except KeyError:
@@ -1737,7 +1789,7 @@ class Server:
                     # If it's a string, the port may have been passed as
                     # part of the hostname. (Notably on the command line.)
                     try:
-                        host, port = host.rsplit(":",1)
+                        host, port = host.rsplit(":", 1)
                     except ValueError:
                         pass
                     else:
@@ -1746,7 +1798,7 @@ class Server:
             # The hostmap entry in the database must be a tuple
             host, port = hme.data
 
-        if domain is not None and '.' not in host and host != "localhost":
+        if domain is not None and "." not in host and host != "localhost":
             host += "." + domain
         return (host, port)
 
@@ -1804,11 +1856,16 @@ class Server:
         for n in nodes:
             try:
                 host, port = await self._get_host_port(n)
-                cfg = combine_dict({"host":host, "port":port, "name":self.node.name}, self.cfg.connect, cls=attrdict)
-                auth = cfg.get('auth', None)
-                if isinstance(auth,str):
+                cfg = combine_dict(
+                    {"host": host, "port": port, "name": self.node.name},
+                    self.cfg.connect,
+                    cls=attrdict,
+                )
+                auth = cfg.get("auth", None)
+                if isinstance(auth, str):
                     from .auth import gen_auth
-                    cfg['auth'] = gen_auth(auth)
+
+                    cfg["auth"] = gen_auth(auth)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
@@ -1825,9 +1882,7 @@ class Server:
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
                         )
-                        await r.entry.apply(
-                            r, server=self, root=self.paranoid_root
-                        )
+                        await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
                     res = await client._request(
@@ -2149,18 +2204,18 @@ class Server:
                 while True:
                     # This dance ensures that we save the system state often enough.
                     t = time.monotonic()
-                    td = t-last_saved
+                    td = t - last_saved
                     if td >= 60 or last_saved_count > 1000:
                         msg = await self.get_state(nodes=True, known=True, deleted=True)
                         await mw(msg)
                         await mw.flush()
                         last_saved = time.monotonic()
                         last_saved_count = 0
-                        td = -99999 # translates to something large, below
+                        td = -99999  # translates to something large, below
                         cnt = 0
 
                     try:
-                        async with anyio.fail_after(1 if cnt else 60-td):
+                        async with anyio.fail_after(1 if cnt else 60 - td):
                             msg = await updates.__anext__()
                     except TimeoutError:
                         await mw.flush()
@@ -2178,17 +2233,27 @@ class Server:
 
     _saver_prev = None
 
-    async def _saver(self, path: str = None, stream=None, done: anyio.abc.Event = None, save_state=False):
+    async def _saver(
+        self,
+        path: str = None,
+        stream=None,
+        done: anyio.abc.Event = None,
+        save_state=False,
+    ):
 
         async with anyio.open_cancel_scope() as s:
             self._saver_prev = s
             try:
-                await self.save_stream(path=path, stream=stream, done=done, save_state=save_state)
+                await self.save_stream(
+                    path=path, stream=stream, done=done, save_state=save_state
+                )
             finally:
                 if self._saver_prev is s:
                     self._saver_prev = None
 
-    async def run_saver(self, path: str = None, stream=None, save_state=False, wait: bool = True):
+    async def run_saver(
+        self, path: str = None, stream=None, save_state=False, wait: bool = True
+    ):
         """
         Start a task that continually saves to disk.
 
@@ -2226,9 +2291,7 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(
-        self, log_path=None, ready_evt=None
-    ):
+    async def serve(self, log_path=None, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
@@ -2297,7 +2360,9 @@ class Server:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
-                    await self.root.set_data(event, self._init, tock=self.tock, server=self)
+                    await self.root.set_data(
+                        event, self._init, tock=self.tock, server=self
+                    )
 
             # send initial ping
             await self.spawn(self._pinger, delay2)
@@ -2312,7 +2377,7 @@ class Server:
             cfg_b = self.cfg.server.bind_default
             evts = []
             async with anyio.create_task_group() as tg:
-                for n,cfg in enumerate(cfgs):
+                for n, cfg in enumerate(cfgs):
                     cfg = combine_dict(cfg, cfg_b, cls=attrdict)
                     evt = anyio.create_event()
                     evts.append(evt)
@@ -2323,13 +2388,13 @@ class Server:
                 await self._ready2.set()
                 if ready_evt is not None:
                     await ready_evt.set()
-                pass # end of server taskgroup
-            pass # end of server
-        pass # end of serf client
+                pass  # end of server taskgroup
+            pass  # end of server
+        pass  # end of serf client
 
     async def _accept_clients(self, cfg, n, evt):
-        ssl_ctx = gen_ssl(cfg['ssl'], server=True)
-        cfg = combine_dict({"ssl":ssl_ctx}, cfg, cls=attrdict)
+        ssl_ctx = gen_ssl(cfg["ssl"], server=True)
+        cfg = combine_dict({"ssl": ssl_ctx}, cfg, cls=attrdict)
 
         async with create_tcp_server(**cfg) as server:
             if n == 0:

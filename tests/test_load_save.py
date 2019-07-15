@@ -139,7 +139,9 @@ async def test_02_cmd(autojump_clock):
                 if h[0] != ":":
                     break
 
-            r = await run("client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo")
+            r = await run(
+                "client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo"
+            )
             r = await run(
                 "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo", "bar"
             )
@@ -159,7 +161,7 @@ async def test_02_cmd(autojump_clock):
             del r["tock"]
             del r["seq"]
             assert r == {
-                'node': 'test_0',
+                "node": "test_0",
                 "nodes": {"test_0": 3},
                 "known": {"test_0": ((1, 4),)},
                 "missing": {},
@@ -191,7 +193,7 @@ async def test_02_cmd(autojump_clock):
             del r["tock"]
             del r["seq"]
             assert r == {
-                'node': 'test_0',
+                "node": "test_0",
                 "nodes": {"test_0": 4},
                 "known": {"test_0": ((1, 5),)},
                 "missing": {},
@@ -217,7 +219,7 @@ async def test_03_three(autojump_clock):
             assert (
                 r
                 == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {},
@@ -225,7 +227,7 @@ async def test_03_three(autojump_clock):
                 }
                 or r
                 == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {},
@@ -233,7 +235,7 @@ async def test_03_three(autojump_clock):
                 }
                 or r
                 == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {"test_0": (1,)},
@@ -241,7 +243,7 @@ async def test_03_three(autojump_clock):
                 }
                 or r
                 == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_1": 1, "test_0": None},
                     "known": {"test_0": (1,), "test_1": (1,)},
                     "missing": {},
@@ -249,7 +251,7 @@ async def test_03_three(autojump_clock):
                 }
                 or r
                 == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_0": 0, "test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {},
@@ -272,13 +274,13 @@ async def test_03_three(autojump_clock):
                 del r["tock"]
                 del r["seq"]
                 assert r == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_0": 0, "test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 } or r == {
-                    'node': 'test_1',
+                    "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
                     "known": {"test_1": (1,)},
                     "missing": {},
@@ -325,7 +327,7 @@ async def test_03_three(autojump_clock):
                 del r["tock"]
                 del r["seq"]
                 assert r == {
-                    'node': 'test_0',
+                    "node": "test_0",
                     "nodes": {"test_0": 1, "test_1": 2},
                     "known": {"test_0": (1,), "test_1": ((1, 3),)},
                     "missing": {},
@@ -339,7 +341,7 @@ async def test_03_three(autojump_clock):
             del r["tock"]
             del r["seq"]
             assert r == {
-                'node': 'test_1',
+                "node": "test_1",
                 "nodes": {"test_0": 1, "test_1": 2},
                 "known": {"test_0": (1,), "test_1": ((1, 3),)},
                 "missing": {},

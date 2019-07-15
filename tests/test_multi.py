@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 
 N = 10
 
+
 def _skip_check(self):
     if self._prefix != "test.core":
         return False
-    if not hasattr(self,'_test_foo') or not self._test_foo:
-        self._test_foo = ["test_2","test_3","test_4"]
-    self.logger.debug("SKIP? %s %r %r",self._name, self._test_foo, self._history)
+    if not hasattr(self, "_test_foo") or not self._test_foo:
+        self._test_foo = ["test_2", "test_3", "test_4"]
+    self.logger.debug("SKIP? %s %r %r", self._name, self._test_foo, self._history)
     p = self._test_foo[-1]
     if p in self._history:
         self._test_foo.pop()
@@ -27,6 +28,7 @@ def _skip_check(self):
         return True
     return False
 
+
 @pytest.mark.trio
 async def test_10_many(autojump_clock):
     """
@@ -34,8 +36,8 @@ async def test_10_many(autojump_clock):
     """
     async with stdtest(test_1={"init": 420}, n=N, tocks=1000) as st:
         st.ex.enter_context(
-                mock.patch("asyncserf.actor.Actor._skip_check", new=_skip_check)
-            )
+            mock.patch("asyncserf.actor.Actor._skip_check", new=_skip_check)
+        )
 
         s = st.s[1]
         async with st.client(1) as ci:
@@ -45,7 +47,7 @@ async def test_10_many(autojump_clock):
 
             await ci._request(
                 "set_internal",
-                path=("actor","del",),
+                path=("actor", "del"),
                 value={"nodes": "test_2 test_3 test_4".split()},
             )
 
@@ -140,7 +142,7 @@ async def test_11_split1(autojump_clock, tocky):
         await trio.sleep(30)
         st.split(N // 2)
         if tocky:
-            async with st.client(2 if tocky < 0 else N-2) as ci:
+            async with st.client(2 if tocky < 0 else N - 2) as ci:
                 for i in range(abs(tocky)):
                     await ci.set("one", i, value="two")
         await trio.sleep(30)
@@ -184,4 +186,4 @@ async def test_11_split1(autojump_clock, tocky):
         pass  # server end
 
     # Now make sure that updates are transmitted once
-    assert n_two <= 2*N + 1
+    assert n_two <= 2 * N + 1

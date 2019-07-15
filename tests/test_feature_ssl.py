@@ -63,7 +63,7 @@ async def test_41_ssl_basic(autojump_clock):
             del r["tock"]
             del r["seq"]
             assert r == {
-                'node': 'test_0',
+                "node": "test_0",
                 "nodes": {"test_0": 3},
                 "known": {"test_0": ((1, 4),)},
                 "missing": {},
@@ -95,7 +95,7 @@ async def test_41_ssl_basic(autojump_clock):
             del r["tock"]
             del r["seq"]
             assert r == {
-                'node': 'test_0',
+                "node": "test_0",
                 "nodes": {"test_0": 4},
                 "known": {"test_0": ((1, 5),)},
                 "missing": {},

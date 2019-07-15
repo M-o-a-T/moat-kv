@@ -25,7 +25,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 @main.group(short_help="Manage data.")
 @click.pass_obj
 async def cli(obj):
@@ -33,6 +32,7 @@ async def cli(obj):
     This subcommand accesses the actual user data stored in your DistKV tree.
     """
     pass
+
 
 @cli.command()
 @click.option(
@@ -64,7 +64,9 @@ async def cli(obj):
     help="Starting depth. Default: whole tree",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
-@click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
+@click.option(
+    "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
+)
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
@@ -77,7 +79,9 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
     """
 
     if chain and not obj.meta:
-        raise click.UsageError("You can't get chain data without metadata (… client -m data …)")
+        raise click.UsageError(
+            "You can't get chain data without metadata (… client -m data …)"
+        )
 
     if recursive:
         if raw:
@@ -91,7 +95,7 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
         y = {}
         async for r in obj.client.get_tree(*path, nchain=chain, **kw):
             r.pop("seq", None)
-            path = r.pop('path')
+            path = r.pop("path")
             if as_dict is not None:
                 yy = y
                 for p in path:
@@ -194,7 +198,9 @@ async def set(obj, path, value, eval, chain, prev, last, new):
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
-@click.option("-e", "--eval", is_flag=True, help="The previous value shall be evaluated.")
+@click.option(
+    "-e", "--eval", is_flag=True, help="The previous value shall be evaluated."
+)
 @click.pass_obj
 async def delete(obj, path, chain, prev, last, recursive, eval):
     """
@@ -224,7 +230,10 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client._request(
-        action="delete_tree" if recursive else "delete_value", path=path, nchain=chain, **args
+        action="delete_tree" if recursive else "delete_value",
+        path=path,
+        nchain=chain,
+        **args
     )
     if isinstance(res, StreamedRequest):
         pl = PathLongener(path)
@@ -255,7 +264,7 @@ async def watch(obj, path, chain, state):
         pl = PathLongener(path)
         async for r in res:
             pl(r)
-            if not flushing and r.get('state','') == "uptodate":
+            if not flushing and r.get("state", "") == "uptodate":
                 flushing = True
             del r["seq"]
             yprint(r, stream=obj.stdout)
@@ -266,9 +275,7 @@ async def watch(obj, path, chain, state):
 @cli.command()
 @click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
-@click.option(
-    "-i", "--infile", type=click.File("rb"), help="File to read (msgpack)."
-)
+@click.option("-i", "--infile", type=click.File("rb"), help="File to read (msgpack).")
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def update(obj, path, infile, local, force):
@@ -286,5 +293,3 @@ async def update(obj, path, infile, local, force):
                 await sender.send(r)
 
     print(sender.result)
-
-

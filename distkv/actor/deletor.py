@@ -106,14 +106,17 @@ class DeleteActor:
                             if val is None:
                                 self.n_pings = self.n_tags = 0
                                 continue
-                            if len(evt.msg['history']) < self.n_nodes:
+                            if len(evt.msg["history"]) < self.n_nodes:
                                 self.n_pings = self.n_tags = 0
                                 continue
                             self.n_pings += 1
                             if self.n_pings > self.n_nodes:
-                                mx,self.max_seen = self.max_seen,max(self.max_seen, val[1])
+                                mx, self.max_seen = (
+                                    self.max_seen,
+                                    max(self.max_seen, val[1]),
+                                )
                                 if val[0] > mx > 0:
-                                    await self.server.resync_deleted(evt.msg['history'])
+                                    await self.server.resync_deleted(evt.msg["history"])
                                     continue
                                 self.purge_to(val[0])
                                 self.max_seen = max(self.max_seen, val[1])
