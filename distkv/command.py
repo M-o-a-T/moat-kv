@@ -3,22 +3,15 @@
 import os
 import sys
 import trio_click as click
-from pprint import pprint
-import json
+import yaml
 from functools import partial
 
 from .util import (
     attrdict,
     combine_dict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
     NotGiven,
 )
-from .client import open_client, StreamedRequest
 from .default import CFG
-from .server import Server
 
 from .auth import loader, gen_auth
 from .exceptions import ClientError, ServerError
@@ -145,7 +138,6 @@ async def main(ctx, verbose, quiet, debug, log, cfg,conf):
     
     if cfg:
         logger.debug("Loading %s", cfg)
-        import yaml
 
         ctx.obj.cfg = combine_dict(yaml.safe_load(cfg), CFG, cls=attrdict)
         cfg.close()
