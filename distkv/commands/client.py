@@ -70,16 +70,16 @@ class NullObj:
 async def cli(ctx, host, port, auth):
     """Talk to a DistKV server."""
     obj = ctx.obj
-    cfg = {}
+    cfg = attrdict()
     if host is not None:
-        cfg['host'] = host
+        cfg.host = host
     if port is not None:
-        cfg['port'] = port
+        cfg.port = port
 
     if auth is not None:
-        cfg["auth"] = gen_auth(auth)
+        cfg.auth = gen_auth(auth)
         if obj._DEBUG:
-            cfg["auth"]._DEBUG = True
+            cfg.auth._DEBUG = True
 
     cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
 
