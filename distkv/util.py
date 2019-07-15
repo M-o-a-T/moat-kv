@@ -106,7 +106,7 @@ from yaml.representer import SafeRepresenter
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 def str_presenter(dumper, data):
-    if len(data.splitlines()) > 1:  # check for multiline string
+    if '\n' in data:  # check for multiline string
         return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
     return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
