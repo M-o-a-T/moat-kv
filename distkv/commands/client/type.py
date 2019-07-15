@@ -70,14 +70,14 @@ async def get(obj, path, script, schema, yaml_):
 @cli.command()
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
-@click.option("-d", "--data", "data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
+@click.option("-d", "--data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the checking script"
 )
 @click.option(
     "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
 )
-@click.option("-y", "--yaml", is_flag=True, help="load the schema as YAML. Default: JSON")
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON")
 @click.option(
     "-c",
     "--chain",
@@ -99,6 +99,7 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
     if "value" in msg:
         chain = msg.get('chain', chain)
         msg = msg['value']
+
     msg.setdefault("good", [])
     msg.setdefault("bad", [])
     for x in good:
@@ -109,20 +110,19 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
     if "code" in msg:
         if script:
             raise click.UsageError("Duplicate script")
-    else:
-        if not script:
-            raise click.UsageError("Missing script")
+    elif script:
         msg["code"] = script.read()
 
     if "schema" in msg:
         raise click.UsageError("Missing schema")
-    else:
-        if not schema:
-            raise click.UsageError("Missing schema")
+    elif schema:
         if yaml_:
             msg["schema"] = yaml.safe_load(schema)
         else:
             msg["schema"] = json.load(schema)
+
+    if 'schema' not in msg and 'code' not in msg:
+        raise click.UsageError("I need a schema, Python code, or both.")
 
     if len(msg['good']) < 2:
         raise click.UsageError("Missing known-good test values (at least two)")
