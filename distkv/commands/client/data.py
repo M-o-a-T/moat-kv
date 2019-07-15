@@ -91,11 +91,8 @@ async def get(obj, path, chain, yaml, verbose, recursive, as_dict, maxdepth, min
             kw["max_depth"] = maxdepth
         if mindepth is not None:
             kw["min_depth"] = mindepth
-        res = await obj.client.get_tree(*path, nchain=chain, **kw)
-        pl = PathLongener(path)
         y = {}
-        async for r in res:
-            pl(r)
+        async for r in obj.client.get_tree(*path, nchain=chain, **kw):
             r.pop("seq", None)
             path = r.pop('path')
             if as_dict is not None:
