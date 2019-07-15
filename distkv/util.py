@@ -5,6 +5,7 @@ import trio
 import anyio
 import yaml
 import sys
+import os
 
 from getpass import getpass
 from collections import deque
@@ -26,8 +27,22 @@ def singleton(cls):
     return cls()
 
 def yprint(data, stream=sys.stdout):
-    print(yaml.safe_dump(data, default_flow_style=False), stream=file)
+    if isinstance(data, (int,float)):
+        print(data, file=stream)
+    elif isinstance(data, (str,bytes)):
+        print(repr(data), file=stream)
+#   elif isinstance(data, bytes):
+#       os.write(sys.stdout.fileno(), data)
+    else:
+        yaml.safe_dump(data, stream=sys.stdout, default_flow_style=False)
 
+
+from yaml.emitter import Emitter
+_expect_node = Emitter.expect_node
+def expect_node(self, *a, **kw):
+    _expect_node(self, *a, **kw)
+    self.root_context = False
+Emitter.expect_node = _expect_node
 
 class TimeOnlyFormatter(logging.Formatter):
     default_time_format = "%H:%M:%S"
