@@ -109,7 +109,6 @@ class ErrorEntry(AttrClientEntry):
     """
 
     ATTRS = "path subsystem severity resolved created count last_seen message".split()
-    deleted = False
     resolved = None  # bool; if None, no details yet
     count = 0
     subsystem = None
@@ -251,6 +250,8 @@ class ErrorStep(ClientEntry):
     def child_type(cls, name):
         return ErrorEntry
 
+def _defaultdict_init(*a, **k):
+    return defaultdict(_defaultdict_init, *a, **k)
 
 class ErrorRoot(ClientRoot):
     """
@@ -441,8 +442,6 @@ class ErrorRoot(ClientRoot):
 
     def _push(self, entry):
         if entry.subsystem is None or entry.path is None:
-            return
-        if entry.value is None or entry.deleted:
             return
 
         if entry.resolved:
