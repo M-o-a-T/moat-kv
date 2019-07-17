@@ -84,7 +84,7 @@ async def list(obj, state, state_only, as_dict, path):
         path = state
         state = None
     res = await obj.client._request(
-        action="get_tree", path=path, iter=True, nchain=3 if obj.meta else 0
+        action="get_tree", path=path, iter=True, nchain=obj.meta
     )
 
     y = {}
@@ -103,7 +103,7 @@ async def list(obj, state, state_only, as_dict, path):
 
         if state:
             rs = await obj.client._request(
-                action="get_value", path=state, iter=False, nchain=3 if obj.meta else 0
+                action="get_value", path=state, iter=False, nchain=obj.meta
             )
             if "value" in rs:
                 if not obj.meta:
@@ -135,7 +135,7 @@ async def state(obj, path, result):
         path = obj.cfg["singlerunner"].state + (obj.node,) + path
 
     res = await obj.client._request(
-        action="get_value", path=path, iter=False, nchain=3 if obj.meta else 0
+        action="get_value", path=path, iter=False, nchain=obj.meta
     )
     if "value" not in res:
         if obj.debug:
@@ -160,7 +160,7 @@ async def get(obj, path):
         path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
 
     res = await obj.client._request(
-        action="get_value", path=path, iter=False, nchain=3 if obj.meta else 0
+        action="get_value", path=path, iter=False, nchain=obj.meta
     )
     if not obj.meta:
         res = res.value

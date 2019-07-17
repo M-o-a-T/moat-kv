@@ -54,7 +54,7 @@ async def get(obj, path, script, schema, yaml_):
         action="get_internal",
         path=("type",) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     r = res.value
     if not obj.meta:
@@ -134,7 +134,7 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
         value=msg,
         path=("type",) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
         chain=chain,
     )
     if obj.meta:
@@ -177,7 +177,7 @@ async def match(obj, path, type, delete, raw):
         value=msg,
         path=("match",) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

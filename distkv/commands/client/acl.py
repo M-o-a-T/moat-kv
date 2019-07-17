@@ -42,7 +42,7 @@ async def list(obj):
     """List ACLs.
     """
     res = await obj.client._request(
-        action="enum_internal", path=("acl",), iter=False, nchain=3 if obj.meta else 0
+        action="enum_internal", path=("acl",), iter=False, nchain=obj.meta
     )
     yprint(res, stream=obj.stdout)
 
@@ -96,7 +96,7 @@ async def get(obj, name, path):
         action="get_internal",
         path=("acl", name) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
 
     if not obj.meta:
@@ -202,7 +202,7 @@ async def test(obj, name, path, acl, mode):
         action="test_acl",
         path=path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
         **({} if mode is None else {"mode": mode}),
         **({} if acl is None else {"acl": acl}),
     )

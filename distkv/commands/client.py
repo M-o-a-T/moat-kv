@@ -84,7 +84,7 @@ async def cli(ctx, host, port, auth, metadata):
 
     cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
 
-    obj.meta = metadata
+    obj.meta = 3 if metadata else False
 
     try:
         obj.client = await ctx.enter_async_context(open_client(**cfg))

@@ -127,7 +127,7 @@ async def _get(obj, path, recursive, as_dict, maxdepth, mindepth, empty, raw):
         if empty:
             kw["add_empty"] = True
         y = {}
-        async for r in obj.client.get_tree(*path, nchain=3 if obj.meta else 0, **kw):
+        async for r in obj.client.get_tree(*path, nchain=obj.meta, **kw):
             r.pop("seq", None)
             path = r.pop("path")
             if as_dict is not None:
@@ -154,7 +154,7 @@ async def _get(obj, path, recursive, as_dict, maxdepth, mindepth, empty, raw):
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path, nchain=3 if obj.meta else 0)
+    res = await obj.client.get(*path, nchain=obj.meta)
     if not obj.meta:
         try:
             res = res.value
@@ -206,7 +206,7 @@ async def set(obj, path, value, eval, prev, last, new):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(*path, value=value, nchain=3 if obj.meta else 0, **args)
+    res = await obj.client.set(*path, value=value, nchain=obj.meta, **args)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
@@ -252,7 +252,7 @@ async def delete(obj, path, prev, last, recursive, eval):
     res = await obj.client._request(
         action="delete_tree" if recursive else "delete_value",
         path=path,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
         **args
     )
     if isinstance(res, StreamedRequest):
@@ -273,7 +273,7 @@ async def delete(obj, path, prev, last, recursive, eval):
 async def watch(obj, path, state):
     """Watch a DistKV subtree"""
     flushing = not state
-    async with obj.client.watch(*path, nchain=3 if obj.meta else 0, fetch=state) as res:
+    async with obj.client.watch(*path, nchain=obj.meta, fetch=state) as res:
         pl = PathLongener(path)
         async for r in res:
             pl(r)

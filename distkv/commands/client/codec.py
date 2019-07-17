@@ -53,7 +53,7 @@ async def get(obj, path, script, encode, decode):
         action="get_internal",
         path=("type",) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     if encode and res.get("encode", None) is not None:
         encode.write(res.pop("encode"))
@@ -111,7 +111,7 @@ async def set(obj, path, encode, decode, data, in_, out):
         value=msg,
         path=("codec",) + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -143,7 +143,7 @@ async def convert(obj, path, codec, name, delete):
             value=msg,
             path=("conv", name) + path,
             iter=False,
-            nchain=3 if obj.meta else 0,
+            nchain=obj.meta,
         )
     if obj.meta:
         yprint(res, stream=obj.stdout)

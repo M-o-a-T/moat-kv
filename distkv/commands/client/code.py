@@ -47,7 +47,7 @@ async def get(obj, path, script):
         action="get_value",
         path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     if not obj.meta:
         res = res.value
@@ -107,7 +107,7 @@ async def set(obj, path, thread, script, data, async_):
         value=msg,
         path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
         chain=chain,
     )
     if obj.meta:
@@ -136,7 +136,7 @@ async def get(obj, path, script):
         action="get_value",
         path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
     )
     if not obj.meta:
         res = res.value
@@ -184,7 +184,7 @@ async def set(obj, path, script, data):
         value=msg,
         path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
-        nchain=3 if obj.meta else 0,
+        nchain=obj.meta,
         chain=chain,
     )
     if obj.meta:

@@ -132,7 +132,7 @@ async def user(obj):
 @click.pass_obj
 async def list(obj):
     """List all users (raw data)."""
-    async for r in enum_typ(obj, nchain=3 if obj.meta else 0):
+    async for r in enum_typ(obj, nchain=obj.meta):
         if obj.meta:
             if obj.debug < 2:
                 del r["seq"]
