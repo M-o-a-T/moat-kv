@@ -70,7 +70,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, raw):
+async def get(*a,**k):
     """
     Read a DistKV value.
 
@@ -79,11 +79,56 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, r
     for incremental output.
     """
 
-    if chain and not obj.meta:
-        raise click.UsageError(
-            "You can't get chain data without metadata (… client -m data …)"
-        )
+    await _get(*a,**k)
 
+@cli.command()
+@click.option(
+    "-c",
+    "--chain",
+    type=int,
+    default=0,
+    help="Length of change list to return. Default: 0",
+)
+@click.option(
+    "-d",
+    "--as-dict",
+    default=None,
+    help="Structure as dictionary. The argument is the key to use "
+    "for values. Default: return as list",
+)
+@click.option(
+    "-m",
+    "--maxdepth",
+    type=int,
+    default=1,
+    help="Limit recursion depth. Default: 1 (single layer).",
+)
+@click.option(
+    "-M",
+    "--mindepth",
+    type=int,
+    default=1,
+    help="Starting depth. Default: 1 (single layer)."
+)
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def list(*a,**k):
+    """
+    List DistKV values.
+
+    This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive"
+
+    If you read a sub-tree recursively, be aware that the whole subtree
+    will be read before anything is printed. Use the "watch --state" subcommand
+    for incremental output.
+    """
+
+    k['recursive']=True
+    k['raw'] = False
+    k['empty'] = False
+    await _get(*a,**k)
+
+async def _get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, raw):
     if recursive:
         if raw:
             raise click.UsageError("'raw' cannot be used with 'recursive'")

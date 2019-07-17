@@ -212,6 +212,61 @@ for incremental output.
    which usually isn't what you want.
 
 
+.. program:: distkv client data list
+
+List DistKV values.
+
+This command is basically like ``distkv client data get``, except that
+``--recursive`` and ``empty`` are always set. ``mindepth`` and ``maxdepth``
+default to 1.
+
+.. option:: -r, --recursive
+
+   Print all entries below this entry.
+
+.. option:: -d, --as-dict <text>
+
+   When you use this option, the data is printed as a dictionary.
+   The argument of this option controls which key is used for the actual
+   value; this string should not occur as a path element.
+
+   The customary value to use is a single underscore.
+
+   Using this option in conjunction with ``--recursive`` requires keeping
+   the whole data set in memory before starting to print anything. This may
+   take a long time or eat a lot of memory.
+
+.. option:: -m, --mindepth <integer>
+
+   When printing recursively, start at this depth off the given path.
+
+   The default is zero, i.e. include the entry itself.
+
+.. option:: -M, --maxdepth <integer>
+
+   When printing recursively, stop at this depth (inclusive).
+
+   The default is to print the whole tree. Use ``1`` to print the entry itself
+   (assuming that it has a value and you didn't use ``--mindepth=1``)
+   and its immediate children.
+
+.. option:: -c, --chain <integer>
+
+   Include this many chain links in your output.
+
+   Chain links tell you which DistKV server(s) last changed this entry. You
+   can also use the top of the chain in the :program:`distkv client data set`
+   command to ensure that the entry you're trying to change has not been
+   modified since you retrieved it.
+
+   The default is zero, i.e. do not include chain data.
+
+.. option:: path…
+
+   Access the entry at this location. The default is the root node,
+   which usually isn't what you want.
+
+
 .. program:: distkv client data set
 
 Store a value at some DistKV position.
