@@ -1508,6 +1508,7 @@ class Server:
         deleted=False,
         missing=False,
         remote_missing=False,
+        **_kw,
     ):
         """
         Return some info about this node's internal state.
