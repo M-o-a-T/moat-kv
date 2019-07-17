@@ -30,3 +30,10 @@ Open issues
 
 * Restart code that's been changed (without waiting for restart/retry).
 
+* Use cryptography.hazmat.primitives.asymmetric.x25519 instead of
+  Diffie-Hellman to send passwords to the server.
+
+* Implement a shared secret to sign server-to-server messages.
+
+* Re-implement Serf (or something like it) in Python, it's large and adds latency
+
