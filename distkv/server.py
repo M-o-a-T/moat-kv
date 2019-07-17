@@ -1190,12 +1190,11 @@ class ServerClient:
                     buf = await self.stream.receive_some(4096)
                 except (
                     ConnectionResetError,
-                    anyio.exceptions.ClosedResourceError,
                     trioBrokenResourceError,
                 ):
                     raise anyio.exceptions.ClosedResourceError from None
                 if len(buf) == 0:  # Connection was closed.
-                    raise anyio.exceptions.ClosedResourceError from None
+                    raise anyio.exceptions.ClosedResourceError
                 unpacker.feed(buf)
 
 
@@ -1924,7 +1923,7 @@ class Server:
                 # node didn't have.
 
                 for nst in self._nodes.values():
-                    if nst.tick and len(n.local_missing):
+                    if nst.tick and len(nst.local_missing):
                         self.fetch_missing.add(nst)
                 if len(self.fetch_missing):
                     self.fetch_running = False
@@ -2440,7 +2439,10 @@ class Server:
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                self.logger.exception("Client connection killed", exc_info=exc)
+                if isinstance(exc, anyio.exceptions.ClosedResourceError):
+                    self.logger.debug("XX %d closed", c._client_nr)
+                else:
+                    self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 async with anyio.move_on_after(2) as cs:
                     cs.shield = True
