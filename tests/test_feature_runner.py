@@ -47,7 +47,7 @@ async def test_83_run(autojump_clock):
             )
             ru = r.follow("foo", "test")
             ru.code = ("forty", "two")
-            await ru.run_at(time.time())
+            await ru.run_at(1)
             logger.info("Start sleep")
             with trio.fail_after(60):
                 await c._test_evt.wait()
