@@ -725,7 +725,7 @@ class ServerClient:
 
         def gen_key():
             length = msg.get("length", 1024)
-            k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
+            k = DiffieHellman(key_length=length, group=(5 if length < 32 else 14))
             k.generate_public_key()
             k.generate_shared_secret(byte2num(msg.pubkey))
             self._dh_key = num2byte(k.shared_secret)[0:32]

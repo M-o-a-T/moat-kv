@@ -715,7 +715,7 @@ class Client:
             from diffiehellman.diffiehellman import DiffieHellman
 
             def gen_key():
-                k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
+                k = DiffieHellman(key_length=length, group=(5 if length < 32 else 14))
                 k.generate_public_key()
                 return k
 
