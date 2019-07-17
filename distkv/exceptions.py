@@ -2,6 +2,8 @@
 This module affords all DistKV exceptions.
 """
 
+# pylint: disable=unnecessary-pass
+
 
 class DistKVError(RuntimeError):
     """Superclass of all DistKV errors.
@@ -14,7 +16,7 @@ class DistKVError(RuntimeError):
 
 class ServerError(DistKVError):
     """Generic server error.
-    
+
     This class includes errors forwarded to the client.
     """
 
@@ -23,7 +25,7 @@ class ServerError(DistKVError):
 
 class ClientError(DistKVError):
     """Generic client error.
-    
+
     Abstract class.
     """
 
@@ -56,7 +58,7 @@ class CancelledError(ClientError):
 
 class ClientAuthError(ClientError):
     """Authorization failed.
-    
+
     Abstract class.
     """
 

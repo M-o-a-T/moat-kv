@@ -113,7 +113,8 @@ class ServerUser(RootServerUser):
         await super().auth(cmd, data)
 
         pwd = await unpack_pwd(cmd.client, data.password)
-        if pwd != self.password:
+        if pwd != self.password:  # pylint: disable=no-member
+            # pylint: disable=no-member
             raise AuthFailedError("Password hashes do not match", self._name)
 
 

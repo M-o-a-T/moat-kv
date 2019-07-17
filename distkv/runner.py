@@ -73,20 +73,18 @@ class RunnerEntry(AttrClientEntry):
     target = 0
     backoff = 1.4
 
-    code = None  # what to execute
+    code = ()  # what to execute
     data = None
     scope = None  # scope to kill off
     _comment = None  # used for error entries, i.e. mainly Cancel
     _q = None  # send events to the running task. Async tasks only.
     _running = False  # .run is active. Careful with applying updates.
+    _task = None
 
     def __init__(self, *a, **k):
         self.data = {}  # local data
 
         super().__init__(*a, **k)
-
-        self._task = None
-        self.code = None  # code location
 
     def __repr__(self):
         return "<%s %r:%r>" % (self.__class__.__name__, self.subpath, self.code)
@@ -230,7 +228,7 @@ class RunnerEntry(AttrClientEntry):
             return state.stopped + self.delay * (self.backoff ** state.backoff)
         elif self.repeat:
             return state.stopped + self.repeat
-        elif self.started:
+        elif state.started:
             return False
         else:
             return 0
@@ -240,11 +238,11 @@ class RunnerEntry(AttrClientEntry):
 
     def __eq__(self, other):
         other = getattr(other, "subpath", other)
-        return self.name == other
+        return self.subpath == other
 
     def __lt__(self, other):
         other = getattr(other, "subpath", other)
-        return self.name < other
+        return self.subpath < other
 
     @property
     def age(self):
@@ -490,7 +488,7 @@ class _BaseRunnerRoot(ClientRoot):
                     if d is False:
                         continue
                     if d <= t:
-                        await self.tg.spawn(j.run)
+                        await self._tg.spawn(j.run)
                         await anyio.sleep(self._start_delay)
                     elif t_next > d:
                         t_next = d
@@ -608,9 +606,10 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             t1 = t2
 
     async def _cleanup_nodes(self):
+        t = time.time()
         while len(self.node_history) > 1:
             node = self.get_node(self.node_history[-1])
-            if node.age < self.max_age:
+            if t - node.seen < self.max_age:
                 break
             assert node.name == self.node_history.pop()
             for j in self.this_root.all_children:
@@ -693,7 +692,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             ac = DetachedState
         elif self.name in self.node_history and ac == 1:
             ac = DetachedState
-        elif ac >= self.n_nodes:
+        elif ac >= self._act.n_nodes:
             ac = CompleteState
         else:
             ac = PartialState

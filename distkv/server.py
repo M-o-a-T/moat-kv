@@ -11,7 +11,10 @@ except ImportError:
         pass
 
 
-from async_generator import asynccontextmanager
+try:
+    from contextlib import asynccontextmanager
+except ImportError:
+    from async_generator import asynccontextmanager
 import msgpack
 import asyncserf
 from typing import Any
@@ -299,7 +302,7 @@ class SCmd_auth_list(StreamCommand):
 
         nchain = msg.get("nchain", 0)
         root = msg.get("root", ())
-        if root and not self.user.is_super_root:
+        if root and not self.client.user.is_super_root:
             raise RuntimeError("Cannot read tenant users")
         kind = msg.get("kind", "user")
 
@@ -344,7 +347,7 @@ class SCmd_auth_get(StreamCommand):
             raise RuntimeError("Not allowed")
 
         root = msg.get("root", ())
-        if root and not self.user.is_super_root:
+        if root and not self.client.user.is_super_root:
             raise RuntimeError("Cannot read tenant users")
         kind = msg.get("kind", "user")
 
@@ -379,7 +382,7 @@ class SCmd_auth_set(StreamCommand):
             raise RuntimeError("Not allowed")
 
         root = msg.get("root", ())
-        if root and not self.user.is_super_root:
+        if root and not self.client.user.is_super_root:
             raise RuntimeError("Cannot write tenant users")
         kind = msg.get("kind", "user")
 
@@ -610,12 +613,16 @@ class SCmd_update(StreamCommand):
         longer = PathLongener(path) if path is not None else lambda x: x
         n = 0
         async for msg in self.in_q:
+            await client.server.tock_seen(msg.get("tock", None))
             longer(msg)
             msg = UpdateEvent.deserialize(
-                client.root, msg, nulls_ok=client.nulls_ok, conv=conv
+                client.root,
+                msg,
+                nulls_ok=client.nulls_ok,
+                conv=conv,
+                cache=client._nodes,
             )
-            await tock_seen(msg.get("tock", None))
-            await msg.entry.apply(msg, server=self, root=self.root)
+            await msg.entry.apply(msg, server=self, root=self.client.root)
             n += 1
         await self.send(count=n)
 
@@ -711,7 +718,6 @@ class ServerClient:
     def _chroot(self, root):
         if not root:
             return
-        acl = self.client.acl
         entry, acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
 
         self.root = entry
@@ -961,7 +967,11 @@ class ServerClient:
         You usually do this via a stream command.
         """
         msg = UpdateEvent.deserialize(
-            self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv
+            self.root,
+            msg,
+            nulls_ok=self.nulls_ok,
+            conv=self.conv,
+            cache=self.server._nodes,
         )
         res = await msg.entry.apply(msg, server=self, root=self.root)
         if res is None:
@@ -981,7 +991,7 @@ class ServerClient:
                     if t not in n:
                         deleted.add(n.name, t)
         if deleted:
-            await self._send_event("info", attrdict(deleted=deleted.__getstate__()))
+            await self.server._send_event("info", attrdict(deleted=deleted.serialize()))
 
     async def cmd_get_state(self, msg):
         """Return some info about this node's internal state"""
@@ -1275,12 +1285,13 @@ class Server:
     _ready2 = None
     _actor = None
     _del_actor = None
+    cfg: attrdict = None
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
         self.root = RootEntry(self, tock=self.tock)
-        self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
-        self.paranoid_root = root if self.cfg.server.paranoia else None
+        self.cfg: attrdict = combine_dict(cfg or {}, CFG, cls=attrdict)
+        self.paranoid_root = self.root if self.cfg.server.paranoia else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
         self._init = init
@@ -2422,13 +2433,15 @@ class Server:
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
             if isinstance(exc, anyio.exceptions.ExceptionGroup):
+                # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
                 self.logger.exception("Client connection killed", exc_info=exc)
             try:
                 async with anyio.move_on_after(2) as cs:
                     cs.shield = True
-                    await self.send({"error": str(exc)})
+                    if c is not None:
+                        await c.send({"error": str(exc)})
             except Exception:
                 pass
         finally:

@@ -56,9 +56,11 @@ class TimeOnlyFormatter(logging.Formatter):
     default_msec_format = "%s.%03d"
 
 
-@singleton
 class NotGiven:
     """Placeholder value for 'no data' or 'deleted'."""
+
+    def __new__(cls):
+        raise RuntimeError("You can't instantiate this")
 
     def __getstate__(self):
         raise ValueError("You may not serialize this object")
@@ -67,7 +69,7 @@ class NotGiven:
         return "<*NotGiven*>"
 
 
-def combine_dict(*d, cls=dict):
+def combine_dict(*d, cls=dict) -> dict:
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
@@ -104,7 +106,7 @@ class attrdict(dict):
 
     def __getattr__(self, a):
         if a.startswith("_"):
-            return object.__getattr__(self, a)
+            return object.__getattribute__(self, a)
         try:
             return self[a]
         except KeyError:
@@ -364,7 +366,7 @@ class MsgWriter(_MsgRW):
         """Write a message (bytes) to the buffer.
         
         Flushing writes a multiple of ``buflen`` bytes."""
-        msg = packer(msg)
+        msg = packer(msg)  # pylint: disable=not-callable
         self.buf.append(msg)
         self.curlen += len(msg)
         if self.curlen + self.excess >= self.buflen:
@@ -384,11 +386,6 @@ class MsgWriter(_MsgRW):
             self.buf = []
             self.excess = (self.excess + len(buf)) % self.buflen
             await self.stream.write(buf)
-
-
-class TimeOnlyFormatter(logging.Formatter):
-    default_time_format = "%H:%M:%S"
-    default_msec_format = "%s.%03d"
 
 
 class _Server:
@@ -464,6 +461,7 @@ def gen_ssl(
     if not isinstance(ctx, dict):
         return ctx
 
+    # pylint: disable=no-member
     ctx_ = trio.ssl.create_default_context(
         purpose=trio.ssl.Purpose.CLIENT_AUTH if server else trio.ssl.Purpose.SERVER_AUTH
     )
@@ -536,7 +534,7 @@ def make_proc(code, vars, *path, use_async=False):
 
 class Module(ModuleType):
     def __repr__(self):
-        return "<Module %s>" % (self.__name__,)
+        return "<Module %s>" % (self.__class__.__name__,)
 
 
 def make_module(code, *path):

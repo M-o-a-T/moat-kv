@@ -141,6 +141,8 @@ class ClientUserMaker(BaseClientAuthMaker):
 
 
 class ClientUser(BaseClientAuth):
+    name = None
+
     schema = dict(
         type="object",
         additionalProperties=False,

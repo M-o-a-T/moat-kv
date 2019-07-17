@@ -64,6 +64,13 @@ class ModuleRoot(ClientRoot):
         r = await self.client.set(*self._path, *path, value=dict(code=code), nchain=2)
         await self.wait_chain(r.chain)
 
+    async def remove(self, *path):
+        """
+        Remove code at this location.
+        """
+        entry = self.follow(*path, create=False)
+        return await entry.delete()
+
 
 class ModuleEntry(ClientEntry):
     @property

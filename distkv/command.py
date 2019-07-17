@@ -81,6 +81,7 @@ def cmd():
     The main command entry point, as declared in ``setup.py``.
     """
     try:
+        # pylint: disable=no-value-for-parameter,unexpected-keyword-arg
         main(standalone_mode=False)
     except click.exceptions.MissingParameter as exc:
         print(

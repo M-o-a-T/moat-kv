@@ -96,8 +96,7 @@ class ErrorSubEntry(AttrClientEntry):
 
     ATTRS = "seen tock trace str data".split()
 
-    @classmethod
-    def child_type(cls, name):
+    def child_type(self, name):
         logger.warning("Unknown entry type at %r: %s", self._path, name)
         return ClientEntry
 
@@ -185,16 +184,16 @@ class ErrorEntry(AttrClientEntry):
     async def add_comment(self, node, comment, data):
         """
         Store this comment, typically used when something resumes working.
-        One per node, so we don't try to avoid collisions.
+        One per node, so we don't need to avoid collisions.
         """
         res = dict(
             seen=time(),
-            tock=await self._store._client.get_tock(),
+            tock=await self.root.client.get_tock(),
             comment=comment,
             data=data,
         )
         logger.info("Comment %s: %s", node, comment)
-        await self.root.client.set(*self._path, self._tock, node, value=res)
+        await self.root.client.set(*self._path, chain=self.chain, value=res)
 
     async def delete(self):
         """
@@ -202,9 +201,8 @@ class ErrorEntry(AttrClientEntry):
 
         This doesn't do anything locally, the watcher will get it.
         """
-        await self._store._client.set(*self._store._path, self._tock, value=None)
-        for node in list(self._details.keys()):
-            await self._store._client.set(*self._store._path, value=None)
+        await self.root._pop(self)
+        return await super().delete()
 
     async def move_to(self, dest):
         """

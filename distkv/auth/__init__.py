@@ -167,7 +167,12 @@ def _load_example(typ: str, make: bool, server: bool):
             return BaseClientAuth
 
 
-class BaseClientAuth:
+class _AuthLoaded:
+    # This class is mainly there to appease pylint
+    _auth_method = None
+
+
+class BaseClientAuth(_AuthLoaded):
     """
     This class is used for creating a data record which authenticates a user.
 
@@ -220,7 +225,7 @@ class BaseClientAuth:
         return {}
 
 
-class BaseClientAuthMaker:
+class BaseClientAuthMaker(_AuthLoaded):
     """
     This class is used for creating a data record which describes a user record.
 
@@ -293,7 +298,7 @@ class BaseClientAuthMaker:
         return {}
 
 
-class BaseServerAuth:
+class BaseServerAuth(_AuthLoaded):
     """
     This class is used on the server to represent / verify a user.
 
@@ -379,7 +384,7 @@ class RootServerUser(BaseServerAuth):
     can_auth_write = True
 
 
-class BaseServerAuthMaker:
+class BaseServerAuthMaker(_AuthLoaded):
     """
     This class is used on the server to verify the transmitted user record
     and to store it in DistKV.

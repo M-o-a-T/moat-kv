@@ -164,20 +164,9 @@ class ClientEntry:
             self.chain = None
             return r
 
-    async def add(self, name, value):
-        """Add a child node with that value.
-
-        Arguments:
-          name (str): the name of the sub-node
-          value: the node's value
-
-        This is a coroutine.
-        """
-        return await self.client.set(*self._path, name, chain=None, value=value)
-
     async def set_value(self, value=NotGiven):
         """Callback to set the value when data has arrived.
-        
+
         This method is strictly for overriding.
         Don't call me, I'll call you.
 
@@ -270,7 +259,7 @@ class AttrClientEntry(ClientEntry):
 
 class ClientRoot(ClientEntry):
     """This class represents the root of a subsystem's storage.
-    
+
     To use this class, create a subclass that, at minimum, overrides
     ``CFG`` and ``child_type``. ``CFG`` must be a dict with at least a
     ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
@@ -298,7 +287,7 @@ class ClientRoot(ClientEntry):
     @classmethod
     async def as_handler(cls, client, cfg=None, key="prefix", **kw):
         """Return a (or "the") instance of this class.
-        
+
         The handler is created if it doesn't exist.
 
         Instances are distinguished by their prefix (from config).
@@ -336,7 +325,7 @@ class ClientRoot(ClientEntry):
 
     def follow(self, *path, create=True, unsafe=False):
         """Look up a sub-entry.
-        
+
         Arguments:
           *path (str): the path elements to follow.
           create (bool): Create the entries. Default ``True``. If
@@ -1073,7 +1062,7 @@ class Client:
         call this method from a different task if you don't want to risk a
         deadlock.
         """
-        return self._request(task=seq)
+        return self._request(action="stop", task=seq)
 
     def watch(self, *path, long_path=True, **kw):
         """

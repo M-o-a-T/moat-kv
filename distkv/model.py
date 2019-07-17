@@ -197,7 +197,7 @@ class Node:
                 if entry is None:
                     continue
                 chain = entry.mark_deleted(server)
-                if chain is None or add is None:
+                if chain is None:
                     continue
                 for node, tick in chain:
                     server.mark_deleted(node, tick)
