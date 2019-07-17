@@ -37,3 +37,4 @@ Open issues
 
 * Re-implement Serf (or something like it) in Python, it's large and adds latency
 
+* Runner: switch to monotonic time (except for target time!)
