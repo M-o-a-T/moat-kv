@@ -250,8 +250,10 @@ class ErrorStep(ClientEntry):
     def child_type(cls, name):
         return ErrorEntry
 
+
 def _defaultdict_init(*a, **k):
     return defaultdict(_defaultdict_init, *a, **k)
+
 
 class ErrorRoot(ClientRoot):
     """

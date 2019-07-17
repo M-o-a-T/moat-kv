@@ -93,10 +93,7 @@ async def get(obj, name, path):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_internal",
-        path=("acl", name) + path,
-        iter=False,
-        nchain=obj.meta,
+        action="get_internal", path=("acl", name) + path, iter=False, nchain=obj.meta
     )
 
     if not obj.meta:

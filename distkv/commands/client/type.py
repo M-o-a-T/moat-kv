@@ -51,10 +51,7 @@ async def get(obj, path, script, schema, yaml_):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_internal",
-        path=("type",) + path,
-        iter=False,
-        nchain=obj.meta,
+        action="get_internal", path=("type",) + path, iter=False, nchain=obj.meta
     )
     r = res.value
     if not obj.meta:
@@ -173,11 +170,7 @@ async def match(obj, path, type, delete, raw):
     else:
         act = "get_internal"
     res = await obj.client._request(
-        action=act,
-        value=msg,
-        path=("match",) + path,
-        iter=False,
-        nchain=obj.meta,
+        action=act, value=msg, path=("match",) + path, iter=False, nchain=obj.meta
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

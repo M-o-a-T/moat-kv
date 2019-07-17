@@ -87,7 +87,7 @@ async def set(obj, path, thread, script, data, async_):
         msg = yaml.safe_load(data)
     else:
         msg = {}
-    chain=None
+    chain = None
     if "value" in msg:
         chain = msg.get("chain", None)
         msg = msg["value"]
@@ -166,7 +166,7 @@ async def set(obj, path, script, data):
         msg = yaml.safe_load(data)
     else:
         msg = {}
-    chain=None
+    chain = None
     if "value" in msg:
         chain = msg.get("chain", None)
         msg = msg["value"]

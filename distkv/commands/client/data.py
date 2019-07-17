@@ -63,7 +63,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(*a,**k):
+async def get(*a, **k):
     """
     Read a DistKV value.
 
@@ -72,7 +72,8 @@ async def get(*a,**k):
     for incremental output.
     """
 
-    await _get(*a,**k)
+    await _get(*a, **k)
+
 
 @cli.command()
 @click.option(
@@ -94,11 +95,11 @@ async def get(*a,**k):
     "--mindepth",
     type=int,
     default=1,
-    help="Starting depth. Default: 1 (single layer)."
+    help="Starting depth. Default: 1 (single layer).",
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(*a,**k):
+async def list(*a, **k):
     """
     List DistKV values.
 
@@ -109,10 +110,11 @@ async def list(*a,**k):
     for incremental output.
     """
 
-    k['recursive']=True
-    k['raw'] = False
-    k['empty'] = False
-    await _get(*a,**k)
+    k["recursive"] = True
+    k["raw"] = False
+    k["empty"] = False
+    await _get(*a, **k)
+
 
 async def _get(obj, path, recursive, as_dict, maxdepth, mindepth, empty, raw):
     if recursive:

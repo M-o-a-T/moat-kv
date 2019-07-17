@@ -50,10 +50,7 @@ async def get(obj, path, script, encode, decode):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_internal",
-        path=("type",) + path,
-        iter=False,
-        nchain=obj.meta,
+        action="get_internal", path=("type",) + path, iter=False, nchain=obj.meta
     )
     if encode and res.get("encode", None) is not None:
         encode.write(res.pop("encode"))
