@@ -59,7 +59,7 @@ class NotGiven:
     """Placeholder value for 'no data' or 'deleted'."""
 
     def __new__(cls):
-        raise RuntimeError("You can't instantiate this")
+        return cls
 
     def __getstate__(self):
         raise ValueError("You may not serialize this object")
