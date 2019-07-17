@@ -50,7 +50,7 @@ async def all(obj):
     if obj.node is None:
         r = await AnyRunnerRoot.as_handler(c, code=cr)
     else:
-        r = await SingleRunnerRoot.as_handler(c, code=cr)
+        r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
     while True:
         await anyio.sleep(99999)
 

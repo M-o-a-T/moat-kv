@@ -662,6 +662,10 @@ class SingleRunnerRoot(_BaseRunnerRoot):
     _act = None
     code = None
 
+    def __init__(self, *a, node=None, **kw):
+        super().__init__(*a, **kw)
+        self.run_name = node
+
     @classmethod
     def child_type(cls, name):
         return RunnerNodeEntry
@@ -701,7 +705,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     async def run_starting(self):
         """Hook to set the local root"""
-        self.this_root = self.get(self.name)
+        self.this_root = self.get(self.run_name)
         await super().run_starting()
 
     @property
