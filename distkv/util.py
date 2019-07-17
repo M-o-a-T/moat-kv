@@ -5,7 +5,6 @@ import trio
 import anyio
 import yaml
 import sys
-import os
 
 from getpass import getpass
 from collections import deque
@@ -352,9 +351,9 @@ class MsgWriter(_MsgRW):
         self.curlen = 0
         self.excess = 0
 
-        global packer
+        global packer  # pylint: disable=global-statement
         if packer is None:
-            from .codec import packer
+            from .codec import packer  # pylint: disable=redefined-outer-name
 
     async def __aexit__(self, *tb):
         async with anyio.open_cancel_scope(shield=True):
@@ -390,7 +389,7 @@ class MsgWriter(_MsgRW):
 
 class _Server:
     _servers = None
-    _q = None
+    recv_q = None
 
     def __init__(self, tg, port=0, ssl=None, **kw):
         self.tg = tg
@@ -503,12 +502,12 @@ def split_one(p, kw):
 
 def _call_proc(code, *a, **kw):
     d = {}
-    eval(code, d)
+    eval(code, d)  # pylint: disable=eval-used
     code = d["_proc"]
     return code(*a, **kw)
 
 
-def make_proc(code, vars, *path, use_async=False):
+def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
@@ -549,10 +548,10 @@ def make_module(code, *path):
     """
     name = ".".join(str(x) for x in path)
     code = compile(code, name, "exec")
-    om = m = sys.modules.get(name, None)
+    m = sys.modules.get(name, None)
     if m is None:
         m = ModuleType(name)
-    eval(code, m.__dict__)
+    eval(code, m.__dict__)  # pylint: disable=eval-used
     sys.modules[name] = m
     return m
 

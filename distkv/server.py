@@ -23,12 +23,11 @@ import io
 import time
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError
-from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent, PingEvent
-from collections import defaultdict
+from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
 from pprint import pformat
 from collections.abc import Mapping
 
-from .model import Entry, NodeEvent, Node, Watcher, UpdateEvent, NodeSet
+from .model import NodeEvent, Node, Watcher, UpdateEvent, NodeSet
 from .types import RootEntry, ConvNull, NullACL, ACLFinder
 from .actor.deletor import DeleteActor
 from .default import CFG
@@ -411,7 +410,7 @@ class SCmd_get_tree(StreamCommand):
 
     multiline = True
 
-    async def run(self, root=None):
+    async def run(self, root=None):  # pylint: disable=arguments-differ
         msg = self.msg
         client = self.client
 
@@ -463,7 +462,7 @@ class SCmd_get_tree(StreamCommand):
 class SCmd_get_tree_internal(SCmd_get_tree):
     """Get a subtree (internal data)."""
 
-    async def run(self):
+    async def run(self):  # pylint: disable=arguments-differ
         return await super().run(root=self.client.metaroot)
 
 
@@ -613,7 +612,7 @@ class SCmd_update(StreamCommand):
         longer = PathLongener(path) if path is not None else lambda x: x
         n = 0
         async for msg in self.in_q:
-            await client.server.tock_seen(msg.get("tock", None))
+            await tock_seen(msg.get("tock", None))
             longer(msg)
             msg = UpdateEvent.deserialize(
                 client.root,
@@ -718,7 +717,7 @@ class ServerClient:
     def _chroot(self, root):
         if not root:
             return
-        entry, acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
+        entry, _acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
 
         self.root = entry
         self.is_chroot = True
@@ -810,7 +809,7 @@ class ServerClient:
         acl2 = msg.get("acl", None)
         first = True
         try:
-            entry, acl = root.follow_acl(
+            _entry, _acl = root.follow_acl(
                 *msg.path,
                 acl=self.acl,
                 acl_key="a" if acl2 is None else mode,
@@ -822,7 +821,7 @@ class ServerClient:
                 ok = acl.allows("a")
                 acl2 = root.follow(None, "acl", acl2, create=False, nulls_ok=True)
                 acl2 = ACLFinder(acl2)
-                entry, acl = root.follow_acl(
+                _entry, acl = root.follow_acl(
                     *msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None
                 )
                 if not ok:
@@ -1124,7 +1123,7 @@ class ServerClient:
 
     async def run(self):
         """Main loop for this client connection."""
-        unpacker = stream_unpacker()
+        unpacker = stream_unpacker()  # pylint: redefined-outer-name
 
         async with anyio.create_task_group() as tg:
             self.tg = tg
@@ -1287,6 +1286,11 @@ class Server:
     _del_actor = None
     cfg: attrdict = None
 
+    spawn: anyio.abc.TaskGroup = None
+    seen_missing = None
+    fetch_running = None
+    sending_missing = None
+
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
         self.root = RootEntry(self, tock=self.tock)
@@ -1448,7 +1452,7 @@ class Server:
 
                     async def send_nodes():
                         nonlocal nodes, n_nodes
-                        res = await client._request(
+                        await client._request(
                             "check_deleted",
                             iter=False,
                             nchain=-1,
@@ -1504,7 +1508,6 @@ class Server:
         deleted=False,
         missing=False,
         remote_missing=False,
-        **kw
     ):
         """
         Return some info about this node's internal state.
@@ -1919,9 +1922,9 @@ class Server:
                 # node's state, so we now need to find whatever that
                 # node didn't have.
 
-                for n in self._nodes.values():
-                    if n.tick and len(n.local_missing):
-                        self.fetch_missing.add(n)
+                for nst in self._nodes.values():
+                    if nst.tick and len(n.local_missing):
+                        self.fetch_missing.add(nst)
                 if len(self.fetch_missing):
                     self.fetch_running = False
                     await self.spawn(self.do_send_missing)

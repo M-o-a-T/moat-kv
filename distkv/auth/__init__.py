@@ -102,8 +102,6 @@ def gen_auth(s: str):
     """
     Generate auth data from parameters or YAML file (if first char is '=').
     """
-    from distkv.auth import loader
-
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
         with io.open(m[1:], "r") as f:
@@ -142,7 +140,7 @@ async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(stream, user: "BaseClientAuth"):
+async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=unused-argument
     return stream
 
 
@@ -270,10 +268,10 @@ class BaseClientAuthMaker(_AuthLoaded):
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
+        """Read this user from the server."""
         res = await client._request(
             "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
-        """Read this user from the server."""
         self = cls()
         self._chain = res.chain
         return self
@@ -313,7 +311,7 @@ class BaseServerAuth(_AuthLoaded):
     can_auth_read = False
     can_auth_write = False
 
-    def __init__(self, data: dict = {}):
+    def __init__(self, data: dict = {}):  # pylint: disable=dangerous-default-value
         self._aux = None
         if data:
             for k, v in data.items():
@@ -324,7 +322,7 @@ class BaseServerAuth(_AuthLoaded):
         """Create a ServerAuth object from existing stored data"""
         return cls(data.data)
 
-    async def auth(self, cmd: StreamCommand, data):
+    async def auth(self, cmd: StreamCommand, data):  # pylint: disable=unused-argument
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data.get("data", {}), schema=type(self).schema)
 
@@ -359,13 +357,13 @@ class BaseServerAuth(_AuthLoaded):
         """
         return {}
 
-    async def check_read(self, *path, client: ServerClient, data=None):
+    async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.
         This method may modify the data.
         """
         return data
 
-    async def check_write(self, *path, client: ServerClient, data=None):
+    async def check_write(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may write the element at this location.
         This method may modify the data.
         """
@@ -410,7 +408,7 @@ class BaseServerAuthMaker(_AuthLoaded):
         return cls(chain=data.chain, data=data.data)
 
     @classmethod
-    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":
+    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":  # pylint: disable=unused-argument
         """Create a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
         ax = data.get("aux", None) or {}
@@ -430,7 +428,7 @@ class BaseServerAuthMaker(_AuthLoaded):
         # contains an attribute for "_aux"
         return {"_aux": self._aux}
 
-    async def send(self, cmd: StreamCommand):
+    async def send(self, cmd: StreamCommand):  # pylint: disable=unused-argument
         """Send a record to the client, possibly multi-step / secured / whatever"""
         res = self._aux.copy()
         res["chain"] = self._chain.serialize() if self._chain else None

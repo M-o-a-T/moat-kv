@@ -66,6 +66,7 @@ async def unpack_pwd(client, password):
 
 class ServerUserMaker(BaseServerAuthMaker):
     _name = None
+    password: str = None
 
     @property
     def ident(self):
@@ -158,7 +159,7 @@ class ClientUserMaker(BaseClientAuthMaker):
         self._chain = m.chain
         return self
 
-    async def send(self, client: Client, _kind="user", **msg):
+    async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 

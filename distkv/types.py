@@ -163,7 +163,7 @@ class NodeFinder:
 
     @property
     def result(self):
-        for node, keep in self.steps:
+        for node, _keep in self.steps:
             if node._data is not NotGiven:
                 return node
         return None
@@ -218,7 +218,7 @@ class NullACL(ACLStepper):
 
     result = "-"
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         pass
 
     def allows(self, x):
@@ -227,7 +227,7 @@ class NullACL(ACLStepper):
     def check(self, x):
         return
 
-    def block(self, x):
+    def block(self, c):
         pass
 
     def step(self, name, new=None):
@@ -371,11 +371,11 @@ class ConvNull:
     """I am a dummy translator"""
 
     @staticmethod
-    def enc_value(value, **k):
+    def enc_value(value, **_kw):
         return value
 
     @staticmethod
-    def dec_value(value, **k):
+    def dec_value(value, **_kw):
         return value
 
 
@@ -507,7 +507,3 @@ class RootEntry(Entry):
         return self._server()
 
     SUBTYPES = {None: MetaRootEntry}
-
-
-def check_type(value, *path):
-    """Verify that this type works."""

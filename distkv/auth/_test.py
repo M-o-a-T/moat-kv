@@ -42,7 +42,7 @@ def load(typ: str, *, make: bool = False, server: bool):
 
 
 class ServerUserMaker(BaseServerAuthMaker):
-    _name = None
+    name = None
 
     @property
     def ident(self):

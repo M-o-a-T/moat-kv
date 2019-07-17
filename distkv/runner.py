@@ -6,21 +6,15 @@ This module's job is to run code, resp. to keep it running.
 
 import anyio
 from weakref import ref
-from asyncserf.actor import Actor, NodeList
+from asyncserf.actor import NodeList
 from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from copy import deepcopy
 import psutil
 import time
-from asyncserf.client import Serf
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
 from .util import NotGiven
-
-try:
-    from contextlib import asynccontextmanager
-except ImportError:
-    from async_generator import asynccontextmanager
 
 from .exceptions import ServerError
 from .client import AttrClientEntry, ClientRoot, ClientEntry

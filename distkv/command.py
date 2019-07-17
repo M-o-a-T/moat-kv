@@ -9,7 +9,6 @@ from functools import partial
 from .util import attrdict, combine_dict, NotGiven
 from .default import CFG
 
-from .auth import loader, gen_auth
 from .exceptions import ClientError, ServerError
 
 import logging
@@ -57,15 +56,15 @@ class Loader(click.Group):
         rv += super().list_commands(ctx)
         return rv
 
-    def get_command(self, ctx, name):
+    def get_command(self, ctx, name):  # pylint: disable=arguments-differ
         fn = os.path.join(self.__plugin_folder, name + ".py")
         if os.path.exists(fn):
             ns = {"main": self, "__file__": fn}
             with open(fn) as f:
                 code = compile(f.read(), fn, "exec")
-                eval(code, ns, ns)
+                eval(code, ns, ns)  # pylint: disable=eval-used
             try:
-                cmd = ns["cli"]
+                cmd = ns["cli"]  # pylint: disable=redefined-outer-name
             except KeyError:
                 raise SyntaxError(
                     "%r in %r doesn't define 'cli'" % (name, self.__plugin_folder)
@@ -104,10 +103,9 @@ def cmd():
     except (EnvironmentError, ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)
-    except BaseException as exc:
-        raise
-        # print(exc)
-        # sys.exit(1)
+#   except BaseException as exc:
+#       print(exc)
+#       sys.exit(1)
 
 
 @click.command(cls=partial(Loader, __file__, "commands"))
@@ -168,13 +166,13 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
             v = NotGiven
         else:
             try:
-                v = eval(v)
-            except Exception:
+                v = eval(v)  # pylint: disable=eval-used
+            except Exception:  # pylint: disable=broad-except
                 pass
         c = ctx.obj.cfg
         *sl, s = k.split(".")
-        for k in sl:
-            c = c[k]
+        for kk in sl:
+            c = c[kk]
         if v is NotGiven:
             del c[s]
         else:
@@ -204,7 +202,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
 )
 @click.argument("args", nargs=-1)
 async def pdb(args):  # safe
-    import pdb
+    import pdb  # pylint: disable=redefined-outer-name
 
     pdb.set_trace()  # safe
     if not args:
