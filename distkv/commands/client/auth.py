@@ -129,17 +129,10 @@ async def user(obj):
 
 
 @user.command()
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.pass_obj
-async def list(obj, chain):
+async def list(obj):
     """List all users (raw data)."""
-    async for r in enum_typ(obj, nchain=chain):
+    async for r in enum_typ(obj, nchain=3 if obj.meta else 0):
         if obj.meta:
             if obj.debug < 2:
                 del r["seq"]

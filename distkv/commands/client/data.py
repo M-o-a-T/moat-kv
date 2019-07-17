@@ -36,13 +36,6 @@ async def cli(obj):
 
 @cli.command()
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
-@click.option(
     "-d",
     "--as-dict",
     default=None,
@@ -83,13 +76,6 @@ async def get(*a,**k):
 
 @cli.command()
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
-@click.option(
     "-d",
     "--as-dict",
     default=None,
@@ -128,7 +114,7 @@ async def list(*a,**k):
     k['empty'] = False
     await _get(*a,**k)
 
-async def _get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, raw):
+async def _get(obj, path, recursive, as_dict, maxdepth, mindepth, empty, raw):
     if recursive:
         if raw:
             raise click.UsageError("'raw' cannot be used with 'recursive'")
@@ -141,7 +127,7 @@ async def _get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, 
         if empty:
             kw["add_empty"] = True
         y = {}
-        async for r in obj.client.get_tree(*path, nchain=chain, **kw):
+        async for r in obj.client.get_tree(*path, nchain=3 if obj.meta else 0, **kw):
             r.pop("seq", None)
             path = r.pop("path")
             if as_dict is not None:
@@ -168,7 +154,7 @@ async def _get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, 
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path, nchain=chain)
+    res = await obj.client.get(*path, nchain=3 if obj.meta else 0)
     if not obj.meta:
         try:
             res = res.value
@@ -189,20 +175,13 @@ async def _get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, 
 @click.option("-v", "--value", help="The value to store. Mandatory.")
 @click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
 @click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
-@click.option(
     "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, value, eval, chain, prev, last, new):
+async def set(obj, path, value, eval, prev, last, new):
     """
     Store a value at some DistKV position.
 
@@ -227,20 +206,13 @@ async def set(obj, path, value, eval, chain, prev, last, new):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(*path, value=value, nchain=chain, **args)
-    if chain:
+    res = await obj.client.set(*path, value=value, nchain=3 if obj.meta else 0, **args)
+    if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
 @cli.command(short_help="Delete an entry / subtree")
 @click.argument("path", nargs=-1)
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.option(
     "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
 )
@@ -250,7 +222,7 @@ async def set(obj, path, value, eval, chain, prev, last, new):
     "-e", "--eval", is_flag=True, help="The previous value shall be evaluated."
 )
 @click.pass_obj
-async def delete(obj, path, chain, prev, last, recursive, eval):
+async def delete(obj, path, prev, last, recursive, eval):
     """
     Delete an entry, or a whole subtree.
 
@@ -280,7 +252,7 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
     res = await obj.client._request(
         action="delete_tree" if recursive else "delete_value",
         path=path,
-        nchain=chain,
+        nchain=3 if obj.meta else 0,
         **args
     )
     if isinstance(res, StreamedRequest):
@@ -295,20 +267,13 @@ async def delete(obj, path, chain, prev, last, recursive, eval):
 
 
 @cli.command()
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def watch(obj, path, chain, state):
+async def watch(obj, path, state):
     """Watch a DistKV subtree"""
     flushing = not state
-    async with obj.client.watch(*path, nchain=chain, fetch=state) as res:
+    async with obj.client.watch(*path, nchain=3 if obj.meta else 0, fetch=state) as res:
         pl = PathLongener(path)
         async for r in res:
             pl(r)

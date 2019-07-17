@@ -67,16 +67,9 @@ async def get(obj, path, script):
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, thread, script, data, async_):
+async def set(obj, path, thread, script, data, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -94,8 +87,9 @@ async def set(obj, path, chain, thread, script, data, async_):
         msg = yaml.safe_load(data)
     else:
         msg = {}
+    chain=None
     if "value" in msg:
-        chain = msg.get("chain", chain)
+        chain = msg.get("chain", None)
         msg = msg["value"]
     if async_ is not None or "is_async" not in msg:
         msg["is_async"] = async_
@@ -114,7 +108,7 @@ async def set(obj, path, chain, thread, script, data, async_):
         path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain": chain} if chain else {})
+        chain=chain,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -161,16 +155,9 @@ async def get(obj, path, script):
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, script, data):
+async def set(obj, path, script, data):
     """Save a Python module to DistKV."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -179,8 +166,9 @@ async def set(obj, path, chain, script, data):
         msg = yaml.safe_load(data)
     else:
         msg = {}
+    chain=None
     if "value" in msg:
-        chain = msg.get("chain", chain)
+        chain = msg.get("chain", None)
         msg = msg["value"]
 
     if "code" not in msg:
@@ -197,7 +185,7 @@ async def set(obj, path, chain, script, data):
         path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain": chain} if chain else {})
+        chain=chain,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

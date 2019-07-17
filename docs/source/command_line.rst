@@ -195,17 +195,6 @@ for incremental output.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
-.. option:: -c, --chain <integer>
-
-   Include this many chain links in your output.
-
-   Chain links tell you which DistKV server(s) last changed this entry. You
-   can also use the top of the chain in the :program:`distkv client data set`
-   command to ensure that the entry you're trying to change has not been
-   modified since you retrieved it.
-
-   The default is zero, i.e. do not include chain data.
-
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -250,17 +239,6 @@ default to 1.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
-.. option:: -c, --chain <integer>
-
-   Include this many chain links in your output.
-
-   Chain links tell you which DistKV server(s) last changed this entry. You
-   can also use the top of the chain in the :program:`distkv client data set`
-   command to ensure that the entry you're trying to change has not been
-   modified since you retrieved it.
-
-   The default is zero, i.e. do not include chain data.
-
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -286,17 +264,6 @@ accidentally overwrite something.
 
    Treat the ``value`` as a Python expression, to store anything that's not a
    string.
-
-.. option:: -c, --chain <integer>
-
-   Include this many chain links in your reply.
-
-   Chain links tell you which DistKV server(s) last changed this entry. You can
-   also use the top of the chain in another ``set`` command, if you need to
-   change this entry's value again, to ensure that it has not been
-   modified since you retrieved it.
-
-   The default is zero, i.e. do not include chain data.
 
 .. option:: -l, --last <node> <count>
 
@@ -330,19 +297,6 @@ If you delete a value, you should use :option:`--last` (preferred) or
 with your deletion.
 
 Recursive changes only check the entry you mention on the command line.
-
-.. option:: -c, --chain <integer>
-
-   Include this many chain links in your reply.
-
-   Chain links tell you which DistKV server(s) last changed this entry.
-
-   You can use the chain link returned by this command in another ``set``
-   commmand for a short time (depending on your entry deletion setup) to
-   ensure that the entry has not been re-added and -deleted since you
-   retrieved it. However, it's usually better to simply 
-
-   The default is zero, i.e. do not include chain data.
 
 .. option:: -l, --last <node> <count>
 
@@ -381,12 +335,6 @@ Monitor changes to the state of an entry, or rather its subtree.
 
    The current state may already include updates, due to DistKV's
    asynchonous nature. You should simply replace existing values.
-
-.. option:: -c, --chain <integer>
-
-   Include this many chain links in your replies.
-
-   The default is zero, i.e. do not include chain data.
 
 .. option:: -m, --msgpack
 
@@ -464,8 +412,13 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
 
    Affect the named method.
 
-   DistKV supports multiple authorization methods. You need to be able to set
-   up a method (add users, maybe set up codecs, …) before switching over to it.
+   DistKV supports multiple authorization methods. The default is the one
+   that has been changed to with ``distkv client auth init``.
+   
+   If you want to do anything with authorization, you'll need to use this
+   flag to set up the initial users.
+
+   See `Auth `
 
 
 .. program:: distkv client auth init
@@ -480,7 +433,7 @@ Set up this method.
 
 .. program:: distkv client auth list
 
-List available/configured/whatever auth methods.
+List configured auth methods.
 
 XXX TODO
 
@@ -498,19 +451,32 @@ Add a new user.
 
 Example: ``distkv client -a root auth -m password user add name=foo password=barbaz``
 
-The actual identifier which you'd use to subsequently refer to that user is
+The identifier which you'd use to subsequently refer to that user is
 printed when this command completes.
+
+.. option:: -a, --add <key>=<value>
+
+   Set an additional parameter, i.e. one that controls DistKV's handling of
+   that user. Used e.g. for setting the user's ACL.
+
+.. option:: <key>=<value>
+
+   Set an auth-specific parameter, i.e. one that's controlled by the auth
+   mode.
 
 
 .. program:: distkv client auth user mod
 
 Modify a user.
 
-XXX TODO seems broken
+.. option:: -a, --add <key>=<value>
 
-.. option:: -c, --chain <int>
+   Set or change an additional parameter, i.e. 
 
-   XXX TODO add chain option
+
+.. option:: <userid>
+
+The ID of the user to modify. Printed when adding or listing the user.
 
 
 .. program:: distkv client auth user auth

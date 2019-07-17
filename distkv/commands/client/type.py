@@ -84,16 +84,9 @@ async def get(obj, path, script, schema, yaml_):
 @click.option(
     "-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON"
 )
-@click.option(
-    "-c",
-    "--chain",
-    type=int,
-    default=0,
-    help="Length of change list to return. Default: 0",
-)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
+async def set(obj, path, good, bad, script, schema, yaml_, data):
     """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -102,8 +95,9 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
         msg = yaml.safe_load(data)
     else:
         msg = {}
+    chain = None
     if "value" in msg:
-        chain = msg.get("chain", chain)
+        chain = msg.get("chain", None)
         msg = msg["value"]
 
     msg.setdefault("good", [])
@@ -141,7 +135,7 @@ async def set(obj, path, chain, good, bad, script, schema, yaml_, data):
         path=("type",) + path,
         iter=False,
         nchain=3 if obj.meta else 0,
-        **({"chain": chain} if chain else {})
+        chain=chain,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
