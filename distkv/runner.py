@@ -158,6 +158,7 @@ class RunnerEntry(AttrClientEntry):
                 state.node = None
             self._running = False
             state.stopped = t
+
             if state.backoff > 0:
                 self.retry = t + (self.backoff ** state.backoff) * self.delay
             else:
@@ -167,6 +168,7 @@ class RunnerEntry(AttrClientEntry):
                     await state.save()
                 except ServerError:
                     logger.exception("Could not save")
+                await self.root.trigger_rescan()
 
     async def send_event(self, evt):
         if self._q is not None:
