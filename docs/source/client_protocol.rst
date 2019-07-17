@@ -250,6 +250,19 @@ is equivalent to::
     { seq=13, depth=0, path=['d','e'], value="two" }
     { seq=13, depth=1, path=['f'], value="three" }
 
+* min_depth
+
+  Start reporting nodes at this depth.
+
+* max_depth
+
+  Limit recursion depth.
+
+* add_empty
+
+  Include empty nodes. This is useful when limiting the depth to non-leaf
+  nodes without data.
+
 root
 ----
 

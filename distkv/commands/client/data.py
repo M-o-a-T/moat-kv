@@ -64,12 +64,13 @@ async def cli(obj):
     help="Starting depth. Default: whole tree",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
+@click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
 @click.option(
     "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
+async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, empty, raw):
     """
     Read a DistKV value.
 
@@ -92,6 +93,8 @@ async def get(obj, path, chain, recursive, as_dict, maxdepth, mindepth, raw):
             kw["max_depth"] = maxdepth
         if mindepth is not None:
             kw["min_depth"] = mindepth
+        if empty:
+            kw["add_empty"] = True
         y = {}
         async for r in obj.client.get_tree(*path, nchain=chain, **kw):
             r.pop("seq", None)
