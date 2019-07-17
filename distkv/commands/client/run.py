@@ -234,6 +234,6 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
         path=path,
         iter=False,
         nchain=3,
-        **({"chain": chain} if chain else {})
+        **({"chain": chain} if obj.meta else {})
     )
     yprint(res, stream=obj.stdout)
