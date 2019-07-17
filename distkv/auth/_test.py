@@ -133,7 +133,6 @@ class ClientUserMaker(BaseClientAuthMaker):
                 step="HasName", name=self.name, chain=self._chain, aux=self._aux
             )
             m = await s.recv()
-            assert m.changed
             assert m.chain.prev is None
 
     def export(self):
