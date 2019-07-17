@@ -137,7 +137,7 @@ class RunnerEntry(AttrClientEntry):
                     *self._path,
                     message="Exception",
                     exc=exc,
-                    data=data,
+                    data=self.data,
                     comment=c
                 )
             state.backoff += 1
