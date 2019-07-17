@@ -21,7 +21,6 @@ async def test_22_auth_basic(autojump_clock):
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        run_cm = partial(run, "-D", "client", "-m", "-h", h, "-p", p)
 
         async with st.client() as c:
             assert (await c.get()).value == 123
@@ -52,7 +51,7 @@ async def test_22_auth_basic(autojump_clock):
         r = await run_c("-a", "root", "auth", "user", "list")
         assert r.stdout == "*\n"
 
-        r = await run_cm("-a", "root", "auth", "user", "list")
+        r = await run_c("-a", "root", "auth", "user", "list", "-v")
         assert (
             r.stdout
             == """\
@@ -83,7 +82,7 @@ async def test_23_auth_test(autojump_clock):
         res = await run_a("user", "list")
         assert res.stdout == "fubar\n"
 
-        res = await run_am("user", "list")
+        res = await run_a("user", "list", "-v")
         assert (
             res.stdout
             == """\
@@ -115,18 +114,16 @@ async def test_24_auth_password(autojump_clock):
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        run_cm = partial(run, "-D", "client", "-m", "-h", h, "-p", p)
         await run_c("data", "set", "-v", "42", "answers", "life etc.")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
 
         run_p = partial(run_c, "-a", "root", "auth", "-m", "password")
-        run_pm = partial(run_cm, "-a", "root", "auth", "-m", "password")
         await run_p("user", "add", "name=joe", "password=test123")
         res = await run_p("user", "list")
         assert res.stdout == "joe\n"
-        res = await run_pm("user", "list")
+        res = await run_p("user", "list", "-v")
         assert (
             res.stdout
             == """\

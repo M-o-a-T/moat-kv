@@ -129,11 +129,17 @@ async def user(obj):
 
 
 @user.command()
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Print complete results. Default: just the names",
+)
 @click.pass_obj
-async def list(obj):
+async def list(obj, verbose):
     """List all users (raw data)."""
     async for r in enum_typ(obj, nchain=obj.meta):
-        if obj.meta:
+        if obj.meta or verbose:
             if obj.debug < 2:
                 del r["seq"]
                 del r["tock"]
