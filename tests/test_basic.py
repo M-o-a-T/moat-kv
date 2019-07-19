@@ -193,7 +193,7 @@ async def test_02_cmd(autojump_clock):
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c._request("set_value", path=(), value=1234, nchain=3)
+            r = await c.set(value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 
@@ -308,7 +308,7 @@ async def test_03_three(autojump_clock):
 
                 assert (await c._request("get_value", path=())).value == 125
 
-                r = await c._request("set_value", path=(), value=126, nchain=3)
+                r = await c.set(value=126, nchain=3)
                 assert r.prev == 125
                 assert r.chain.tick == 1
                 assert r.chain.node == "test_0"
@@ -320,7 +320,7 @@ async def test_03_three(autojump_clock):
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
                 await trio.sleep(1)
-                r = await ci._request("set_value", path=(), value=127, nchain=3)
+                r = await ci.set(value=127, nchain=3)
                 assert r.prev == 126
                 assert r.chain.tick == 2
                 assert r.chain.node == "test_1"

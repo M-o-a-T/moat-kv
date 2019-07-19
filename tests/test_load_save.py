@@ -174,7 +174,7 @@ async def test_02_cmd(autojump_clock):
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c._request("set_value", path=(), value=1234, nchain=3)
+            r = await c.set(value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 

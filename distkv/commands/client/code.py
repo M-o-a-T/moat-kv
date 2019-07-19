@@ -102,10 +102,10 @@ async def set(obj, path, thread, script, data, async_):
             raise click.UsageError("Missing script")
         msg["code"] = script.read()
 
-    res = await obj.client._request(
-        action="set_value",
+    res = await obj.client.set(
+        *obj.cfg["codes"]["prefix"],
+        *path,
         value=msg,
-        path=obj.cfg["codes"]["prefix"] + path,
         iter=False,
         nchain=obj.meta,
         chain=chain,
@@ -179,10 +179,10 @@ async def set(obj, path, script, data):
             raise click.UsageError("Missing script")
         msg["code"] = script.read()
 
-    res = await obj.client._request(
-        action="set_value",
+    res = await obj.client.set(
+        *obj.cfg["modules"]["prefix"],
+        *path,
         value=msg,
-        path=obj.cfg["modules"]["prefix"] + path,
         iter=False,
         nchain=obj.meta,
         chain=chain,
