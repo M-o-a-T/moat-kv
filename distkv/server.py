@@ -1663,7 +1663,8 @@ class Server:
             self._part_seq = seq = self._part_seq + 1
             i = 0
             while i >= 0:
-                px, p = p[pl:], p[:pl]
+                i += 1
+                px, p = p[:pl], p[pl:]
                 if not p:
                     i = -i
                 px = {"_p0": (self.node.name, seq, i, px)}
@@ -1682,13 +1683,13 @@ class Server:
                 nn, seq, i, p = p
                 s = self._part_cache.get((nn, seq), None)
                 if s is None:
-                    self._part_cache[seq] = s = [None]
+                    self._part_cache[(nn,seq)] = s = [None]
                 if i < 0:
                     i = -i
                     s[0] = b""
-                while len(s) <= i + 1:
+                while len(s) <= i:
                     s.append(None)
-                s[i + 1] = p
+                s[i] = p
                 if None in s:
                     return None
                 p = b"".join(s)
