@@ -82,6 +82,7 @@ class ClientEntry:
         self._name = name
         self.value = None
         self.chain = None
+        self._parent = weakref.ref(parent)
         self._root = weakref.ref(parent.root)
         self.client = parent.client
         self._lock = anyio.create_lock()  # for saving etc.
@@ -92,6 +93,10 @@ class ClientEntry:
         The default is "same as this class".
         """
         return cls
+
+    @property
+    def parent(self):
+        return self._parent()
 
     @property
     def root(self):
