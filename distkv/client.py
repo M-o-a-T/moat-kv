@@ -119,22 +119,26 @@ class ClientEntry:
                     continue
             yield from k.all_children
 
-    def get(self, name):
+    def allocate(self, name):
         """
-        Returns the child named "name". It is created (locally) if it doesn't exist.
+        Create the child named "name". It is created (locally) if it doesn't exist.
 
         Arguments:
           name (str): The child node's name.
         """
-        try:
-            c = self._children[name]
-        except KeyError:
-            c = self.child_type(name)(self, name)
-            self._children[name] = c
+        if name in self._children:
+            raise RuntimeError("Duplicate child",name,self)
+        self._children[name] = c = self.child_type(name)(self, name)
         return c
 
-    def __getitem__(self, k):
-        return self._children[k]
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __delitem__(self, name):
+        del self._children[name]
+
+    def get(self, name):
+        return self._children.get(name, None)
 
     def __iter__(self):
         """Iterating an entry returns its children."""
@@ -353,10 +357,14 @@ class ClientRoot(ClientEntry):
 
         node = self
         for elem in path:
-            if create:
-                node = node.get(elem)
-            else:
-                node = node[elem]
+            next_node = node.get(elem)
+            if next_node is None:
+                if create:
+                    next_node = node.allocate(elem)
+                else:
+                    return None
+
+            node = next_node
 
         if not unsafe and node is self:
             raise RuntimeError("Empty path")

@@ -702,7 +702,9 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     async def run_starting(self):
         """Hook to set the local root"""
-        self.this_root = self.get(self.run_name)
+        self.this_root = r = self.get(self.run_name)
+        if r is None:
+            self.this_root = self.allocate(self.run_name)
         await super().run_starting()
 
     @property

@@ -142,11 +142,13 @@ class ErrorEntry(AttrClientEntry):
           exc (Exception): The actual exception
           data (dict): any relevant data to reproduce the problem.
         """
-        res = attrdict(
-            seen=time(),
-            tock=await self.root.client.get_tock(),
-            comment=comment or repr(exc),
-        )
+        res = self.get(node)
+        if res is None:
+            res = self.allocate(node)
+        res.seen = time()
+        res.tock = await self.root.client.get_tock()
+        res.comment=comment or repr(exc)
+        
         if exc is not None:
             res.trace = "".join(
                 traceback.format_exception(type(exc), exc, exc.__traceback__)
