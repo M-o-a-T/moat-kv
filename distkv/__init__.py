@@ -1,4 +1,5 @@
 """Top-level package for DistKV."""
+# pylint: disable=W0703,C0103
 
 try:
     import pkg_resources  # part of setuptools

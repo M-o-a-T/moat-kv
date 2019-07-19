@@ -66,6 +66,7 @@ async def unpack_pwd(client, password):
 
 class ServerUserMaker(BaseServerAuthMaker):
     _name = None
+    password: str = None
 
     @property
     def ident(self):
@@ -113,7 +114,8 @@ class ServerUser(RootServerUser):
         await super().auth(cmd, data)
 
         pwd = await unpack_pwd(cmd.client, data.password)
-        if pwd != self.password:
+        if pwd != self.password:  # pylint: disable=no-member
+            # pylint: disable=no-member
             raise AuthFailedError("Password hashes do not match", self._name)
 
 
@@ -147,7 +149,7 @@ class ClientUserMaker(BaseClientAuthMaker):
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind: str = "user"):
         """Read a record representing a user from the server."""
-        m = client._request(
+        m = await client._request(
             action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
         # just to verify that the user exists
@@ -157,7 +159,7 @@ class ClientUserMaker(BaseClientAuthMaker):
         self._chain = m.chain
         return self
 
-    async def send(self, client: Client, _kind="user", **msg):
+    async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
         pw = await pack_pwd(client, self._pass, self._length)
 

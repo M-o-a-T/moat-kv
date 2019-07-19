@@ -68,6 +68,7 @@ from ..model import Entry
 from ..server import StreamCommand, ServerClient
 from ..util import split_one, attrdict
 from ..exceptions import NoAuthModuleError
+from ..types import ACLFinder, NullACL
 
 # Empty schema
 null_schema = {"type": "object", "additionalProperties": False}
@@ -77,7 +78,10 @@ add_schema = {
     "user": {
         "type": "object",
         "additionalProperties": False,
-        "properties": {"conv": {type: "string", "minLength": 1}},
+        "properties": {
+            "acl": {type: "string", "minLength": 1},
+            "conv": {type: "string", "minLength": 1},
+        },
     }
 }
 
@@ -98,8 +102,6 @@ def gen_auth(s: str):
     """
     Generate auth data from parameters or YAML file (if first char is '=').
     """
-    from distkv.auth import loader
-
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
         with io.open(m[1:], "r") as f:
@@ -138,7 +140,7 @@ async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(stream, user: "BaseClientAuth"):
+async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=unused-argument
     return stream
 
 
@@ -163,7 +165,12 @@ def _load_example(typ: str, make: bool, server: bool):
             return BaseClientAuth
 
 
-class BaseClientAuth:
+class _AuthLoaded:
+    # This class is mainly there to appease pylint
+    _auth_method = None
+
+
+class BaseClientAuth(_AuthLoaded):
     """
     This class is used for creating a data record which authenticates a user.
 
@@ -216,7 +223,7 @@ class BaseClientAuth:
         return {}
 
 
-class BaseClientAuthMaker:
+class BaseClientAuthMaker(_AuthLoaded):
     """
     This class is used for creating a data record which describes a user record.
 
@@ -261,10 +268,10 @@ class BaseClientAuthMaker:
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user"):
+        """Read this user from the server."""
         res = await client._request(
             "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
         )
-        """Read this user from the server."""
         self = cls()
         self._chain = res.chain
         return self
@@ -289,7 +296,7 @@ class BaseClientAuthMaker:
         return {}
 
 
-class BaseServerAuth:
+class BaseServerAuth(_AuthLoaded):
     """
     This class is used on the server to represent / verify a user.
 
@@ -304,7 +311,7 @@ class BaseServerAuth:
     can_auth_read = False
     can_auth_write = False
 
-    def __init__(self, data: dict = {}):
+    def __init__(self, data: dict = {}):  # pylint: disable=dangerous-default-value
         self._aux = None
         if data:
             for k, v in data.items():
@@ -315,7 +322,7 @@ class BaseServerAuth:
         """Create a ServerAuth object from existing stored data"""
         return cls(data.data)
 
-    async def auth(self, cmd: StreamCommand, data):
+    async def auth(self, cmd: StreamCommand, data):  # pylint: disable=unused-argument
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data.get("data", {}), schema=type(self).schema)
 
@@ -326,9 +333,20 @@ class BaseServerAuth:
             conv = self._aux.get("conv")
             if conv is None:
                 return ConvNull
-            return root.follow(None, "conv", conv, create=False, nulls_ok=True)
+            res, _ = root.follow_acl(None, "conv", conv, create=False, nulls_ok=True)
+            return res
         except (KeyError, AttributeError):
             return ConvNull
+
+    def aux_acl(self, root: Entry):
+        try:
+            acl = self._aux.get("acl")
+            if acl is None:
+                return NullACL
+            acl, _ = root.follow_acl(None, "acl", acl, create=False, nulls_ok=True)
+            return ACLFinder(acl)
+        except (KeyError, AttributeError):
+            return NullACL
 
     def info(self):
         """
@@ -339,13 +357,13 @@ class BaseServerAuth:
         """
         return {}
 
-    async def check_read(self, *path, client: ServerClient, data=None):
+    async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.
         This method may modify the data.
         """
         return data
 
-    async def check_write(self, *path, client: ServerClient, data=None):
+    async def check_write(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may write the element at this location.
         This method may modify the data.
         """
@@ -364,7 +382,7 @@ class RootServerUser(BaseServerAuth):
     can_auth_write = True
 
 
-class BaseServerAuthMaker:
+class BaseServerAuthMaker(_AuthLoaded):
     """
     This class is used on the server to verify the transmitted user record
     and to store it in DistKV.
@@ -390,7 +408,7 @@ class BaseServerAuthMaker:
         return cls(chain=data.chain, data=data.data)
 
     @classmethod
-    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":
+    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":  # pylint: disable=unused-argument
         """Create a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
         ax = data.get("aux", None) or {}
@@ -410,7 +428,7 @@ class BaseServerAuthMaker:
         # contains an attribute for "_aux"
         return {"_aux": self._aux}
 
-    async def send(self, cmd: StreamCommand):
+    async def send(self, cmd: StreamCommand):  # pylint: disable=unused-argument
         """Send a record to the client, possibly multi-step / secured / whatever"""
         res = self._aux.copy()
         res["chain"] = self._chain.serialize() if self._chain else None

@@ -27,9 +27,6 @@ against (None,"type","int"), then against (None,"type","int","percent").
 
 Type checkers cannot modify data.
 
-A value of ``None`` may represent a deleted entry and thus is never
-typechecked.
-
 Type check entries *must* be accompanied by "good" and "bad" values, which
 must be non-empty arrays of values which pass or fail this type check. For
 subordinate types, both kinds must pass the supertype check: if you
@@ -68,9 +65,7 @@ Putting it all together
 =======================
 
 Given the following structure, values stored at ("foo", anything, "bar")
-must be integers. The DistKV content of testcase
-``tests/test_feature_typecheck.py::test_72_cmd`` looks like this, when
-dumped with the command ``get -ryd_``::
+must be integers::
 
     _: 123
     null:
@@ -100,6 +95,9 @@ dumped with the command ``get -ryd_``::
         bar:
           _: 55
 
+The above is the server content at the end of the testcase
+``tests/test_feature_typecheck.py::test_72_cmd``, when
+dumped with the command ``distkv client get -rd_``.
 
 
 +++++++++++
@@ -109,7 +107,7 @@ Translation
 Sometimes, clients need special treatment. For instance, an IoT-MQTT message
 that reports turning on a light might send "ON" to topic
 ``/home/state/bath/light``, while what you'd really like to do is to change
-the Boolean ``state`` attribute of ``home.bath.lights``. Or maybe the value
+the Boolean ``state`` attribute of ``home.bath.light``. Or maybe the value
 is a percentage and you'd like to ensure that the stored value is 0.5
 instead of "50%", and that no rogue client can set it to -20 or "gotcha".
 
@@ -128,8 +126,6 @@ DistKV entries and back.
 
 * "map" entries are activated per client (via command, or controlled by its
   login) and describe the path position to which a codec applies
-
-All of these are stored below the global (``None``) top-level path.
 
 
 Codecs
@@ -150,14 +146,14 @@ of 2-tuples with that conversion's source value and its result. "in"
 corresponds to decoding, "out" to encoding – much like Python's binary
 codecs.
 
-.. autofunction:: distkv.util.combine_dict
 
 Converters
 ==========
 
-While the ``(None,"map")`` contains a single mapping, ``(None,"conv")``
-contains an additional single level of names. A mapping must be applied to
-a user before it is used. This change is instantaneous, i.e. an existing
+While the ``(None,"map")`` subtree contains a single mapping, ``(None,"conv")``
+uses an additional single level of codec group names. A mapping must be
+applied to a user (by adding a "conv=GROUPNAME" to the user's aux data
+field) before it is used. This change is instantaneous, i.e. an existing
 user does not need to reconnect.
 
 Below that, converter naming works like that for mappings. Of course, the
@@ -216,5 +212,25 @@ stored as integers::
             _: 99
     
 
-The above is the content at the enf of the testcase
-``tests/test_feature_convert.py::test_71_basic``.
+The above is the server content at the end of the testcase
+``tests/test_feature_convert.py::test_71_basic``, when
+dumped with the command ``distkv client get -rd_``.
+
+Paths
+=====
+
+Currently, DistKV does not offer automatic path translation. If you need
+that, the best way is to code two active object hierarchies, and
+let their ``set_value`` methods shuffle data to the "other" side.
+
+There are some caveats:
+
+* All such data are stored twice.
+
+* Don't change a value that didn't in fact change; if you do, you'll
+  generate an endless loop.
+
+* You need to verify that the two trees match when you start up, and decide
+  which is more correct. (The ``tock`` stamp will help you here.) Don't
+  accidentally overwrite changes that arrive while you do that.
+

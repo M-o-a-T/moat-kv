@@ -137,6 +137,19 @@ to use for logging in. ``typ`` contains the auth type to use; this
 If this is not the first message, the authorization is verified but the
 resulting user identity is ignored.
 
+test_acl
+--------
+
+Check whether the given ``path`` is accessible with the given  ``mode``.
+
+The ``acl`` to test may be specified. The user's ACL, if any, is also
+tested; the return message's ``access`` element may contain ``False``
+(access not allowed), ``True`` (access allowed but no ACL details
+available) or the actual ACL characters.
+
+Access will not be granted if you try to check a specific ACL when your
+own rights don't include 'a' (for accessing ACLs).
+
 stop
 ----
 
@@ -236,6 +249,19 @@ is equivalent to::
     { seq=13, depth=0, value="one" }
     { seq=13, depth=0, path=['d','e'], value="two" }
     { seq=13, depth=1, path=['f'], value="three" }
+
+* min_depth
+
+  Start reporting nodes at this depth.
+
+* max_depth
+
+  Limit recursion depth.
+
+* add_empty
+
+  Include empty nodes. This is useful when limiting the depth to non-leaf
+  nodes without data.
 
 root
 ----
@@ -352,7 +378,7 @@ you can retrieve the whole subtree::
     Recv {'value': 1, 'path': ('bar', 'baz'), 'depth': 1, 'seq': 1}
     Recv {'seq': 1, 'state': 'end'}
 
-Retrieving this tree with ``distkv client get -ryd ':val' test`` would print::
+Retrieving this tree with ``distkv client get -rd ':val' test`` would print::
 
     test:
       :val: 1

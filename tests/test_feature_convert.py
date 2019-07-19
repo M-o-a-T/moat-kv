@@ -88,7 +88,7 @@ async def test_71_basic(autojump_clock):
             assert r.value == "13"
 
             # run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
-            # await run_c("-a","_test name=std", "get", "-yrd_", do_stdout=False)
+            # await run_c("-a","_test name=std", "get", "-rd_", do_stdout=False)
 
         assert recv == [
             {"path": ("inty", "ten"), "value": 10},

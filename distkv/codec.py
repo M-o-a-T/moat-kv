@@ -1,4 +1,7 @@
-# msgpack and co.
+"""
+This module contains helper functions for packing+unpacking of single messages,
+plus an unpacker factory for streams.
+"""
 
 import msgpack
 from functools import partial
@@ -15,7 +18,7 @@ unpacker = partial(
     msgpack.unpackb, object_pairs_hook=attrdict, raw=False, use_list=False
 )
 
-# Data stream unpacker factory
-stream_unpacker = lambda: msgpack.Unpacker(
+# stream unpacker factory
+stream_unpacker = partial(msgpack.Unpacker,
     object_pairs_hook=attrdict, raw=False, use_list=False
 )

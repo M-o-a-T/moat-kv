@@ -1,6 +1,18 @@
+"""
+This module contains various helper functions and classes.
+"""
 import trio
+import anyio
+import yaml
+import sys
+
 from getpass import getpass
+from collections import deque
 from collections.abc import Mapping
+from types import ModuleType
+from typing import Union, Dict, Optional
+from ssl import SSLContext
+from functools import partial
 
 import logging
 
@@ -10,14 +22,84 @@ except ImportError:
     from async_generator import asynccontextmanager
 
 
-def combine_dict(*d):
+def singleton(cls):
+    return cls()
+
+
+def yprint(data, stream=sys.stdout, compact=False):
+    """
+    Standard code to write a YAML record.
+
+    :param data: The data to write.
+    :param stream: the file to write to, defaults to stdout.
+    :param compact: Write single lines if possible. default False.
+    """
+    if isinstance(data, (int, float)):
+        print(data, file=stream)
+    elif isinstance(data, (str, bytes)):
+        print(repr(data), file=stream)
+    #   elif isinstance(data, bytes):
+    #       os.write(sys.stdout.fileno(), data)
+    else:
+        yaml.safe_dump(data, stream=stream, default_flow_style=compact)
+
+def yformat(data, compact=None):
+    """
+    Return ``data`` as a multi-line YAML string.
+
+    :param data: The data to write.
+    :param stream: the file to write to, defaults to stdout.
+    :param compact: Write single lines if possible. default False.
+    """
+    from io import StringIO
+    s = StringIO()
+    yprint(data, compact=compact, stream=s)
+    return s.getvalue()
+
+
+from yaml.emitter import Emitter
+
+_expect_node = Emitter.expect_node
+
+
+def expect_node(self, *a, **kw):
+    _expect_node(self, *a, **kw)
+    self.root_context = False
+
+
+Emitter.expect_node = _expect_node
+
+
+class TimeOnlyFormatter(logging.Formatter):
+    default_time_format = "%H:%M:%S"
+    default_msec_format = "%s.%03d"
+
+
+class NotGiven:
+    """Placeholder value for 'no data' or 'deleted'."""
+
+    def __new__(cls):
+        return cls
+
+    def __getstate__(self):
+        raise ValueError("You may not serialize this object")
+
+    def __repr__(self):
+        return "<*NotGiven*>"
+
+
+def combine_dict(*d, cls=dict) -> dict:
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
 
     This recurses if values are dicts.
+
+    Args:
+      cls (type): a class to instantiate the result with. Default: dict.
+        Often used: :class:`attrdict`.
     """
-    res = {}
+    res = cls()
     keys = {}
     if len(d) <= 1:
         return d
@@ -34,20 +116,16 @@ def combine_dict(*d):
                 assert not isinstance(vv, Mapping)
             res[k] = v[0]
         else:
-            res[k] = combine_dict(*v)
+            res[k] = combine_dict(*v, cls=cls)
     return res
 
 
 class attrdict(dict):
     """A dictionary which can be accessed via attributes, for convenience"""
 
-    def __init__(self, *a, **k):
-        super(attrdict, self).__init__(*a, **k)
-        self._done = set()
-
     def __getattr__(self, a):
         if a.startswith("_"):
-            return super(attrdict, self).__getattr__(a)
+            return object.__getattribute__(self, a)
         try:
             return self[a]
         except KeyError:
@@ -60,7 +138,10 @@ class attrdict(dict):
             self[a] = b
 
     def __delattr__(self, a):
-        del self[a]
+        try:
+            del self[a]
+        except KeyError:
+            raise AttributeError(a) from None
 
 
 from yaml.representer import SafeRepresenter
@@ -68,16 +149,25 @@ from yaml.representer import SafeRepresenter
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
-def count(iter):
+def str_presenter(dumper, data):
+    if "\n" in data:  # check for multiline string
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+SafeRepresenter.add_representer(str, str_presenter)
+
+
+def count(it):
     n = 0
-    for _ in iter:
+    for _ in it:
         n += 1
     return n
 
 
-async def acount(iter):
+async def acount(it):
     n = 0
-    async for _ in iter:  # noqa: F841
+    async for _ in it:  # noqa: F841
         n += 1
     return n
 
@@ -120,7 +210,7 @@ class PathShortener:
 
     etc.
 
-    Note that the dict is modified in-place.
+    Note that the input dict is modified in-place.
 
     """
 
@@ -130,12 +220,16 @@ class PathShortener:
         self.path = []
 
     def __call__(self, res):
-        if res.path[: self.depth] != self.prefix:
+        try:
+            p = res["path"]
+        except KeyError:
+            return
+        if p[: self.depth] != self.prefix:
             raise RuntimeError(
-                "Wrong prefix: has %s, want %s" % (repr(res.path), repr(self.prefix))
+                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
             )
 
-        p = res["path"][self.depth :]  # noqa: E203
+        p = p[self.depth :]  # noqa: E203
         cdepth = min(len(p), len(self.path))
         for i in range(cdepth):
             if p[i] != self.path[i]:
@@ -148,11 +242,15 @@ class PathShortener:
 
 
 class PathLongener:
-    """This reverts the operation of a PathShortener. You need to pass the
+    """
+    This reverts the operation of a PathShortener. You need to pass the
     same prefix in.
+
+    Calling a PathLongener with a dict without ``depth`` or ``path``
+    attributes is a no-op.
     """
 
-    def __init__(self, prefix):
+    def __init__(self, prefix=()):
         self.depth = len(prefix)
         self.path = prefix
 
@@ -162,44 +260,63 @@ class PathLongener:
         except AttributeError:
             return
         d = res.pop("depth", None)
-        if d is not None:
-            p = self.path[: self.depth + d] + p
+        if d is None:
+            return
+        p = self.path[: self.depth + d] + p
         self.path = p
         res["path"] = p
 
 
 class _MsgRW:
+    """
+    Common base class for :class:`MsgReader` and :class:`MsgWriter`.
+    """
+
+    _mode = None
+
     def __init__(self, path=None, stream=None):
         if (path is None) == (stream is None):
             raise RuntimeError("You need to specify either path or stream")
-        self.path = trio.Path(path)
+        self.path = path
         self.stream = stream
 
     async def __aenter__(self):
         if self.path is not None:
-            self.stream = await self.path.open(self._mode)
+            self.stream = await anyio.aopen(self.path, self._mode)
         return self
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            with trio.CancelScope(shield=True):
-                await self.stream.aclose()
+            async with anyio.open_cancel_scope(shield=True):
+                try:
+                    await self.stream.aclose()
+                except AttributeError:
+                    await self.stream.close()
 
 
 class MsgReader(_MsgRW):
-    """Read a stream of messages from a file.
+    """Read a stream of messages (encoded with MsgPack) from a file.
 
     Usage::
 
-        async with MsgReader("/tmp/msgs.pack") as f:
+        async with MsgReader(path="/tmp/msgs.pack") as f:
             async for msg in f:
                 process(msg)
+
+    Arguments:
+      buflen (int): The read buffer size. Defaults to 4k.
+      path (str): the file to write to.
+      stream: the stream to write to.
+        
+    Exactly one of ``path`` and ``stream`` must be used.
     """
 
     _mode = "rb"
 
-    def __init__(self, stream, **kw):
-        super().__init__(**kw)
+    def __init__(self, *a, buflen=4096, **kw):
+        super().__init__(*a, **kw)
+        self.buflen = buflen
+
         from .codec import stream_unpacker
 
         self.unpack = stream_unpacker()
@@ -216,7 +333,7 @@ class MsgReader(_MsgRW):
             else:
                 return msg
 
-            d = await self.stream.read(4096)
+            d = await self.stream.read(self.buflen)
             if d == b"":
                 raise StopAsyncIteration
             self.unpack.feed(d)
@@ -226,50 +343,63 @@ packer = None
 
 
 class MsgWriter(_MsgRW):
-    """Write a stream of messages from a file.
+    """Write a stream of messages to a file (encoded with MsgPack).
 
     Usage::
 
         async with MsgWriter("/tmp/msgs.pack") as f:
             for msg in some_source_of_messages():  # or "async for"
                 f(msg)
+
+    Arguments:
+      buflen (int): The buffer size. Defaults to 64k.
+      path (str): the file to write to.
+      stream: the stream to write to.
+        
+    Exactly one of ``path`` and ``stream`` must be used.
+
+    The stream is buffered. Call :meth:`distkv.util.MsgWriter.flush` to flush the buffer.
     """
 
     _mode = "wb"
 
-    def __init__(self, buflen=65536, **kw):
-        super().__init__(**kw)
+    def __init__(self, *a, buflen=65536, **kw):
+        super().__init__(*a, **kw)
 
         self.buf = []
         self.buflen = buflen
         self.curlen = 0
         self.excess = 0
 
-        global packer
+        global packer  # pylint: disable=global-statement
         if packer is None:
-            from .codec import packer
+            from .codec import packer  # pylint: disable=redefined-outer-name
 
     async def __aexit__(self, *tb):
-        with trio.CancelScope(shield=True):
+        async with anyio.open_cancel_scope(shield=True):
             if self.buf:
                 await self.stream.write(b"".join(self.buf))
             await super().__aexit__(*tb)
 
     async def __call__(self, msg):
-        msg = packer(msg)
+        """Write a message (bytes) to the buffer.
+        
+        Flushing writes a multiple of ``buflen`` bytes."""
+        msg = packer(msg)  # pylint: disable=not-callable
         self.buf.append(msg)
         self.curlen += len(msg)
-        if self.curlen >= self.buflen - self.excess:
+        if self.curlen + self.excess >= self.buflen:
             buf = b"".join(self.buf)
-            pos = self.buflen * int(self.curlen / self.buflen) - self.excess
+            pos = self.buflen * int((self.curlen + self.excess) / self.buflen)
             assert pos > 0
             wb, buf = buf[:pos], buf[pos:]
-            self.buf = [buf]
             self.curlen = len(buf)
+            self.buf = [buf]
             self.excess = 0
             await self.stream.write(wb)
 
     async def flush(self):
+        """Flush the buffer."""
         if self.buf:
             buf = b"".join(self.buf)
             self.buf = []
@@ -277,28 +407,9 @@ class MsgWriter(_MsgRW):
             await self.stream.write(buf)
 
 
-class TimeOnlyFormatter(logging.Formatter):
-    default_time_format = "%H:%M:%S"
-    default_msec_format = "%s.%03d"
-
-
-class Queue:
-    def __init__(self, len):
-        self._send, self._recv = trio.open_memory_channel(len)
-
-    async def get(self):
-        return await self._recv.receive()
-
-    async def put(self, msg):
-        await self._send.send(msg)
-
-    async def aclose(self):
-        await self._send.aclose()
-
-
 class _Server:
     _servers = None
-    _q = None
+    recv_q = None
 
     def __init__(self, tg, port=0, ssl=None, **kw):
         self.tg = tg
@@ -307,9 +418,8 @@ class _Server:
         self._kw = kw
         self.ssl = ssl
 
-    async def _accept(self, server, q, *, task_status=trio.TASK_STATUS_IGNORED):
+    async def _accept(self, server, q):
         self.ports.append(server.socket.getsockname())
-        task_status.started()
         try:
             while True:
                 conn = await server.accept()
@@ -317,7 +427,7 @@ class _Server:
                     conn = trio.SSLStream(conn, self.ssl, server_side=True)
                 await q.send(conn)
         finally:
-            with trio.CancelScope(shield=True):
+            async with anyio.open_cancel_scope(shield=True):
                 await q.aclose()
                 await server.aclose()
 
@@ -326,13 +436,13 @@ class _Server:
         servers = await trio.open_tcp_listeners(self.port, **self._kw)
         self.ports = []
         for s in servers:
-            await self.tg.start(self._accept, s, send_q.clone())
+            await self.tg.spawn(self._accept, s, send_q.clone())
         await send_q.aclose()
         return self
 
     async def __aexit__(self, *tb):
-        self.tg.cancel_scope.cancel()
-        with trio.CancelScope(shield=True):
+        await self.tg.cancel_scope.cancel()
+        async with anyio.open_cancel_scope(shield=True):
             await self.recv_q.aclose()
 
     def __aiter__(self):
@@ -347,13 +457,22 @@ class _Server:
 
 @asynccontextmanager
 async def create_tcp_server(**args) -> _Server:
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         server = _Server(tg, **args)
         async with server:
             yield server
 
 
-def gen_ssl(ctx, server: bool = True):
+def gen_ssl(
+    ctx: Union[bool, SSLContext, Dict[str, str]] = False, server: bool = True
+) -> Optional[SSLContext]:
+    """
+    Generate a SSL config from the given context.
+
+    Args:
+      ctx: either a Bool (ssl yes/no) or a dict with "key" and "cert" entries.
+      server: a flag whether to behave as a server.
+    """
     if not ctx:
         return None
     if ctx is True:
@@ -361,6 +480,7 @@ def gen_ssl(ctx, server: bool = True):
     if not isinstance(ctx, dict):
         return ctx
 
+    # pylint: disable=no-member
     ctx_ = trio.ssl.create_default_context(
         purpose=trio.ssl.Purpose.CLIENT_AUTH if server else trio.ssl.Purpose.SERVER_AUTH
     )
@@ -400,13 +520,20 @@ def split_one(p, kw):
     kw[k] = v
 
 
-def make_proc(code, vars, *path, use_async=False):
+def _call_proc(code, *a, **kw):
+    d = {}
+    eval(code, d)  # pylint: disable=eval-used
+    code = d["_proc"]
+    return code(*a, **kw)
+
+
+def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
         code: the code block to execute
         vars: variable names to pass into the code
-        path: the location where the code is / shall be stored
+        path: the location where the code is stored
     Returns:
         the procedure to call. All keyval arguments will be in the local
         dict.
@@ -414,18 +541,94 @@ def make_proc(code, vars, *path, use_async=False):
     vars = ",".join(vars)
     if vars:
         vars += ","
-    hdr = """\
-def proc(%s **kw):
-    locals().update(kw)
-    """ % (
-        vars,
-    )
+    hdr = "def _proc(%s **kw):\n    " % (vars,)
 
     if use_async:
         hdr = "async " + hdr
-    code = hdr + code.replace("\n", "\n\t")
+    code = hdr + code.replace("\n", "\n    ")
     code = compile(code, ".".join(str(x) for x in path), "exec")
-    d = {}
-    eval(code, d)
-    code = d["proc"]
-    return code
+
+    return partial(_call_proc, code)
+
+
+class Module(ModuleType):
+    def __repr__(self):
+        return "<Module %s>" % (self.__class__.__name__,)
+
+
+def make_module(code, *path):
+    """Compile this code block to something module-ish.
+
+    Args:
+        code: the code block to execute
+        path: the location where the code is / shall be stored
+    Returns:
+        the procedure to call. All keyval arguments will be in the local
+        dict.
+    """
+    name = ".".join(str(x) for x in path)
+    code = compile(code, name, "exec")
+    m = sys.modules.get(name, None)
+    if m is None:
+        m = ModuleType(name)
+    eval(code, m.__dict__)  # pylint: disable=eval-used
+    sys.modules[name] = m
+    return m
+
+
+class Cache:
+    """
+    A quick-and-dirty cache that keeps the last N entries of anything
+    in memory so that ref and WeakValueDictionary don't lose them.
+
+    Entries get refreshed when they're in the last third of the cache; as
+    they're not removed, the actual cache size might only be 2/3rd of SIZE.
+    """
+
+    def __init__(self, size, attr="_cache_pos"):
+        self._size = size
+        self._head = 0
+        self._tail = 0
+        self._attr = attr
+        self._q = deque()
+
+    def keep(self, entry):
+        if getattr(entry, self._attr, -1) > self._tail + self._size / 3:
+            return
+        self._head += 1
+        setattr(entry, self._attr, self._head)
+        self._q.append(entry)
+        self._flush()
+
+    def _flush(self):
+        while self._head - self._tail > self._size:
+            self._q.popleft()
+            self._tail += 1
+
+    def resize(self, size):
+        """Change the size of this cache.
+        """
+        self._size = size
+        self._flush()
+
+    def clear(self):
+        while self._head > self._tail:
+            self._q.popleft()
+            self._tail += 1
+
+
+@singleton
+class NoLock:
+    """A dummy singleton that can replace a lock. 
+       
+    Usage::
+    
+        with NoLock if _locked else self._lock:
+            pass
+    """
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *tb):
+        return

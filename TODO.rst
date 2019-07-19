@@ -1,2 +1,0 @@
-Add authorization controls.
-

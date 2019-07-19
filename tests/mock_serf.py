@@ -4,10 +4,12 @@ except ImportError:
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
 import trio
+import anyio
 import mock
 import attr
 import copy
 import time
+import socket
 from functools import partial
 
 from distkv.client import open_client
@@ -15,7 +17,10 @@ from distkv.default import CFG
 from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict, Queue
+from distkv.util import attrdict, combine_dict, NotGiven
+from asyncserf.util import ValueEvent
+from asyncserf.stream import SerfEvent
+from anyio import create_queue
 
 import logging
 
@@ -26,25 +31,37 @@ otm = time.time
 
 @asynccontextmanager
 async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
-    TESTCFG = copy.deepcopy(CFG)
+    C_OUT = CFG.get("_stdout", NotGiven)
+    if C_OUT is not NotGiven:
+        del CFG["_stdout"]
+    try:
+        TESTCFG = copy.deepcopy(CFG)
+    except TypeError:
+        import pdb
+
+        pdb.set_trace()
+        raise
     TESTCFG.server.port = None
     TESTCFG.root = "test"
+    if C_OUT is not NotGiven:
+        CFG["_stdout"] = C_OUT
+        TESTCFG["_stdout"] = C_OUT
 
     if ssl:
         import ssl
         import trustme
 
         ca = trustme.CA()
-        cert = ca.issue_server_cert(u"test.distkv.m-o-a-t.org")
+        cert = ca.issue_server_cert(u"127.0.0.1")
         server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         ca.configure_trust(client_ctx)
         cert.configure_cert(server_ctx)
     else:
-        server_ctx = client_ctx = None
+        server_ctx = client_ctx = False
 
     clock = trio.hazmat.current_clock()
-    clock.autojump_threshold = 0.1
+    clock.autojump_threshold = 0.02
 
     @attr.s
     class S:
@@ -70,9 +87,18 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         async def client(self, i: int = 0, **kv):
             """Get a client for the i'th server."""
             await self.s[i].is_serving
-            host, port = st.s[i].ports[0][0:2]
-            async with open_client(host=host, port=port, ssl=client_ctx, **kv) as c:
-                yield c
+            for host, port, *_ in st.s[i].ports:
+                if host[0] == ":":
+                    continue
+                try:
+                    async with open_client(
+                        host=host, port=port, ssl=client_ctx, **kv
+                    ) as c:
+                        yield c
+                        return
+                except socket.gaierror:
+                    pass
+            raise RuntimeError("Duh? no connection")
 
         def split(self, s):
             assert s not in self.splits
@@ -87,7 +113,9 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         i = int(host[host.rindex("_") + 1 :])  # noqa: E203
         s = st.s[i]
         await s.is_serving
-        return s.ports[0][0:2]
+        for host, port, *_ in s.ports:
+            if host[0] != ":":
+                return host, port
 
     def tm():
         try:
@@ -95,10 +123,13 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         except RuntimeError:
             return otm()
 
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
+            st.ex = ex
             ex.enter_context(mock.patch("time.time", new=tm))
+            logging._startTime = tm()
+
             ex.enter_context(
                 mock.patch("asyncserf.serf_client", new=partial(mock_serf_client, st))
             )
@@ -106,19 +137,27 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
             for i in range(n):
                 name = "test_" + str(i)
                 args = kw.get(name, kw.get("args", attrdict()))
-                if "cfg" not in args:
-                    args["cfg"] = args.get("cfg", TESTCFG).copy()
-                    args["cfg"]["serf"] = args["cfg"]["serf"].copy()
-                    args["cfg"]["serf"]["i"] = i
-                    if server_ctx:
-                        args["cfg"]["server"] = args["cfg"]["server"].copy()
-                        args["cfg"]["server"]["ssl"] = server_ctx
+                args["cfg"] = combine_dict(
+                    args.get("cfg", {}),
+                    {
+                        "connect": {"ssl": client_ctx},
+                        "server": {
+                            "bind_default": {
+                                "host": "127.0.0.1",
+                                "port": i + 50120,
+                                "ssl": server_ctx,
+                            },
+                            "serf": {"i": i},
+                        },
+                    },
+                    TESTCFG,
+                )
                 s = Server(name, **args)
-#               ex.enter_context(
-#                   mock.patch.object(
-#                       s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
-#                   )
-#               )
+                # ex.enter_context(
+                #     mock.patch.object(
+                #         s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
+                #     )
+                # )
                 ex.enter_context(
                     mock.patch.object(
                         s, "_get_host_port", new=partial(mock_get_host_port, st)
@@ -126,35 +165,26 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                 )
                 st.s.append(s)
 
-            class IsStarted:
-                def __init__(self, n):
-                    self.n = n
-                    self.dly = trio.Event()
-
-                def started(self, x=None):
-                    self.n -= 1
-                    if not self.n:
-                        self.dly.set()
-
-            is_started = IsStarted(n)
+            evts = []
             for i in range(n):
                 if kw.get("run_" + str(i), run):
-                    tg.start_soon(partial(st.s[i].serve, task_status=is_started))
-                else:
-                    is_started.started()  # mock me
-            await is_started.dly.wait()
+                    evt = anyio.create_event()
+                    await tg.spawn(partial(st.s[i].serve, ready_evt=evt))
+                    evts.append(evt)
+            for e in evts:
+                await e.wait()
             try:
                 yield st
             finally:
                 logger.info("Runtime: %s", clock.current_time())
-                tg.cancel_scope.cancel()
+                await tg.cancel_scope.cancel()
         logger.info("End")
         pass  # unwinding ex:AsyncExitStack
 
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
-    async with trio.open_nursery() as tg:
+    async with anyio.create_task_group() as tg:
         ms = MockServ(tg, master, **cfg)
         master.serfs.add(ms)
         try:
@@ -167,7 +197,7 @@ async def mock_serf_client(master, **cfg):
 class MockServ:
     def __init__(self, tg, master, **cfg):
         self.cfg = cfg
-        self.tg = tg
+        self._tg = tg
         self.streams = {}
         self._master = master
 
@@ -175,13 +205,14 @@ class MockServ:
         return id(self)
 
     async def spawn(self, fn, *args, **kw):
-        async def run():
-            try:
+        async def run(evt):
+            async with anyio.open_cancel_scope() as sc:
+                await evt.set(sc)
                 await fn(*args, **kw)
-            except CancelledError:
-                pass
 
-        return self.tg.start_soon(run)
+        evt = ValueEvent()
+        await self._tg.spawn(run, evt)
+        return await evt.get()
 
     def stream(self, event_types="*"):
         if "," in event_types or not event_types.startswith("user:"):
@@ -205,24 +236,22 @@ class MockServ:
                     for s in sl:
                         await s.q.put(payload)
 
+    def stream(self, typ):
+        """compat for supporting asyncserf.actor"""
+        if not typ.startswith("user:"):
+            raise RuntimeError("not supported")
+        typ = typ[5:]
+        return self.serf_mon(typ)
+
     def serf_mon(self, typ):
         if "," in typ:
             raise RuntimeError("not supported")
-        s = MockSerfStream(self, "user:"+typ)
+        s = MockSerfStream(self, "user:" + typ)
         return s
 
-    async def serf_send(self, typ, data):
-        # logger.debug("SERF:%s: %r", typ, data)
-
-        for s in list(self._master.serfs):
-            for x in self._master.splits:
-                if (s.cfg.get("i", 0) < x) != (self.cfg.get("i", 0) < x):
-                    break
-            else:
-                sl = s.streams.get(typ, None)
-                if sl is not None:
-                    for s in sl:
-                        await s.q.put(data)
+    async def serf_send(self, typ, payload):
+        """compat for supporting asyncserf.actor"""
+        return await self.event(typ, payload)
 
 
 class MockSerfStream:
@@ -233,7 +262,7 @@ class MockSerfStream:
 
     async def __aenter__(self):
         logger.debug("SERF:MON START:%s", self.typ)
-        self.q = Queue(100)
+        self.q = create_queue(100)
         self.serf.streams.setdefault(self.typ, []).append(self)
         return self
 
@@ -247,4 +276,6 @@ class MockSerfStream:
 
     async def __anext__(self):
         res = await self.q.get()
-        return attrdict(data=res)
+        evt = SerfEvent(self)
+        evt.payload = res
+        return evt

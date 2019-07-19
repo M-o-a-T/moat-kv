@@ -1,0 +1,3 @@
+[MESSAGES CONTROL]
+disable=bad-continuation,invalid-name,unnecessary-pass,protected-access,fixme,broad-except
+
