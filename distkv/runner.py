@@ -201,7 +201,7 @@ class RunnerEntry(AttrClientEntry):
         """
         self.target = t
         if not self._running:
-            await self.save(wait=True)
+            await self.save()
 
     def should_start(self):
         """Tell whether this job might want to be started.
