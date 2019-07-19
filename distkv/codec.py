@@ -19,6 +19,6 @@ unpacker = partial(
 )
 
 # stream unpacker factory
-stream_unpacker = lambda: msgpack.Unpacker(
+stream_unpacker = partial(msgpack.Unpacker,
     object_pairs_hook=attrdict, raw=False, use_list=False
 )
