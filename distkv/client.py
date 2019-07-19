@@ -144,6 +144,12 @@ class ClientEntry:
         """Iterating an entry returns its children."""
         return iter(list(self._children.values()))
 
+    def __bool__(self):
+        return self.value is not NotGiven or bool(self._children)
+
+    def __len__(self):
+        return len(self._children)
+
     def __contains__(self, k):
         if isinstance(k, type(self)):
             k = k._name
@@ -241,16 +247,30 @@ class AttrClientEntry(ClientEntry):
         Don't call me, I'll call you.
         """
         await super().set_value(val)
-        if val is NotGiven:
-            for k in self.ATTRS:
+        for k in self.ATTRS:
+            if val is not NotGiven and k in val:
+                setattr(self, k, val[k])
+            else:
                 try:
                     delattr(self, k)
                 except AttributeError:
                     pass
-            return
-        for k in self.ATTRS:
-            if k in val:
-                setattr(self, k, val[k])
+
+    def get_value(self, wait=False):
+        """
+        Extract value from attrs
+        """
+        res = {}
+        for attr in type(self).ATTRS:
+            try:
+                v = getattr(self, attr)
+            except AttributeError:
+                pass
+            else:
+                if v is not NotGiven:
+                    res[attr] = v
+        return res
+
 
     async def save(self, wait=False):
         """
@@ -258,15 +278,7 @@ class AttrClientEntry(ClientEntry):
         """
         res = {}
         async with self._lock:
-            for attr in type(self).ATTRS:
-                try:
-                    v = getattr(self, attr)
-                except AttributeError:
-                    pass
-                else:
-                    if v is not NotGiven:
-                        res[attr] = v
-            r = await super().update(value=res, _locked=True)
+            r = await super().update(value=self.get_value(), _locked=True)
             if wait:
                 await self.root.wait_chain(r.chain)
             return r
