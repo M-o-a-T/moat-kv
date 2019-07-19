@@ -80,7 +80,7 @@ class ClientEntry:
         self._children = dict()
         self._path = parent._path + (name,)
         self._name = name
-        self.value = None
+        self.value = NotGiven
         self.chain = None
         self._parent = weakref.ref(parent)
         self._root = weakref.ref(parent.root)
@@ -113,7 +113,7 @@ class ClientEntry:
         You can send ``True`` to the iterator if you want to skip a subtree.
         """
         for k in self:
-            if hasattr(k, "value"):
+            if k.value is not NotGiven:
                 res = (yield k)
                 if res is True:
                     continue
@@ -177,10 +177,7 @@ class ClientEntry:
 
         This is a coroutine, for ease of integration.
         """
-        if value is not NotGiven:
-            self.value = value
-        elif hasattr(self, "value"):
-            del self.value
+        self.value = value
 
     async def seen_value(self):
         """Current value seen.
