@@ -2442,7 +2442,7 @@ class Server:
             c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
-        except anyio.exceptions.ClosedResourceError:
+        except (trioBrokenResourceError, anyio.exceptions.ClosedResourceError):
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
@@ -2450,7 +2450,7 @@ class Server:
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                if isinstance(exc, anyio.exceptions.ClosedResourceError):
+                if isinstance(exc, (trioBrokenResourceError, anyio.exceptions.ClosedResourceError)):
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)
