@@ -1411,8 +1411,7 @@ class Server:
         if "tick" not in msg:
             msg["tick"] = self.node.tick
         omsg = msg
-        #self.logger.debug("Send %s: %r", action, msg)
-        self.logger.debug("Send %s\n%s", action, yformat(msg))
+        self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
             await self.serf.event(
                 self.cfg.server.root + "." + action, m, coalesce=False
