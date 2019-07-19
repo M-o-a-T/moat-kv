@@ -192,6 +192,10 @@ class RunnerEntry(AttrClientEntry):
 
         await self.root.trigger_rescan()
 
+    async def seen_value(self):
+        await super().seen_value()
+        await self.root.trigger_rescan()
+
     async def run_at(self, t: float):
         """Next run at this time.
         """

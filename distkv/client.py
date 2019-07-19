@@ -182,6 +182,13 @@ class ClientEntry:
         elif hasattr(self, "value"):
             del self.value
 
+    async def seen_value(self):
+        """Current value seen.
+
+        Useful for syncing.
+        """
+        pass
+
     def mark_inconsistent(self, r):
         """There has been an inconsistent update.
 
