@@ -117,7 +117,7 @@ class ErrorEntry(AttrClientEntry):
     resolved = None  # bool; if None, no details yet
     count = 0
     subsystem = None
-    path = None
+    path = ()
     _real_entry = None
 
     def __init__(self, *a, **kw):
