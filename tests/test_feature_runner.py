@@ -45,7 +45,7 @@ async def test_83_run(autojump_clock):
                 """,
                 is_async=True,
             )
-            ru = r.follow("foo", "test")
+            ru = r.follow("foo", "test", create=True)
             ru.code = ("forty", "two")
             await ru.run_at(1)
             logger.info("Start sleep")

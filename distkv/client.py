@@ -339,13 +339,13 @@ class ClientRoot(ClientEntry):
         """Returns this instance."""
         return self
 
-    def follow(self, *path, create=True, unsafe=False):
+    def follow(self, *path, create=False, unsafe=False):
         """Look up a sub-entry.
 
         Arguments:
           *path (str): the path elements to follow.
-          create (bool): Create the entries. Default ``True``. If
-            ``False``, raise ` KeyError`` if an entry does not exist.
+          create (bool): Create the entries. Default ``False``.
+            Otherwise return ``None`` if not found.
           unsafe (bool): Allow a single path element that's a tuple.
             This usually indicates a mistake by the caller. Defaults to
             ``False``. Please try not to need this.
