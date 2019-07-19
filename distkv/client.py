@@ -149,26 +149,28 @@ class ClientEntry:
             k = k._name
         return k in self._children
 
-    async def update(self, value, _locked=False, nchain=0):
-        """Update this node's value.
+    async def update(self, value, _locked=False):
+        """Update (or simply set) this node's value.
 
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.set(
-                *self._path, chain=self.chain, value=value, nchain=nchain
+                *self._path, chain=self.chain, value=value, nchain=3
             )
             self.value = value
+            self.chain = r.chain
             return r
 
-    async def delete(self, _locked=False, nchain=0):
+    async def delete(self, _locked=False, nchain=0, chain=True):
         """Delete this node's value.
 
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.delete(
-                *self._path, chain=self.chain, nchain=nchain
+                *self._path, nchain=nchain,
+                **({"chain":self.chain} if chain else {}),
             )
             self.chain = None
             return r
@@ -264,7 +266,7 @@ class AttrClientEntry(ClientEntry):
                 else:
                     if v is not NotGiven:
                         res[attr] = v
-            r = await super().update(value=res, _locked=True, nchain=3 if wait else 0)
+            r = await super().update(value=res, _locked=True)
             if wait:
                 await self.root.wait_chain(r.chain)
             return r
@@ -282,6 +284,7 @@ class ClientRoot(ClientEntry):
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
     def __init__(self, client, *path, need_wait=False, cfg=None):
+        self.chain = None
         self._children = dict()
         self.client = client
         self._path = path
