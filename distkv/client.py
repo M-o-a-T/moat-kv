@@ -393,17 +393,40 @@ class ClientRoot(ClientEntry):
                                 await self.running()
                             continue
                         pl(r)
-                        entry = self.follow(*r.path, create=True, unsafe=True)
-                        try:
-                            if entry.chain == r.chain or _node_gt(entry.chain, r.chain):
-                                continue
-                            if not _node_gt(r.chain, entry.chain):
-                                await entry.mark_inconsistent(r)
-                        except AttributeError:
-                            pass
                         val = r.get("value", NotGiven)
-                        await entry.set_value(val)
-                        entry.chain = None if val is NotGiven else r.get("chain", None)
+                        entry = self.follow(*r.path, create=(val is not NotGiven), unsafe=True)
+                        if entry is not None:
+                            # Test for consistency
+                            try:
+                                if entry.chain == r.chain:
+                                    # entry.update() has set this
+                                    await entry.seen_value()
+                                    continue
+                                if _node_gt(entry.chain, r.chain):
+                                    # stale data
+                                    continue
+                                if not _node_gt(r.chain, entry.chain):
+                                    entry.mark_inconsistent(r)
+                            except AttributeError:
+                                pass
+
+                            # update entry
+                            entry.prev_chain, entry.chain = entry.chain, (None if val is NotGiven else r.get("chain", None))
+                            await entry.set_value(val)
+
+                            if val is NotGiven and not entry:
+                                # the entry has no value and no children,
+                                # so we delete it (and possibly its
+                                # parents) from our tree.
+                                n = list(entry.subpath)
+                                while n:
+                                    # no-op except for class-specific side effects like setting an event
+                                    await entry.set_value(NotGiven)
+
+                                    entry = entry.parent
+                                    del entry[n.pop()]
+                                    if entry:
+                                        break
 
                         if not self._need_wait or "chain" not in r:
                             continue
