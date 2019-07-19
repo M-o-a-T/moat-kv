@@ -32,6 +32,11 @@ Each error is stored as a record with these arguments:
 
   The number of occurrences.
 
+* first_seen
+
+  The timestamp (unixtime) when the problem first occurred. Must not be
+  modified; used for strict unique-ification.
+
 * last_seen
 
   The timestamp (unixtime) when the problem last occurred.
@@ -81,8 +86,9 @@ from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
 from .client import AttrClientEntry, ClientEntry, ClientRoot
-from .util import PathLongener, Cache, attrdict
+from .util import PathLongener, Cache, attrdict, NotGiven
 from .codec import packer
+from .exceptions import ServerError
 
 import logging
 
@@ -107,22 +113,29 @@ class ErrorEntry(AttrClientEntry):
     the error is really unique per subsystem and path.
     """
 
-    ATTRS = "path subsystem severity resolved created count last_seen message".split()
+    ATTRS = "path subsystem severity resolved created count first_seen last_seen message".split()
     resolved = None  # bool; if None, no details yet
     count = 0
     subsystem = None
     path = None
+    _real_entry = None
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.node, self.tock = self.subpath[-2:]
 
+    def __repr__(self):
+        return "<%s: %s %s: %s>" % (self.__class__.__name__, "/".join(str(x) for x in self.subpath), self.subsystem, " ".join(str(x) for x in self.path))
+
     @classmethod
     def child_type(cls, name):
         return ErrorSubEntry
 
-    async def update(self, value):
-        raise RuntimeError("Nope. Set attributes and call '.save()'.")
+    @property
+    def real_entry(self):
+        while self._real_entry is not None:
+            self = self._real_entry
+        return self
 
     async def resolve(self):
         """
@@ -174,14 +187,15 @@ class ErrorEntry(AttrClientEntry):
             logger.warning("Error %r %s: %s", self._path, node, m)
 
         try:
-            await self.root.client.set(*self._path, node, value=res)
+            await res.save()
         except TypeError:
-            for k, v in data.items():
+            for k in res.ATTRS:
+                v = getattr(res,k,None)
                 try:
                     packer(v)
                 except TypeError:
-                    data[k] = repr(v)
-            await self.root.client.set(*self._path, node, value=res)
+                    setattr(res,k,repr(v))
+            await res.save()
 
     async def add_comment(self, node, comment, data):
         """
@@ -204,25 +218,35 @@ class ErrorEntry(AttrClientEntry):
         This doesn't do anything locally, the watcher will get it.
         """
         await self.root._pop(self)
-        return await super().delete()
+        try:
+            return await super().delete(chain=False)
+        except ServerError as exc:
+            if "is new" not in repr(exc):
+                raise
 
-    async def move_to(self, dest):
+    async def move_to_real(self):
         """
         Move this entry, or rather the errors in it, to another.
 
         This is used for collision resolution.
         """
-        for kid in self:
-            try:
-                dkid = dest[kid._name]
-            except KeyError:
-                dest.add(kid.value)
-            else:
-                if dkid.tock < kid.tock:
-                    continue
-                dkid.update(kid.value)
-            await kid.update(None)
-        await self.update(None)
+
+        dest = self.real_entry
+        assert dest is not self, self
+        kid = self.get(self.root.name)
+        if kid is not None:
+            dkid = dest.get(self.root.name)
+            if dkid is None:
+                val = kid.get_value()
+                dkid = dest.allocate(self.root.name)
+                await dkid.set_value(val)
+                await dkid.save()
+            elif dkid.tock > kid.tock:
+                await dkid.set_value(val)
+                await dkid.save()
+            await kid.delete()
+        if not len(self):
+            await self.delete()
 
     async def set_value(self, val):
         """Overridden: set_value
@@ -231,14 +255,27 @@ class ErrorEntry(AttrClientEntry):
         """
 
         await self.root._pop(self)
+        if val is NotGiven:
+            if self.value is NotGiven:
+                return
+            keep = await self.root.get_error_record(self.subsystem, *self.path, create=False)
+            if keep is not None:
+                self._real_entry = keep.real_entry
+                await self.move_to_real()
+            await super().set_value(val)
+            return
+
         await super().set_value(val)
 
         drop, keep = await self.root._unique(self)
         if drop is not None:
-            await drop.move_to(keep)
+            #self.root._dropped(drop)
+            drop._real_entry = keep
 
-        if drop is not self:
-            self.root._push(self)
+            if drop.subpath[0] == self.root.name:
+                await drop.move_to_real()
+            # TODO remember to do it anyway, after next tick and when we're it
+        self.root._push(self.real_entry)
 
 
 class ErrorStep(ClientEntry):
@@ -274,9 +311,9 @@ class ErrorRoot(ClientRoot):
 
     CFG = "errors"
 
-    def __init__(self, *a, **kw):
+    def __init__(self, *a, name=None, **kw):
         super().__init__(*a, **kw)
-        self._name = self.client.client_name
+        self.name = name or self.client.client_name
         self._loaded = anyio.create_event()
         self._errors = defaultdict(dict)  # node > tock > Entry
         self._active = defaultdict(dict)  # subsystem > path > Entry
@@ -306,7 +343,7 @@ class ErrorRoot(ClientRoot):
         """Retrieve or generate an error record for a particular subsystem
         and path.
         
-        The record may be incomplete and must be filled and stored by the caller.
+        If ``create`` is set, the record may be incomplete and must be filled and stored by the caller.
         """
 
         err = self._active[subsystem].get(path, None)
@@ -318,7 +355,7 @@ class ErrorRoot(ClientRoot):
         if not create:
             return None
         tock = await self.client.get_tock()
-        return self.follow(self._name, tock, create=True)
+        return self.follow(self.name, tock, create=True)
 
     async def _unique(self, entry):
         """
@@ -338,14 +375,9 @@ class ErrorRoot(ClientRoot):
         if other is None or other is entry:
             return None, None
 
-        if other.resolved and not entry.resolved:
+        if entry.first_seen < other.first_seen:
             return other, entry
-        elif entry.resolved and not other.resolved:
-            return entry, other
-
-        if entry.tock < other.tock:
-            return other, entry
-        elif other.tock < entry.tock:
+        elif other.first_seen < entry.first_seen:
             return entry, other
 
         if entry.node < other.node:
@@ -367,14 +399,14 @@ class ErrorRoot(ClientRoot):
           data (dict): any relevant data
           force (bool): create an entry even if no error is open.
         """
-        rec = await self.get_error_record(subsystem, *path, create=False)
+        rec = await self.get_error_record(subsystem, *path, create=force)
         if rec is None:
             return
         if not rec.resolved:
             rec.resolved = time()
             await rec.save()
         if comment or data:
-            rec.add_comment(self._name, comment, data)
+            rec.real_entry.add_comment(self.name, comment, data)
         return rec
 
     async def record_error(
@@ -383,7 +415,6 @@ class ErrorRoot(ClientRoot):
         *path,
         exc=None,
         reason=None,
-        client_name=None,
         data={},
         severity=0,
         message=None,
@@ -415,11 +446,14 @@ class ErrorRoot(ClientRoot):
         rec.path = path
         rec.resolved = False
         rec.count += 1
+        if not hasattr(rec, 'first_seen'):
+            rec.first_seen = time()
         rec.last_seen = time()
 
         await rec.save()
-        await rec.add_exc(
-            client_name or self._name,
+
+        await rec.real_entry.add_exc(
+            self.name,
             exc=exc,
             data=data,
             comment=comment,
@@ -441,6 +475,7 @@ class ErrorRoot(ClientRoot):
             ]
         except KeyError:
             pass
+
 
     def _push(self, entry):
         if entry.subsystem is None or entry.path is None:

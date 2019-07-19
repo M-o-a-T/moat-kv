@@ -38,3 +38,6 @@ Open issues
 * Re-implement Serf (or something like it) in Python, it's large and adds latency
 
 * Runner: switch to monotonic time (except for target time!)
+
+* Error consolidation: if a conflict doesn't get resolved on its own, do it
+  anyway when we are "it" next and >1 cycle has passed
