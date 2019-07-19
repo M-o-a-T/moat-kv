@@ -26,7 +26,14 @@ def singleton(cls):
     return cls()
 
 
-def yprint(data, stream=sys.stdout):
+def yprint(data, stream=sys.stdout, compact=False):
+    """
+    Standard code to write a YAML record.
+
+    :param data: The data to write.
+    :param stream: the file to write to, defaults to stdout.
+    :param compact: Write single lines if possible. default False.
+    """
     if isinstance(data, (int, float)):
         print(data, file=stream)
     elif isinstance(data, (str, bytes)):
@@ -34,7 +41,20 @@ def yprint(data, stream=sys.stdout):
     #   elif isinstance(data, bytes):
     #       os.write(sys.stdout.fileno(), data)
     else:
-        yaml.safe_dump(data, stream=stream, default_flow_style=False)
+        yaml.safe_dump(data, stream=stream, default_flow_style=compact)
+
+def yformat(data, compact=None):
+    """
+    Return ``data`` as a multi-line YAML string.
+
+    :param data: The data to write.
+    :param stream: the file to write to, defaults to stdout.
+    :param compact: Write single lines if possible. default False.
+    """
+    from io import StringIO
+    s = StringIO()
+    yprint(data, compact=compact, stream=s)
+    return s.getvalue()
 
 
 from yaml.emitter import Emitter
