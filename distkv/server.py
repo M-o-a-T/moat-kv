@@ -1728,7 +1728,7 @@ class Server:
                         use_list=False,
                     )
                     msg = await self._unpack_multiple(msg)
-                    if msg is None:
+                    if not msg:  # None, empty, whatever
                         continue
                     self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
