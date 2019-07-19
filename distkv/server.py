@@ -1316,12 +1316,21 @@ class Server:
         node (or split) where something actually happens wins a collision.
         """
         async with self._evt_lock:
-            self.node.tick += 1
-            self._tock += 1
-            await self._set_tock()
-            yield NodeEvent(self.node)
-            self._tock += 1
-            await self._set_tock()
+            n = None
+            try:
+                self.node.tick += 1
+                self._tock += 1
+                await self._set_tock()  # updates actor
+                n = NodeEvent(self.node)
+                yield n
+            except Exception as exc:
+                if n is not None and n.tick not in self.node:
+                    self.logger.warning("Deletion %s %d due to %r",self.node, n.tick, exc)
+                    self.node.report_deleted(RangeSet((n.tick,)), self)
+                raise
+            finally:
+                self._tock += 1
+                # does not update actor again, once is sufficient
 
     @property
     def tock(self):
@@ -1402,7 +1411,8 @@ class Server:
         if "tick" not in msg:
             msg["tick"] = self.node.tick
         omsg = msg
-        self.logger.debug("Send %s: %r", action, msg)
+        #self.logger.debug("Send %s: %r", action, msg)
+        self.logger.debug("Send %s\n%s", action, yformat(msg))
         for m in self._pack_multiple(msg):
             await self.serf.event(
                 self.cfg.server.root + "." + action, m, coalesce=False
