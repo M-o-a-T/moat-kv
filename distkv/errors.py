@@ -85,7 +85,7 @@ from collections import defaultdict, deque
 from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
-from .client import AttrClientEntry, ClientEntry, ClientRoot
+from .obj import AttrClientEntry, ClientEntry, ClientRoot
 from .util import PathLongener, Cache, attrdict, NotGiven
 from .codec import packer
 from .exceptions import ServerError
