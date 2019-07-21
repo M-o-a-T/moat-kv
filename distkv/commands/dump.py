@@ -35,10 +35,28 @@ async def cli(obj):
 
 
 @cli.command()
+@click.argument("path", nargs=-1)
 @click.pass_obj
-async def cfg(obj):
-    """emit the current configuration as a YAML file."""
-    yprint(obj.cfg, stream=obj.stdout)
+async def cfg(obj, path):
+    """Emit the current configuration as a YAML file.
+    
+    You can limit the output by path elements.
+    E.g., "cfg connect host" will print "localhost".
+
+    Single values are printed with a trailing line feed.
+    """
+    cfg = obj.cfg
+    for p in path:
+        try:
+            cfg = cfg[p]
+        except KeyError:
+            if obj.debug:
+                print("Unknown:",p)
+            sys.exit(1)
+    if isinstance(cfg,str):
+        print(cfg, file=obj.stdout)
+    else:
+        yprint(cfg, stream=obj.stdout)
 
 
 @cli.command()
