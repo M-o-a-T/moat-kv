@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# This script sets up an initial DistKV master.
+
+set -ex
+
+if test -s /etc/distkv.env ; then
+    echo "'/etc/distkv.env' exists, not doing anything" >&2
+    exit 1
+fi
+
+. /usr/lib/distkv/env
+
+echo MODE=master >/etc/distkv.env
+
+mkdir -p "$DEST"
+cd "$DEST"
+d=$(ls -t|head -1)
+if test -z "$d" || test ! -s "$d/0.dkv"; then
+    d="$(date -d 2019-01-01 +"$DATE")"
+    mkdir -p "$d"
+fi
+cd $d
+
+if test ! -s "0.dkv" ; then
+    distkv dump init $(hostname) 0.dkv
+    chown -R distkv:distkv "$DEST"
+fi

@@ -1,0 +1,14 @@
+[Unit]
+Description=The DistKV server rotate script
+Requires=distkv-master.service
+After=distkv-master.service
+
+AssertFileNotEmpty=/etc/distkv.cfg
+
+[Install]
+
+[Service]
+ExecStart=/usr/sbin/distkv-rotate
+User=distkv
+Group=distkv
+

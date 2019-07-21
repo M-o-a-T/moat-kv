@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# This script file starts up DistKV.
+
+. /usr/lib/distkv/env
+
+if test "$MODE" = "master" ; then
+    /usr/lib/distkv/current /tmp/distkv.load.dkv
+fi
+
+S=""
+if test -d "$DEST" ; then
+    cd "$DEST"
+    D="$(date +"$DATE")"
+    if test -d "$D" ; then
+        cd "$D"
+        f=$(ls | grep '\.dkv$' | sort -rn | head -1)
+    fi
+fi
+
+if test -s /tmp/distkv.load.dkv ; then
+    exec /usr/bin/distkv -c /etc/distkv.cfg server -l /tmp/distkv.load.dkv "$NAME"
+else
+    exec /usr/bin/distkv -c /etc/distkv.cfg server "$NAME"
+fi

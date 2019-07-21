@@ -3,8 +3,17 @@
 .PHONY: doc test update all tag pypi upload
 
 all:
-		@echo "Please use 'python setup.py'."
-		@exit 1
+	@echo "Please use 'python setup.py'."
+	@exit 1
+
+install:
+	mkdir -p $(PREFIX)/lib/systemd/system
+	mkdir -p $(PREFIX)/usr/lib/distkv
+	mkdir -p $(PREFIX)/usr/lib/sysusers.d
+	cp systemd/*.service $(PREFIX)/lib/systemd/system/
+	cp systemd/*.timer $(PREFIX)/lib/systemd/system/
+	cp systemd/sysusers $(PREFIX)/usr/lib/sysusers.d/distkv.conf
+	cp scripts/* $(PREFIX)/usr/lib/distkv/
 
 # need to use python3 sphinx-build
 PATH := /usr/share/sphinx/scripts/python3:${PATH}

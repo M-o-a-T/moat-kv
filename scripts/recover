@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# This script tries to recover from hybrid mode start failure
+# by re-starting in master mode.
+
+. /usr/lib/distkv/env
+
+if ! test "$MODE" = hybrid ; then
+    echo "Not hybrid mode. Not restarting." >&2
+    exit 1
+fi
+
+set -ex
+if test -f "$TEMP" ; then
+    echo "$TEMP exists, not restarting" >&2
+    exit 1
+fi
+/usr/lib/distkv/current "$TEMP"
+
+systemctl restart distkv &

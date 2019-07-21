@@ -1,0 +1,22 @@
+[Unit]
+Description=The DistKV server
+After=serf.service
+Wants=serf.service
+Conflicts=distkv.service
+
+AssertFileNotEmpty=/etc/distkv.cfg
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=notify
+ExecStartPre=!/usr/sbin/distkv-init
+ExecStartPre=/usr/sbin/distkv-current %T/distkv.cat.dkv
+ExecStart=/usr/bin/distkv -c /etc/distkv.cfg -l %T/distkv.cat.dkv
+ExecStartPost=/usr/sbin/distkv-save
+# TODO add hook to stop cleanly
+
+User=distkv
+Group=distkv
+

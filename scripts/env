@@ -1,0 +1,12 @@
+# shell
+
+PATH=/usr/bin:/bin
+DEST=/var/lib/distkv/
+DATE="%Y-%m-%d-%H"
+MODE=hybrid
+TEMP=/tmp/distkv.current.dkv
+;NAME=$(hostname) # by default
+
+;test ! -s /etc/distkv.env || source /etc/distkv.env
+# seen as comment by systemd
+
