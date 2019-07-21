@@ -3,6 +3,7 @@
 import os
 import sys
 import asyncclick as click
+import anyio
 
 from distkv.util import (
     attrdict,
@@ -90,12 +91,34 @@ async def cli(obj, name, host, port, load, save, init, eval):
     elif init is not None:
         kw["init"] = init
 
+    from systemd.daemon import notify
+
+    async def run_keepalive(usec):
+        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        pid = os.getpid()
+        while os.getpid() == pid:
+            notify("WATCHDOG=1")
+            await anyio.sleep(usec)
+
+    def need_keepalive():
+        pid = os.getpid()
+        epid = int(os.environ.get('WATCHDOG_PID', pid))
+        if pid == epid:
+            return int(os.environ.get('WATCHDOG_USEC', 0))
+
     class RunMsg:
         async def set(self):
+            notify("READY=1")
             if obj.debug:
                 print("Running.")
 
-    s = Server(name, cfg=obj.cfg, **kw)
-    if load is not None:
-        await s.load(path=load, local=True)
-    await s.serve(log_path=save, ready_evt=RunMsg())
+    async with anyio.create_task_group() as tg:
+        usec = need_keepalive()
+        if usec:
+            await tg.spawn(do_keepalive, usec)
+
+        s = Server(name, cfg=obj.cfg, **kw)
+        if load is not None:
+            await s.load(path=load, local=True)
+
+        await s.serve(log_path=save, ready_evt=RunMsg())
