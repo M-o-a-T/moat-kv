@@ -2166,8 +2166,6 @@ class Server:
 
     async def _save(self, writer, shorter, nchain=-1):
         """Save the current state.
-
-        TODO: Add code for snapshotting.
         """
 
         async def saver(entry):
