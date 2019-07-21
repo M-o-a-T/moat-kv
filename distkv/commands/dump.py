@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 @click.pass_obj
 async def cli(obj):
     """
-    This subcommand accesses the actual user data stored in your DistKV tree.
+    Low-level tools that don't depend on a running server.
     """
     pass
 

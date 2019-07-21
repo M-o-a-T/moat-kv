@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
     "-h",
     "--host",
     default=None,
-    help="Address to bind to. Default: %s" % (CFG.server.bind_default.host),
+    help="Serf host to connect to. Default: %s" % (CFG.server.bind_default.host),
 )
 @click.option(
     "-p",
     "--port",
     type=int,
     default=None,
-    help="Port to bind to. Default: %d" % (CFG.server.bind_default.port,),
+    help="Serf port to connect to. Default: %d" % (CFG.server.bind_default.port,),
 )
 @click.option(
     "-l",
