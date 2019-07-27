@@ -1916,6 +1916,22 @@ class Server:
                         await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
+                    pl = PathLongener((None,))
+                    res = await client._request(
+                        "get_tree_internal",
+                        iter=True,
+                        from_server=self.node.name,
+                        nchain=-1,
+                        path=(),
+                    )
+                    async for r in res:
+                        pl(r)
+                        r = UpdateEvent.deserialize(
+                            self.root, r, cache=self._nodes, nulls_ok=True
+                        )
+                        await r.entry.apply(r, server=self, root=self.paranoid_root)
+                    await self.tock_seen(res.end_msg.tock)
+
                     res = await client._request(
                         "get_state",
                         nodes=True,
