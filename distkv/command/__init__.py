@@ -174,7 +174,11 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     if cfg:
         logger.debug("Loading %s", cfg)
 
-        ctx.obj.cfg = combine_dict(yaml.safe_load(cfg), CFG, cls=attrdict)
+        cd = yaml.safe_load(cfg)
+        if cd is None:
+            ctx.obj.cfg = CFG
+        else:
+            ctx.obj.cfg = combine_dict(cd, CFG, cls=attrdict)
         cfg.close()
     else:
         ctx.obj.cfg = CFG
