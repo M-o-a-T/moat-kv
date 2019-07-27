@@ -102,6 +102,9 @@ def gen_auth(s: str):
     """
     Generate auth data from parameters or YAML file (if first char is '=').
     """
+    if not isinstance(s, str):
+        return s  # called twice. Oh well.
+
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
         with io.open(m[1:], "r") as f:
