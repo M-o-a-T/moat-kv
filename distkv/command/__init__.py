@@ -156,6 +156,21 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     ctx.obj._DEBUG = debug
     ctx.obj.stdout = CFG.get("_stdout", sys.stdout)  # used for testing
 
+    def _cfg(path):
+        nonlocal cfg
+        if cfg is not None:
+            return
+        if os.path.exists(path):
+            try:
+                cfg = open(path, "r")
+            except PermissionError:
+                pass
+
+    _cfg(os.path.expanduser("~/.config/distkv.cfg"))
+    _cfg(os.path.expanduser("~/.distkv.cfg"))
+    _cfg("/etc/distkv/distkv.cfg")
+    _cfg("/etc/distkv.cfg")
+
     if cfg:
         logger.debug("Loading %s", cfg)
 
