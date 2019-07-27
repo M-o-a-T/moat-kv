@@ -41,13 +41,13 @@ CFG = attrdict(
         "disable_existing_loggers": False,
     },
     connect=attrdict(
-        # client: controls talking to the DistKV server
+        # client: controls how to talk to the DistKV server
         host="localhost",
         port=PORT,
         ssl=False,
         # ssl=attrdict(cert='/path/to/cert.pem',key='/path/to/cert.key'),
         init_timeout=5,  # time to wait for connection plus greeting
-        auth=None,  # no auth used
+        auth=None,  # no auth used by default
         name=None,  # defaults to the server's name
     ),
     errors=attrdict(prefix=(".distkv", "error")),
