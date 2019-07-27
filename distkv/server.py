@@ -1,6 +1,7 @@
 # Local server
 from __future__ import annotations
 
+import trio  # signaling
 import anyio
 
 try:
@@ -20,6 +21,8 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 import io
+import sys
+import signal
 import time
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
@@ -2258,6 +2261,7 @@ class Server:
                             cnt += 1
 
     _saver_prev = None
+    _saver_done = None
 
     async def _saver(
         self,
@@ -2269,6 +2273,7 @@ class Server:
 
         async with anyio.open_cancel_scope() as s:
             self._saver_prev = s
+            self._saver_done = anyio.create_event()
             try:
                 await self.save_stream(
                     path=path, stream=stream, done=done, save_state=save_state
@@ -2280,6 +2285,7 @@ class Server:
             finally:
                 if self._saver_prev is s:
                     self._saver_prev = None
+                    await self._saver_done.set()
 
     async def run_saver(
         self, path: str = None, stream=None, save_state=False, wait: bool = True
@@ -2313,6 +2319,14 @@ class Server:
             await s.cancel()
         return res
 
+    async def _sigterm(self):
+        with trio.open_signal_receiver(signal.SIGTERM) as r:
+            async for s in r:
+                if self._saver_prev is not None:
+                    await self._saver_prev.cancel()
+                    await self._saver_done.wait()
+                sys.exit(2)
+
     @property
     async def is_ready(self):
         """Await this to determine if/when the server is operational."""
@@ -2323,12 +2337,13 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_path=None, ready_evt=None):
+    async def serve(self, log_path=None, log_inc=False, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
+          ``log_inc``: if saving, write changes, not the whole state.
         """
         async with asyncserf.serf_client(**self.cfg.server.serf) as serf:
             # Collect all "info/missing" messages seen since the last
@@ -2378,7 +2393,7 @@ class Server:
             await self.spawn(self._delete_also)
 
             if log_path is not None:
-                await self.run_saver(path=log_path, save_state=True, wait=False)
+                await self.run_saver(path=log_path, save_state=not log_inc, wait=False)
 
             # Link up our "user_*" code
             for d in dir(self):
@@ -2395,6 +2410,8 @@ class Server:
                     await self.root.set_data(
                         event, self._init, tock=self.tock, server=self
                     )
+
+            await self.spawn(self._sigterm)
 
             # send initial ping
             await self.spawn(self._pinger, delay2)

@@ -54,6 +54,12 @@ logger = logging.getLogger(__name__)
 )
 @click.option(
     "-i",
+    "--incremental",
+    default=None,
+    help="Save incremental changes, not the complete state",
+)
+@click.option(
+    "-I",
     "--init",
     default=None,
     help="Initial value to set the root to. Use only when setting up "
@@ -62,7 +68,7 @@ logger = logging.getLogger(__name__)
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
 @click.argument("name", nargs=1)
 @click.pass_obj
-async def cli(obj, name, host, port, load, save, init, eval):
+async def cli(obj, name, host, port, load, save, init, incremental, eval):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -121,4 +127,4 @@ async def cli(obj, name, host, port, load, save, init, eval):
         if load is not None:
             await s.load(path=load, local=True)
 
-        await s.serve(log_path=save, ready_evt=RunMsg())
+        await s.serve(log_path=save, log_inc=incremental, ready_evt=RunMsg())
