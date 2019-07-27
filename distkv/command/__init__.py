@@ -6,10 +6,10 @@ import asyncclick as click
 import yaml
 from functools import partial
 
-from .util import attrdict, combine_dict, NotGiven
-from .default import CFG
+from ..util import attrdict, combine_dict, NotGiven
+from ..default import CFG
 
-from .exceptions import ClientError, ServerError
+from ..exceptions import ClientError, ServerError
 
 import logging
 from logging.config import dictConfig
@@ -26,11 +26,11 @@ class Loader(click.Group):
         from distkv.command import Loader
         from functools import partial
 
-        @click.command(cls=partial(Loader,__file__,'commands'))
+        @click.command(cls=partial(Loader,__file__,'command'))
         async def cmd()
             print("I am the main program")
 
-    Sub-Command Usage (``main`` is defined for you), e.g. in ``commands/subcmd.py``::
+    Sub-Command Usage (``main`` is defined for you), e.g. in ``command/subcmd.py``::
 
         from distkv.command import Loader
         from functools import partial
@@ -41,16 +41,18 @@ class Loader(click.Group):
     """
 
     def __init__(self, current_file, plugin_folder, *a, **kw):
-        self.__plugin_folder = os.path.join(
-            os.path.dirname(current_file), plugin_folder
-        )
+        self.__plugin_folder = os.path.dirname(current_file)
         super().__init__(*a, **kw)
 
     def list_commands(self, ctx):
         rv = []
         for filename in os.listdir(self.__plugin_folder):
+            if filename[0] in '._':
+                continue
             if filename.endswith(".py"):
                 rv.append(filename[:-3])
+            elif os.path.isfile(os.path.join(self.__plugin_folder,filename,'__init__.py')):
+                rv.append(filename)
         rv.sort()
 
         rv += super().list_commands(ctx)
@@ -58,6 +60,8 @@ class Loader(click.Group):
 
     def get_command(self, ctx, name):  # pylint: disable=arguments-differ
         fn = os.path.join(self.__plugin_folder, name + ".py")
+        if not os.path.exists(fn):
+            fn = os.path.join(self.__plugin_folder, name, "__init__.py")
         if os.path.exists(fn):
             ns = {"main": self, "__file__": fn}
             with open(fn) as f:
@@ -100,7 +104,7 @@ def cmd():
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
-    except PermissionError:
+    except EnvironmentError:
         raise
     except (EnvironmentError, ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
@@ -110,7 +114,7 @@ def cmd():
 #       sys.exit(1)
 
 
-@click.command(cls=partial(Loader, __file__, "commands"))
+@click.command(cls=partial(Loader, __file__, "command"))
 @click.option(
     "-v",
     "--verbose",
