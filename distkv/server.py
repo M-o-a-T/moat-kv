@@ -2345,7 +2345,8 @@ class Server:
                 for s,sd in self._savers:
                     await s.cancel()
                     await sd.wait()
-                sys.exit(2)
+                break
+        os.kill(os.getpid(), signal.SIGTERM)
 
     @property
     async def is_ready(self):
