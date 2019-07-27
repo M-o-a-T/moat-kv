@@ -2221,7 +2221,7 @@ class Server:
             last_saved = time.monotonic()
             last_saved_count = 0
 
-            async with Watcher(self.root) as updates:
+            async with Watcher(self.root, full=True) as updates:
                 await self._ready.wait()
 
                 if save_state:

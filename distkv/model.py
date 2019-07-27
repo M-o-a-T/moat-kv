@@ -944,8 +944,9 @@ class Watcher:
     q = None
     q_len = 100
 
-    def __init__(self, root: Entry):
+    def __init__(self, root: Entry, full: bool = False):
         self.root = root
+        self.full = full
 
     async def __aenter__(self):
         if self.q is not None:
@@ -967,8 +968,11 @@ class Watcher:
     async def __anext__(self):
         if self.q is None:
             raise RuntimeError("Aborted. Queue filled?")
-        res = await self.q.get()
-        if res is None:
-            raise RuntimeError("Aborted. Queue filled?")
-        self.q._distkv__free += 1
-        return res
+        while True:
+            res = await self.q.get()
+            if res is None:
+                raise RuntimeError("Aborted. Queue filled?")
+            if res.entry.path and res.entry.path[0] is None and not self.full:
+                continue
+            self.q._distkv__free += 1
+            return res
