@@ -534,6 +534,9 @@ class Client:
         host = self._cfg["host"]
         port = self._cfg["port"]
         auth = self._cfg["auth"]
+        if auth is not None:
+            from .auth import gen_auth
+            auth = gen_auth(auth)
         init_timeout = self._cfg["init_timeout"]
         ssl = gen_ssl(self._cfg["ssl"], server=False)
 
