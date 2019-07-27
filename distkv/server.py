@@ -1310,6 +1310,7 @@ class Server:
         self._part_len = SERF_MAXLEN - SERF_LEN_DELTA - len(self.node.name)
         self._part_seq = 0
         self._part_cache = dict()
+        self._savers = []
 
     @asynccontextmanager
     async def next_event(self):
@@ -1451,10 +1452,9 @@ class Server:
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
-                if isinstance(auth, str):
-                    from .auth import gen_auth
+                from .auth import gen_auth
+                cfg["auth"] = gen_auth(auth)
 
-                    cfg["auth"] = gen_auth(auth)
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
@@ -1893,10 +1893,9 @@ class Server:
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
-                if isinstance(auth, str):
-                    from .auth import gen_auth
+                from .auth import gen_auth
+                cfg["auth"] = gen_auth(auth)
 
-                    cfg["auth"] = gen_auth(auth)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
@@ -2194,6 +2193,7 @@ class Server:
         stream: anyio.abc.Stream = None,
         save_state: bool = False,
         done: ValueEvent = None,
+        done_val = None,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -2227,7 +2227,7 @@ class Server:
 
                 await mw.flush()
                 if done is not None:
-                    await done.set(None)
+                    await done.set(done_val)
 
                 cnt = 0
                 while True:
@@ -2260,9 +2260,6 @@ class Server:
                         else:
                             cnt += 1
 
-    _saver_prev = None
-    _saver_done = None
-
     async def _saver(
         self,
         path: str = None,
@@ -2272,20 +2269,19 @@ class Server:
     ):
 
         async with anyio.open_cancel_scope() as s:
-            self._saver_prev = s
-            self._saver_done = anyio.create_event()
+            sd = anyio.create_event()
+            state = (s, sd)
+            self._savers.append(state)
             try:
                 await self.save_stream(
-                    path=path, stream=stream, done=done, save_state=save_state
+                    path=path, stream=stream, done=done, done_val=s, save_state=save_state
                 )
             except EnvironmentError as err:
                 if done is None:
                     raise
                 await done.set_error(err)
             finally:
-                if self._saver_prev is s:
-                    self._saver_prev = None
-                    await self._saver_done.set()
+                await sd.set()
 
     async def run_saver(
         self, path: str = None, stream=None, save_state=False, wait: bool = True
@@ -2307,7 +2303,6 @@ class Server:
         
         """
         done = ValueEvent() if wait else None
-        s = self._saver_prev  # cleared when _saver ends
         res = None
         if path is not None:
             await self.spawn(
@@ -2315,16 +2310,20 @@ class Server:
             )
             if wait:
                 res = await done.get()
-        if s is not None:
+
+        # At this point the new saver is operational, so we cancel the old one(s).
+        while self._savers is not None and self._savers[0][0] is not res:
+            s,sd = self._savers.pop(0)
             await s.cancel()
-        return res
+            await sd.wait()
+
 
     async def _sigterm(self):
         with trio.open_signal_receiver(signal.SIGTERM) as r:
             async for s in r:
-                if self._saver_prev is not None:
-                    await self._saver_prev.cancel()
-                    await self._saver_done.wait()
+                for s,sd in self._savers:
+                    await s.cancel()
+                    await sd.wait()
                 sys.exit(2)
 
     @property
