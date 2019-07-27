@@ -1954,7 +1954,7 @@ class Server:
         """
         Process "info" messages.
         """
-        self.tock_seen(msg.get("tock", 0))
+        await self.tock_seen(msg.get("tock", 0))
 
         # nodes: list of known nodes and their max ticks
         for nn, t in msg.get("nodes", {}).items():
