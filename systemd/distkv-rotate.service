@@ -1,14 +1,19 @@
 [Unit]
-Description=The DistKV server rotate script
-Requires=distkv-master.service
-After=distkv-master.service
+Description=DistKV log rotate
+Requires=distkv.service
+After=distkv.service
 
-AssertFileNotEmpty=/etc/distkv.cfg
+ConditionFileNotEmpty=/etc/distkv.cfg
+ConditionPathIsReadWrite=/var/lib/distkv
 
 [Install]
 
 [Service]
-ExecStart=/usr/sbin/distkv-rotate
+ExecStart=/usr/lib/distkv/rotate
+
+EnvironmentFile=/usr/lib/distkv/env
+EnvironmentFile=-/etc/distkv.env
+
 User=distkv
 Group=distkv
 

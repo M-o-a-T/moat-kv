@@ -1,11 +1,11 @@
 [Unit]
-Description=The DistKV server
+Description=DistKV main server
 After=serf.service
 Wants=serf.service
-Conflicts=distkv-master.service
-#OnFailure=distkv-master.service
+Conflicts=distkv-recover.service
+OnFailure=distkv-recover.service
 
-AssertFileNotEmpty=/etc/distkv.cfg
+ConditionFileNotEmpty=/etc/distkv.cfg
 
 [Install]
 WantedBy=multi-user.target
@@ -13,11 +13,12 @@ WantedBy=multi-user.target
 [Service]
 Type=notify
 ExecStart=/usr/lib/distkv/run
+ExecStartPost=/usr/lib/distkv/success
+
 User=distkv
 Group=distkv
+
 EnvironmentFile=/usr/lib/distkv/env
 EnvironmentFile=-/etc/distkv.env
-OnFailure=distkv-recover.service
-ExecStartPost=/usr/lib/distkv/success
 
 TimeoutSec=30

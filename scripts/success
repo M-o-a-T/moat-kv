@@ -1,5 +1,4 @@
 #!/bin/sh
+set -ex
 
-. /usr/lib/distkv/env
-
-cp /dev/null "$TEMP"
+rm -f "$TEMP"

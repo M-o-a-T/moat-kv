@@ -100,6 +100,8 @@ def cmd():
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
+    except PermissionError:
+        raise
     except (EnvironmentError, ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)

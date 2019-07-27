@@ -8,12 +8,14 @@ all:
 
 install:
 	mkdir -p $(PREFIX)/lib/systemd/system
+	mkdir -p $(PREFIX)/usr/bin
 	mkdir -p $(PREFIX)/usr/lib/distkv
 	mkdir -p $(PREFIX)/usr/lib/sysusers.d
 	cp systemd/*.service $(PREFIX)/lib/systemd/system/
 	cp systemd/*.timer $(PREFIX)/lib/systemd/system/
 	cp systemd/sysusers $(PREFIX)/usr/lib/sysusers.d/distkv.conf
 	cp scripts/* $(PREFIX)/usr/lib/distkv/
+	cp bin/* $(PREFIX)/usr/bin/
 
 # need to use python3 sphinx-build
 PATH := /usr/share/sphinx/scripts/python3:${PATH}

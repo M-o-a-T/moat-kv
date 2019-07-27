@@ -22,7 +22,7 @@ from range_set import RangeSet
 import io
 import time
 from functools import partial
-from asyncserf.util import CancelledError as SerfCancelledError
+from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
 from pprint import pformat
 from collections.abc import Mapping
@@ -2190,7 +2190,7 @@ class Server:
         path: str = None,
         stream: anyio.abc.Stream = None,
         save_state: bool = False,
-        done: anyio.abc.Event = None,
+        done: ValueEvent = None,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -2224,7 +2224,7 @@ class Server:
 
                 await mw.flush()
                 if done is not None:
-                    await done.set()
+                    await done.set(None)
 
                 cnt = 0
                 while True:
@@ -2263,7 +2263,7 @@ class Server:
         self,
         path: str = None,
         stream=None,
-        done: anyio.abc.Event = None,
+        done: ValueEvent = None,
         save_state=False,
     ):
 
@@ -2273,6 +2273,10 @@ class Server:
                 await self.save_stream(
                     path=path, stream=stream, done=done, save_state=save_state
                 )
+            except EnvironmentError as err:
+                if done is None:
+                    raise
+                await done.set_error(err)
             finally:
                 if self._saver_prev is s:
                     self._saver_prev = None
@@ -2296,16 +2300,18 @@ class Server:
           wait: wait for the save to really start.
         
         """
-        done = anyio.create_event() if wait else None
+        done = ValueEvent() if wait else None
         s = self._saver_prev  # cleared when _saver ends
+        res = None
         if path is not None:
             await self.spawn(
                 self._saver, path=path, stream=stream, save_state=save_state, done=done
             )
             if wait:
-                await done.wait()
+                res = await done.get()
         if s is not None:
             await s.cancel()
+        return res
 
     @property
     async def is_ready(self):

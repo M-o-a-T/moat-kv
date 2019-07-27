@@ -1,14 +1,10 @@
 [Unit]
 Description=The DistKV server state save timer
-Conflicts=distkv.service
-Requires=distkv-master.service
+Requires=distkv.service
 
 [Timer]
 OnUnitActiveSec=900
 OnActiveSec=100
 
-[Service]
-ExecStart=/usr/sbin/distkv-rotate
-User=distkv
-Group=distkv
-
+[Install]
+WantedBy=distkv.service

@@ -19,12 +19,12 @@ CFG = attrdict(
         "loggers": {"asyncserf": {"level": "INFO"}},
         "root": {"handlers": ["stderr"], "level": "INFO"},
         "handlers": {
-            "logfile": {
-                "class": "logging.FileHandler",
-                "filename": "test.log",
-                "level": "DEBUG",
-                "formatter": "std",
-            },
+#           "logfile": {
+#               "class": "logging.FileHandler",
+#               "filename": "test.log",
+#               "level": "DEBUG",
+#               "formatter": "std",
+#           },
             "stderr": {
                 "class": "logging.StreamHandler",
                 "level": "DEBUG",
