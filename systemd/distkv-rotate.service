@@ -4,7 +4,7 @@ Requires=distkv.service
 After=distkv.service
 
 ConditionFileNotEmpty=/etc/distkv.cfg
-ConditionPathIsReadWrite=/var/lib/distkv
+ConditionPathIsDirectory=/var/lib/distkv
 
 [Install]
 
