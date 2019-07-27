@@ -842,7 +842,7 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0):
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False):
         """
         Call coroutine ``proc`` on this node and all its children).
 
@@ -863,7 +863,7 @@ class Entry:
             return
         _depth += 1
         for k, v in list(self._sub.items()):
-            if k is None:
+            if k is None or full:
                 continue
             a = acl.step(k) if acl is not None else None
             await v.walk(

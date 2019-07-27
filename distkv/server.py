@@ -2166,7 +2166,7 @@ class Server:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
         self.logger.debug("Loading finished.")
 
-    async def _save(self, writer, shorter, nchain=-1):
+    async def _save(self, writer, shorter, nchain=-1, full=False):
         """Save the current state.
         """
 
@@ -2179,7 +2179,7 @@ class Server:
 
         msg = await self.get_state(nodes=True, known=True, deleted=True)
         await writer(msg)
-        await self.root.walk(saver)
+        await self.root.walk(saver, full=full)
 
     async def save(self, path: str = None, stream=None):
         """Save the current state to ``path`` or ``stream``."""
@@ -2194,6 +2194,7 @@ class Server:
         save_state: bool = False,
         done: ValueEvent = None,
         done_val = None,
+        full = False,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -2205,6 +2206,7 @@ class Server:
             If ``False`` (the default), only write changes.
           done: set when writing changes commences, signalling
             that the old save file (if any) may safely be closed.
+          full: save everything, inc. internal data.
         
         Exactly one of ``stream`` or ``path`` must be set.
 
@@ -2223,7 +2225,7 @@ class Server:
                 await self._ready.wait()
 
                 if save_state:
-                    await self._save(mw, shorter)
+                    await self._save(mw, shorter, full=True)
 
                 await mw.flush()
                 if done is not None:
@@ -2274,7 +2276,7 @@ class Server:
             self._savers.append(state)
             try:
                 await self.save_stream(
-                    path=path, stream=stream, done=done, done_val=s, save_state=save_state
+                    path=path, stream=stream, done=done, done_val=s, save_state=save_state, full=True
                 )
             except EnvironmentError as err:
                 if done is None:
