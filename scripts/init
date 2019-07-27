@@ -14,8 +14,10 @@ grep -qs '^NAME=' /etc/distkv.env || echo NAME=$(hostname) >>/etc/distkv.env
 if test "$MODE" != "slave" ; then
     mkdir -p "$DEST"
     cd "$DEST"
-    d=$(find . -name 0.dkv -size +1c | sort | head -1)
-    if test -z "$d" ; then
+    d="$(find . -name 0.dkv -size +1c | sort | head -1)"
+    if test -n "$d" ; then
+        d="$(dirname "$d")"
+    else
         d="$(date -d 2019-01-01 +"$DATE")"
         mkdir -p "$d"
     fi
