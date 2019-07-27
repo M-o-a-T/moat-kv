@@ -1802,7 +1802,7 @@ class Server:
         While you can use the hostmap to temporarily add new hosts with
         unusual addresses, the new host still needs a config entry.
         """
-        port = self.cfg.server.serf.port
+        port = self.cfg.connect.port
         domain = self.cfg.domain
         try:
             # First try to read the host name from the meta-root's
@@ -1929,7 +1929,7 @@ class Server:
             except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
-                self.logger.exception("Unable to connect to %s" % (nodes,))
+                self.logger.exception("Unable to connect to %s" % (n,))
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
