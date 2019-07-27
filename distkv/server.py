@@ -1556,6 +1556,7 @@ class Server:
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
         res["node"] = self.node.name
+        res["tock"] = self.tock
         return res
 
     async def user_update(self, msg):
@@ -1953,6 +1954,8 @@ class Server:
         """
         Process "info" messages.
         """
+        self.tock_seen(msg.get("tock", 0))
+
         # nodes: list of known nodes and their max ticks
         for nn, t in msg.get("nodes", {}).items():
             nn = Node(nn, cache=self._nodes)
@@ -2160,7 +2163,7 @@ class Server:
                     await m.entry.apply(
                         m, local=local, server=self, root=self.paranoid_root
                     )
-                elif "nodes" in m or "known" in m or "deleted" in m:
+                elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
