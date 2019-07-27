@@ -17,7 +17,6 @@ else
 	x=0
 	I=""
 fi
-test -f 0.dkv || I="-i"
 
 export PYTHONPATH
 distkv -c /etc/distkv.cfg client log dest $I "$DEST/$D/$x.dkv"
