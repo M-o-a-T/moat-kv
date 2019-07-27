@@ -51,12 +51,14 @@ logger = logging.getLogger(__name__)
     type=click.Path(writable=True, allow_dash=False),
     default=None,
     help="Event log to write to.",
+    hidden=True,
 )
 @click.option(
     "-i",
     "--incremental",
     default=None,
     help="Save incremental changes, not the complete state",
+    hidden=True,
 )
 @click.option(
     "-I",
@@ -64,8 +66,9 @@ logger = logging.getLogger(__name__)
     default=None,
     help="Initial value to set the root to. Use only when setting up "
     "a cluster for the first time!",
+    hidden=True,
 )
-@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
+@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True)
 @click.argument("name", nargs=1)
 @click.pass_obj
 async def cli(obj, name, host, port, load, save, init, incremental, eval):

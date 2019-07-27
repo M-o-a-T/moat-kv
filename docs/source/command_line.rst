@@ -2,8 +2,8 @@
 The DistKV command
 ==================
 
-DistKV exports one command line tool, appropriately named ``distkv``. It
-provides various sub- and sub-sub-commands to start and control your server.
+DistKV uses one command line tool, appropriately named ``distkv``. It
+provides various sub- and sub-sub-commands to run and control your server.
 
 Each command and sub-command accepts a distinct set of options which must
 be used directly after the (sub)command affected by them.
@@ -15,11 +15,9 @@ distkv
 
 The main entry point for all commands.
 
-Subcommands:
+Use the option ``--help`` to show that (sub)command's detailed information.
 
-  * :program:`distkv client`
-
-  * :program:`distkv server`
+Options used only for testing are not shown in the commands' help text.
 
 .. option:: -v, --verbose
 
@@ -95,18 +93,31 @@ it from the default of ``27589``, or use a configuration file.
 
    Log all changes to this file. This includes the initial data.
 
-   You can later adapt this with ``distkv client control save``
+   This option is only used for testing. Use ``distkv client log dest`` in
+   production use.
+
+.. option:: -i, --incremental
+
+   Don't write the complete state to the save file.
+
+   This option is of limited usefulness and only used for testing.
+   Use ``distkv client log dest -i`` in production.
 
 A network of servers needs to contain some data before it becomes
 operational. When starting the first server, you can use an initial 
 
-.. option:: -i, --init <value>
+.. option:: -I, --init <value>
 
    Initialize the server by storing this value in the root entry.
+
+   This option is only used for testing. Create initial content with
+   ``distkv dump init`` for production use.
 
 .. option:: -e, --eval
 
    Evaluate the initial value, as a standard Python expression.
+
+   This option is only used for testing.
 
 You can also use :program:`distkv client data set` to update this value
 later.
