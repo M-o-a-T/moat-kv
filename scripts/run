@@ -8,7 +8,8 @@ if test "$MODE" = "master" ; then
 fi
 
 if test ! -v NAME ; then
-    NAME=$(hostname)
+    echo "NAME is not set. Exiting." >&2
+    exit 1
 fi
 
 if test -s "$TEMP" ; then

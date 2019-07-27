@@ -6,24 +6,25 @@ set -ex
 set -ex
 
 if test -s /etc/distkv.env ; then
-    echo "'/etc/distkv.env' exists, not doing anything" >&2
-    exit 1
+    echo "'/etc/distkv.env' exists, not initializing" >&2
+    exit 0
 fi
 
 . /usr/lib/distkv/env
 
 echo MODE=master >/etc/distkv.env
+echo NAME=$(hostname) >>/etc/distkv.env
 
 mkdir -p "$DEST"
 cd "$DEST"
-d=$(ls -t|head -1)
-if test -z "$d" || test ! -s "$d/0.dkv"; then
+d=$(find . -name 0.dkv -size +1c | sort | head -1)
+if test -z "$d" ; then
     d="$(date -d 2019-01-01 +"$DATE")"
     mkdir -p "$d"
 fi
 cd $d
 
 if test ! -s "0.dkv" ; then
-    distkv dump init $(hostname) 0.dkv
+    distkv dump init $NAME 0.dkv
     chown -R distkv:distkv "$DEST"
 fi
