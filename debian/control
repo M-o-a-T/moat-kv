@@ -14,6 +14,7 @@ Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   python3-anyio,
   python3-asyncserf,
+  python3-systemd,
 Replaces: python3-distkv
 Conflicts: python3-distkv
 Description: A distributed no-master key-value store
