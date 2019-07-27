@@ -168,6 +168,7 @@ class StreamedRequest:
             raise StopAsyncIteration
         res = res.unwrap()
         self._path_long(res)
+        logger.debug("OneResult: %s", res)
         return res
 
     async def send(self, **params):
@@ -425,18 +426,21 @@ class Client:
         res = _SingleReply(self, seq)
         self._handlers[seq] = res
 
-        # logger.debug("Send %s", params)
+        logger.debug("Send %s", params)
         await self._send(**params)
         if _async:
             return res
 
         res = await res.get()
+        logger.debug("Result %s", res)
+
         if iter is True and not isinstance(res, StreamedRequest):
 
             async def send_one(res):
                 yield res
 
             res = send_one(res)
+
         elif iter is False and isinstance(res, StreamedRequest):
             rr = None
             async for r in res:
