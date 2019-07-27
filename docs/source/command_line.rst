@@ -53,6 +53,16 @@ Options used only for testing are not shown in the commands' help text.
    Data in this file override the corresponding entries in the
    ``distkv.defaults.CFG`` directory.
 
+   The config will be loaded from the first of these files, assuming it's
+   readable:
+
+   * ~/config/distkv.cfg
+   * ~/.distkv.cfg
+   * /etc/distkv/distkv.cfg
+   * /etc/distkv.cfg
+
+   If you don't want to read any config file, use ``/dev/null``.
+
 .. option:: -C, --conf <location=value>
    
    Set a specific configuration value.
