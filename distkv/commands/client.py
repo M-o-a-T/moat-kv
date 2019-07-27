@@ -19,7 +19,7 @@ from distkv.client import open_client, StreamedRequest
 from distkv.command import Loader
 from distkv.default import CFG
 from distkv.server import Server
-from distkv.auth import loader, gen_auth
+from distkv.auth import loader
 from distkv.exceptions import ClientError
 
 import logging
@@ -78,7 +78,7 @@ async def cli(ctx, host, port, auth, metadata):
         cfg.port = port
 
     if auth is not None:
-        cfg.auth = gen_auth(auth)
+        cfg.auth = auth
         if obj._DEBUG:
             cfg.auth._DEBUG = True
 
