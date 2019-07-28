@@ -3,7 +3,7 @@ Maintainer: Matthias Urlichs <matthias@urlichs.de>
 Section: python
 Priority: optional
 Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
-  python3-anyio,
+  python3-anyio (>= 1.0.0-2),
   python3-asyncserf,
   python3-pytest,
 Standards-Version: 3.9.6
@@ -12,10 +12,11 @@ Homepage: https://github.com/smurfix/distkv
 Package: distkv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
-  python3-anyio,
+  python3-anyio (>= 1.0.0-2),
   python3-asyncserf,
   python3-systemd,
   python3-range-set (>= 0.3),
+  python3-attr (>= 18.2.0-1),
   systemd (>= 241),
 Replaces: python3-distkv
 Conflicts: python3-distkv

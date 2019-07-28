@@ -1,3 +1,15 @@
+distkv (0.8.4-3) unstable; urgency=medium
+
+  * Reasonable systemd support
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Sat, 27 Jul 2019 11:54:19 +0200
+
+distkv (0.8.4-1) unstable; urgency=medium
+
+  * Reasonable systemd support
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Sat, 27 Jul 2019 11:54:19 +0200
+
 distkv (0.7.1-1) unstable; urgency=medium
 
   * Merge 0.7.1
