@@ -4,6 +4,7 @@ import os
 import sys
 import asyncclick as click
 from distkv.util import MsgReader
+from functools import partial
 from distkv.util import MsgReader, MsgWriter
 
 from distkv.util import (
@@ -86,4 +87,35 @@ async def init(obj, node, file):
     """
     async with MsgWriter(path=file) as f:
         await f(dict(chain=dict(node=node,tick=1,prev=None),depth=0,path=[],tock=1,value="Initial data"))
+
+@cli.command()
+@click.pass_obj
+async def serf(obj):
+    """Monitor the Serf messafge stream.
+    """
+    from asyncserf import NoopCodec, serf_client
+    import msgpack
+
+    async with serf_client(codec=NoopCodec(), **obj.cfg.server.serf) as client:  # pylint: disable=not-async-context-manager
+        async with client.stream("*") as stream:
+            async for resp in stream:
+                c=vars(resp)
+                c.pop('client', None)
+                c.pop('coalesce', None)
+                p=c['payload']
+                if c.get('event','').startswith('member-'):
+                    m = partial(msgpack.unpackb,raw=True, use_list=False)
+                    p = m(p)
+                else:
+                    m = partial(msgpack.unpackb,raw=False, use_list=False)
+                    p = m(p)
+                c['payload'] = p
+
+                yprint(c)
+                print("---")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    anyio.run(main)
 
