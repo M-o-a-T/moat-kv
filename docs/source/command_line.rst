@@ -1107,6 +1107,44 @@ All of these nodes must be online for clean-up to work.
    nonexistent node to the list.
 
 
+.. program:: distkv dump
+
+Various low-level data handling commands.
+
+
+.. program:: distkv dump cfg
+
+Display the current configuration data.
+
+
+.. program:: distkv dump file
+
+Unpack a file and show its contents as YAML.
+
+.. option:: <file>
+
+   The name of the file to decode.
+
+
+.. program:: distkv dump init
+
+Create an initial data file.
+
+.. option:: <node>
+
+   The node name of the DistKV server that should load the initial file.
+
+.. option:: <file>
+
+   The file to write. Typically ``/var/lib/distkv/%Y-%m-%d/0.dkv``.
+
+
+.. program:: distkv dump serf
+
+Monitor all ``serf`` user messages. (I.e. not just those from DistKV.)
+Display as YAML.
+
+
 .. program:: distkv pdb
 
 This subcommand imports the debugger and then continues to process arguments.
