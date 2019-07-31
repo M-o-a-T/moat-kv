@@ -1,13 +1,20 @@
-# DistKV's data model
+"""
+This module contains DistKV's basic data model.
+
+TODO: message chains should be refactored to arrays: much lower overhead.
+"""
 
 from __future__ import annotations
 
 import weakref
 from range_set import RangeSet
+from collections import defaultdict
 
 from typing import List, Any
 
-from .util import attrdict, Queue
+from .util import attrdict, NotGiven
+from .exceptions import ACLError
+from anyio import create_queue
 
 from logging import getLogger
 
@@ -23,6 +30,7 @@ class NodeDataSkipped(Exception):
 
 
 ConvNull = None  # imported later, if/when needed
+NullACL = None  # imported later, if/when needed
 
 
 class Node:
@@ -31,7 +39,8 @@ class Node:
 
     name: str = None
     tick: int = None
-    _known: RangeSet = None  # I have these as valid data
+    _known: RangeSet = None  # I have these as valid data. Superset of ``._deleted``.
+    _deleted: RangeSet = None  # I have these as no-longer-valid data
     _reported: RangeSet = None  # somebody else reported these missing data for this node
     entries: dict = None
 
@@ -45,6 +54,7 @@ class Node:
             self.name = name
             self.tick = tick
             self._known = RangeSet()
+            self._deleted = RangeSet()
             self._reported = RangeSet()
             self.entries = {}
             cache[name] = self
@@ -68,6 +78,9 @@ class Node:
     def __getitem__(self, item):
         return self.entries[item]
 
+    def get(self, item, default=None):
+        return self.entries.get(item, default)
+
     def __contains__(self, item):
         return item in self.entries
 
@@ -90,8 +103,54 @@ class Node:
         if entry is not None:
             self.entries[tick] = entry
 
+    def is_deleted(self, tick):
+        """
+        Check whether this tick has been marked as deleted.
+        """
+        return tick in self._deleted
+
+    def mark_deleted(self, tick):
+        """
+        The data for this tick will be deleted.
+
+        Args:
+          tick: The event that caused the deletion.
+
+        """
+        self._deleted.add(tick)
+        return self.entries.get(tick, None)
+
+    def clear_deleted(self, tick):
+        """
+        The data for this tick are definitely gone (deleted).
+        """
+        self._known.add(tick)
+        self._deleted.discard(tick)
+        self._reported.discard(tick)
+        e = self.entries.pop(tick, None)
+        if e is not None:
+            e.purge_deleted()
+
+    def purge_deleted(self, r: RangeSet):
+        """
+        All entries in this rangeset are deleted.
+
+        This is a shortcut for calling :meth:`clear_deleted` on each item.
+        """
+        self._known += r
+        self._deleted -= r
+        self._reported -= r
+
+        # Mark that these as really gone.
+        for a, b in r:
+            for t in range(a, b):
+                e = self.entries.pop(t, None)
+                if e is not None:
+                    e.purge_deleted()
+
     def supersede(self, tick):
-        """The event with this tick is no longer in the referred entry's chain.
+        """
+        The event with this tick is no longer in the referred entry's chain.
         This happens when an entry is updated.
 
         Args:
@@ -99,25 +158,64 @@ class Node:
         """
         self.entries.pop(tick, None)
 
-    def report_known(self, range, local=False):
-        """Some node said that these entries may have been superseded.
+    def report_known(self, r: RangeSet, local=False):
+        """
+        Some node said that these entries may have been superseded.
 
         Args:
           ``range``: The RangeSet thus marked.
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
-        self._known += range
+        self._known += r
         if not local:
-            self._reported -= range
+            self._reported -= r
 
-    def report_missing(self, range):
-        self._reported += range
+    def report_missing(self, r: RangeSet):
+        """
+        Some node doesn't know about these ticks.
+
+        Remember that: we may need to broadcast either their content,
+        or the fact that these ticks have been superseded.
+        """
+        self._reported += r
+
+    def report_deleted(self, r: RangeSet, server):
+        """
+        This range has been reported as deleted.
+
+        Args:
+          range (RangeSet): the range that's gone.
+          add (dict): store additional vanished items. Nodename -> RangeSet
+        """
+        # Ignore those which we know have been deleted
+        n = r - self._deleted
+
+        for a, b in n:
+            for t in range(a, b):
+                entry = self.mark_deleted(t)
+                if entry is None:
+                    continue
+                chain = entry.mark_deleted(server)
+                if chain is None:
+                    continue
+                for node, tick in chain:
+                    server.mark_deleted(node, tick)
+
+        # Mark as deleted. The system will flush them later.
+        self._deleted += r
+        self._known += r
+        self._reported -= r
 
     @property
     def local_known(self):
-        """Values I have seen: they either exist or I know they've been superseded"""
+        """Values I have seen – they either exist or I know they've been superseded"""
         return self._known
+
+    @property
+    def local_deleted(self):
+        """Values I know to have vanished"""
+        return self._deleted
 
     @property
     def local_missing(self):
@@ -131,6 +229,65 @@ class Node:
     def remote_missing(self):
         """Values from this node which somebody else has not seen"""
         return self._reported
+
+
+class NodeSet(defaultdict):
+    """
+    Represents a dict (nodename > RangeSet).
+    """
+
+    def __init__(self, encoded=None, cache=None):
+        super().__init__(RangeSet)
+        if encoded is not None:
+            assert cache is not None
+            for n, v in encoded.items():
+                n = Node(n, cache=cache)
+                r = RangeSet()
+                r.__setstate__(v)
+                self[n] = r
+
+    def __repr__(self):
+        return "%s(%s)" % (type(self).__name__, dict.__repr__(self))
+
+    def __bool__(self):
+        for v in self.values():
+            if v:
+                return True
+        return False
+
+    def serialize(self):
+        d = dict()
+        for k, v in self.items():
+            assert not hasattr(k, "name")
+            d[k] = v.__getstate__()
+        return d
+
+    @classmethod
+    def deserialize(cls, state):
+        self = cls()
+        for k, v in state.items():
+            r = RangeSet()
+            r.__setstate__(v)
+            self[k] = v
+        return self
+
+    def copy(self):
+        res = type(self)()
+        for k, v in self.items():
+            if v:
+                res[k] = v.copy()
+        return res
+
+    def add(self, node, tick):
+        assert not hasattr(node, "name")
+        self[node].add(tick)
+
+    def __isub__(self, other):
+        for k, v in other.items():
+            r = self.get(k, None)
+            if r is None:
+                continue
+            r -= v
 
 
 class NodeEvent:
@@ -169,6 +326,12 @@ class NodeEvent:
             "-" if self.tick is None else self.tick,
             len(self),
         )
+
+    def __iter__(self):
+        c = self
+        while c is not None:
+            yield c.node, c.tick
+            c = c.prev
 
     def __eq__(self, other):
         if other is None:
@@ -242,20 +405,20 @@ class NodeEvent:
             self = self.prev
         return None
 
-    def filter(self, node, dropped=None):
+    def filter(self, node, server=None):
         """Return an event chain without the given node.
 
         If the node is not in the chain, the result is *not* a copy.
         """
         if self.node == node:
-            if dropped is not None:
-                dropped(self)
+            if server is not None:
+                server.drop_old_event(self)
             return self.prev
             # Invariant: a node can only be in the chain once
             # Thus we can stop filtering after we encounter it.
         if self.prev is None:
             return self
-        prev = self.prev.filter(node, dropped=dropped)
+        prev = self.prev.filter(node, server=server)
         if prev is self.prev:
             # No change, so return unmodified
             return self
@@ -295,17 +458,13 @@ class NodeEvent:
             )
         return self
 
-    def attach(self, prev: "NodeEvent" = None, dropped=None):
+    def attach(self, prev: "NodeEvent" = None, server=None):
         """Copy this node, if necessary, and attach a filtered `prev` chain to it"""
         if prev is not None:
-            prev = prev.filter(self.node, dropped=dropped)
+            prev = prev.filter(self.node, server=server)
         if self.prev is not None or prev is not None:
             self = NodeEvent(node=self.node, tick=self.tick, prev=prev)
         return self
-
-
-class _NotGiven:
-    pass
 
 
 class UpdateEvent:
@@ -313,18 +472,15 @@ class UpdateEvent:
     """
 
     def __init__(
-        self,
-        event: NodeEvent,
-        entry: "Entry",
-        new_value,
-        old_value=_NotGiven,
-        tock=None,
+        self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None
     ):
         self.event = event
         self.entry = entry
         self.new_value = new_value
-        if old_value is not _NotGiven:
+        if old_value is not NotGiven:
             self.old_value = old_value
+        if new_value is NotGiven:
+            event.node.mark_deleted(event.tick)
         self.tock = tock
 
     def __repr__(self):
@@ -353,9 +509,11 @@ class UpdateEvent:
         res = self.event.serialize(nchain=nchain)
         res.path = self.entry.path[chop_path:]
         if with_old:
-            res.old_value = conv.enc_value(self.old_value, entry=self.entry)
-            res.new_value = conv.enc_value(self.new_value, entry=self.entry)
-        else:
+            if self.old_value is not NotGiven:
+                res.old_value = conv.enc_value(self.old_value, entry=self.entry)
+            if self.new_value is not NotGiven:
+                res.new_value = conv.enc_value(self.new_value, entry=self.entry)
+        elif self.new_value is not NotGiven:
             res.value = conv.enc_value(self.new_value, entry=self.entry)
         res.tock = self.entry.tock
         return res
@@ -369,12 +527,16 @@ class UpdateEvent:
             conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
         event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        old_value = NotGiven
         if "value" in msg:
             value = conv.dec_value(msg.value, entry=entry)
-        else:
+        elif "new_value" in msg:
             value = conv.dec_value(msg.new_value, entry=entry)
+            old_value = conv.dec_value(msg.old_value, entry=entry)
+        else:
+            value = NotGiven
 
-        return UpdateEvent(event, entry, value, tock=msg.tock)
+        return cls(event, entry, value, old_value=old_value, tock=msg.tock)
 
 
 class Entry:
@@ -385,10 +547,10 @@ class Entry:
     name: str = None
     _path: List[str] = None
     _root: "Entry" = None
-    _data: bytes = None
     chain: NodeEvent = None
     SUBTYPE = None
     SUBTYPES = {}
+    _data: Any = NotGiven
 
     monitors = None
 
@@ -414,6 +576,11 @@ class Entry:
         if isinstance(other, Entry):
             other = other.name
         return self.name == other
+
+    def chain_links(self):
+        c = self.chain
+        if c is not None:
+            yield from iter(c)
 
     def keys(self):
         return self._sub.keys()
@@ -443,30 +610,67 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow(self, *path, create=True, nulls_ok=False):
+    def follow_acl(self, *path, create=True, nulls_ok=False, acl=None, acl_key=None):
         """Follow this path.
 
         If ``create`` is True (default), unknown nodes are silently created.
-        Otherwise they cause a `KeyError`.
+        Otherwise they cause a `KeyError`. If ``None``, assume
+        ``create=True`` but only check the ACLs.
 
         If ``nulls_ok`` is False (default), `None` is not allowed as a path
         element. If 2, it is allowed anywhere; if True, only as the first
         element.
+
+        If ``acl`` is not ``None``, then ``acl_key`` is the ACL letter to
+        check for. ``acl`` must be an :class:`~distkv.types.ACLFinder`
+        created from the root of the ACL in question.
+
+        The ACL key 'W' is special: it checks 'c' if the node is new, else
+        'w'.
+
+        Returns tuple (node, acl) tuple.
         """
+        if acl is None:
+            global NullACL
+            if NullACL is None:
+                from .types import NullACL
+            acl = NullACL
+
+        first = True
         for name in path:
             if name is None and not nulls_ok:
                 raise ValueError("Null path element")
             if nulls_ok == 1:  # root only
                 nulls_ok = False
-            child = self._sub.get(name, None)
+            child = self._sub.get(name, None) if self is not None else None
             if child is None:
-                if not create:
+                if create is False:
                     raise KeyError(name)
-                child = self.SUBTYPES.get(name, self.SUBTYPE)(
-                    name, self, tock=self.tock
-                )
+                acl.check("n")
+                if create is not None:
+                    child = self.SUBTYPES.get(name, self.SUBTYPE)(
+                        name, self, tock=self.tock
+                    )
+            else:
+                acl.check("x")
+            try:
+                acl = acl.step(name, new=first)
+            except KeyError:
+                raise ACLError(acl.result, name) from None
+            first = False
             self = child
-        return self
+
+        # If the caller doesn't know if the node exists, help them out.
+        if acl_key == "W":
+            acl_key = "w" if self is not None and self._data is not NotGiven else "c"
+        acl.check(acl_key)
+        return (self, acl)
+
+    def follow(self, *a, **kw):
+        """
+        As :meth:`follow_acl`, but only returns the node.
+        """
+        return self.follow_acl(*a, **kw)[0]
 
     def __getitem__(self, name):
         return self._sub[name]
@@ -483,11 +687,11 @@ class Entry:
         parent = self.parent
         if parent is None:
             return self
-        root = parent.root()
+        root = parent.root
         self._root = weakref.ref(root)
         return root
 
-    def _set(self, value):
+    async def set(self, value):
         self._data = value
 
     @property
@@ -516,25 +720,65 @@ class Entry:
     def data(self):
         return self._data
 
+    def mark_deleted(self, server):
+        """
+        This entry has been deleted.
+
+        Returns:
+          the entry's chain.
+        """
+        c = self.chain
+        for node, tick in self.chain_links():
+            e = node.mark_deleted(tick)
+            assert e is None or e is self
+            server.mark_deleted(node, tick)
+        self._data = NotGiven
+        return c
+
+    def purge_deleted(self):
+        """
+        Call :meth:`Node.clear_deleted` on each link in this entry's chain.
+        """
+        c, self.chain = self.chain, None
+        if c is None:
+            return
+        for node, tick in c:
+            node.clear_deleted(tick)
+        self._chop()
+
+    def _chop(self):
+        """
+        Remove a deleted entry (and possibly its parent).
+        """
+        logger.debug("CHOP %r", self)
+        this, p = self, self.parent
+        while p is not None:
+            del p._sub[this.name]
+            if p._sub:
+                return
+            this, p = p, p.parent
+
     async def set_data(
-        self, event: NodeEvent, data: Any, local: bool = False, dropped=None, tock=None
+        self, event: NodeEvent, data: Any, local: bool = False, server=None, tock=None
     ):
         """This entry is updated by that event.
 
         Args:
-          ``event``: The :cls:`NodeEvent` to base the update on.
-          ``local``: Flag whether the event should be forwarded to watchers.
+          event: The :class:`NodeEvent` to base the update on.
+          data (Any): whatever the node should contains. Use :any:`distkv.util.NotGiven`
+            to delete.
+          local (bool): Flag whether the event should be forwarded to watchers.
 
         Returns:
-          The :cls:`UpdateEvent` that has been generated and applied.
+          The :class:`UpdateEvent` that has been generated and applied.
         """
-        event = event.attach(self.chain, dropped=dropped)
+        event = event.attach(self.chain, server=server)
         evt = UpdateEvent(event, self, data, self._data, tock=tock)
-        await self.apply(evt, local=local)
+        await self.apply(evt, server=server, local=local)
         return evt
 
     async def apply(
-        self, evt: UpdateEvent, local: bool = False, dropped=None, root=None
+        self, evt: UpdateEvent, local: bool = False, server=None, root=None
     ):
         """Apply this :cls`UpdateEvent` to me.
 
@@ -544,25 +788,33 @@ class Entry:
         if root is not None and None in root:
             chk = root[None].get("match", None)
 
-        if evt.event is None and self.chain is None:
-            pass
-        else:
-            if evt.event == self.chain:
-                assert self._data == evt.new_value, (
-                    "has:",
-                    self._data,
-                    "but should have:",
-                    evt.new_value,
-                )
-                return
-            if self.chain > evt.event:  # already superseded
-                return
+        if evt.event is None:
+            raise RuntimeError("huh?")
 
+        if evt.event == self.chain:
+            assert self._data == evt.new_value, (
+                "has:",
+                self._data,
+                "but should have:",
+                evt.new_value,
+            )
+            return
+
+        if self._data is NotGiven:
+            if evt.event.prev is not None:
+                raise ValueError("This is a new entry, but chain is present.")
+
+        if self.chain > evt.event:  # already superseded
+            return
+
+        if self._data is not NotGiven:
             if not (self.chain < evt.event):
                 logger.warn("*** inconsistency ***")
                 logger.warn("Node: %s", self.path)
                 logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warn("New: %s :%s: %r", evt.event, evt.tock, evt.value)
+                logger.warn(
+                    "New: %s :%s: %r", evt.event, evt.tock, evt.get("value", NotGiven)
+                )
                 if evt.tock < self.tock:
                     logger.warn("New value ignored")
                     return
@@ -573,32 +825,50 @@ class Entry:
         else:
             evt_val = evt.value
 
-        if chk is not None:
+        if chk is not None and evt_val is not NotGiven:
             chk.check_value(evt_val, self)
         if not hasattr(evt, "old_value"):
             evt.old_value = self._data
-        self._set(evt_val)
+        await self.set(evt_val)
         self.tock = evt.tock
 
-        if dropped is not None and self.chain is not None:
-            dropped(evt.event, self.chain)
+        server.drop_old_event(evt.event, self.chain)
         self.chain = evt.event
 
-        c = self.chain
-        while c is not None:
-            c.node.seen(c.tick, self)
-            c = c.prev
+        if evt_val is NotGiven:
+            self.mark_deleted(server)
+
+        for n, t in self.chain_links():
+            n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(self, proc, max_depth=-1, min_depth=0, _depth=0):
-        """Call ``proc`` on this node and all its children)."""
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0):
+        """
+        Call coroutine ``proc`` on this node and all its children).
+
+        If `acl` (must be an ACLStepper) is given, `proc` is called with
+        the acl as second argument.
+
+        If `proc` raises `StopAsyncIteration`, chop this subtree.
+        """
         if min_depth <= _depth:
-            await proc(self)
+            try:
+                if acl is not None:
+                    await proc(self, acl)
+                else:
+                    await proc(self)
+            except StopAsyncIteration:
+                return
         if max_depth == _depth:
             return
         _depth += 1
-        for v in list(self._sub.values()):
-            await v.walk(proc, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
+        for k, v in list(self._sub.items()):
+            if k is None:
+                continue
+            a = acl.step(k) if acl is not None else None
+            await v.walk(
+                proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth
+            )
 
     def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.
@@ -613,7 +883,9 @@ class Entry:
             if ConvNull is None:
                 from .types import ConvNull
             conv = ConvNull
-        res = attrdict(value=conv.enc_value(self._data, entry=self))
+        res = attrdict()
+        if self._data is not NotGiven:
+            res.value = conv.enc_value(self._data, entry=self)
         if self.chain is not None and nchain != 0:
             res.chain = self.chain.serialize(nchain=nchain)
         res.tock = self.tock
@@ -678,7 +950,7 @@ class Watcher:
     async def __aenter__(self):
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
-        self.q = Queue(self.q_len)
+        self.q = create_queue(self.q_len)
         self.q._distkv__free = self.q_len
         self.root.monitors.add(self.q)
         return self

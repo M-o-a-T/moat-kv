@@ -2,6 +2,7 @@ import pytest
 import trio
 
 from .mock_serf import stdtest
+from distkv.exceptions import CancelledError
 
 import logging
 
@@ -16,10 +17,13 @@ async def test_51_passthru(autojump_clock):
             recv = []
 
             async def mon():
-                async with c._stream("serfmon", type="foo") as q:
-                    async for m in q:
-                        assert "data" in m
-                        recv.append(m.data)
+                try:
+                    async with c._stream("serfmon", type="foo") as q:
+                        async for m in q:
+                            assert "data" in m
+                            recv.append(m.data)
+                except CancelledError:
+                    pass
 
             await s.spawn(mon)
             await trio.sleep(0.2)
@@ -39,10 +43,13 @@ async def test_52_passthru_bin(autojump_clock):
             recv = []
 
             async def mon():
-                async with c._stream("serfmon", type="foo", raw=True) as q:
-                    async for m in q:
-                        assert "data" not in m
-                        recv.append(m.raw)
+                try:
+                    async with c._stream("serfmon", type="foo", raw=True) as q:
+                        async for m in q:
+                            assert "data" not in m
+                            recv.append(m.raw)
+                except CancelledError:
+                    pass
 
             await s.spawn(mon)
             await trio.sleep(0.2)

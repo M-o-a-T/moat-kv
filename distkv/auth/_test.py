@@ -42,7 +42,7 @@ def load(typ: str, *, make: bool = False, server: bool):
 
 
 class ServerUserMaker(BaseServerAuthMaker):
-    _name = None
+    name = None
 
     @property
     def ident(self):
@@ -65,7 +65,9 @@ class ServerUserMaker(BaseServerAuthMaker):
         await cmd.send(step="SendWant")
         msg = await cmd.recv()
         assert msg.step == "WantName"
-        await cmd.send(step="SendName", name=self.name, chain=self._chain)
+        await cmd.send(
+            step="SendName", name=self.name, chain=self._chain.serialize(nchain=3)
+        )
         msg = await cmd.recv()
 
     # Annoying methods to read+save the user name from/to KV
@@ -115,8 +117,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             assert m.step == "SendName", m
             assert m.name == ident
 
-            self = cls()
-            self.name = m.name
+            self = cls(name=m.name)
             self._chain = m.chain
             return self
 
@@ -132,7 +133,6 @@ class ClientUserMaker(BaseClientAuthMaker):
                 step="HasName", name=self.name, chain=self._chain, aux=self._aux
             )
             m = await s.recv()
-            assert m.changed
             assert m.chain.prev is None
 
     def export(self):
@@ -141,6 +141,8 @@ class ClientUserMaker(BaseClientAuthMaker):
 
 
 class ClientUser(BaseClientAuth):
+    name = None
+
     schema = dict(
         type="object",
         additionalProperties=False,

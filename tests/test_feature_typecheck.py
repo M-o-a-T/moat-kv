@@ -144,9 +144,10 @@ async def test_72_cmd(autojump_clock, tmpdir):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            rr = partial(
-                run, "client", "-h", s.ports[0][0], "-p", s.ports[0][1], do_stdout=False
-            )
+            for h, p, *_ in s.ports:
+                if h[0] != ":":
+                    break
+            rr = partial(run, "client", "-h", h, "-p", p, do_stdout=False)
             path = tmpdir.join("foo")
             with io.open(path, "w") as f:
                 f.write(
@@ -160,7 +161,7 @@ bad:
 code: "if not isinstance(value,int): raise ValueError('not an int')"
 """
                 )
-            await rr("type", "set", "-y", "-s", str(path), "int")
+            await rr("type", "set", "-d", str(path), "int")
 
             with io.open(path, "w") as f:
                 f.write("if not 0<=value<=100: raise ValueError('not a percentage')\n")
@@ -206,12 +207,12 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
             await rr("type", "match", "-t", "int", "-t", "percent", "foo", "+", "bar")
 
             with pytest.raises(ServerError):
-                await rr("set", "-v", "123", "foo", "dud", "bar")
+                await rr("data", "set", "-v", "123", "foo", "dud", "bar")
             with pytest.raises(ServerError):
-                await rr("set", "-ev", "123", "foo", "dud", "bar")
+                await rr("data", "set", "-ev", "123", "foo", "dud", "bar")
             with pytest.raises(ServerError):
-                await rr("set", "-ev", "5.5", "foo", "dud", "bar")
-            await rr("set", "-ev", "55", "foo", "dud", "bar")
+                await rr("data", "set", "-ev", "5.5", "foo", "dud", "bar")
+            await rr("data", "set", "-ev", "55", "foo", "dud", "bar")
 
             assert (await c.get("foo", "dud", "bar")).value == 55
 

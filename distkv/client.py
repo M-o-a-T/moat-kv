@@ -1,14 +1,37 @@
-# dist-kv client
+"""
+Client code.
 
-import trio
+Main entry point: :func:`open_client`.
+"""
+
+import anyio
 import outcome
 import msgpack
 import socket
 import weakref
 import heapq
-from async_generator import asynccontextmanager
+import random
+from functools import partial
+import socket
+
+try:
+    from contextlib import asynccontextmanager, AsyncExitStack
+except ImportError:
+    from async_generator import asynccontextmanager
+    from async_exit_stack import AsyncExitStack
+
 from asyncserf.util import ValueEvent
-from .util import attrdict, gen_ssl, num2byte, byte2num
+from .util import (
+    attrdict,
+    gen_ssl,
+    num2byte,
+    byte2num,
+    PathLongener,
+    NoLock,
+    NotGiven,
+    combine_dict,
+)
+from .default import CFG
 from .exceptions import (
     ClientAuthMethodError,
     ClientAuthRequiredError,
@@ -17,8 +40,6 @@ from .exceptions import (
     ServerError,
     CancelledError,
 )
-
-# from trio_log import LogStream
 
 import logging
 
@@ -38,12 +59,15 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(host, port, init_timeout=5, auth=None, ssl=None):
-    client = Client(host, port, ssl=ssl)
-    async with trio.open_nursery() as tg:
-        async with client._connected(
-            tg, init_timeout=init_timeout, auth=auth
-        ) as client:
+async def open_client(**cfg):
+    """
+    This async context manager returns an opened client connection.
+
+    There is no attempt to reconnect if the Serf connection should fail.
+    """
+    client = Client(cfg)
+    async with anyio.create_task_group() as tg:
+        async with client._connected(tg) as client:
             yield client
 
 
@@ -54,11 +78,25 @@ class ClientEntry:
 
     def __init__(self, parent, name=None):
         self._children = dict()
-        self.path = parent.path + (name,)
-        self.value = None
+        self._path = parent._path + (name,)
+        self._name = name
+        self.value = NotGiven
         self.chain = None
+        self._parent = weakref.ref(parent)
         self._root = weakref.ref(parent.root)
         self.client = parent.client
+        self._lock = anyio.create_lock()  # for saving etc.
+
+    @classmethod
+    def child_type(cls, name):
+        """Given a node, return the type which the child with that name should have.
+        The default is "same as this class".
+        """
+        return cls
+
+    @property
+    def parent(self):
+        return self._parent()
 
     @property
     def root(self):
@@ -66,35 +104,115 @@ class ClientEntry:
 
     @property
     def subpath(self):
-        """Return the path, starting with the root."""
-        return self.path[len(self.root.path) :]  # noqa: E203
+        """Return the path to this entry, starting with its :class:`ClientRoot` base."""
+        return self._path[len(self.root._path) :]  # noqa: E203
 
-    def __getitem__(self, k):
-        try:
-            c = self._children[k]
-        except KeyError:
-            c = ClientEntry(self, k)
-            self._children[k] = c
+    @property
+    def all_children(self):
+        """Iterate all child nodes with data.
+        You can send ``True`` to the iterator if you want to skip a subtree.
+        """
+        for k in self:
+            if k.value is not NotGiven:
+                res = (yield k)
+                if res is True:
+                    continue
+            yield from k.all_children
+
+    def allocate(self, name):
+        """
+        Create the child named "name". It is created (locally) if it doesn't exist.
+
+        Arguments:
+          name (str): The child node's name.
+        """
+        if name in self._children:
+            raise RuntimeError("Duplicate child",name,self)
+        self._children[name] = c = self.child_type(name)(self, name)
         return c
 
-    def __in__(self, k):
+    def __getitem__(self, name):
+        return self._children[name]
+
+    def __delitem__(self, name):
+        del self._children[name]
+
+    def get(self, name):
+        return self._children.get(name, None)
+
+    def __iter__(self):
+        """Iterating an entry returns its children."""
+        return iter(list(self._children.values()))
+
+    def __bool__(self):
+        return self.value is not NotGiven or bool(self._children)
+
+    def __len__(self):
+        return len(self._children)
+
+    def __contains__(self, k):
+        if isinstance(k, type(self)):
+            k = k._name
         return k in self._children
 
-    async def update(self, value):
-        """Update this node's value.
+    async def update(self, value, _locked=False):
+        """Update (or simply set) this node's value.
 
         This is a coroutine.
         """
-        await self.client._request(
-            "set_value", chain=self.chain, path=self.path, value=value
-        )
+        async with NoLock if _locked else self._lock:
+            r = await self.root.client.set(
+                *self._path, chain=self.chain, value=value, nchain=3
+            )
+            self.value = value
+            self.chain = r.chain
+            return r
+
+    async def delete(self, _locked=False, nchain=0, chain=True):
+        """Delete this node's value.
+
+        This is a coroutine.
+        """
+        async with NoLock if _locked else self._lock:
+            r = await self.root.client.delete(
+                *self._path, nchain=nchain,
+                **({"chain":self.chain} if chain else {}),
+            )
+            self.chain = None
+            return r
+
+    async def set_value(self, value=NotGiven):
+        """Callback to set the value when data has arrived.
+
+        This method is strictly for overriding.
+        Don't call me, I'll call you.
+
+        This is a coroutine, for ease of integration.
+        """
         self.value = value
+
+    async def seen_value(self):
+        """Current value seen.
+
+        Useful for syncing.
+        """
+        pass
+
+    def mark_inconsistent(self, r):
+        """There has been an inconsistent update.
+
+        This call will immediately be followed by a call to
+        :meth:`set_value`, thus it is not async.
+
+        The default action is to do nothing.
+        """
+        pass
 
 
 def _node_gt(self, other):
-    if other is None:
+    if other is None and self is not None:
         return True
-    if self == other:
+    if self is None or self == other:
         return False
     while self["node"] != other["node"]:
         self = self["prev"]
@@ -103,46 +221,235 @@ def _node_gt(self, other):
     return self["tick"] >= other["tick"]
 
 
-class ClientRoot(ClientEntry):
-    """A helper class that represents the root of a server entry list."""
+class AttrClientEntry(ClientEntry):
+    """A ClientEntry which expects a dict as value and sets (some of) the clients'
+    attributes appropriately.
 
-    def __init__(self, client, *path, need_wait=False):
+    Set the classvar ``ATTRS`` to a list of the attrs you want saved. Note
+    that these are not inherited: when you subclass, copy and extend the
+    ``ATTRS`` of your superclass.
+
+    If the entry is deleted (value set to ``None``, the attributes listed in
+    ``ATTRS`` will be deleted too, or revert to the class values.
+    """
+
+    ATTRS = ()
+
+    async def update(self, val):
+        raise RuntimeError("Nope. Set attributes and call '.save()'.")
+
+    async def set_value(self, val=NotGiven):
+        """Callback to set the value when data has arrived.
+
+        This method sets the actual attributes.
+
+        This method is strictly for overriding.
+        Don't call me, I'll call you.
+        """
+        await super().set_value(val)
+        for k in self.ATTRS:
+            if val is not NotGiven and k in val:
+                setattr(self, k, val[k])
+            else:
+                try:
+                    delattr(self, k)
+                except AttributeError:
+                    pass
+
+    def get_value(self, wait=False):
+        """
+        Extract value from attrs
+        """
+        res = {}
+        for attr in type(self).ATTRS:
+            try:
+                v = getattr(self, attr)
+            except AttributeError:
+                pass
+            else:
+                if v is not NotGiven:
+                    res[attr] = v
+        return res
+
+
+    async def save(self, wait=False):
+        """
+        Save myself to storage, by copying ATTRS to a new value.
+        """
+        res = {}
+        async with self._lock:
+            r = await super().update(value=self.get_value(), _locked=True)
+            if wait:
+                await self.root.wait_chain(r.chain)
+            return r
+
+
+class ClientRoot(ClientEntry):
+    """This class represents the root of a subsystem's storage.
+
+    To use this class, create a subclass that, at minimum, overrides
+    ``CFG`` and ``child_type``. ``CFG`` must be a dict with at least a
+    ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
+
+    """
+
+    CFG = "You need to override this with a dict(prefix=('where','ever'))"
+
+    def __init__(self, client, *path, need_wait=False, cfg=None):
+        self.chain = None
         self._children = dict()
         self.client = client
-        self.path = path
+        self._path = path
         self.value = None
         self._need_wait = need_wait
+        self._loaded = anyio.create_event()
+        if cfg is None:
+            cfg = {}
+        self._cfg = cfg
+        self._name = self.client.name
+
         if need_wait:
             self._waiters = dict()
             self._seen = dict()
 
+    @classmethod
+    async def as_handler(cls, client, cfg=None, key="prefix", **kw):
+        """Return a (or "the") instance of this class.
+
+        The handler is created if it doesn't exist.
+
+        Instances are distinguished by their prefix (from config).
+        """
+        d = []
+        if cfg is not None:
+            d.append(cfg)
+        defcfg = CFG.get(cls.CFG, None)
+        if cfg:
+            if defcfg:
+                cfg = combine_dict(cfg, defcfg)
+        else:
+            if not defcfg:
+                raise RuntimeError("no config")
+            cfg = defcfg
+
+        def make():
+            return client.mirror(
+                *cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw
+            )
+
+        return await client.unique_helper(*cfg[key], factory=make)
+
+    @classmethod
+    def child_type(cls, name):
+        """Given a node, return the type which the child with that name should have.
+        The default is :class:`ClientEntry`.
+        """
+        return ClientEntry
+
     @property
     def root(self):
+        """Returns this instance."""
         return self
 
+    def follow(self, *path, create=False, unsafe=False):
+        """Look up a sub-entry.
+
+        Arguments:
+          *path (str): the path elements to follow.
+          create (bool): Create the entries. Default ``False``.
+            Otherwise return ``None`` if not found.
+          unsafe (bool): Allow a single path element that's a tuple.
+            This usually indicates a mistake by the caller. Defaults to
+            ``False``. Please try not to need this.
+
+        The path may not be empty. It also must not be a one-element list,
+        because that indicates that you called ``.follow(path)`` instead of
+        ``.follow(*path)``. To allow that, set ``unsafe``, though a better
+        idea is to structure your data that this is not necessary.
+        """
+        if not unsafe and len(path) == 1 and isinstance(path[0], (list, tuple)):
+            raise RuntimeError("You seem to have used 'path' instead of '*path'.")
+
+        node = self
+        for elem in path:
+            next_node = node.get(elem)
+            if next_node is None:
+                if create:
+                    next_node = node.allocate(elem)
+                else:
+                    return None
+
+            node = next_node
+
+        if not unsafe and node is self:
+            raise RuntimeError("Empty path")
+        return node
+
+    async def run_starting(self):
+        """Hook for 'about to start reading'"""
+        pass
+
+    async def running(self):
+        """Hook for 'done reading current state'"""
+        await self._loaded.set()
+
     @asynccontextmanager
-    async def run(self, task_status=trio.TASK_STATUS_IGNORED):
+    async def run(self):
         """A coroutine that fetches, and continually updates, a subtree.
         """
-        async with trio.open_nursery() as n:
-            self._nursery = n
+        async with anyio.create_task_group() as tg:
+            self._tg = tg
 
-            async def monitor(task_status=trio.TASK_STATUS_IGNORED):
-                async with self.client._stream("watch", nchain=3, path=self.path) as w:
-                    task_status.started()
+            async def monitor():
+                pl = PathLongener(())
+                await self.run_starting()
+                async with self.client._stream(
+                    "watch", nchain=3, path=self._path, fetch=True
+                ) as w:
+
                     async for r in w:
-                        entry = self
-                        for p in r.path:
-                            entry = entry[p]
-                        try:
-                            assert _node_gt(r.chain, entry.chain)
-                        except AttributeError:
-                            pass
-                        entry.value = r.value
-                        entry.chain = r.chain
+                        if "path" not in r:
+                            if r.get("state", "") == "uptodate":
+                                await self.running()
+                            continue
+                        pl(r)
+                        val = r.get("value", NotGiven)
+                        entry = self.follow(*r.path, create=(val is not NotGiven), unsafe=True)
+                        if entry is not None:
+                            # Test for consistency
+                            try:
+                                if entry.chain == r.chain:
+                                    # entry.update() has set this
+                                    await entry.seen_value()
+                                    continue
+                                if _node_gt(entry.chain, r.chain):
+                                    # stale data
+                                    continue
+                                if not _node_gt(r.chain, entry.chain):
+                                    entry.mark_inconsistent(r)
+                            except AttributeError:
+                                pass
 
-                        if not self._need_wait:
-                            return
+                            # update entry
+                            entry.prev_chain, entry.chain = entry.chain, (None if val is NotGiven else r.get("chain", None))
+                            await entry.set_value(val)
+
+                            if val is NotGiven and not entry:
+                                # the entry has no value and no children,
+                                # so we delete it (and possibly its
+                                # parents) from our tree.
+                                n = list(entry.subpath)
+                                while n:
+                                    # no-op except for class-specific side effects like setting an event
+                                    await entry.set_value(NotGiven)
+
+                                    entry = entry.parent
+                                    del entry[n.pop()]
+                                    if entry:
+                                        break
+
+                        if not self._need_wait or "chain" not in r:
+                            continue
                         c = r.chain
                         while c is not None:
                             try:
@@ -155,29 +462,24 @@ class ClientRoot(ClientEntry):
                             except KeyError:
                                 pass
                             else:
-                                while w[0][0] <= c.node:
-                                    heapq.heappop(w)[1].set()
+                                while w and w[0][0] <= c.tick:
+                                    await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            await n.start(monitor)
-            async with self.client._stream("get_tree", nchain=3, path=self.path) as w:
-                async for r in w:
-                    entry = self
-                    for p in r.path:
-                        entry = entry[p]
-                    if entry.value is None:
-                        entry.value = r.value
-                        entry.chain = r.chain
-
-            task_status.started()
+            await tg.spawn(monitor)
             try:
                 yield self
             finally:
-                n.cancel_scope.cancel()
+                await tg.cancel_scope.cancel()
+            pass  # end of 'run', closing taskgroup
 
     async def cancel(self):
         """Stop the monitor"""
-        self._nursery.cancel_scope.cancel()
+        await self._tg.cancel_scope.cancel()
+
+    async def wait_loaded(self):
+        """Wait for the tree to be loaded completely."""
+        await self._loaded.wait()
 
     async def wait_chain(self, chain):
         """Wait for a tree update containing this tick."""
@@ -187,9 +489,12 @@ class ClientRoot(ClientEntry):
         except KeyError:
             pass
         w = self._waiters.setdefault(chain.node, [])
-        e = trio.Event()
+        e = anyio.create_event()
         heapq.heappush(w, (chain.tick, e))
-        await w.wait()
+        await e.wait()
+
+    def spawn(self, *a, **kw):
+        return self._tg.spawn(*a, **kw)
 
 
 class StreamedRequest:
@@ -215,21 +520,21 @@ class StreamedRequest:
         self._client = client
         self.seq = seq
         self._stream = stream
-        self.send_q, self.recv_q = trio.open_memory_channel(100)
+        self.q = anyio.create_queue(100)
         self._client._handlers[seq] = self
         self._reply_stream = None
         self.n_msg = 0
         self._report_start = report_start
+        self._started = anyio.create_event()
+        self._path_long = lambda x: x
         # None: no message yet; True: begin seen; False: end or single message seen
 
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
         if "error" in msg:
-            try:
-                await self.send_q.send(outcome.Error(ServerError(msg.error)))
-            except trio.ClosedResourceError:
-                pass
+            if self.q is not None:
+                await self.q.put(outcome.Error(ServerError(msg.error)))
             return
         state = msg.get("state", "")
 
@@ -238,15 +543,17 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
             self.start_msg = msg
+            await self._started.set()
             if self._report_start:
-                await self.send_q.send(outcome.Value(msg))
+                await self.q.put(outcome.Value(msg))
 
         elif state == "end":
             if self._reply_stream is not True:
                 raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
             self.end_msg = msg
-            await self.send_q.aclose()
+            if self.q is not None:
+                await self.q.put(None)
             return False
 
         else:
@@ -257,9 +564,10 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
-            await self.send_q.send(outcome.Value(msg))
-            if self._reply_stream is False:
-                await self.send_q.aclose()
+            if self.q is not None:
+                await self.q.put(outcome.Value(msg))
+                if self._reply_stream is False:
+                    await self.q.put(None)
 
     async def get(self):
         """Receive a single reply"""
@@ -280,11 +588,13 @@ class StreamedRequest:
         return self
 
     async def __anext__(self):
-        try:
-            res = await self.recv_q.receive()
-        except trio.EndOfChannel:
+        res = await self.q.get()
+        if res is None:
+            self.q = None  # prevent deadlock if called again
             raise StopAsyncIteration
-        return res.unwrap()
+        res = res.unwrap()
+        self._path_long(res)
+        return res
 
     async def send(self, **params):
         # logger.debug("Send %s", params)
@@ -303,15 +613,20 @@ class StreamedRequest:
         return await self.__anext__()
 
     async def cancel(self):
-        await self.send_q.send(outcome.Error(CancelledError()))
+        if self.q is not None:
+            await self.q.put(outcome.Error(CancelledError()))
         await self.aclose()
 
+    async def wait_started(self):
+        await self._started.wait()
+
     async def aclose(self, timeout=0.2):
-        await self.send_q.aclose()
+        if self.q is not None:
+            await self.q.put(None)
         if self._stream == 2:
             await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
-                with trio.move_on_after(timeout):
+                async with anyio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
@@ -365,14 +680,59 @@ class Client:
 
     _server_init = None  # Server greeting
     _dh_key = None
+    exit_stack = None
 
-    def __init__(self, host, port, ssl=False):
-        self.host = host
-        self.port = port
+    server_name = None
+    client_name = None
+
+    def __init__(self, cfg: dict):
+        self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+
         self._seq = 0
         self._handlers = {}
-        self._send_lock = trio.Lock()
-        self.ssl = gen_ssl(ssl, server=False)
+        self._send_lock = anyio.create_lock()
+        self._helpers = {}
+        self._name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def node(self):
+        return self._server_init["node"]
+
+    async def get_tock(self):
+        """Fetch the next tock value from the server."""
+        m = await self._request("get_tock")
+        return m.tock
+
+    async def unique_helper(self, *path, factory=None):
+        """
+        Run a (single) async context manager on that path.
+
+        """
+        h = self._helpers.get(path, None)
+        if h is None:
+            h = anyio.create_lock()
+            self._helpers[path] = h
+        if isinstance(h, anyio.abc.Lock):
+            async with h:
+
+                async def _run(factory, evt):
+                    async with factory() as f:
+                        nonlocal h
+                        h = f
+                        await evt.set()
+                        while True:
+                            await anyio.sleep(99999)
+                        pass  # exiting helper
+
+                evt = anyio.create_event()
+                await self.tg.spawn(_run, factory, evt)
+                await evt.wait()
+                self._helpers[path] = h
+        return h
 
     async def _handle_msg(self, msg):
         try:
@@ -399,47 +759,50 @@ class Client:
             from diffiehellman.diffiehellman import DiffieHellman
 
             def gen_key():
-                k = DiffieHellman(key_length=length, group=(5 if length < 32 else 18))
+                k = DiffieHellman(key_length=length, group=(5 if length < 32 else 14))
                 k.generate_public_key()
                 return k
 
-            k = await trio.run_sync_in_worker_thread(gen_key)
+            k = await anyio.run_in_thread(gen_key)
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            await trio.run_sync_in_worker_thread(
-                k.generate_shared_secret, byte2num(res.pubkey)
-            )
+            await anyio.run_in_thread(k.generate_shared_secret, byte2num(res.pubkey))
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
     async def _send(self, **params):
         async with self._send_lock:
-            await self._socket.send_all(_packer(params))
+            sock = self._socket
+            if sock is None:
+                raise ServerClosedError("Disconnected")
 
-    async def _reader(self, *, task_status=trio.TASK_STATUS_IGNORED):
+            await sock.send_all(_packer(params))
+
+    async def _reader(self, *, evt=None):
         """Main loop for reading
         """
         unpacker = msgpack.Unpacker(
             object_pairs_hook=attrdict, raw=False, use_list=False
         )
 
-        with trio.CancelScope(shield=True) as s:
-            task_status.started(s)
+        async with anyio.open_cancel_scope() as s:
+            if evt is not None:
+                await evt.set()
             try:
                 while True:
                     for msg in unpacker:
                         # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
-                        except trio.ClosedResourceError:
+                        except anyio.exceptions.ClosedResourceError:
                             raise RuntimeError(msg)
 
                     if self._socket is None:
                         break
                     try:
                         buf = await self._socket.receive_some(4096)
-                    except trio.ClosedResourceError:
+                    except anyio.exceptions.ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.
                         raise ServerClosedError("Connection closed by peer")
@@ -447,32 +810,34 @@ class Client:
 
             finally:
                 hdl, self._handlers = self._handlers, None
-                with trio.CancelScope(shield=True):
-                    try:
-                        for m in hdl.values():
+                async with anyio.open_cancel_scope(shield=True):
+                    for m in hdl.values():
+                        try:
                             await m.cancel()
-                    except trio.ClosedResourceError:
-                        pass
+                        except anyio.exceptions.ClosedResourceError:
+                            pass
 
     async def _request(self, action, iter=None, seq=None, _async=False, **params):
         """Send a request. Wait for a reply.
 
         Args:
-          ``action``: what to do. If ``seq`` is set, this is the stream's
-                      state, which should be ``None`` or ``'end'``.
-          ``seq``: Sequence number to use. Only when terminating a
-                   multi-message request.
-          ``_async``: don't wait for a reply (internal!)
-          ``params``: whatever other data the action needs
-          ``iter``: A flag how to treat multi-line replies.
-                    ``True``: always return an iterator
-                    ``False``: Never return an iterator, raise an error
-                               if no or more than on reply arrives
-                    Default: ``None``: return a StreamedRequest if multi-line
-                                       otherwise return directly
+          action (str): what to do. If ``seq`` is set, this is the stream's
+            state, which should be ``None`` or ``'end'``.
+          seq: Sequence number to use. Only when terminating a
+            multi-message request.
+          _async: don't wait for a reply (internal!)
+          params: whatever other data the action needs
+          iter: A flag how to treat multi-line replies.
+            ``True``: always return an iterator
+            ``False``: Never return an iterator, raise an error
+                       if no or more than on reply arrives
+            Default: ``None``: return a StreamedRequest if multi-line
+                                otherwise return directly
+
+        Any other keywords are forwarded to the server.
         """
         if self._handlers is None:
-            raise trio.ClosedResourceError()
+            raise anyio.exceptions.ClosedResourceError()
         if seq is None:
             act = "action"
             self._seq += 1
@@ -547,8 +912,13 @@ class Client:
         seq = self._seq
 
         # logger.debug("Send %s", params)
+        if self._handlers is None:
+            raise anyio.exceptions.ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
+        if "path" in params and params.get("long_path", False):
+            res._path_long = PathLongener(params["path"])
         await res.send(action=action, **params)
+        await res.wait_started()
         try:
             yield res
         except BaseException as exc:
@@ -579,7 +949,7 @@ class Client:
         await auth.auth(self)
 
     @asynccontextmanager
-    async def _connected(self, tg, init_timeout=5, auth=None):
+    async def _connected(self, tg):
         """
         This async context manager handles the actual TCP connection to
         the DistKV server.
@@ -587,35 +957,51 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
+        host = self._cfg["host"]
+        port = self._cfg["port"]
+        auth = self._cfg["auth"]
+        init_timeout = self._cfg["init_timeout"]
+        ssl = gen_ssl(self._cfg["ssl"], server=False)
+
         # logger.debug("Conn %s %s",self.host,self.port)
-        async with await trio.open_tcp_stream(self.host, self.port) as sock:
-            if self.ssl:
-                # sock = LogStream(sock,"CL")
-                sock = trio.SSLStream(sock, self.ssl, server_side=False)
-                # sock = LogStream(sock,"CH")
-                await sock.do_handshake()
-            # logger.debug("ConnDone %s %s",self.host,self.port)
+        async with AsyncExitStack() as ex:
+            self.exit_stack = ex
+            try:
+                ctx = await anyio.connect_tcp(
+                    host, port, ssl_context=ssl, autostart_tls=False
+                )
+            except socket.gaierror:
+                raise ServerConnectionError(host, port)
+            stream = await ex.enter_async_context(ctx)
+
+            if ssl:
+                await stream.start_tls()
             try:
                 self.tg = tg
-                self._socket = sock
-                await self.tg.start(self._reader)
-                with trio.fail_after(init_timeout):
+                self._socket = stream
+                await self.tg.spawn(self._reader)
+                async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
+                    self.server_name = self._server_init.node
+                    self.client_name = self._cfg["name"] or self.server_name
                     await self._run_auth(auth)
                 yield self
             except socket.error as e:
-                raise ServerConnectionError(self.host, self.port) from e
+                raise ServerConnectionError(host, port) from e
             else:
                 # This is intentionally not in the error path
                 # cancelling the nursey causes open_client() to
                 # exit without a yield which triggers an async error,
                 # which masks the exception
-                self.tg.cancel_scope.cancel()
+                pass
             finally:
-                if self._socket is not None:
-                    await self._socket.aclose()
-                    self._socket = None
-                self.tg = None
+                async with anyio.open_cancel_scope(shield=True):
+                    await self.tg.cancel_scope.cancel()
+                    if self._socket is not None:
+                        async with self._send_lock:
+                            await self._socket.close()
+                        self._socket = None
+                    self.tg = None
 
     # externally visible interface ##########################
 
@@ -636,7 +1022,7 @@ class Client:
         """
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
-    def set(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+    def set(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Set or update a value.
 
@@ -649,20 +1035,20 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain tag, for further updates.
         """
-        if value is NoData:
-            raise RuntimeError("You need to supply a value")
+        if value is NotGiven:
+            raise RuntimeError("You need to supply a value, or call 'delete'")
 
         kw = {}
-        if prev is not NoData:
+        if prev is not NotGiven:
             kw["prev"] = prev
-        if chain is not NoData:
+        if chain is not NotGiven:
             kw["chain"] = chain
 
         return self._request(
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, *path, value=NoData, chain=NoData, prev=NoData, nchain=0):
+    def delete(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Delete a node.
 
@@ -675,16 +1061,16 @@ class Client:
             nchain: set to retrieve the node's chain, for setting a new value.
         """
         kw = {}
-        if prev is not NoData:
+        if prev is not NotGiven:
             kw["prev"] = prev
-        if chain is not NoData:
+        if chain is not NotGiven:
             kw["chain"] = chain
 
         return self._request(
             action="delete_value", path=path, iter=False, nchain=nchain, **kw
         )
 
-    def get_tree(self, *path, **kw):
+    async def get_tree(self, *path, long_path=True, **kw):
         """
         Retrieve a complete DistKV subtree.
 
@@ -696,11 +1082,20 @@ class Client:
         if you need a consistent snapshot.
 
         Args:
-            nchain: Length of change chain to add to the results, for updating.
-            min_depth, max_depth: level of nodes to retrieve.
+          nchain (int): Length of change chain to add to the results, for updating.
+          min_depth (int): min level of nodes to retrieve.
+          max_depth (int): max level of nodes to retrieve.
+          long_path (bool): if set (the default), pass the result through PathLongener
 
         """
-        return self._request(action="get_tree", path=path, iter=True, **kw)
+        if long_path:
+            lp = PathLongener()
+        async for r in await self._request(
+            action="get_tree", path=path, iter=True, long_path=True, **kw
+        ):
+            if long_path:
+                lp(r)
+            yield r
 
     def delete_tree(self, *path, nchain=0):
         """
@@ -722,20 +1117,21 @@ class Client:
         call this method from a different task if you don't want to risk a
         deadlock.
         """
-        return self._request(task=seq)
+        return self._request(action="stop", task=seq)
 
-    def watch(self, *path, fetch=False, nchain=0):
+    def watch(self, *path, long_path=True, **kw):
         """
         Return an async iterator of changes to a subtree.
 
         Args:
-            fetch: if ``True``, also send the currect state. Be aware that
-                   this may overlap with processing changes: you may get
-                   updates before the current state is completely
-                   transmitted.
-            nchain: add the nodes' change chains.
+          fetch (bool): if ``True``, also send the currect state. Be aware
+            that this may overlap with processing changes: you may get
+            updates before the current state is completely transmitted.
+          nchain: add the nodes' change chains.
+          min_depth (int): min level of nodes to retrieve.
+          max_depth (int): max level of nodes to retrieve.
 
-        The result should be passed through a :cls:`distkv.util.PathLongener`.
+        The result should be passed through a :class:`distkv.util.PathLongener`.
 
         If ``fetch`` is set, a ``state="uptodate"`` message will be sent
         as soon as sending the current state is completed.
@@ -744,12 +1140,16 @@ class Client:
         old cached state with the newly-arrived data.
         """
         return self._stream(
-            action="watch", path=path, iter=True, nchain=nchain, fetch=fetch
+            action="watch", path=path, iter=True, long_path=long_path, **kw
         )
 
-    def mirror(self, *path, **kw):
+    def mirror(self, *path, root_type=ClientRoot, **kw):
         """An async context manager that affords an update-able mirror
         of part of a DistKV store.
+
+        Arguments:
+          root_type (type): The class to use for the root. Must be
+            :class:`ClientRoot` or a subclass.
 
         Returns: the root of this tree.
 
@@ -757,14 +1157,14 @@ class Client:
             async with distkv.open_client() as c:
                 async with c.mirror("foo", "bar", need_wait=True) as foobar:
                     r = await c.set_value("foo", "bar", "baz", value="test")
-                    foobar.wait_chain(r.chain)
+                    await foobar.wait_chain(r.chain)
                     assert foobar['baz'].value == "test"
                 pass
                 # At this point you can still access the tree's data
                 # via ``foobar``, but they will no longer be kept up-to-date.
 
         """
-        root = ClientRoot(self, *path, **kw)
+        root = root_type(self, *path, **kw)
         return root.run()
 
     def serf_mon(self, tag: str, raw: bool = False):
@@ -795,7 +1195,7 @@ class Client:
         """
         return self._stream(action="serfmon", type=tag, raw=raw)
 
-    def serf_send(self, tag: str, data = None, raw: bytes = None):
+    def serf_send(self, tag: str, data=None, raw: bytes = None):
         """
         Tunnel a user-tagged message through Serf. This sends the message
         to all active callers of :meth:`serf_mon` which use the same tag.
@@ -811,4 +1211,3 @@ class Client:
             return self._request(action="serfsend", type=tag, data=data)
         else:
             return self._request(action="serfsend", type=tag, raw=raw)
-
