@@ -26,3 +26,4 @@ async def test_81_basic(autojump_clock):
             await c._config.wait_chain(res.chain)
             assert c.config.hoo['hello'] == "there"
 
+        # TODO test iterating on changes

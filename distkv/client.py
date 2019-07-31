@@ -254,29 +254,40 @@ class _ClientConfig:
         super().__init__(client, *a, **k)
 
     def _init(self, client):
-        self.client = client
-        self.current = {}
+        self._client = client
+        self._current = {}
+        self._changed = anyio.create_event()
 
     def __getattr__(self, k):
         if k.startswith('_'):
             return object.__getattribute__(self, k)
-        v = self.current.get(k, NotGiven)
+        v = self._current.get(k, NotGiven)
         if v is NotGiven:
             try:
-                v = self.client._cfg[k]
+                v = self._client._cfg[k]
             except KeyError:
                 raise AttributeError(k) from None
         return v
 
     def __contains__(self, k):
-        return k in self.current or k in self.client._cfg
+        return k in self._current or k in self._client._cfg
 
-    def _update(self, k, v):
+    async def _update(self, k, v):
         """
         Update this config entry. The new data is combined with the static
         configuration; the old data is discarded.
         """
-        self.current[k] = combine_dict(v, self.client._cfg.get(k, {}))
+        self._current[k] = combine_dict(v, self._client._cfg.get(k, {}))
+        c, self._changed = self._changed, anyio.create_event()
+        await c.set()
+
+    async def _watch(self):
+        class CfgWatcher:
+            def __ainit__(slf):
+                return slf
+            async def __anext__(slf):
+                await self._changed.wait()
+        return CfgWatcher()
 
 class ClientConfig(_ClientConfig):
     def __init__(self, client):

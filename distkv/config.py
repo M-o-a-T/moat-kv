@@ -26,7 +26,7 @@ class ConfigEntry(ClientEntry):
         return ClientEntry
 
     async def set_value(self, v):
-        self.root.client.config._update(self._name, v)
+        await self.root.client.config._update(self._name, v)
 
 
 class ConfigRoot(ClientRoot):
