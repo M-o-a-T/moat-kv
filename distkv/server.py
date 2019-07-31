@@ -1456,7 +1456,7 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
-                async with distkv_client.open_client(**cfg) as client:
+                async with distkv_client.open_client(connect=cfg) as client:
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -1897,7 +1897,7 @@ class Server:
                 from .auth import gen_auth
                 cfg["auth"] = gen_auth(auth)
 
-                async with distkv_client.open_client(**cfg) as client:
+                async with distkv_client.open_client(connect=cfg) as client:
                     # TODO auth this client
 
                     pl = PathLongener(())

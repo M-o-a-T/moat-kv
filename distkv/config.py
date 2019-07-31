@@ -4,8 +4,13 @@ An online-updated config store
 """
 
 import anyio
+try:
+    from contextlib import asynccontextmanager
+except ImportError:
+    from async_generator import asynccontextmanager
 
-from .entry import ClientRoot, ClientEntry
+from .errors import ServerError
+from .obj import ClientRoot, ClientEntry
 
 import logging
 logger = logging.getLogger(__name__)
@@ -33,4 +38,12 @@ class ConfigRoot(ClientRoot):
         The default is "same as this class".
         """
         return ConfigEntry
+
+    @asynccontextmanager
+    async def run(self):
+        try:
+            async with super().run() as x:
+                yield x
+        except ServerError:
+            logger.exception("No config data")
 

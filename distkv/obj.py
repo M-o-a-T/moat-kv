@@ -1,7 +1,6 @@
 """
-Client code.
+Object interface to distkv data
 
-Main entry point: :func:`open_client`.
 """
 
 import anyio
@@ -385,7 +384,6 @@ class ClientRoot(ClientEntry):
                 async with self.client._stream(
                     "watch", nchain=3, path=self._path, fetch=True
                 ) as w:
-
                     async for r in w:
                         if "path" not in r:
                             if r.get("state", "") == "uptodate":
@@ -431,10 +429,7 @@ class ClientRoot(ClientEntry):
                             continue
                         c = r.chain
                         while c is not None:
-                            try:
-                                if self._seen[c.node] < c.tick:
-                                    self._seen[c.node] = c.tick
-                            except KeyError:
+                            if self._seen.get(c.node, 0) < c.tick:
                                 self._seen[c.node] = c.tick
                             try:
                                 w = self._waiters[c.node]

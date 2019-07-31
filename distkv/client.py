@@ -265,9 +265,11 @@ class _ClientConfig:
             try:
                 v = self.client._cfg[k]
             except KeyError:
-                import pdb;pdb.set_trace()
                 raise AttributeError(k) from None
         return v
+
+    def __contains__(self, k):
+        return k in self.current or k in self.client._cfg
 
     def _update(self, k, v):
         """
@@ -296,7 +298,7 @@ class Client:
     client_name = None
 
     def __init__(self, cfg: dict):
-        self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+        self._cfg = combine_dict(cfg, CFG, cls=attrdict)
         self.config = ClientConfig(self)
 
         self._seq = 0
@@ -571,14 +573,15 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
-        host = self._cfg["host"]
-        port = self._cfg["port"]
-        auth = self._cfg["auth"]
+        cfg = self._cfg['connect']
+        host = cfg["host"]
+        port = cfg["port"]
+        auth = cfg["auth"]
         if auth is not None:
             from .auth import gen_auth
             auth = gen_auth(auth)
-        init_timeout = self._cfg["init_timeout"]
-        ssl = gen_ssl(self._cfg["ssl"], server=False)
+        init_timeout = cfg["init_timeout"]
+        ssl = gen_ssl(cfg["ssl"], server=False)
 
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
@@ -600,7 +603,7 @@ class Client:
                 async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                     self.server_name = self._server_init.node
-                    self.client_name = self._cfg["name"] or self.server_name
+                    self.client_name = cfg["name"] or self.server_name
                     await self._run_auth(auth)
 
                 from .config import ConfigRoot
