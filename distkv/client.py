@@ -246,6 +246,54 @@ class _SingleReply:
         pass
 
 
+class _ClientConfig:
+    """Accessor for configuration, possibly stored in DistKV.
+    """
+    def __init__(self, client, *a, **k):
+        self._init(client)
+        super().__init__(client, *a, **k)
+
+    def _init(self, client):
+        self._client = client
+        self._current = {}
+        self._changed = anyio.create_event()
+
+    def __getattr__(self, k):
+        if k.startswith('_'):
+            return object.__getattribute__(self, k)
+        v = self._current.get(k, NotGiven)
+        if v is NotGiven:
+            try:
+                v = self._client._cfg[k]
+            except KeyError:
+                raise AttributeError(k) from None
+        return v
+
+    def __contains__(self, k):
+        return k in self._current or k in self._client._cfg
+
+    async def _update(self, k, v):
+        """
+        Update this config entry. The new data is combined with the static
+        configuration; the old data is discarded.
+        """
+        self._current[k] = combine_dict(v, self._client._cfg.get(k, {}))
+        c, self._changed = self._changed, anyio.create_event()
+        await c.set()
+
+    async def _watch(self):
+        class CfgWatcher:
+            def __ainit__(slf):
+                return slf
+            async def __anext__(slf):
+                await self._changed.wait()
+        return CfgWatcher()
+
+class ClientConfig(_ClientConfig):
+    def __init__(self, client):
+        self._init(client)
+
+
 class Client:
     """
     The client side of a DistKV connection.
@@ -261,7 +309,8 @@ class Client:
     client_name = None
 
     def __init__(self, cfg: dict):
-        self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+        self._cfg = combine_dict(cfg, CFG, cls=attrdict)
+        self.config = ClientConfig(self)
 
         self._seq = 0
         self._handlers = {}
@@ -535,14 +584,15 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
-        host = self._cfg["host"]
-        port = self._cfg["port"]
-        auth = self._cfg["auth"]
+        cfg = self._cfg['connect']
+        host = cfg["host"]
+        port = cfg["port"]
+        auth = cfg["auth"]
         if auth is not None:
             from .auth import gen_auth
             auth = gen_auth(auth)
-        init_timeout = self._cfg["init_timeout"]
-        ssl = gen_ssl(self._cfg["ssl"], server=False)
+        init_timeout = cfg["init_timeout"]
+        ssl = gen_ssl(cfg["ssl"], server=False)
 
         # logger.debug("Conn %s %s",self.host,self.port)
         async with AsyncExitStack() as ex:
@@ -564,8 +614,12 @@ class Client:
                 async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
                     self.server_name = self._server_init.node
-                    self.client_name = self._cfg["name"] or self.server_name
+                    self.client_name = cfg["name"] or self.server_name
                     await self._run_auth(auth)
+
+                from .config import ConfigRoot
+                self._config = await ConfigRoot.as_handler(self)
+
                 yield self
             except socket.error as e:
                 raise ServerConnectionError(host, port) from e
@@ -576,6 +630,13 @@ class Client:
                 # which masks the exception
                 pass
             finally:
+                # Clean up our hacked config
+                try:
+                    del self._config
+                except AttributeError:
+                    pass
+                self.config = ClientConfig(self)
+
                 async with anyio.open_cancel_scope(shield=True):
                     await self.tg.cancel_scope.cancel()
                     if self._socket is not None:

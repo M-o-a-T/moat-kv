@@ -1,3 +1,9 @@
+distkv (0.9.2-1) unstable; urgency=medium
+
+  * Merge to 0.9.2
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Thu, 01 Aug 2019 13:06:28 +0200
+
 distkv (0.8.4-3) unstable; urgency=medium
 
   * Reasonable systemd support

@@ -12,7 +12,7 @@ from distkv.util import (
     split_one,
     NotGiven,
 )
-from distkv.client import open_client, StreamedRequest
+from distkv.client import StreamedRequest
 from distkv.command import Loader
 from distkv.default import CFG
 from distkv.server import Server
