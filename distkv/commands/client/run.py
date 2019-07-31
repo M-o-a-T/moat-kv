@@ -2,7 +2,7 @@
 
 import os
 import sys
-import trio_click as click
+import asyncclick as click
 import time
 import anyio
 

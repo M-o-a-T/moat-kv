@@ -14,7 +14,7 @@ setup(
     packages=find_packages(),
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
-        "trio_click",
+        "asyncclick",
         "trio >= 0.11",
         "range_set >= 0.2",
         "attrs >= 18.2",
