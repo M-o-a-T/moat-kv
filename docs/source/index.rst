@@ -48,6 +48,7 @@ an etcd2 compatibility service yet.
 
    overview.rst
    tutorial.rst
+   startup.rst
    command_line.rst
    client_protocol.rst
    server_protocol.rst

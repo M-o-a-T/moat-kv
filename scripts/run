@@ -1,0 +1,19 @@
+#!/bin/bash
+set -ex
+
+# This script file starts up DistKV.
+
+if test "$MODE" = "master" ; then
+    /usr/lib/distkv/current "$TEMP"
+fi
+
+if test ! -v NAME ; then
+    echo "NAME is not set. Exiting." >&2
+    exit 1
+fi
+
+if test -s "$TEMP" ; then
+    exec distkv -c /etc/distkv.cfg server -l "$TEMP" "$NAME"
+else
+    exec distkv -c /etc/distkv.cfg server "$NAME"
+fi

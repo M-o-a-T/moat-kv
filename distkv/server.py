@@ -1,6 +1,7 @@
 # Local server
 from __future__ import annotations
 
+import trio  # signaling
 import anyio
 
 try:
@@ -20,9 +21,11 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 import io
+import sys
+import signal
 import time
 from functools import partial
-from asyncserf.util import CancelledError as SerfCancelledError
+from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
 from pprint import pformat
 from collections.abc import Mapping
@@ -1307,6 +1310,7 @@ class Server:
         self._part_len = SERF_MAXLEN - SERF_LEN_DELTA - len(self.node.name)
         self._part_seq = 0
         self._part_cache = dict()
+        self._savers = []
 
     @asynccontextmanager
     async def next_event(self):
@@ -1448,10 +1452,9 @@ class Server:
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
-                if isinstance(auth, str):
-                    from .auth import gen_auth
+                from .auth import gen_auth
+                cfg["auth"] = gen_auth(auth)
 
-                    cfg["auth"] = gen_auth(auth)
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
@@ -1553,6 +1556,7 @@ class Server:
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
         res["node"] = self.node.name
+        res["tock"] = self.tock
         return res
 
     async def user_update(self, msg):
@@ -1798,7 +1802,7 @@ class Server:
         While you can use the hostmap to temporarily add new hosts with
         unusual addresses, the new host still needs a config entry.
         """
-        port = self.cfg.server.serf.port
+        port = self.cfg.connect.port
         domain = self.cfg.domain
         try:
             # First try to read the host name from the meta-root's
@@ -1890,16 +1894,31 @@ class Server:
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
-                if isinstance(auth, str):
-                    from .auth import gen_auth
+                from .auth import gen_auth
+                cfg["auth"] = gen_auth(auth)
 
-                    cfg["auth"] = gen_auth(auth)
                 async with distkv_client.open_client(**cfg) as client:
                     # TODO auth this client
 
                     pl = PathLongener(())
                     res = await client._request(
                         "get_tree",
+                        iter=True,
+                        from_server=self.node.name,
+                        nchain=-1,
+                        path=(),
+                    )
+                    async for r in res:
+                        pl(r)
+                        r = UpdateEvent.deserialize(
+                            self.root, r, cache=self._nodes, nulls_ok=True
+                        )
+                        await r.entry.apply(r, server=self, root=self.paranoid_root)
+                    await self.tock_seen(res.end_msg.tock)
+
+                    pl = PathLongener((None,))
+                    res = await client._request(
+                        "get_tree_internal",
                         iter=True,
                         from_server=self.node.name,
                         nchain=-1,
@@ -1926,7 +1945,7 @@ class Server:
             except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
-                self.logger.exception("Unable to connect to %s" % (nodes,))
+                self.logger.exception("Unable to connect to %s" % (n,))
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
@@ -1951,6 +1970,8 @@ class Server:
         """
         Process "info" messages.
         """
+        await self.tock_seen(msg.get("tock", 0))
+
         # nodes: list of known nodes and their max ticks
         for nn, t in msg.get("nodes", {}).items():
             nn = Node(nn, cache=self._nodes)
@@ -2158,16 +2179,14 @@ class Server:
                     await m.entry.apply(
                         m, local=local, server=self, root=self.paranoid_root
                     )
-                elif "nodes" in m or "known" in m or "deleted" in m:
+                elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
         self.logger.debug("Loading finished.")
 
-    async def _save(self, writer, shorter, nchain=-1):
+    async def _save(self, writer, shorter, nchain=-1, full=False):
         """Save the current state.
-
-        TODO: Add code for snapshotting.
         """
 
         async def saver(entry):
@@ -2179,7 +2198,7 @@ class Server:
 
         msg = await self.get_state(nodes=True, known=True, deleted=True)
         await writer(msg)
-        await self.root.walk(saver)
+        await self.root.walk(saver, full=full)
 
     async def save(self, path: str = None, stream=None):
         """Save the current state to ``path`` or ``stream``."""
@@ -2192,7 +2211,9 @@ class Server:
         path: str = None,
         stream: anyio.abc.Stream = None,
         save_state: bool = False,
-        done: anyio.abc.Event = None,
+        done: ValueEvent = None,
+        done_val = None,
+        full = False,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -2204,6 +2225,7 @@ class Server:
             If ``False`` (the default), only write changes.
           done: set when writing changes commences, signalling
             that the old save file (if any) may safely be closed.
+          full: save everything, inc. internal data.
         
         Exactly one of ``stream`` or ``path`` must be set.
 
@@ -2218,15 +2240,15 @@ class Server:
             last_saved = time.monotonic()
             last_saved_count = 0
 
-            async with Watcher(self.root) as updates:
+            async with Watcher(self.root, full=True) as updates:
                 await self._ready.wait()
 
                 if save_state:
-                    await self._save(mw, shorter)
+                    await self._save(mw, shorter, full=True)
 
                 await mw.flush()
                 if done is not None:
-                    await done.set()
+                    await done.set(done_val)
 
                 cnt = 0
                 while True:
@@ -2259,25 +2281,28 @@ class Server:
                         else:
                             cnt += 1
 
-    _saver_prev = None
-
     async def _saver(
         self,
         path: str = None,
         stream=None,
-        done: anyio.abc.Event = None,
+        done: ValueEvent = None,
         save_state=False,
     ):
 
         async with anyio.open_cancel_scope() as s:
-            self._saver_prev = s
+            sd = anyio.create_event()
+            state = (s, sd)
+            self._savers.append(state)
             try:
                 await self.save_stream(
-                    path=path, stream=stream, done=done, save_state=save_state
+                    path=path, stream=stream, done=done, done_val=s, save_state=save_state, full=True
                 )
+            except EnvironmentError as err:
+                if done is None:
+                    raise
+                await done.set_error(err)
             finally:
-                if self._saver_prev is s:
-                    self._saver_prev = None
+                await sd.set()
 
     async def run_saver(
         self, path: str = None, stream=None, save_state=False, wait: bool = True
@@ -2298,16 +2323,30 @@ class Server:
           wait: wait for the save to really start.
         
         """
-        done = anyio.create_event() if wait else None
-        s = self._saver_prev  # cleared when _saver ends
+        done = ValueEvent() if wait else None
+        res = None
         if path is not None:
             await self.spawn(
                 self._saver, path=path, stream=stream, save_state=save_state, done=done
             )
             if wait:
-                await done.wait()
-        if s is not None:
+                res = await done.get()
+
+        # At this point the new saver is operational, so we cancel the old one(s).
+        while self._savers is not None and self._savers[0][0] is not res:
+            s,sd = self._savers.pop(0)
             await s.cancel()
+            await sd.wait()
+
+
+    async def _sigterm(self):
+        with trio.open_signal_receiver(signal.SIGTERM) as r:
+            async for s in r:
+                for s,sd in self._savers:
+                    await s.cancel()
+                    await sd.wait()
+                break
+        os.kill(os.getpid(), signal.SIGTERM)
 
     @property
     async def is_ready(self):
@@ -2319,12 +2358,13 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_path=None, ready_evt=None):
+    async def serve(self, log_path=None, log_inc=False, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
+          ``log_inc``: if saving, write changes, not the whole state.
         """
         async with asyncserf.serf_client(**self.cfg.server.serf) as serf:
             # Collect all "info/missing" messages seen since the last
@@ -2374,7 +2414,7 @@ class Server:
             await self.spawn(self._delete_also)
 
             if log_path is not None:
-                await self.run_saver(path=log_path, save_state=True, wait=False)
+                await self.run_saver(path=log_path, save_state=not log_inc, wait=False)
 
             # Link up our "user_*" code
             for d in dir(self):
@@ -2391,6 +2431,8 @@ class Server:
                     await self.root.set_data(
                         event, self._init, tock=self.tock, server=self
                     )
+
+            await self.spawn(self._sigterm)
 
             # send initial ping
             await self.spawn(self._pinger, delay2)

@@ -82,7 +82,7 @@ async def cli(ctx, host, port, auth, metadata):
         if obj._DEBUG:
             cfg.auth._DEBUG = True
 
-    cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+    cfg = combine_dict(cfg, obj.cfg.connect, cls=attrdict)
 
     obj.meta = 3 if metadata else False
 

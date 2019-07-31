@@ -1,0 +1,15 @@
+#!/bin/sh
+set -ex
+
+# This script takes the most-current state files and writes them to the
+# named file.
+
+test -n "$1"
+F="$(python3 -c "import sys; from os.path import abspath; print(abspath(sys.argv[1]))" "$1")"
+
+mkdir -p "$DEST"
+cd "$DEST"
+d=$(find . -name 0.dkv -size +1c -print | sort -r | head -1)
+cd $(dirname "$d")
+
+ls | grep '\.dkv$' | sort -n | xargs cat > "$TEMP"

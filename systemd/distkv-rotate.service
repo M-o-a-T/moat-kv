@@ -1,0 +1,19 @@
+[Unit]
+Description=DistKV log rotate
+Requires=distkv.service
+After=distkv.service
+
+ConditionFileNotEmpty=/etc/distkv.cfg
+ConditionPathIsDirectory=/var/lib/distkv
+
+[Install]
+
+[Service]
+ExecStart=/usr/lib/distkv/rotate
+
+EnvironmentFile=/usr/lib/distkv/env
+EnvironmentFile=-/etc/distkv.env
+
+User=distkv
+Group=distkv
+

@@ -1,0 +1,8 @@
+# shell
+
+PATH=/usr/bin:/bin
+DEST=/var/lib/distkv/
+DATE="%Y-%m-%d-%H"
+MODE=hybrid
+TEMP=/tmp/distkv.current.dkv
+

@@ -409,7 +409,8 @@ Active objects
 While watching for changes is nice, organizing the resulting objects tends
 to be tedious. DistKV comes with a method that does this for you::
 
-   from distkv.client import ClientRoot, ClientEntry, NotGiven
+   from distkv.obj import ClientRoot, ClientEntry
+   from distkv.util import NotGiven
 
    class OneEntry(ClientEntry):
       async def set(self, value):

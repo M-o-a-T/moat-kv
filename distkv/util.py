@@ -349,7 +349,7 @@ class MsgWriter(_MsgRW):
 
         async with MsgWriter("/tmp/msgs.pack") as f:
             for msg in some_source_of_messages():  # or "async for"
-                f(msg)
+                await f(msg)
 
     Arguments:
       buflen (int): The buffer size. Defaults to 64k.

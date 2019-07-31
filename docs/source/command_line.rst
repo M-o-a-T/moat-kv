@@ -2,8 +2,8 @@
 The DistKV command
 ==================
 
-DistKV exports one command line tool, appropriately named ``distkv``. It
-provides various sub- and sub-sub-commands to start and control your server.
+DistKV uses one command line tool, appropriately named ``distkv``. It
+provides various sub- and sub-sub-commands to run and control your server.
 
 Each command and sub-command accepts a distinct set of options which must
 be used directly after the (sub)command affected by them.
@@ -15,11 +15,9 @@ distkv
 
 The main entry point for all commands.
 
-Subcommands:
+Use the option ``--help`` to show that (sub)command's detailed information.
 
-  * :program:`distkv client`
-
-  * :program:`distkv server`
+Options used only for testing are not shown in the commands' help text.
 
 .. option:: -v, --verbose
 
@@ -54,6 +52,16 @@ Subcommands:
 
    Data in this file override the corresponding entries in the
    ``distkv.defaults.CFG`` directory.
+
+   The config will be loaded from the first of these files, assuming it's
+   readable:
+
+   * ~/config/distkv.cfg
+   * ~/.distkv.cfg
+   * /etc/distkv/distkv.cfg
+   * /etc/distkv.cfg
+
+   If you don't want to read any config file, use ``/dev/null``.
 
 .. option:: -C, --conf <location=value>
    
@@ -95,18 +103,31 @@ it from the default of ``27589``, or use a configuration file.
 
    Log all changes to this file. This includes the initial data.
 
-   You can later adapt this with ``distkv client control save``
+   This option is only used for testing. Use ``distkv client log dest`` in
+   production use.
+
+.. option:: -i, --incremental
+
+   Don't write the complete state to the save file.
+
+   This option is of limited usefulness and only used for testing.
+   Use ``distkv client log dest -i`` in production.
 
 A network of servers needs to contain some data before it becomes
 operational. When starting the first server, you can use an initial 
 
-.. option:: -i, --init <value>
+.. option:: -I, --init <value>
 
    Initialize the server by storing this value in the root entry.
+
+   This option is only used for testing. Create initial content with
+   ``distkv dump init`` for production use.
 
 .. option:: -e, --eval
 
    Evaluate the initial value, as a standard Python expression.
+
+   This option is only used for testing.
 
 You can also use :program:`distkv client data set` to update this value
 later.
@@ -1084,6 +1105,44 @@ All of these nodes must be online for clean-up to work.
 
    If you want to shut deletion down temporarily, you can also add a
    nonexistent node to the list.
+
+
+.. program:: distkv dump
+
+Various low-level data handling commands.
+
+
+.. program:: distkv dump cfg
+
+Display the current configuration data.
+
+
+.. program:: distkv dump file
+
+Unpack a file and show its contents as YAML.
+
+.. option:: <file>
+
+   The name of the file to decode.
+
+
+.. program:: distkv dump init
+
+Create an initial data file.
+
+.. option:: <node>
+
+   The node name of the DistKV server that should load the initial file.
+
+.. option:: <file>
+
+   The file to write. Typically ``/var/lib/distkv/%Y-%m-%d/0.dkv``.
+
+
+.. program:: distkv dump serf
+
+Monitor all ``serf`` user messages. (I.e. not just those from DistKV.)
+Display as YAML.
 
 
 .. program:: distkv pdb

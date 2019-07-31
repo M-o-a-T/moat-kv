@@ -1,0 +1,20 @@
+[Unit]
+Description=DistKV state recovery
+Conflicts=distkv.service
+
+AssertFileNotEmpty=/etc/distkv.cfg
+
+[Install]
+
+[Service]
+Type=oneshot
+
+ExecStart=/usr/lib/distkv/recover
+ExecStartPost=!/bin/systemctl restart distkv.service
+
+EnvironmentFile=/usr/lib/distkv/env
+EnvironmentFile=-/etc/distkv.env
+
+User=distkv
+Group=distkv
+

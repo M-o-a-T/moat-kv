@@ -17,7 +17,7 @@ from .actor import DetachedState, PartialState, CompleteState, ActorState
 from .util import NotGiven
 
 from .exceptions import ServerError
-from .client import AttrClientEntry, ClientRoot, ClientEntry
+from .obj import AttrClientEntry, ClientRoot, ClientEntry
 
 import logging
 

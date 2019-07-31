@@ -842,7 +842,7 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0):
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False):
         """
         Call coroutine ``proc`` on this node and all its children).
 
@@ -863,7 +863,7 @@ class Entry:
             return
         _depth += 1
         for k, v in list(self._sub.items()):
-            if k is None:
+            if k is None and not full:
                 continue
             a = acl.step(k) if acl is not None else None
             await v.walk(
@@ -944,8 +944,9 @@ class Watcher:
     q = None
     q_len = 100
 
-    def __init__(self, root: Entry):
+    def __init__(self, root: Entry, full: bool = False):
         self.root = root
+        self.full = full
 
     async def __aenter__(self):
         if self.q is not None:
@@ -967,8 +968,11 @@ class Watcher:
     async def __anext__(self):
         if self.q is None:
             raise RuntimeError("Aborted. Queue filled?")
-        res = await self.q.get()
-        if res is None:
-            raise RuntimeError("Aborted. Queue filled?")
-        self.q._distkv__free += 1
-        return res
+        while True:
+            res = await self.q.get()
+            if res is None:
+                raise RuntimeError("Aborted. Queue filled?")
+            if res.entry.path and res.entry.path[0] is None and not self.full:
+                continue
+            self.q._distkv__free += 1
+            return res
