@@ -246,6 +246,41 @@ class _SingleReply:
         pass
 
 
+class _ClientConfig:
+    """Accessor for configuration, possibly stored in DistKV.
+    """
+    def __init__(self, client, *a, **k):
+        self._init(client)
+        super().__init__(client, *a, **k)
+
+    def _init(self, client):
+        self.client = client
+        self.current = {}
+
+    def __getattr__(self, k):
+        if k.startswith('_'):
+            return object.__getattribute__(self, k)
+        v = self.current.get(k, NotGiven)
+        if v is NotGiven:
+            try:
+                v = self.client._cfg[k]
+            except KeyError:
+                import pdb;pdb.set_trace()
+                raise AttributeError(k) from None
+        return v
+
+    def _update(self, k, v):
+        """
+        Update this config entry. The new data is combined with the static
+        configuration; the old data is discarded.
+        """
+        self.current[k] = combine_dict(v, self.client._cfg.get(k, {}))
+
+class ClientConfig(_ClientConfig):
+    def __init__(self, client):
+        self._init(client)
+
+
 class Client:
     """
     The client side of a DistKV connection.
@@ -262,6 +297,7 @@ class Client:
 
     def __init__(self, cfg: dict):
         self._cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+        self.config = ClientConfig(self)
 
         self._seq = 0
         self._handlers = {}
@@ -566,6 +602,10 @@ class Client:
                     self.server_name = self._server_init.node
                     self.client_name = self._cfg["name"] or self.server_name
                     await self._run_auth(auth)
+
+                from .config import ConfigRoot
+                self._config = await ConfigRoot.as_handler(self)
+
                 yield self
             except socket.error as e:
                 raise ServerConnectionError(host, port) from e
@@ -576,6 +616,13 @@ class Client:
                 # which masks the exception
                 pass
             finally:
+                # Clean up our hacked config
+                try:
+                    del self._config
+                except AttributeError:
+                    pass
+                self.config = ClientConfig(self)
+
                 async with anyio.open_cancel_scope(shield=True):
                     await self.tg.cancel_scope.cancel()
                     if self._socket is not None:

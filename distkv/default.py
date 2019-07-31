@@ -50,6 +50,7 @@ CFG = attrdict(
         auth=None,  # no auth used by default
         name=None,  # defaults to the server's name
     ),
+    config=attrdict(prefix=(".distkv", "config")),
     errors=attrdict(prefix=(".distkv", "error")),
     codes=attrdict(prefix=(".distkv", "code", "proc")),
     modules=attrdict(prefix=(".distkv", "code", "module")),
