@@ -9,11 +9,13 @@ Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
 Standards-Version: 3.9.6
 Homepage: https://github.com/smurfix/distkv
 
-Package: python3-distkv
+Package: distkv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   python3-anyio,
   python3-asyncserf,
+Replaces: python3-distkv
+Conflicts: python3-distkv
 Description: A distributed no-master key-value store
  DistKV is a master-less distributed key-value storage system. It
  circumvents the CAP theorem by assuming that keys are usually only changed
