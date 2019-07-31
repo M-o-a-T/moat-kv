@@ -8,5 +8,9 @@ export MSGPACK_PUREPYTHON=1
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 
+override_dh_install:
+	dh_install
+	$(MAKE) install PREFIX=debian/python3-distkv
+
 override_dh_auto_test:
 	: none yet
