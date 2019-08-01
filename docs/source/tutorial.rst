@@ -409,7 +409,8 @@ Active objects
 While watching for changes is nice, organizing the resulting objects tends
 to be tedious. DistKV comes with a method that does this for you::
 
-   from distkv.client import ClientRoot, ClientEntry, NotGiven
+   from distkv.obj import ClientRoot, ClientEntry
+   from distkv.util import NotGiven
 
    class OneEntry(ClientEntry):
       async def set(self, value):
@@ -554,3 +555,21 @@ methods that translates between one and the other. There are some caveats:
 overwrite changes that arrive while you do that.
 
 
+Dynamic configuration
+=====================
+
+For some use cases, you might want to configure DistKV dynamically instead
+of by a static configuration file.
+
+This is not always feasible; in particular, the "logging" and "server"
+sections are imported once. Also, options used for connecting to another
+DistKV server cannot be set dynamically because you need them before the
+data are available.
+
+Other options may be overridden by storing a new values at ``.distkv config
+<name>``. It is not possible to be more specific. (TODO)
+
+If a client's ACLs do not allow reading a config entry, it will be silently
+ignored.
+
+A config entry's ``_watch`` property will trigger when the entry is updated.

@@ -1,0 +1,23 @@
+#!/bin/sh
+set -ex
+
+# This script tells DistKV to continue with the next log file.
+# By default it writes a full dump daily.
+
+cd "$DEST"
+D=$(date +"$DATE")
+test -d $D || mkdir -p $D
+cd $D
+
+x=$(ls|sort -rn|head -1)
+if test -n "$x" ; then
+	x=$(expr $(basename $x .dkv) + 1)
+	I="-i"
+else
+	x=0
+	I=""
+fi
+
+export PYTHONPATH
+distkv -c /etc/distkv.cfg client log dest $I "$DEST/$D/$x.dkv"
+

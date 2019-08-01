@@ -41,3 +41,8 @@ Open issues
 
 * Error consolidation: if a conflict doesn't get resolved on its own, do it
   anyway when we are "it" next and >1 cycle has passed
+
+* Add a command to cleanly flush the server log and stop the server.
+
+* Test iterator on changed config entries
+

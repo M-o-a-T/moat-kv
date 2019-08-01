@@ -2,7 +2,7 @@
 
 import os
 import sys
-import trio_click as click
+import asyncclick as click
 import json
 from functools import partial
 
@@ -82,7 +82,7 @@ async def cli(ctx, host, port, auth, metadata):
         if obj._DEBUG:
             cfg.auth._DEBUG = True
 
-    cfg = combine_dict(cfg, CFG.connect, cls=attrdict)
+    cfg = combine_dict(attrdict(connect=cfg), obj.cfg, cls=attrdict)
 
     obj.meta = 3 if metadata else False
 

@@ -1,0 +1,33 @@
+#!/bin/sh
+set -ex
+
+# This script sets up an initial DistKV master.
+systemd-sysusers --no-pager /usr/lib/sysusers.d/distkv.conf
+
+. /usr/lib/distkv/env
+
+grep -qs '^MODE=' /etc/distkv.env || echo MODE=master >>/etc/distkv.env
+grep -qs '^NAME=' /etc/distkv.env || echo NAME=$(hostname) >>/etc/distkv.env
+
+. /etc/distkv.env
+
+if test "$MODE" != "slave" ; then
+    mkdir -p "$DEST"
+    cd "$DEST"
+    d="$(find . -name 0.dkv -size +1c | sort | head -1)"
+    if test -n "$d" ; then
+        d="$(dirname "$d")"
+    else
+        d="$(date -d 2019-01-01 +"$DATE")"
+        mkdir -p "$d"
+    fi
+    cd $d
+
+    if test ! -s "0.dkv" ; then
+        distkv dump init $NAME 0.dkv
+        chown -R distkv:distkv "$DEST"
+    fi
+fi
+
+systemctl enable distkv.service
+systemctl enable distkv-rotate.timer

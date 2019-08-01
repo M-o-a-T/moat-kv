@@ -178,13 +178,13 @@ async def test_02_cmd(autojump_clock):
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True
             )
             del r["tock"]
+            del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 3},
                 "known": {"test_0": ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
-                "seq": 2,
             }
 
             assert (await c._request("get_value", node="test_0", tick=1)).value == 123

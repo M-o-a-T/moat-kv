@@ -91,8 +91,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                 if host[0] == ":":
                     continue
                 try:
-                    async with open_client(
-                        host=host, port=port, ssl=client_ctx, **kv
+                    async with open_client(connect=dict(
+                        host=host, port=port, ssl=client_ctx, **kv)
                     ) as c:
                         yield c
                         return

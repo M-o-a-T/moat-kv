@@ -14,7 +14,7 @@ from time import time  # wall clock, intentionally
 from functools import partial
 
 from .util import PathLongener, make_module, make_proc, NotGiven
-from .client import ClientRoot, ClientEntry
+from .obj import ClientRoot, ClientEntry
 
 import logging
 

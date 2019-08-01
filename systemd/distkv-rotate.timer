@@ -1,0 +1,10 @@
+[Unit]
+Description=The DistKV server state save timer
+Requires=distkv.service
+
+[Timer]
+OnUnitActiveSec=900
+OnActiveSec=100
+
+[Install]
+WantedBy=distkv.service

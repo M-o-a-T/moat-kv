@@ -1,4 +1,4 @@
-# from trio_click.testing import CliRunner
+# from asyncclick.testing import CliRunner
 import io
 import sys
 
@@ -7,6 +7,7 @@ from distkv.default import CFG
 
 
 async def run(*args, expect_exit=0, do_stdout=True):
+    args = ["-c","/dev/null", *args]
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
     try:

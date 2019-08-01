@@ -1,0 +1,17 @@
+#!/bin/bash
+set -ex
+
+# This script tries to recover from hybrid mode start failure
+# by re-starting in master mode.
+
+if ! test "$MODE" = hybrid ; then
+    echo "Not hybrid mode. Not restarting." >&2
+    exit 1
+fi
+
+if test -f "$TEMP" ; then
+    echo "$TEMP exists, not restarting" >&2
+    exit 1
+fi
+/usr/lib/distkv/current "$TEMP"
+

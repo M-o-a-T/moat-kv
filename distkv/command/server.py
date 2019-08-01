@@ -2,7 +2,8 @@
 
 import os
 import sys
-import trio_click as click
+import asyncclick as click
+import anyio
 
 from distkv.util import (
     attrdict,
@@ -12,7 +13,7 @@ from distkv.util import (
     split_one,
     NotGiven,
 )
-from distkv.client import open_client, StreamedRequest
+from distkv.client import StreamedRequest
 from distkv.default import CFG
 from distkv.server import Server
 from distkv.auth import loader, gen_auth
@@ -28,14 +29,14 @@ logger = logging.getLogger(__name__)
     "-h",
     "--host",
     default=None,
-    help="Address to bind to. Default: %s" % (CFG.server.bind_default.host),
+    help="Serf host to connect to. Default: %s" % (CFG.server.bind_default.host),
 )
 @click.option(
     "-p",
     "--port",
     type=int,
     default=None,
-    help="Port to bind to. Default: %d" % (CFG.server.bind_default.port,),
+    help="Serf port to connect to. Default: %d" % (CFG.server.bind_default.port,),
 )
 @click.option(
     "-l",
@@ -50,18 +51,27 @@ logger = logging.getLogger(__name__)
     type=click.Path(writable=True, allow_dash=False),
     default=None,
     help="Event log to write to.",
+    hidden=True,
 )
 @click.option(
     "-i",
+    "--incremental",
+    default=None,
+    help="Save incremental changes, not the complete state",
+    hidden=True,
+)
+@click.option(
+    "-I",
     "--init",
     default=None,
     help="Initial value to set the root to. Use only when setting up "
     "a cluster for the first time!",
+    hidden=True,
 )
-@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.")
+@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True)
 @click.argument("name", nargs=1)
 @click.pass_obj
-async def cli(obj, name, host, port, load, save, init, eval):
+async def cli(obj, name, host, port, load, save, init, incremental, eval):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -90,12 +100,34 @@ async def cli(obj, name, host, port, load, save, init, eval):
     elif init is not None:
         kw["init"] = init
 
+    from systemd.daemon import notify
+
+    async def run_keepalive(usec):
+        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        pid = os.getpid()
+        while os.getpid() == pid:
+            notify("WATCHDOG=1")
+            await anyio.sleep(usec)
+
+    def need_keepalive():
+        pid = os.getpid()
+        epid = int(os.environ.get('WATCHDOG_PID', pid))
+        if pid == epid:
+            return int(os.environ.get('WATCHDOG_USEC', 0))
+
     class RunMsg:
         async def set(self):
+            notify("READY=1")
             if obj.debug:
                 print("Running.")
 
-    s = Server(name, cfg=obj.cfg, **kw)
-    if load is not None:
-        await s.load(path=load, local=True)
-    await s.serve(log_path=save, ready_evt=RunMsg())
+    async with anyio.create_task_group() as tg:
+        usec = need_keepalive()
+        if usec:
+            await tg.spawn(do_keepalive, usec)
+
+        s = Server(name, cfg=obj.cfg, **kw)
+        if load is not None:
+            await s.load(path=load, local=True)
+
+        await s.serve(log_path=save, log_inc=incremental, ready_evt=RunMsg())
