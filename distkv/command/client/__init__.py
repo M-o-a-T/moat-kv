@@ -15,12 +15,10 @@ from distkv.util import (
     split_one,
     NotGiven,
 )
-from distkv.client import open_client, StreamedRequest
+from distkv.client import open_client
 from distkv.command import Loader
 from distkv.default import CFG
-from distkv.server import Server
-from distkv.auth import loader, gen_auth
-from distkv.exceptions import ClientError
+from distkv.auth import gen_auth
 
 import logging
 

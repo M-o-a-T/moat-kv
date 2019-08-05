@@ -13,11 +13,6 @@ from distkv.util import (
     NotGiven,
 )
 from distkv.client import StreamedRequest
-from distkv.command import Loader
-from distkv.default import CFG
-from distkv.server import Server
-from distkv.auth import loader, gen_auth
-from distkv.exceptions import ClientError
 from distkv.util import yprint
 
 import logging
