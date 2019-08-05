@@ -40,12 +40,33 @@ class Loader(click.Group):
             print("I am", self.name)  # prints "subcmd"
     """
 
-    def __init__(self, current_file, plugin_folder, *a, **kw):
+    def __init__(self, current_file, plugin, *a, **kw):
+        self.__plugin = plugin
         self.__plugin_folder = os.path.dirname(current_file)
+        self.__ext = {}
         super().__init__(*a, **kw)
 
+    def _namespaces(ns_pkg):
+        import pkgutil
+        import distkv_ext as ext
+        # Specifying the second argument (prefix) to iter_modules makes the
+        # returned name an absolute name instead of a relative one. This allows
+        # import_module to work without having to do additional modification to
+        # the name.
+        return pkgutil.iter_modules(ext.__path__, ext.__name__ + ".")
+
+    def _load(self, name, fn):
+        ns = {"main": self, "__file__": fn}
+        with open(fn) as f:
+            code = compile(f.read(), fn, "exec")
+            eval(code, ns, ns)  # pylint: disable=eval-used
+        cmd = ns["cli"]
+        cmd.__name__ = name
+        return cmd
+
     def list_commands(self, ctx):
-        rv = []
+        rv = super().list_commands(ctx)
+
         for filename in os.listdir(self.__plugin_folder):
             if filename[0] in '._':
                 continue
@@ -53,30 +74,51 @@ class Loader(click.Group):
                 rv.append(filename[:-3])
             elif os.path.isfile(os.path.join(self.__plugin_folder,filename,'__init__.py')):
                 rv.append(filename)
-        rv.sort()
 
-        rv += super().list_commands(ctx)
+        import distkv_ext as ext
+        import importlib
+
+        for finder, name, ispkg in self._namespaces():
+            if not ispkg:
+                continue
+            x = name.rsplit('.',1)[-1]
+            fn = os.path.join(finder.path, x, self.__plugin)+'.py'
+            if not os.path.exists(fn):
+                fn = os.path.join(finder.path, x, self.__plugin, "__init__.py")
+            if os.path.exists(fn):
+                cmd = self._load(x,fn)
+                self.__ext[x] = cmd
+            ns = {"main": self, "__file__": fn}
+            rv.append(x)
+
+        rv.sort()
         return rv
 
     def get_command(self, ctx, name):  # pylint: disable=arguments-differ
-        fn = os.path.join(self.__plugin_folder, name + ".py")
-        if not os.path.exists(fn):
-            fn = os.path.join(self.__plugin_folder, name, "__init__.py")
-        if os.path.exists(fn):
-            ns = {"main": self, "__file__": fn}
-            with open(fn) as f:
-                code = compile(f.read(), fn, "exec")
-                eval(code, ns, ns)  # pylint: disable=eval-used
-            try:
-                cmd = ns["cli"]  # pylint: disable=redefined-outer-name
-            except KeyError:
-                raise SyntaxError(
-                    "%r in %r doesn't define 'cli'" % (name, self.__plugin_folder)
-                )
-            cmd.name = name
+        cmd = super().get_command(ctx, name)
+        if cmd is not None:
             return cmd
-        else:
-            return super().get_command(ctx, name)
+        try:
+            cmd = self.__ext[name]
+        except KeyError:
+            fn = os.path.join(self.__plugin_folder, name + ".py")
+            if not os.path.exists(fn):
+                fn = os.path.join(self.__plugin_folder, name, "__init__.py")
+            if not os.path.exists(fn):
+                for finder, pkg, ispkg in self._namespaces():
+                    if not ispkg:
+                        continue
+                    if pkg.rsplit('.',1)[-1] != name:
+                        continue
+                    fn = os.path.join(finder.path, name, self.__plugin)+'.py'
+                    if not os.path.exists(fn):
+                        fn = os.path.join(finder.path, name, self.__plugin, "__init__.py")
+                    if os.path.exists(fn):
+                        break
+
+            cmd = self._load(name, fn)
+        cmd.name = name
+        return cmd
 
 
 def cmd():
