@@ -283,9 +283,9 @@ class _ClientConfig:
 
     async def _watch(self):
         class CfgWatcher:
-            def __ainit__(slf):
+            def __ainit__(slf):  # pylint: disable=no-self-argument
                 return slf
-            async def __anext__(slf):
+            async def __anext__(slf):  # pylint: disable=no-self-argument
                 await self._changed.wait()
         return CfgWatcher()
 

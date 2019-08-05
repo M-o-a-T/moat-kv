@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage authorization")
+@main.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
 @click.option("-m", "--method", default=None, help="Affect/use this auth method")
 @click.pass_obj
 async def cli(obj, method):
@@ -130,7 +130,7 @@ async def user(obj):
     is_flag=True,
     help="Print complete results. Default: just the names",
 )
-@click.pass_obj
+@click.pass_obj  # pylint: disable=function-redefined
 async def list(obj, verbose):
     """List all users (raw data)."""
     async for r in enum_typ(obj, nchain=obj.meta):

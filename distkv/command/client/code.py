@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()
+@main.group()  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """Manage code stored in DistKV."""
@@ -49,7 +49,7 @@ async def get(obj, path, script):
         code = res.pop("code", None)
         if code is not None:
             print(code, file=script)
-    yprint(res, file=obj.stdout)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command()
@@ -121,7 +121,7 @@ async def mod(obj):
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
 @click.argument("path", nargs=-1)
-@click.pass_obj
+@click.pass_obj  # pylint: disable=function-redefined
 async def get(obj, path, script):
     """Read a module entry"""
     if not path:
@@ -149,7 +149,7 @@ async def get(obj, path, script):
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=-1)  # pylint: disable=function-redefined
 @click.pass_obj
 async def set(obj, path, script, data):
     """Save a Python module to DistKV."""

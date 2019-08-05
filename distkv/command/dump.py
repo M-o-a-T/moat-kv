@@ -2,6 +2,7 @@
 
 import os
 import sys
+import anyio
 import asyncclick as click
 from distkv.util import MsgReader
 from functools import partial
@@ -27,7 +28,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage data.")
+@main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """
@@ -113,9 +114,3 @@ async def serf(obj):
 
                 yprint(c)
                 print("---")
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    anyio.run(main)
-

@@ -24,7 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.command(short_help="Run the DistKV server.")
+@main.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
 @click.option(
     "-h",
     "--host",
@@ -124,7 +124,7 @@ async def cli(obj, name, host, port, load, save, init, incremental, eval):
     async with anyio.create_task_group() as tg:
         usec = need_keepalive()
         if usec:
-            await tg.spawn(do_keepalive, usec)
+            await tg.spawn(run_keepalive, usec)
 
         s = Server(name, cfg=obj.cfg, **kw)
         if load is not None:

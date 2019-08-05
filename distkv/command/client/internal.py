@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Control internal state.")
+@main.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """

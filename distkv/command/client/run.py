@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()
+@main.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node")
 @click.pass_obj
 async def cli(obj, node):

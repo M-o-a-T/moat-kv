@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 _packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
-__all__ = ["ClientEntry", "AttrClientEntry", "CLientRoot"]
+__all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
 
 class ClientEntry:

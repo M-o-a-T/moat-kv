@@ -46,7 +46,7 @@ class NullObj:
         raise self._exc
 
 
-@main.group(cls=partial(Loader, __file__, "client"))
+@main.group(cls=partial(Loader, __file__, "client"))  # pylint: disable=undefined-variable
 @click.option(
     "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,)
 )

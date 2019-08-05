@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage data.")
+@main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """
