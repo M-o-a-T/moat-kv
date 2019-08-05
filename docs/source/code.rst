@@ -123,3 +123,24 @@ See :class:`distkv.runner.RunnerEntry` for details.
 The actcual runtime information is stored in a separate "state" node, mainly to avoid race conditions.
 See :class:`distkv.runner.StateEntry` for details.
 
+Variables
+=========
+
+The runners pass a couple of variables to the code.
+
+* _entry
+
+  The current runner entry. Try not to modify it.
+
+* _client
+
+  The running DistKV client.
+
+* _info
+
+  A queue for events. Currently, receives subclasses of
+  :cls:`distkv.actor.ActorState`, to signal whether the running node is
+  connected to any / all of your DistKV-using infrastructure.
+
+These are stored in the implicit ``_kw`` variable by default.
+
