@@ -1,18 +1,8 @@
 # command line interface
 
-import os
-import sys
 import asyncclick as click
-import json
 
-from distkv.util import (
-    attrdict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
+from distkv.util import split_one
 from distkv.auth import loader, gen_auth
 from distkv.util import yprint
 

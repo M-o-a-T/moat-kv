@@ -4,41 +4,19 @@ Object interface to distkv data
 """
 
 import anyio
-import outcome
 import msgpack
-import socket
 import weakref
 import heapq
-import random
 from functools import partial
 import socket
 
 try:
-    from contextlib import asynccontextmanager, AsyncExitStack
+    from contextlib import asynccontextmanager
 except ImportError:
     from async_generator import asynccontextmanager
-    from async_exit_stack import AsyncExitStack
 
-from asyncserf.util import ValueEvent
-from .util import (
-    attrdict,
-    gen_ssl,
-    num2byte,
-    byte2num,
-    PathLongener,
-    NoLock,
-    NotGiven,
-    combine_dict,
-)
+from .util import PathLongener, NoLock, NotGiven, combine_dict
 from .default import CFG
-from .exceptions import (
-    ClientAuthMethodError,
-    ClientAuthRequiredError,
-    ServerClosedError,
-    ServerConnectionError,
-    ServerError,
-    CancelledError,
-)
 
 import logging
 

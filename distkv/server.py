@@ -2177,7 +2177,7 @@ class Server:
                     )
                     await self.tock_seen(m.tock)
                     await m.entry.apply(
-                        m, local=local, server=self, root=self.paranoid_root
+                        m, server=self, root=self.paranoid_root
                     )
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)

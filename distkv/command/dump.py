@@ -1,26 +1,12 @@
 # command line interface
 
-import os
 import sys
-import anyio
 import asyncclick as click
 from distkv.util import MsgReader
 from functools import partial
 from distkv.util import MsgReader, MsgWriter
 
-from distkv.util import (
-    attrdict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
-from distkv.client import StreamedRequest
-from distkv.default import CFG
-from distkv.server import Server
-from distkv.auth import loader, gen_auth
-from distkv.exceptions import ClientError
+from distkv.util import MsgReader
 from distkv.util import yprint
 
 import logging

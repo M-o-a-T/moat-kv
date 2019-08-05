@@ -584,7 +584,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             if node.seen < cut:
                 dropped.append(node)
         names = set()
-        for node_ in dropped:
+        for node in dropped:
             names.add(node.name)
             del self._nodes[node.name]
         if names:

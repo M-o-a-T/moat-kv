@@ -8,12 +8,9 @@ so that it can be called easily.
 
 import sys
 import anyio
-from collections import defaultdict, deque
-from weakref import WeakValueDictionary
-from time import time  # wall clock, intentionally
 from functools import partial
 
-from .util import PathLongener, make_module, make_proc, NotGiven
+from .util import make_module, make_proc, NotGiven
 from .obj import ClientRoot, ClientEntry
 
 import logging

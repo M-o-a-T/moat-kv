@@ -5,11 +5,9 @@ import sys
 import asyncclick as click
 
 from distkv.util import (
-    attrdict,
     PathLongener,
     MsgReader,
     PathShortener,
-    split_one,
     NotGiven,
 )
 from distkv.client import StreamedRequest

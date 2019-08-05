@@ -1,18 +1,8 @@
 # command line interface
 
-import os
-import sys
 import asyncclick as click
 
 from range_set import RangeSet
-from distkv.util import (
-    attrdict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
 from distkv.util import yprint
 
 import logging

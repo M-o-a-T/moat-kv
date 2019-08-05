@@ -8,10 +8,7 @@ import anyio
 import outcome
 import msgpack
 import socket
-import weakref
-import heapq
 import random
-from functools import partial
 import socket
 
 try:
@@ -27,7 +24,6 @@ from .util import (
     num2byte,
     byte2num,
     PathLongener,
-    NoLock,
     NotGiven,
     combine_dict,
 )

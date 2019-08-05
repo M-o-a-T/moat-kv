@@ -81,12 +81,12 @@ of this record.
 
 import anyio
 import traceback
-from collections import defaultdict, deque
+from collections import defaultdict
 from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
 from .obj import AttrClientEntry, ClientEntry, ClientRoot
-from .util import PathLongener, Cache, attrdict, NotGiven
+from .util import Cache, NotGiven
 from .codec import packer
 from .exceptions import ServerError
 
@@ -134,7 +134,7 @@ class ErrorEntry(AttrClientEntry):
     @property
     def real_entry(self):
         while self._real_entry is not None:
-            self = self._real_entry
+            self = self._real_entry  # pylint: disable=self-cls-assignment
         return self
 
     async def resolve(self):
