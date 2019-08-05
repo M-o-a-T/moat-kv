@@ -225,5 +225,5 @@ class CodeEntry(ClientEntry):
             proc = self._code
             if kw:
                 proc = partial(proc, **kw)
-            return anyio.run_in_thread(proc, *a, **kw)
+            return anyio.run_in_thread(proc, *a)
         return self._code(*a, **kw)
