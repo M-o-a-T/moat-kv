@@ -78,7 +78,7 @@ async def init(obj, node, file):
 @cli.command()
 @click.pass_obj
 async def serf(obj):
-    """Monitor the Serf messafge stream.
+    """Monitor the Serf message stream.
     """
     from asyncserf import NoopCodec, serf_client
     import msgpack
