@@ -1,18 +1,8 @@
 # command line interface
 
-import os
 import sys
 import asyncclick as click
-import json
 
-from distkv.util import (
-    attrdict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
 from distkv.util import yprint
 
 import logging
@@ -23,7 +13,7 @@ ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate
 
 
-@main.group()
+@main.group()  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """Manage ACLs. Usage: … acl …"""

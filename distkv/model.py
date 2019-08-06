@@ -23,6 +23,7 @@ logger = getLogger(__name__)
 
 class NodeDataSkipped(Exception):
     def __init__(self, node):
+        super().__init__()
         self.node = node
 
     def __repr__(self):
@@ -64,6 +65,7 @@ class Node:
                     self.tick = tick
         return self
 
+    # pylint: disable=unused-argument
     def __init__(self, name, tick=None, cache=None, create=True):
         return
 
@@ -377,7 +379,7 @@ class NodeEvent:
         if self == other:
             return False
         while self.node != other.node:
-            self = self.prev
+            self = self.prev  # pylint: disable=self-cls-assignment
             if self is None:
                 return False
         return self.tick >= other.tick
@@ -402,7 +404,7 @@ class NodeEvent:
             if self.node == node:
                 return res
             res += 1
-            self = self.prev
+            self = self.prev  # pylint: disable=self-cls-assignment
         return None
 
     def filter(self, node, server=None):
@@ -463,7 +465,7 @@ class NodeEvent:
         if prev is not None:
             prev = prev.filter(self.node, server=server)
         if self.prev is not None or prev is not None:
-            self = NodeEvent(node=self.node, tick=self.tick, prev=prev)
+            self = NodeEvent(node=self.node, tick=self.tick, prev=prev)  # pylint: disable=self-cls-assignment
         return self
 
 
@@ -502,6 +504,7 @@ class UpdateEvent:
 
     def serialize(self, chop_path=0, nchain=-1, with_old=False, conv=None):
         if conv is None:
+            # pylint: disable=redefined-outer-name
             global ConvNull
             if ConvNull is None:
                 from .types import ConvNull
@@ -521,6 +524,7 @@ class UpdateEvent:
     @classmethod
     def deserialize(cls, root, msg, cache, nulls_ok=False, conv=None):
         if conv is None:
+            # pylint: disable=redefined-outer-name
             global ConvNull
             if ConvNull is None:
                 from .types import ConvNull
@@ -633,7 +637,7 @@ class Entry:
         if acl is None:
             global NullACL
             if NullACL is None:
-                from .types import NullACL
+                from .types import NullACL  # pylint: disable=redefined-outer-name
             acl = NullACL
 
         first = True
@@ -778,7 +782,7 @@ class Entry:
         return evt
 
     async def apply(
-        self, evt: UpdateEvent, local: bool = False, server=None, root=None
+        self, evt: UpdateEvent, server=None, root=None
     ):
         """Apply this :cls`UpdateEvent` to me.
 
@@ -809,16 +813,16 @@ class Entry:
 
         if self._data is not NotGiven:
             if not (self.chain < evt.event):
-                logger.warn("*** inconsistency ***")
-                logger.warn("Node: %s", self.path)
-                logger.warn("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warn(
+                logger.warning("*** inconsistency ***")
+                logger.warning("Node: %s", self.path)
+                logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
+                logger.warning(
                     "New: %s :%s: %r", evt.event, evt.tock, evt.get("value", NotGiven)
                 )
                 if evt.tock < self.tock:
-                    logger.warn("New value ignored")
+                    logger.warning("New value ignored")
                     return
-                logger.warn("New value used")
+                logger.warning("New value used")
 
         if hasattr(evt, "new_value"):
             evt_val = evt.new_value
@@ -881,7 +885,7 @@ class Entry:
         if conv is None:
             global ConvNull
             if ConvNull is None:
-                from .types import ConvNull
+                from .types import ConvNull  # pylint: disable=redefined-outer-name
             conv = ConvNull
         res = attrdict()
         if self._data is not NotGiven:

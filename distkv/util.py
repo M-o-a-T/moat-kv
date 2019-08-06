@@ -541,7 +541,7 @@ def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-
     vars = ",".join(vars)
     if vars:
         vars += ","
-    hdr = "def _proc(%s **kw):\n    " % (vars,)
+    hdr = "def _proc(%s **_kw):\n    " % (vars,)
 
     if use_async:
         hdr = "async " + hdr

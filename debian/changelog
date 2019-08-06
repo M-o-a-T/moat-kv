@@ -1,3 +1,9 @@
+distkv (0.10.0-1) UNRELEASED; urgency=medium
+
+  * Extension mechanism
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 06 Aug 2019 08:01:29 +0200
+
 distkv (0.9.2-1) unstable; urgency=medium
 
   * Merge to 0.9.2

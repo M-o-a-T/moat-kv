@@ -8,10 +8,7 @@ import anyio
 import outcome
 import msgpack
 import socket
-import weakref
-import heapq
 import random
-from functools import partial
 import socket
 
 try:
@@ -27,7 +24,6 @@ from .util import (
     num2byte,
     byte2num,
     PathLongener,
-    NoLock,
     NotGiven,
     combine_dict,
 )
@@ -283,9 +279,9 @@ class _ClientConfig:
 
     async def _watch(self):
         class CfgWatcher:
-            def __ainit__(slf):
+            def __ainit__(slf):  # pylint: disable=no-self-argument
                 return slf
-            async def __anext__(slf):
+            async def __anext__(slf):  # pylint: disable=no-self-argument
                 await self._changed.wait()
         return CfgWatcher()
 

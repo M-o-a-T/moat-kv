@@ -1,24 +1,8 @@
 # command line interface
 
-import os
-import sys
 import asyncclick as click
 import yaml
 
-from distkv.util import (
-    attrdict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
-from distkv.client import StreamedRequest
-from distkv.command import Loader
-from distkv.default import CFG
-from distkv.server import Server
-from distkv.auth import loader, gen_auth
-from distkv.exceptions import ClientError
 from distkv.util import yprint
 
 import logging
@@ -26,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()
+@main.group()  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """Manage codecs and converters. Usage: … codec …"""

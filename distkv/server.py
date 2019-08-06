@@ -1,6 +1,11 @@
 # Local server
 from __future__ import annotations
 
+import os
+import io
+import sys
+import signal
+import time
 import trio  # signaling
 import anyio
 
@@ -11,7 +16,6 @@ except ImportError:
     class trioBrokenResourceError(Exception):
         pass
 
-
 try:
     from contextlib import asynccontextmanager
 except ImportError:
@@ -20,10 +24,6 @@ import msgpack
 import asyncserf
 from typing import Any
 from range_set import RangeSet
-import io
-import sys
-import signal
-import time
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
 from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
@@ -31,7 +31,7 @@ from pprint import pformat
 from collections.abc import Mapping
 
 from .model import NodeEvent, Node, Watcher, UpdateEvent, NodeSet
-from .types import RootEntry, ConvNull, NullACL, ACLFinder
+from .types import RootEntry, ConvNull, NullACL, ACLFinder, ACLStepper
 from .actor.deletor import DeleteActor
 from .default import CFG
 from .codec import packer, unpacker, stream_unpacker
@@ -637,7 +637,7 @@ class ServerClient:
     user = None  # authorized user
     _dh_key = None
     conv = ConvNull
-    acl = NullACL
+    acl: ACLStepper = NullACL
 
     def __init__(self, server: "Server", stream: anyio.abc.Stream):
         self.server = server
@@ -1945,7 +1945,7 @@ class Server:
             except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
-                self.logger.exception("Unable to connect to %s" % (n,))
+                self.logger.exception("Unable to connect to %s" % (host,))
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
@@ -2177,7 +2177,7 @@ class Server:
                     )
                     await self.tock_seen(m.tock)
                     await m.entry.apply(
-                        m, local=local, server=self, root=self.paranoid_root
+                        m, server=self, root=self.paranoid_root
                     )
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
