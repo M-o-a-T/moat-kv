@@ -6,10 +6,10 @@ import asyncclick as click
 import yaml
 from functools import partial
 
-from ..util import attrdict, combine_dict, NotGiven
-from ..default import CFG
-
-from ..exceptions import ClientError, ServerError
+from distkv.util import attrdict, combine_dict, NotGiven
+from distkv.default import CFG
+from distkv.ext import load_one, list_ext, load_ext
+from distkv.exceptions import ClientError, ServerError
 
 import logging
 from logging.config import dictConfig
@@ -43,26 +43,7 @@ class Loader(click.Group):
     def __init__(self, current_file, plugin, *a, **kw):
         self.__plugin = plugin
         self.__plugin_folder = os.path.dirname(current_file)
-        self.__ext = {}
         super().__init__(*a, **kw)
-
-    def _namespaces(ns_pkg):
-        import pkgutil
-        import distkv_ext as ext
-        # Specifying the second argument (prefix) to iter_modules makes the
-        # returned name an absolute name instead of a relative one. This allows
-        # import_module to work without having to do additional modification to
-        # the name.
-        return pkgutil.iter_modules(ext.__path__, ext.__name__ + ".")
-
-    def _load(self, name, fn):
-        ns = {"main": self, "__file__": fn}
-        with open(fn) as f:
-            code = compile(f.read(), fn, "exec")
-            eval(code, ns, ns)  # pylint: disable=eval-used
-        cmd = ns["cli"]
-        cmd.__name__ = name
-        return cmd
 
     def list_commands(self, ctx):
         rv = super().list_commands(ctx)
@@ -75,49 +56,18 @@ class Loader(click.Group):
             elif os.path.isfile(os.path.join(self.__plugin_folder,filename,'__init__.py')):
                 rv.append(filename)
 
-        import distkv_ext as ext
-        import importlib
-
-        for finder, name, ispkg in self._namespaces():
-            if not ispkg:
-                continue
-            x = name.rsplit('.',1)[-1]
-            fn = os.path.join(finder.path, x, self.__plugin)+'.py'
-            if not os.path.exists(fn):
-                fn = os.path.join(finder.path, x, self.__plugin, "__init__.py")
-            if os.path.exists(fn):
-                cmd = self._load(x,fn)
-                self.__ext[x] = cmd
-            ns = {"main": self, "__file__": fn}
-            rv.append(x)
-
-        rv.sort()
+        for n,_ in list_ext(self.__plugin):
+            rv.append(n)
         return rv
 
     def get_command(self, ctx, name):  # pylint: disable=arguments-differ
         cmd = super().get_command(ctx, name)
-        if cmd is not None:
-            return cmd
-        try:
-            cmd = self.__ext[name]
-        except KeyError:
-            fn = os.path.join(self.__plugin_folder, name + ".py")
-            if not os.path.exists(fn):
-                fn = os.path.join(self.__plugin_folder, name, "__init__.py")
-            if not os.path.exists(fn):
-                for finder, pkg, ispkg in self._namespaces():
-                    if not ispkg:
-                        continue
-                    if pkg.rsplit('.',1)[-1] != name:
-                        continue
-                    fn = os.path.join(finder.path, name, self.__plugin)+'.py'
-                    if not os.path.exists(fn):
-                        fn = os.path.join(finder.path, name, self.__plugin, "__init__.py")
-                    if os.path.exists(fn):
-                        break
-
-            cmd = self._load(name, fn)
-        cmd.name = name
+        if cmd is None:
+            try:
+                cmd = load_one(name, self.__plugin_folder, "cli", main=self)
+            except FileNotFoundError:
+                cmd = load_ext(name, self.__plugin, "cli", main=self)
+        cmd.__name__ = name
         return cmd
 
 

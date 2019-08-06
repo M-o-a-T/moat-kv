@@ -2,7 +2,8 @@
 This module contains the default values for distkv configuration.
 """
 
-from .util import attrdict
+from .util import attrdict, combine_dict
+from .ext import list_ext, load_ext
 
 __all__ = ["PORT", "CFG"]
 
@@ -97,3 +98,6 @@ CFG = attrdict(
         "test2": ("does-not-exist.invalid", PORT),
     },
 )
+
+for n,f in list_ext('config'):
+    CFG[n] = combine_dict(load_ext(n,"config","CFG"), CFG.get(n,{}), cls=attrdict)

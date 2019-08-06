@@ -11,8 +11,7 @@ from distkv.util import (
     NotGiven,
 )
 from distkv.client import StreamedRequest
-from distkv.command.util import data_get
-from distkv.util import yprint
+from distkv.util import yprint, data_get
 
 import logging
 
