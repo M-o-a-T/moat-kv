@@ -58,6 +58,7 @@ class Loader(click.Group):
 
         for n,_ in list_ext(self.__plugin):
             rv.append(n)
+        rv.sort()
         return rv
 
     def get_command(self, ctx, name):  # pylint: disable=arguments-differ
