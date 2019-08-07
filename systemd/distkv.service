@@ -21,4 +21,5 @@ Group=distkv
 EnvironmentFile=/usr/lib/distkv/env
 EnvironmentFile=-/etc/distkv.env
 
-TimeoutSec=30
+TimeoutSec=300
+WatchdogSec=10

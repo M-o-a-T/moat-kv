@@ -46,3 +46,6 @@ Open issues
 
 * Test iterator on changed config entries
 
+* Replace the command parser's "@main.group" with something that detects
+  where it's called from and looks up its parent command using a registry.
+  Or the ``click`` data structures.

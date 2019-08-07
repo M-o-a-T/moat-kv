@@ -817,7 +817,7 @@ class Entry:
                 logger.warning("Node: %s", self.path)
                 logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
                 logger.warning(
-                    "New: %s :%s: %r", evt.event, evt.tock, evt.get("value", NotGiven)
+                    "New: %s :%s: %r", evt.event, evt.tock, evt.entry.value
                 )
                 if evt.tock < self.tock:
                     logger.warning("New value ignored")

@@ -50,6 +50,14 @@ class ClientEntry:
         """
         return cls
 
+    def value_or(self, default, typ=None):
+        val = self.value
+        if val is NotGiven:
+            return default
+        if typ is not None and not isinstance(val,typ):
+            return default
+        return val
+
     @property
     def parent(self):
         return self._parent()

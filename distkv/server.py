@@ -1945,7 +1945,7 @@ class Server:
             except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
-                self.logger.exception("Unable to connect to %s" % (host,))
+                self.logger.exception("Unable to connect to %s:%d" % (host,port))
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
