@@ -31,14 +31,17 @@ async def all(obj):
 
     This does not return.
     """
-    c = obj.client
-    cr = await CodeRoot.as_handler(c)
-    if obj.node is None:
-        r = await AnyRunnerRoot.as_handler(c, code=cr)
-    else:
-        r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
-    while True:
-        await anyio.sleep(99999)
+    from distkv.util import as_service
+
+    async with as_service():
+        c = obj.client
+        cr = await CodeRoot.as_handler(c)
+        if obj.node is None:
+            r = await AnyRunnerRoot.as_handler(c, code=cr)
+        else:
+            r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
+        while True:
+            await anyio.sleep(99999)
 
 
 @cli.command()
