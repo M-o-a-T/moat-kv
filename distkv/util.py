@@ -695,3 +695,35 @@ async def data_get(obj, path, recursive=True, as_dict='_', maxdepth=-1, mindepth
         obj.stdout.write(str(res))
 
 
+@asynccontextmanager
+async def as_service():
+    from systemd.daemon import notify
+ 
+    async def run_keepalive(usec):
+        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        pid = os.getpid()
+        while os.getpid() == pid:
+            notify("WATCHDOG=1")
+            await anyio.sleep(usec)
+
+    def need_keepalive():
+        pid = os.getpid()
+        epid = int(os.environ.get('WATCHDOG_PID', pid))
+        if pid == epid:
+            return int(os.environ.get('WATCHDOG_USEC', 0))
+
+    class RunMsg:
+        async def set(self):
+            notify("READY=1")
+            if obj.debug:
+                print("Running.")
+
+    async with anyio.create_task_group() as tg:
+        usec = need_keepalive()
+        if usec:
+            await tg.spawn(run_keepalive, usec)
+        try:
+            yield tg
+        finally:
+            await tg.cancel_scope.cancel()
+
