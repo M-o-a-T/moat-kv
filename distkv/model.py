@@ -778,7 +778,7 @@ class Entry:
         """
         event = event.attach(self.chain, server=server)
         evt = UpdateEvent(event, self, data, self._data, tock=tock)
-        await self.apply(evt, server=server, local=local)
+        await self.apply(evt, server=server)
         return evt
 
     async def apply(
