@@ -98,7 +98,11 @@ class RunnerEntry(AttrClientEntry):
                 if state.node is not None:
                     raise RuntimeError("already running on %s", state.node)
                 code = self.root.code.follow(*self.code, create=False)
-                data = deepcopy(self.data)
+                data = self.data
+                if data is None:
+                    data = {}
+                else:
+                    data = deepcopy(data)
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
