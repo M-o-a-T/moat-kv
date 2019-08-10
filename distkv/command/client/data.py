@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import asyncclick as click
 
 from distkv.util import (
@@ -218,7 +219,9 @@ async def watch(obj, path, state):
             if not flushing and r.get("state", "") == "uptodate":
                 flushing = True
             del r["seq"]
+            r['time'] = time.monotonic()
             yprint(r, stream=obj.stdout)
+            print("---", file=obj.stdout)
             if flushing:
                 obj.stdout.flush()
 
