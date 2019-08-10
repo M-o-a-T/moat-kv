@@ -55,3 +55,6 @@ Open issues
 * errors: manually acknowledge and delete them
 
 * errors: add a web service to monitor them?
+
+* Runner: reorg config, add some sort of "group" argument
+
