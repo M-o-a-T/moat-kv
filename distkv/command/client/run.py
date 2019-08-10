@@ -31,14 +31,17 @@ async def all(obj):
 
     This does not return.
     """
-    c = obj.client
-    cr = await CodeRoot.as_handler(c)
-    if obj.node is None:
-        r = await AnyRunnerRoot.as_handler(c, code=cr)
-    else:
-        r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
-    while True:
-        await anyio.sleep(99999)
+    from distkv.util import as_service
+
+    async with as_service():
+        c = obj.client
+        cr = await CodeRoot.as_handler(c)
+        if obj.node is None:
+            r = await AnyRunnerRoot.as_handler(c, code=cr)
+        else:
+            r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
+        while True:
+            await anyio.sleep(99999)
 
 
 @cli.command()
@@ -160,6 +163,7 @@ async def get(obj, path):
 )
 @click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
+@click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option(
     "-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)"
@@ -170,7 +174,7 @@ async def get(obj, path):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
+async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     """Save / modify a run entry."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -203,6 +207,8 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
 
     if code is not None:
         res["code"] = code
+    if ok is not None:
+        res["ok_after"] = ok
     if info is not None:
         res["info"] = info
     if backoff is not None:
@@ -217,7 +223,6 @@ async def set(obj, path, code, eval_, tm, info, repeat, delay, backoff):
     res = await obj.client.set(
         *path,
         value=res,
-        iter=False,
         nchain=3,
         **({"chain": chain} if obj.meta else {})
     )

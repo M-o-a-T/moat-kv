@@ -34,13 +34,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
         del CFG["_stdout"]
-    try:
-        TESTCFG = copy.deepcopy(CFG)
-    except TypeError:
-        import pdb
-
-        pdb.set_trace()
-        raise
+    TESTCFG = copy.deepcopy(CFG)
     TESTCFG.server.port = None
     TESTCFG.root = "test"
     if C_OUT is not NotGiven:

@@ -113,11 +113,13 @@ def combine_dict(*d, cls=dict) -> dict:
                 keys[k] = []
             keys[k].append(v)
     for k, v in keys.items():
-        if len(v) == 1:
+        if v[0] is NotGiven:
+            res.pop(k, None)
+        elif len(v) == 1:
             res[k] = v[0]
         elif not isinstance(v[0], Mapping):
             for vv in v[1:]:
-                assert not isinstance(vv, Mapping)
+                assert vv is NotGiven or not isinstance(vv, Mapping)
             res[k] = v[0]
         else:
             res[k] = combine_dict(*v, cls=cls)
@@ -311,7 +313,7 @@ class MsgReader(_MsgRW):
       buflen (int): The read buffer size. Defaults to 4k.
       path (str): the file to write to.
       stream: the stream to write to.
-        
+
     Exactly one of ``path`` and ``stream`` must be used.
     """
 
@@ -359,7 +361,7 @@ class MsgWriter(_MsgRW):
       buflen (int): The buffer size. Defaults to 64k.
       path (str): the file to write to.
       stream: the stream to write to.
-        
+
     Exactly one of ``path`` and ``stream`` must be used.
 
     The stream is buffered. Call :meth:`distkv.util.MsgWriter.flush` to flush the buffer.
@@ -387,7 +389,7 @@ class MsgWriter(_MsgRW):
 
     async def __call__(self, msg):
         """Write a message (bytes) to the buffer.
-        
+
         Flushing writes a multiple of ``buflen`` bytes."""
         msg = packer(msg)  # pylint: disable=not-callable
         self.buf.append(msg)
@@ -525,10 +527,9 @@ def split_one(p, kw):
 
 
 def _call_proc(code, *a, **kw):
-    d = {}
-    eval(code, d)  # pylint: disable=eval-used
-    code = d["_proc"]
-    return code(*a, **kw)
+    eval(code, kw)  # pylint: disable=eval-used
+    code = kw["_proc"]
+    return code(*a)
 
 
 def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-builtin
@@ -538,14 +539,15 @@ def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-
         code: the code block to execute
         vars: variable names to pass into the code
         path: the location where the code is stored
+        use_async: False if sync code, True if async, None if in thread
     Returns:
         the procedure to call. All keyval arguments will be in the local
         dict.
     """
     vars = ",".join(vars)
-    if vars:
-        vars += ","
-    hdr = "def _proc(%s **_kw):\n    " % (vars,)
+    hdr = """\
+def _proc(%s):
+    """ % (vars,)
 
     if use_async:
         hdr = "async " + hdr
@@ -623,10 +625,10 @@ class Cache:
 
 @singleton
 class NoLock:
-    """A dummy singleton that can replace a lock. 
-       
+    """A dummy singleton that can replace a lock.
+
     Usage::
-    
+
         with NoLock if _locked else self._lock:
             pass
     """
@@ -694,4 +696,90 @@ async def data_get(obj, path, recursive=True, as_dict='_', maxdepth=-1, mindepth
     else:
         obj.stdout.write(str(res))
 
+
+def res_get(res, *path, skip_empty=True):
+    """
+    Get a node's value and access the dict items beneath it.
+    """
+    val = res.get('value',None)
+    for p in path:
+        if val is None:
+            return None
+        if skip_empty and not p:
+            continue
+        val = val.get(p, None)
+    return val
+
+def res_update(res, *path, value=None, skip_empty=True):
+    """
+    Set some sub-item's value, possibly merging dicts.
+    Items set to 'NotGiven' are deleted.
+
+    Returns the new value.
+    """
+    if skip_empty:
+        path = [p for p in path if p]
+    val = res.get('value', {})
+    v = val
+    for p in path[:-1]:
+        v = v.setdefault(p,{})
+    v[p[-1]] = combine_dict(value, v[p[-1]])
+
+    return val
+
+def res_delete(res, *path, skip_empty=True):
+    """
+    Remove some sub-item's value, possibly removing now-empty intermediate
+    dicts.
+
+    Returns the new value.
+    """
+    if skip_empty:
+        path = [p for p in path if p]
+    val = res.get('value', {})
+    while path:
+        v = val
+        for p in path[:-1]:
+            try:
+                v = v[p]
+            except KeyError:
+                break
+        v.pop(path.pop(), None)
+        if v:
+            break
+
+    return val
+
+
+@asynccontextmanager
+async def as_service():
+    from systemd.daemon import notify
+ 
+    async def run_keepalive(usec):
+        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        pid = os.getpid()
+        while os.getpid() == pid:
+            notify("WATCHDOG=1")
+            await anyio.sleep(usec)
+
+    def need_keepalive():
+        pid = os.getpid()
+        epid = int(os.environ.get('WATCHDOG_PID', pid))
+        if pid == epid:
+            return int(os.environ.get('WATCHDOG_USEC', 0))
+
+    class RunMsg:
+        async def set(self):
+            notify("READY=1")
+            if obj.debug:
+                print("Running.")
+
+    async with anyio.create_task_group() as tg:
+        usec = need_keepalive()
+        if usec:
+            await tg.spawn(run_keepalive, usec)
+        try:
+            yield tg
+        finally:
+            await tg.cancel_scope.cancel()
 

@@ -3,7 +3,7 @@
 import asyncclick as click
 import yaml
 
-from distkv.util import yprint
+from distkv.util import yprint, NotGiven
 
 import logging
 
@@ -48,12 +48,13 @@ async def get(obj, path, script):
     "-t", "--thread", is_flag=True, help="The code should run in a worker thread"
 )
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
+@click.option("-v", "--vars", multiple=True, type=str, help="Required variables")
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, thread, script, data, async_):
+async def set(obj, path, thread, script, data, vars, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -71,9 +72,9 @@ async def set(obj, path, thread, script, data, async_):
         msg = yaml.safe_load(data)
     else:
         msg = {}
-    chain = None
+    chain = NotGiven
     if "value" in msg:
-        chain = msg.get("chain", None)
+        chain = msg.get("chain", NotGiven)
         msg = msg["value"]
     if async_ is not None or "is_async" not in msg:
         msg["is_async"] = async_
@@ -86,13 +87,20 @@ async def set(obj, path, thread, script, data, async_):
             raise click.UsageError("Missing script")
         msg["code"] = script.read()
 
+    if "vars" in msg:
+        if vars:
+            raise click.UsageError("Duplicate variables")
+    elif vars:
+        vl = msg['vars'] = []
+        for vv in vars:
+            vl.extend(vv.split(','))
+
     res = await obj.client.set(
         *obj.cfg["codes"]["prefix"],
         *path,
         value=msg,
-        iter=False,
         nchain=obj.meta,
-        chain=chain,
+        **({'chain':chain} if chain is not NotGiven else {}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -124,10 +132,14 @@ async def get(obj, path, script):
     )
     if not obj.meta:
         res = res.value
-    if script:
-        code = res.pop("code", None)
-        if code is not None:
+
+    code = res.pop("code", None)
+    if code is not None:
+        code = code.rstrip('\n \t')+"\n"
+        if script:
             print(code, file=script)
+        else:
+            res['code'] = code
 
     yprint(res, stream=obj.stdout)
 

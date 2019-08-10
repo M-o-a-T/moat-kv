@@ -60,7 +60,7 @@ class RunnerEntry(AttrClientEntry):
     Messages are defined in :mod:`distkv.actor`.
     """
 
-    ATTRS = "code data delay repeat backoff target".split()
+    ATTRS = "code data delay ok_after repeat backoff target".split()
 
     delay = 100  # timedelta, before restarting
     repeat = 0
@@ -98,7 +98,11 @@ class RunnerEntry(AttrClientEntry):
                 if state.node is not None:
                     raise RuntimeError("already running on %s", state.node)
                 code = self.root.code.follow(*self.code, create=False)
-                data = deepcopy(self.data)
+                data = self.data
+                if data is None:
+                    data = {}
+                else:
+                    data = deepcopy(data)
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
@@ -106,6 +110,7 @@ class RunnerEntry(AttrClientEntry):
                         await self._q.put(self.root._active)
                 data["_entry"] = self
                 data["_client"] = self.root.client
+                data["_cfg"] = self.root.client._cfg
 
                 state.started = time.time()
                 state.node = state.root.name
@@ -117,8 +122,18 @@ class RunnerEntry(AttrClientEntry):
                     )
 
                 logger.debug("Start %r with %r", self._path, self.code)
-                async with anyio.open_cancel_scope() as sc:
+                async with anyio.create_task_group() as tg:
+                    sc = tg.cancel_scope
                     self.scope = sc
+                    oka = getattr(self, 'ok_after', -1)
+                    if oka > 0:
+                        async def is_ok(oka):
+                            await anyio.sleep(oka)
+                            state.backoff = 0
+                            await state.save()
+                            await self.root.err.record_working("run", *self._path)
+
+                        await tg.spawn(is_ok, oka)
                     res = code(**data)
                     if code.is_async is not None:
                         res = await res
@@ -158,6 +173,8 @@ class RunnerEntry(AttrClientEntry):
             async with anyio.move_on_after(2, shield=True):
                 try:
                     await state.save()
+                except anyio.exceptions.ClosedResourceError:
+                    pass
                 except ServerError:
                     logger.exception("Could not save")
                 await self.root.trigger_rescan()

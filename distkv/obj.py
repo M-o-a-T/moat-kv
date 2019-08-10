@@ -83,15 +83,19 @@ class ClientEntry:
                     continue
             yield from k.all_children
 
-    def allocate(self, name):
+    def allocate(self, name: str, exists: bool = False):
         """
         Create the child named "name". It is created (locally) if it doesn't exist.
 
         Arguments:
-          name (str): The child node's name.
+          name: The child node's name.
+          exists: return the existing value? otherwise error
         """
-        if name in self._children:
-            raise RuntimeError("Duplicate child",name,self)
+        c = self._children.get(name, None)
+        if c is not None:
+            if exists:
+                return c
+            raise RuntimeError("Duplicate child",self,name,c)
         self._children[name] = c = self.child_type(name)(self, name)
         return c
 

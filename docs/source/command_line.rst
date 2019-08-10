@@ -997,6 +997,14 @@ Create or change a runner entry.
 
    Time after an unsuccessful execution when the runner should fire again.
 
+.. option:: -k, --ok <seconds>
+
+   If a task runs for longer than this many seconds, it's considered OK and
+   any error associated with it is cleared.
+
+   Errors are also cleared when a task exits, which won't work for tasks
+   that typically do not.
+
 .. option:: -b, --backoff
 
    Back-off exponent. The effective delay is ``delay * backoff ^ n_failures``.

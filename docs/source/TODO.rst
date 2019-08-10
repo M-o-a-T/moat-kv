@@ -49,3 +49,12 @@ Open issues
 * Replace the command parser's "@main.group" with something that detects
   where it's called from and looks up its parent command using a registry.
   Or the ``click`` data structures.
+
+* errors: better display
+
+* errors: manually acknowledge and delete them
+
+* errors: add a web service to monitor them?
+
+* Runner: reorg config, add some sort of "group" argument
+
