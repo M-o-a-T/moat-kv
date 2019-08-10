@@ -14,10 +14,7 @@ def load_one(name, path, endpoint=None, **ns):
         code = compile(f.read(), fn, "exec")
         eval(code, ns, ns)  # pylint: disable=eval-used  
     if endpoint is not None:
-        try:
-            ns = ns[endpoint]
-        except KeyError:
-            import pdb;pdb.set_trace()
+        ns = ns[endpoint]
     return ns
 
 def _namespaces():
