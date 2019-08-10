@@ -3,7 +3,7 @@
 import asyncclick as click
 import yaml
 
-from distkv.util import yprint
+from distkv.util import yprint, NotGiven
 
 import logging
 
@@ -71,9 +71,9 @@ async def set(obj, path, thread, script, data, async_):
         msg = yaml.safe_load(data)
     else:
         msg = {}
-    chain = None
+    chain = NotGiven
     if "value" in msg:
-        chain = msg.get("chain", None)
+        chain = msg.get("chain", NotGiven)
         msg = msg["value"]
     if async_ is not None or "is_async" not in msg:
         msg["is_async"] = async_
@@ -90,9 +90,8 @@ async def set(obj, path, thread, script, data, async_):
         *obj.cfg["codes"]["prefix"],
         *path,
         value=msg,
-        iter=False,
         nchain=obj.meta,
-        chain=chain,
+        **({'chain':chain} if chain is not NotGiven else {}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
