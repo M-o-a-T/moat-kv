@@ -60,7 +60,7 @@ class RunnerEntry(AttrClientEntry):
     Messages are defined in :mod:`distkv.actor`.
     """
 
-    ATTRS = "code data delay repeat backoff target".split()
+    ATTRS = "code data delay ok_after repeat backoff target".split()
 
     delay = 100  # timedelta, before restarting
     repeat = 0
@@ -122,8 +122,18 @@ class RunnerEntry(AttrClientEntry):
                     )
 
                 logger.debug("Start %r with %r", self._path, self.code)
-                async with anyio.open_cancel_scope() as sc:
+                async with anyio.create_task_group() as tg:
+                    sc = tg.cancel_scope
                     self.scope = sc
+                    oka = getattr(self, 'ok_after', -1)
+                    if oka > 0:
+                        async def is_ok(oka):
+                            await anyio.sleep(oka)
+                            state.backoff = 0
+                            await state.save()
+                            await self.root.err.record_working("run", *self._path)
+
+                        await tg.spawn(is_ok, oka)
                     res = code(**data)
                     if code.is_async is not None:
                         res = await res
