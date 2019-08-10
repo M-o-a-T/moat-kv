@@ -697,6 +697,60 @@ async def data_get(obj, path, recursive=True, as_dict='_', maxdepth=-1, mindepth
         obj.stdout.write(str(res))
 
 
+def res_get(res, *path, skip_empty=True):
+    """
+    Get a node's value and access the dict items beneath it.
+    """
+    val = res.get('value',None)
+    for p in path:
+        if val is None:
+            return None
+        if skip_empty and not p:
+            continue
+        val = val.get(p, None)
+    return val
+
+def res_update(res, *path, value=None, skip_empty=True):
+    """
+    Set some sub-item's value, possibly merging dicts.
+    Items set to 'NotGiven' are deleted.
+
+    Returns the new value.
+    """
+    if skip_empty:
+        path = [p for p in path if p]
+    val = res.get('value', {})
+    v = val
+    for p in path[:-1]:
+        v = v.setdefault(p,{})
+    v[p[-1]] = combine_dict(value, v[p[-1]])
+
+    return val
+
+def res_delete(res, *path, skip_empty=True):
+    """
+    Remove some sub-item's value, possibly removing now-empty intermediate
+    dicts.
+
+    Returns the new value.
+    """
+    if skip_empty:
+        path = [p for p in path if p]
+    val = res.get('value', {})
+    while path:
+        v = val
+        for p in path[:-1]:
+            try:
+                v = v[p]
+            except KeyError:
+                break
+        v.pop(path.pop(), None)
+        if v:
+            break
+
+    return val
+
+
 @asynccontextmanager
 async def as_service():
     from systemd.daemon import notify
