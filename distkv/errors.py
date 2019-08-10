@@ -450,7 +450,10 @@ class ErrorRoot(ClientRoot):
             rec.first_seen = time()
         rec.last_seen = time()
 
-        await rec.save()
+        try:
+            await rec.save()
+        except anyio.exceptions.ClosedResourceError:
+            return # owch, but can't be helped
 
         await rec.real_entry.add_exc(
             self.name,

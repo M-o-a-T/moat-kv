@@ -158,6 +158,8 @@ class RunnerEntry(AttrClientEntry):
             async with anyio.move_on_after(2, shield=True):
                 try:
                     await state.save()
+                except anyio.exceptions.ClosedResourceError:
+                    pass
                 except ServerError:
                     logger.exception("Could not save")
                 await self.root.trigger_rescan()
