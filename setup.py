@@ -11,8 +11,8 @@ setup(
     author="Matthias Urlichs",
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
-    packages=find_packages(),
-    namespace_packages=["distkv_ext"],
+    packages=find_packages()+["distkv_ext.dummy"],
+    #namespace_packages=["distkv_ext.dummy"],
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
         "asyncclick",
