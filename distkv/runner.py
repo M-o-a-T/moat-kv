@@ -110,6 +110,7 @@ class RunnerEntry(AttrClientEntry):
                         await self._q.put(self.root._active)
                 data["_entry"] = self
                 data["_client"] = self.root.client
+                data["_cfg"] = self.root.client._cfg
 
                 state.started = time.time()
                 state.node = state.root.name
