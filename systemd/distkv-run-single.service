@@ -1,0 +1,22 @@
+[Unit]
+Description=DistKV main server
+After=distkv.service
+Requires=distkv.service
+
+ConditionFileNotEmpty=/etc/distkv.cfg
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=notify
+ExecStart=/usr/lib/distkv/run-single
+
+User=distkv
+Group=distkv
+
+EnvironmentFile=/usr/lib/distkv/env
+EnvironmentFile=-/etc/distkv.env
+
+TimeoutSec=300
+WatchdogSec=10
