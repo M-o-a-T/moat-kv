@@ -313,7 +313,7 @@ class MsgReader(_MsgRW):
       buflen (int): The read buffer size. Defaults to 4k.
       path (str): the file to write to.
       stream: the stream to write to.
-        
+
     Exactly one of ``path`` and ``stream`` must be used.
     """
 
@@ -361,7 +361,7 @@ class MsgWriter(_MsgRW):
       buflen (int): The buffer size. Defaults to 64k.
       path (str): the file to write to.
       stream: the stream to write to.
-        
+
     Exactly one of ``path`` and ``stream`` must be used.
 
     The stream is buffered. Call :meth:`distkv.util.MsgWriter.flush` to flush the buffer.
@@ -389,7 +389,7 @@ class MsgWriter(_MsgRW):
 
     async def __call__(self, msg):
         """Write a message (bytes) to the buffer.
-        
+
         Flushing writes a multiple of ``buflen`` bytes."""
         msg = packer(msg)  # pylint: disable=not-callable
         self.buf.append(msg)
@@ -625,10 +625,10 @@ class Cache:
 
 @singleton
 class NoLock:
-    """A dummy singleton that can replace a lock. 
-       
+    """A dummy singleton that can replace a lock.
+
     Usage::
-    
+
         with NoLock if _locked else self._lock:
             pass
     """
