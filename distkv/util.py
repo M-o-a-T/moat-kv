@@ -113,11 +113,13 @@ def combine_dict(*d, cls=dict) -> dict:
                 keys[k] = []
             keys[k].append(v)
     for k, v in keys.items():
-        if len(v) == 1:
+        if v[0] is NotGiven:
+            res.pop(k, None)
+        elif len(v) == 1:
             res[k] = v[0]
         elif not isinstance(v[0], Mapping):
             for vv in v[1:]:
-                assert not isinstance(vv, Mapping)
+                assert vv is NotGiven or not isinstance(vv, Mapping)
             res[k] = v[0]
         else:
             res[k] = combine_dict(*v, cls=cls)
