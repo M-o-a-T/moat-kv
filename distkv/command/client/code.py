@@ -132,10 +132,14 @@ async def get(obj, path, script):
     )
     if not obj.meta:
         res = res.value
-    if script:
-        code = res.pop("code", None)
-        if code is not None:
+
+    code = res.pop("code", None)
+    if code is not None:
+        code = code.rstrip('\n \t')+"\n"
+        if script:
             print(code, file=script)
+        else:
+            res['code'] = code
 
     yprint(res, stream=obj.stdout)
 
