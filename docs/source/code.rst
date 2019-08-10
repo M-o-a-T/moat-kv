@@ -30,8 +30,8 @@ The location for executable scripts is configurable and defaults to
 * ``is_async``: a flag whether the procedure is synchronous (``None``),
   sync but should run in a worker thread (``False``), or async (``True``).
 
-* ``vars``: Input parameters of your procedure. Parameters not mentioned
-  here are available in a ``kw`` dict.
+* ``vars``: Required input variables of your procedure. Parameters not
+  mentioned here are still available as globals.
 
 * ``requires``: modules which this code needs.  XXX TODO
 
@@ -120,7 +120,7 @@ Runner entries don't hold code, they merely point to it.
 
 See :class:`distkv.runner.RunnerEntry` for details.
 
-The actcual runtime information is stored in a separate "state" node, mainly to avoid race conditions.
+The actual runtime information is stored in a separate "state" node, mainly to avoid race conditions.
 See :class:`distkv.runner.StateEntry` for details.
 
 Variables
@@ -136,11 +136,15 @@ The runners pass a couple of variables to the code.
 
   The running DistKV client.
 
-* _info
+* _cfg
+
+  The current configuration.
+
+* _info (async only)
 
   A queue for events. Currently, receives subclasses of
   :cls:`distkv.actor.ActorState`, to signal whether the running node is
   connected to any / all of your DistKV-using infrastructure.
 
-These are stored in the implicit ``_kw`` variable by default.
+These are available as global variables.
 

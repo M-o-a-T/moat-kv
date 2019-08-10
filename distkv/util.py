@@ -527,10 +527,9 @@ def split_one(p, kw):
 
 
 def _call_proc(code, *a, **kw):
-    d = {}
-    eval(code, d)  # pylint: disable=eval-used
-    code = d["_proc"]
-    return code(*a, **kw)
+    eval(code, kw)  # pylint: disable=eval-used
+    code = kw["_proc"]
+    return code(*a)
 
 
 def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-builtin
@@ -540,14 +539,15 @@ def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-
         code: the code block to execute
         vars: variable names to pass into the code
         path: the location where the code is stored
+        use_async: False if sync code, True if async, None if in thread
     Returns:
         the procedure to call. All keyval arguments will be in the local
         dict.
     """
     vars = ",".join(vars)
-    if vars:
-        vars += ","
-    hdr = "def _proc(%s **_kw):\n    " % (vars,)
+    hdr = """\
+def _proc(%s):
+    """ % (vars,)
 
     if use_async:
         hdr = "async " + hdr
