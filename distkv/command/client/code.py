@@ -48,12 +48,13 @@ async def get(obj, path, script):
     "-t", "--thread", is_flag=True, help="The code should run in a worker thread"
 )
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
+@click.option("-v", "--vars", multiple=True, type=str, help="Required variables")
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, thread, script, data, async_):
+async def set(obj, path, thread, script, data, vars, async_):
     """Save Python code."""
     if async_:
         if thread:
@@ -85,6 +86,14 @@ async def set(obj, path, thread, script, data, async_):
         if not script:
             raise click.UsageError("Missing script")
         msg["code"] = script.read()
+
+    if "vars" in msg:
+        if vars:
+            raise click.UsageError("Duplicate variables")
+    elif vars:
+        vl = msg['vars'] = []
+        for vv in vars:
+            vl.extend(vv.split(','))
 
     res = await obj.client.set(
         *obj.cfg["codes"]["prefix"],
