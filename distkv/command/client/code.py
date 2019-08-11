@@ -231,8 +231,8 @@ async def list(obj, path, as_dict, maxdepth, mindepth, full, short):
     for incremental output.
     """
 
-    if full and short:
-        raise click.UsageError("'-f' and '-s' are incompatible.")
+    if (full or as_dict) and short:
+        raise click.UsageError("'-f'/'-d' and '-s' are incompatible.")
     kw = {}
     if maxdepth is not None:
         kw["max_depth"] = maxdepth
@@ -243,10 +243,14 @@ async def list(obj, path, as_dict, maxdepth, mindepth, full, short):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:
-            if 'info' in r.value:
-                del r.value['code']
-            else:
-                r.value.code = "<%d lines>" % (len(r.value.code.splitlines()),)
+            if 'info' not in r.value:
+                r.value.info = "<%d lines>" % (len(r.value.code.splitlines()),)
+            del r.value['code']
+
+        if short:
+            print (' '.join(path),"::",r.value.info)
+            continue
+
         if as_dict is not None:
             yy = y
             for p in path:
