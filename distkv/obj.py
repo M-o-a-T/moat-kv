@@ -284,7 +284,7 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg=None, key="prefix", **kw):
+    async def as_handler(cls, client, cfg=None, key="prefix", subpath=(), **kw):
         """Return a (or "the") instance of this class.
 
         The handler is created if it doesn't exist.
@@ -305,10 +305,10 @@ class ClientRoot(ClientEntry):
 
         def make():
             return client.mirror(
-                *cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw
+                *cfg[key], *subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
             )
 
-        return await client.unique_helper(*cfg[key], factory=make)
+        return await client.unique_helper(*cfg[key], *subpath, factory=make)
 
     @classmethod
     def child_type(cls, name):
