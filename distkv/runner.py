@@ -413,11 +413,14 @@ class StateRoot(ClientRoot):
     _last_t = 0
     async def ping(self):
         t = time.time()
-        if t-self._last_t >= self._cfg['ping']:
+        if t-self._last_t >= abs(self._cfg['ping']):
             self._last_t=t
-            val = self.value_or({},Mapping)
-            val['alive'] = t
-            await self.update(val)
+            if self._cfg['ping'] > 0:
+                val = self.value_or({},Mapping)
+                val['alive'] = t
+                await self.update(val)
+            else:
+                await self.client.serf_send(self.runner.group, {"t":t})
 
 
 class _BaseRunnerRoot(ClientRoot):
