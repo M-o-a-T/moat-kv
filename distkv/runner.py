@@ -410,6 +410,15 @@ class StateRoot(ClientRoot):
             if s.node in names:
                 await s.stale()
 
+    _last_t = 0
+    async def ping(self):
+        t = time.time()
+        if t-self._last_t >= self._cfg['ping']:
+            self._last_t=t
+            val = self.value_or({},Mapping)
+            val['alive'] = t
+            await self.update(val)
+
 
 class _BaseRunnerRoot(ClientRoot):
     """common code for AnyRunnerRoot and SingleRunnerRoot"""
@@ -574,6 +583,8 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                         await self.spawn(self._run_now, evt)
                         await self._age_q.put(None)
                         await evt.wait()
+
+                        await self.state.ping()
 
                     elif isinstance(msg, UntagEvent):
                         await act.set_value(100 - psutil.cpu_percent(interval=None))
@@ -747,6 +758,8 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                         self.node_history += msg.node
                         await self._age_q.put(None)
                         await self.notify_active()
+
+                        await self.state.ping()
 
                 pass  # end of actor task
 
