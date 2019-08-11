@@ -92,7 +92,7 @@ class ModuleEntry(ClientEntry):
         except Exception as exc:
             self._module = None
             logger.warn("Could not compile @%r", self.subpath)
-            await self.root.err.record_exc(
+            await self.root.err.record_error(
                 "compile",
                 *self.subpath,
                 exc=exc,
@@ -202,7 +202,7 @@ class CodeEntry(ClientEntry):
             p = make_proc(c, v.get("vars", ()), *self.subpath, use_async=a)
         except Exception as exc:
             logger.warning("Could not compile @%r", self.subpath)
-            await self.root.err.record_exc(
+            await self.root.err.record_error(
                 "compile",
                 *self.subpath,
                 exc=exc,
