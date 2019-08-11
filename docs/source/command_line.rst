@@ -832,6 +832,54 @@ Dump an ACL's content.
 Manipulate code stored in DistKV.
 
 
+.. program:: distkv client code list
+
+List code snippets stored in DistKV.
+
+.. option:: -d, --as-dict <text>
+
+   When you use this option, the data is printed as a dictionary.
+   The argument of this option controls which key is used for the actual
+   value; this string should not occur as a path element.
+
+   The customary value to use is a single underscore.
+
+   Using this option in conjunction with ``--recursive`` requires keeping
+   the whole data set in memory before starting to print anything. This may
+   take a long time or eat a lot of memory.
+
+.. option:: -s, --short
+
+   Print one-line entries.
+
+   Incompatible with ``-f`` and ``-d`
+
+.. option:: -f, --full
+
+   Print the actual code.
+
+   Otherwise, code is not printed and a "number of lines" ``info`` entry is
+   generated (if missing).
+
+.. option:: -m, --mindepth <integer>
+
+   When printing recursively, start at this depth off the given path.
+
+   The default is zero, i.e. include the entry itself.
+
+.. option:: -M, --maxdepth <integer>
+
+   When printing recursively, stop at this depth (inclusive).
+
+   The default is to print the whole tree. Use ``1`` to print the entry itself
+   (assuming that it has a value and you didn't use ``--mindepth=1``)
+   and its immediate children.
+
+.. option:: path…
+
+   List the code below this location. The default is the root node.
+
+
 .. program:: distkv client code get
 
 Retrieve Python code stored in the server.

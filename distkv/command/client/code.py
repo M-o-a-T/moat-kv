@@ -54,12 +54,13 @@ async def get(obj, path, script):
 )
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-v", "--vars", multiple=True, type=str, help="Required variables")
+@click.option("-i", "--info", type=str, help="one-liner info about the code")
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, thread, script, data, vars, async_):
+async def set(obj, path, thread, script, data, vars, async_, info):
     """Save Python code."""
     if async_:
         if thread:
@@ -83,6 +84,9 @@ async def set(obj, path, thread, script, data, vars, async_):
         msg = msg["value"]
     if async_ is not None or "is_async" not in msg:
         msg["is_async"] = async_
+
+    if info is not None:
+        msg["info"] = info
 
     if "code" in msg:
         if script:
@@ -190,3 +194,75 @@ async def set(obj, path, script, data):
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
+
+
+@cli.command()
+@click.option(
+    "-d",
+    "--as-dict",
+    default=None,
+    help="Structure as dictionary. The argument is the key to use "
+    "for values. Default: return as list",
+)
+@click.option(
+    "-m",
+    "--maxdepth",
+    type=int,
+    default=None,
+    help="Limit recursion depth. Default: whole tree",
+)
+@click.option(
+    "-M",
+    "--mindepth",
+    type=int,
+    default=None,
+    help="Starting depth. Default: whole tree",
+)
+@click.option("-f", "--full", is_flag=True, help="print complete entries.")
+@click.option("-s", "--short", is_flag=True, help="print shortened entries.")
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def list(obj, path, as_dict, maxdepth, mindepth, full, short):
+    """
+    List code entries.
+
+    If you read a sub-tree recursively, be aware that the whole subtree
+    will be read before anything is printed. Use the "watch --state" subcommand
+    for incremental output.
+    """
+
+    if full and short:
+        raise click.UsageError("'-f' and '-s' are incompatible.")
+    kw = {}
+    if maxdepth is not None:
+        kw["max_depth"] = maxdepth
+    if mindepth is not None:
+        kw["min_depth"] = mindepth
+    y = {}
+    async for r in obj.client.get_tree(*obj.cfg['codes'].prefix, *path, nchain=obj.meta, **kw):
+        r.pop("seq", None)
+        path = r.pop("path")
+        if not full:
+            if 'info' in r.value:
+                del r.value['code']
+            else:
+                r.value.code = "<%d lines>" % (len(r.value.code.splitlines()),)
+        if as_dict is not None:
+            yy = y
+            for p in path:
+                yy = yy.setdefault(p, {})
+            try:
+                yy[as_dict] = r if obj.meta else r.value
+            except AttributeError:
+                continue
+        else:
+            y = {}
+            try:
+                y[path] = r if obj.meta else r.value
+            except AttributeError:
+                continue
+            yprint([y], stream=obj.stdout)
+
+    if as_dict is not None:
+        yprint(y, stream=obj.stdout)
+    return
