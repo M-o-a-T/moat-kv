@@ -574,13 +574,13 @@ class SCmd_serfmon(StreamCommand):
     async def run(self):
         msg = self.msg
         raw = msg.get("raw", False)
+        typ = msg.type
+        if typ[0] == ":":
+            typ = self.cfg.server.root + typ
 
-        if msg.type[0] == ":":
-            raise RuntimeError("Types may not start with a colon")
-
-        async with self.client.server.serf.stream("user:" + msg.type) as stream:
+        async with self.client.server.serf.stream("user:" + typ) as stream:
             async for resp in stream:
-                res = attrdict(type=msg.type)
+                res = attrdict(type=typ)
                 if raw:
                     res["raw"] = resp.payload
                 else:
@@ -1000,15 +1000,16 @@ class ServerClient:
         return await self.server.get_state(**msg)
 
     async def cmd_serfsend(self, msg):
-        if msg.type[0] == ":":
-            raise RuntimeError("Types may not start with a colon")
+        typ = msg.type
+        if typ[0] == ":":
+            typ = self.cfg.server.root + typ
         if "raw" in msg:
             assert "data" not in msg
             data = msg.raw
         else:
             data = _packer(msg.data)
         await self.server.serf.event(
-            msg.type, data, coalesce=msg.get("coalesce", False)
+            typ, data, coalesce=msg.get("coalesce", False)
         )
 
     async def cmd_delete_tree(self, msg):
