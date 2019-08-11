@@ -60,7 +60,8 @@ CFG = attrdict(
         state=(".distkv", "state", "any"),  # for distkv.runner.SingleRunnerRoot
         name="run-any",  # Serf event name, must be unique
         start_delay=1,  # time to wait between job starts. Not optional.
-        ping=60,  # set an I-am-running tag every those-many seconds
+        ping=-15,  # set an I-am-running message every those-many seconds
+        # positive: set in distkv, negative: broadcast to :distkv:run tag
         actor=attrdict(  # Actor config
             cycle=5, nodes=-1, splits=5  # required for Runner
         ),

@@ -420,7 +420,7 @@ class StateRoot(ClientRoot):
                 val['alive'] = t
                 await self.update(val)
             else:
-                await self.client.serf_send(self.runner.group, {"t":t})
+                await self.client.serf_send(":run", {"g": self.runner.group, "t":t})
 
 
 class _BaseRunnerRoot(ClientRoot):
