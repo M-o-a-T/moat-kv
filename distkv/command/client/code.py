@@ -2,6 +2,7 @@
 
 import asyncclick as click
 import yaml
+import sys
 
 from distkv.util import yprint, NotGiven
 
@@ -33,6 +34,10 @@ async def get(obj, path, script):
         iter=False,
         nchain=obj.meta,
     )
+    if 'value' not in res:
+        if obj.debug:
+            print("No entry here.", file=sys.stderr)
+        sys.exit(1)
     if not obj.meta:
         res = res.value
     if script:
