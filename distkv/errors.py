@@ -163,9 +163,10 @@ class ErrorEntry(AttrClientEntry):
         res.comment=comment or repr(exc)
         
         if exc is not None:
-            res.trace = "".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            )
+            t = traceback.format_exception(type(exc), exc, exc.__traceback__)
+            if len(t) > 40:
+                t = t[:10]+["…\n"]+t[:30]
+            res.trace = "".join(t)
         if message is not None:
             res.message = message
         if data is not None:
