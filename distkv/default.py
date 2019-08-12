@@ -55,23 +55,20 @@ CFG = attrdict(
     errors=attrdict(prefix=(".distkv", "error")),
     codes=attrdict(prefix=(".distkv", "code", "proc")),
     modules=attrdict(prefix=(".distkv", "code", "module")),
-    anyrunner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=(".distkv", "run", "any"),  # storage location
-        state=(".distkv", "state", "any"),  # for distkv.runner.SingleRunnerRoot
-        name="run-any",  # Serf event name, must be unique
+    runner=attrdict(  # for distkv.runner.RunnerRoot
+        prefix=(".distkv", "run"),  # main storage location
+        state=(".distkv", "state"),  # for distkv.runner.SingleRunnerRoot
+        name="run",  # Serf event name, suffixed by subpath
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
         # positive: set in distkv, negative: broadcast to :distkv:run tag
         actor=attrdict(  # Actor config
             cycle=5, nodes=-1, splits=5  # required for Runner
         ),
-    ),
-    singlerunner=attrdict(
-        prefix=(".distkv", "run", "at"),  # for distkv.runner.SingleRunnerRoot
-        state=(".distkv", "state", "at"),  # for distkv.runner.SingleRunnerRoot
-        start_delay=1,  # optional
-        name="run-at",  # Serf event name, must be unique
-        actor=attrdict(cycle=5, nodes=3, splits=5),  # size of core group
+        sub=attrdict(
+            group="any",
+            single="at",
+        ),
     ),
     server=attrdict(
         # server-side configuration

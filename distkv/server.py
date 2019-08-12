@@ -1201,6 +1201,9 @@ class ServerClient:
                     raise anyio.exceptions.ClosedResourceError
                 unpacker.feed(buf)
 
+    def drop_old_event(self, evt, old_evt=NotGiven):
+        return self.server.drop_old_event(evt, old_evt)
+
 
 class _RecoverControl:
     _id = 0
@@ -1655,10 +1658,12 @@ class Server:
             i = 0
             while ("_p%d" % i) in msg:
                 i += 1
+            j = i
             while i:
                 i -= 1
                 msg["_p%d" % (i + 1)] = msg["_p%d" % i]
-            msg["_p0"] = ""
+            if j:
+                msg["_p0"] = ""
 
         p = _packer(msg)
         pl = self._part_len

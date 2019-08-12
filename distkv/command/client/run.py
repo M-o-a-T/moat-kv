@@ -17,10 +17,22 @@ logger = logging.getLogger(__name__)
 
 @main.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node")
+@click.option("-g", "--group", help="group to run this code on. Empty: any one node")
 @click.pass_obj
-async def cli(obj, node):
+async def cli(obj, node, group):
     """Run code stored in DistKV."""
-    obj.node = node
+    if group is None:
+        group = "default"
+    if node:
+        obj.runner_root = SingleRunnerRoot
+        subpath = (group, node)
+    else:
+        obj.runner_root = AnyRunnerRoot
+        subpath = (group,)
+
+    obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
+    obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
+    obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
 
 
 @cli.command()
@@ -36,17 +48,13 @@ async def all(obj):
     async with as_service():
         c = obj.client
         cr = await CodeRoot.as_handler(c)
-        if obj.node is None:
-            r = await AnyRunnerRoot.as_handler(c, code=cr)
-        else:
-            r = await SingleRunnerRoot.as_handler(c, node=obj.node, code=cr)
+        r = await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
         while True:
             await anyio.sleep(99999)
 
 
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Add state data")
-@click.option("-S", "--state-only", is_flag=True, help="Show only state data")
 @click.option(
     "-d",
     "--as-dict",
@@ -56,22 +64,14 @@ async def all(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(obj, state, state_only, as_dict, path):
+async def list(obj, state, as_dict, path):
     """List run entries.
     """
     if not path:
         path = ()
-    if obj.node is None:
-        path = obj.cfg["anyrunner"].prefix + path
-        if state or state_only:
-            state = obj.cfg["anyrunner"].state + path
-    else:
-        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
-        if state or state_only:
-            state = obj.cfg["singlerunner"].state + (obj.node,) + path
-    if state_only:
-        path = state
-        state = None
+    path = obj.path+path
+    if state:
+        state = obj.statepath+path
     res = await obj.client._request(
         action="get_tree", path=path, iter=True, nchain=obj.meta
     )
@@ -118,10 +118,7 @@ async def state(obj, path, result):
         raise click.UsageError("You can't use '-v' and '-r' at the same time.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if obj.node is None:
-        path = obj.cfg["anyrunner"].state + path
-    else:
-        path = obj.cfg["singlerunner"].state + (obj.node,) + path
+    path = obj.statepath + path
 
     res = await obj.client._request(
         action="get_value", path=path, iter=False, nchain=obj.meta
@@ -143,10 +140,7 @@ async def get(obj, path):
     """Read a runner entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if obj.node is None:
-        path = obj.cfg["anyrunner"].prefix + path
-    else:
-        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
+    path = obj.path+ path
 
     res = await obj.client._request(
         action="get_value", path=path, iter=False, nchain=obj.meta
@@ -185,10 +179,7 @@ async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     elif code is not None:
         code = code.split(" ")
 
-    if obj.node is None:
-        path = obj.cfg["anyrunner"].prefix + path
-    else:
-        path = obj.cfg["singlerunner"].prefix + (obj.node,) + path
+    path = obj.path + path
 
     try:
         res = await obj.client._request(
@@ -226,4 +217,23 @@ async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
         nchain=3,
         **({"chain": chain} if obj.meta else {})
     )
-    yprint(res, stream=obj.stdout)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+
+@click.command()
+@click.pass_obj
+async def monitor(obj):
+    """
+    Runners periodically send a keepalive message to Serf, if thus
+    configured (this is the default).
+    """
+
+    # TODO this does not watch changes in DistKV.
+    # It also should watch individual jobs' state changes.
+
+    async with obj.client.serf_mon("run") as cl:
+        async for msg in cl:
+            yprint(msg, stream=obj.stdout)
+            print("---", file=obj.stdout)
+            await process_test(msg.data)
+

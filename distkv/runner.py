@@ -11,6 +11,7 @@ from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from copy import deepcopy
 import psutil
 import time
+from collections import Mapping
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
@@ -420,7 +421,7 @@ class StateRoot(ClientRoot):
                 val['alive'] = t
                 await self.update(val)
             else:
-                await self.client.serf_send(":run", {"g": self.runner.group, "t":t})
+                await self.client.serf_send("run", {"group": self.runner.group, "time":t, "node":self.name})
 
 
 class _BaseRunnerRoot(ClientRoot):
@@ -432,16 +433,32 @@ class _BaseRunnerRoot(ClientRoot):
 
     err = None
     code = None
-    this_root = None
     ready = False
     _run_next = 0
 
-    def __init__(self, *a, err=None, code=None, **kw):
+    CFG = "runner"
+    SUB = None
+
+    def __init__(self, *a, _subpath, err=None, code=None, **kw):
         super().__init__(*a, **kw)
         self.err = err
         self.code = code
         self._nodes = {}
         self._trigger = anyio.create_event()
+        self.__subpath = _subpath
+
+    @classmethod
+    def child_type(cls, name):
+        return RunnerEntry
+
+    @classmethod
+    async def as_handler(cls, client, subpath, cfg=None, **kw):
+        assert cls.SUB is not None
+        if cfg is None:
+            cfg_ = client._cfg["runner"]
+        else:
+            cfg_ = combine_dict(cfg, client._cfg["runner"])
+        return await super().as_handler(client, subpath=subpath, _subpath=subpath, **kw)
 
     async def run_starting(self):
         from .errors import ErrorRoot
@@ -451,15 +468,9 @@ class _BaseRunnerRoot(ClientRoot):
             self.err = await ErrorRoot.as_handler(self.client)
         if self.code is None:
             self.code = await CodeRoot.as_handler(self.client)
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, key="state")
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath, key="state")
         self.state.set_runner(self)
 
-        g = ["run"]
-        if "name" in self._cfg:
-            g.append(self._cfg["name"])
-        if self.value and "name" in self.value:
-            g.append(self.value["name"])
-        self.group = ".".join(g)
         self.node_history = NodeList(0)
         self._start_delay = self._cfg["start_delay"]
 
@@ -480,7 +491,7 @@ class _BaseRunnerRoot(ClientRoot):
         await self._tg.spawn(self._run_actor)
 
         # the next block needs to be atomic
-        for n in self.this_root.all_children:
+        for n in self.all_children:
             print(n)
         self.ready = True
 
@@ -510,7 +521,7 @@ class _BaseRunnerRoot(ClientRoot):
 
                 t = time.time()
                 t_next = t + 99999
-                for j in self.this_root.all_children:
+                for j in self.all_children:
                     d = j.should_start()
                     if d is False:
                         continue
@@ -527,13 +538,13 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     (and periodically restart, if required) the entry points stored under it.
     """
 
-    CFG = "anyrunner"
+    SUB = "group"
 
     _stale_times = None
 
-    @classmethod
-    def child_type(cls, name):
-        return RunnerEntry
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.group = "run."+self._name
 
     def get_node(self, name):
         return RunnerNode(self, name)
@@ -542,10 +553,6 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     def max_age(self):
         """Timeout after which we really should have gotten another go"""
         return self._act.cycle_time_max * (self._act.history_size + 1.5)
-
-    @property
-    def this_root(self):
-        return self
 
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
@@ -641,19 +648,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             if t - node.seen < self.max_age:
                 break
             assert node.name == self.node_history.pop()
-            for j in self.this_root.all_children:
+            for j in self.all_children:
                 if j.node == node.name:
                     await j.seems_down()
-
-
-class RunnerNodeEntry(ClientEntry):
-    """
-    Sub-node so that a SingleRunnerRoot runs only its local nodes.
-    """
-
-    @classmethod
-    def child_type(cls, name):
-        return RunnerEntry
 
 
 class SingleRunnerRoot(_BaseRunnerRoot):
@@ -684,19 +681,15 @@ class SingleRunnerRoot(_BaseRunnerRoot):
         ``asyncserf.actor`` for details.
     """
 
-    CFG = "singlerunner"
+    SUB = "single"
 
     err = None
     _act = None
     code = None
 
-    def __init__(self, *a, node=None, **kw):
+    def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.run_name = node
-
-    @classmethod
-    def child_type(cls, name):
-        return RunnerNodeEntry
+        self.group = "run."+self._path[-2]
 
     async def set_value(self, val):
         await super().set_value(val)
@@ -728,15 +721,8 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
         if oac is not ac:
             self._active = ac
-            for n in self.this_root.all_children:
+            for n in self.all_children:
                 await n.send_event(ac)
-
-    async def run_starting(self):
-        """Hook to set the local root"""
-        self.this_root = r = self.get(self.run_name)
-        if r is None:
-            self.this_root = self.allocate(self.run_name)
-        await super().run_starting()
 
     @property
     def max_age(self):

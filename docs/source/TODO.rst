@@ -56,5 +56,5 @@ Open issues
 
 * errors: add a web service to monitor them?
 
-* Runner: reorg config, add some sort of "group" argument
+* Runner: store the number of active group members / actor config in the group
 

@@ -94,18 +94,13 @@ Single-node runner
 This runner executes code on a specific node. This is useful e.g. if you
 need to access actual hardware.
 
-In order to be able to implement "emergency operation when disconnected" or
-similar fallback strategies, single-node runners can be configured to
-provide an Actor group that represents the "central" nodes. Your code can
-access a queue that reports whether the central group is partially or
-completely (in)visible.
-
 ===============
 Any-node runner
 ===============
 
-This runner executes code on some node, largely determined by chance,
-startup order, or phase of the moon.
+This runner executes code on one of a group of nodes. Which node executes
+the code is largely determined by chance, startup order, or phase of the
+moon.
 
 TODO: Load balancing is not yet implemented.
 
@@ -147,4 +142,14 @@ The runners pass a couple of variables to the code.
   connected to any / all of your DistKV-using infrastructure.
 
 These are available as global variables.
+
+Node Groups
+===========
+
+All runners are part of a group of nodes. The Any-Node runners use the
+group to synchronize job startup.
+
+Runners also forward the group's membership information to your code as it
+changes. You can use this information to implement "emergency operation
+when disconnected" or similar fallback strategies.
 
