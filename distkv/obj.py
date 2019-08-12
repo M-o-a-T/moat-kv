@@ -94,13 +94,19 @@ class ClientEntry:
         Arguments:
           name: The child node's name.
           exists: return the existing value? otherwise error
+
+        If this returns ``None``, the subtree shall not be tracked.
+
         """
         c = self._children.get(name, None)
         if c is not None:
             if exists:
                 return c
             raise RuntimeError("Duplicate child",self,name,c)
-        self._children[name] = c = self.child_type(name)(self, name)
+        c = self.child_type(name)
+        if c is None:
+            return
+        self._children[name] = c = c(self, name)
         return c
 
     def __getitem__(self, name):
@@ -314,6 +320,9 @@ class ClientRoot(ClientEntry):
     def child_type(cls, name):
         """Given a node, return the type which the child with that name should have.
         The default is :class:`ClientEntry`.
+
+        This may return ``None``. In that case the subtree with this name
+        shall not be tracked further.
         """
         return ClientEntry
 
@@ -345,9 +354,10 @@ class ClientRoot(ClientEntry):
         for elem in path:
             next_node = node.get(elem)
             if next_node is None:
-                if create:
-                    next_node = node.allocate(elem)
-                else:
+                if not create:
+                    return None
+                next_node = node.allocate(elem)
+                if next_node is None:
                     return None
 
             node = next_node
