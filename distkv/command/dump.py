@@ -4,9 +4,9 @@ import sys
 import asyncclick as click
 from distkv.util import MsgReader
 from functools import partial
-from distkv.util import MsgReader, MsgWriter
+from collections import Mapping
 
-from distkv.util import MsgReader
+from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint
 
 import logging
@@ -83,20 +83,51 @@ async def serf(obj):
     from asyncserf import NoopCodec, serf_client
     import msgpack
 
+    part_cache = {}
+
     async with serf_client(codec=NoopCodec(), **obj.cfg.server.serf) as client:  # pylint: disable=not-async-context-manager
         async with client.stream("*") as stream:
             async for resp in stream:
                 c=vars(resp)
                 c.pop('client', None)
                 c.pop('coalesce', None)
-                p=c['payload']
+                msg=c['payload']
                 if c.get('event','').startswith('member-'):
                     m = partial(msgpack.unpackb,raw=True, use_list=False)
-                    p = m(p)
+                    msg = m(msg)
                 else:
                     m = partial(msgpack.unpackb,raw=False, use_list=False)
-                    p = m(p)
-                c['payload'] = p
+                    msg = m(msg)
 
-                yprint(c)
-                print("---")
+                if isinstance(msg, Mapping) and "_p0" in msg:
+                    p = msg["_p0"]   
+                    if p != "":
+                        nn, seq, i, p = p
+                        s = part_cache.get((nn, seq), None)
+                        if s is None:
+                            part_cache[(nn,seq)] = s = [None]
+                        if i < 0:
+                            i = -i
+                            s[0] = b""
+                        while len(s) <= i:
+                            s.append(None)
+                        s[i] = p
+                        if None in s:    
+                            # yprint([nn,seq,i], stream=obj.stdout)
+                            # print("---", file=obj.stdout)
+                            continue
+                        msg = b"".join(s)
+                        del part_cache[(nn, seq)]
+                        m = partial(msgpack.unpackb,raw=False, use_list=False)
+                        msg = m(msg)
+                
+                    i = 0
+                    while ("_p%d" % (i + 1)) in msg:
+                        msg["_p%d" % i] = msg["_p%d" % (i + 1)]  
+                        i += 1 
+                    del msg["_p%d" % i]
+
+                c['payload'] = msg
+
+                yprint(c, stream=obj.stdout)
+                print("---", file=obj.stdout)
