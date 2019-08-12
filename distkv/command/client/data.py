@@ -175,10 +175,10 @@ async def delete(obj, path, prev, last, recursive, eval):
     The root entry cannot be deleted.
     """
     args = {}
-    if eval and not prev:
+    if eval and prev is NotGiven:
         raise click.UsageError("You need to add a value that can be evaluated")
     if recursive:
-        if prev or last:
+        if prev is not NotGiven or last:
             raise click.UsageError("'local' and 'force' are mutually exclusive")
     else:
         if prev is not NotGiven:
