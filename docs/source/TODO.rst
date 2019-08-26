@@ -58,3 +58,4 @@ Open issues
 
 * Runner: store the number of active group members / actor config in the group
 
+* Restore passing positional parameters as keywords (to code entries)
