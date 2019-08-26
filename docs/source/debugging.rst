@@ -16,7 +16,7 @@ works. From that document it's obvious that when a node increments its
 agent crashes), you have a problem.
 
 Worse: a server will not start if the "missing" list is non-empty. The
-problem is that old, stale data causes difficult-to-resolve inconsistencies
+problem is that stale data causes difficult-to-resolve inconsistencies
 when written to. TODO: allow the server to be in maintainer-only mode when
 that happens.
 
@@ -30,7 +30,7 @@ somewhat like this::
       test1:
       - 1
       - - 3
-        - 13
+        - 10
       test2:
       - 1
     missing:  # Ticks we need to worry about
@@ -50,7 +50,7 @@ manually mark the offending data as stale::
    known:
       test1:
       - - 1
-        - 13
+        - 11
       test2:
       - 1
     node: test1
