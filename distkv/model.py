@@ -897,14 +897,15 @@ class Entry:
         while True:
             bad = set()
             for q in list(node.monitors):
-                if q._distkv__free > 1:
-                    q._distkv__free -= 1
+                if q._distkv__free is None or q._distkv__free > 1:
+                    if q._distkv__free is not None:
+                        q._distkv__free -= 1
                     await q.put(event)
                 else:
                     bad.add(q)
             for q in bad:
                 try:
-                    if q._distkv__free > 0:
+                    if q._distkv__free is None or q._distkv__free > 0:
                         await q.put(None)
                     node.monitors.remove(q)
                 except KeyError:
@@ -939,15 +940,17 @@ class Watcher:
     q = None
     q_len = 100
 
-    def __init__(self, root: Entry, full: bool = False):
+    def __init__(self, root: Entry, full: bool = False, q_len: int = None):
         self.root = root
         self.full = full
+        if q_len is not None:
+            self.q_len = q_len
 
     async def __aenter__(self):
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
         self.q = create_queue(self.q_len)
-        self.q._distkv__free = self.q_len
+        self.q._distkv__free = self.q_len or None
         self.root.monitors.add(self.q)
         return self
 
@@ -969,5 +972,6 @@ class Watcher:
                 raise RuntimeError("Aborted. Queue filled?")
             if res.entry.path and res.entry.path[0] is None and not self.full:
                 continue
-            self.q._distkv__free += 1
+            if self.q._distkv__free is not None:
+                self.q._distkv__free += 1
             return res
