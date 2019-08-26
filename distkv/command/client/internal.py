@@ -4,6 +4,10 @@ import asyncclick as click
 
 from range_set import RangeSet
 from distkv.util import yprint
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 
 import logging
 
@@ -122,7 +126,11 @@ async def deleter(obj, delete, nodes):
         iter=False,
         nchain=3 if delete or nodes else 2,
     )
-    val = set(res.get("value", []))
+    val = res.get("value", {})
+    if isinstance(val, Mapping):
+        val = val.get("nodes", [])
+    # else: compatibility, TODO remove
+    val = set(val)
     if delete:
         if nodes:
             val -= set(nodes)
@@ -134,7 +142,7 @@ async def deleter(obj, delete, nodes):
         yprint(res, stream=obj.stdout)
         return
 
-    val = list(val)
+    val = {'nodes': list(val)}
     res = await obj.client._request(
         action="set_internal", path=("actor","del",), iter=False, chain=res.chain, value=val
     )
