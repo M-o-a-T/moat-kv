@@ -1314,6 +1314,9 @@ class Server:
         self._part_cache = dict()
         self._savers = []
 
+        # This is here, not in _run_del, because _del_actor needs to be accessible early
+        self._del_actor = DeleteActor(self)
+
     @asynccontextmanager
     async def next_event(self):
         """A context manager which returns the next event under a lock.
@@ -2427,8 +2430,6 @@ class Server:
             delay2 = anyio.create_event()
             delay3 = anyio.create_event()
 
-            # This is here, not in _run_del, because _del_actor needs to be accessible early
-            self._del_actor = DeleteActor(self)
             await self.spawn(self._run_del, delay3)
             await self.spawn(self._delete_also)
 
