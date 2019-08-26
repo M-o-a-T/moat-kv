@@ -461,7 +461,7 @@ class _BaseRunnerRoot(ClientRoot):
             cfg_ = client._cfg["runner"]
         else:
             cfg_ = combine_dict(cfg, client._cfg["runner"])
-        return await super().as_handler(client, subpath=subpath, _subpath=subpath, **kw)
+        return await super().as_handler(client, subpath=subpath, _subpath=subpath, cfg=cfg_, **kw)
 
     async def run_starting(self):
         from .errors import ErrorRoot
