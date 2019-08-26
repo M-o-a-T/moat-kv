@@ -1427,7 +1427,7 @@ class Server:
         """
         The background task that watches a (sub)tree for changes.
         """
-        async with Watcher(self.root, q_len=0) as watch:
+        async with Watcher(self.root, q_len=0, full=True) as watch:
             async for msg in watch:
                 self.logger.debug("Watch: %r", msg)
                 if msg.event.node != self.node:
