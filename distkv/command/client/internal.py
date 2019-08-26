@@ -39,10 +39,10 @@ async def state(obj, **flags):
     """
     Dump the server's state.
     """
-    if flags.pop('superseded',None):
-        flags['known'] = True
+    if flags.pop('known',None):
+        flags['superseded'] = True
     if flags.pop('all',None):
-        flags['known'] = True
+        flags['superseded'] = True
         flags['present'] = True
         flags['nodes'] = True
         flags['deleted'] = True
@@ -56,7 +56,7 @@ async def state(obj, **flags):
 
 
 @cli.command()
-@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
+@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded")
 @click.option(
     "-n",
     "--node",
@@ -77,7 +77,7 @@ async def mark(obj, deleted, source, node, items, broadcast):
     This is a dangerous command.
     """
 
-    k = "deleted" if deleted else "known"
+    k = "deleted" if deleted else "superseded"
     if not items:
         r = await obj.client._request("get_state", iter=False, missing=True)
         r = r["missing"]

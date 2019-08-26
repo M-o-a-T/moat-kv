@@ -1518,6 +1518,7 @@ class Server:
         self,
         nodes=False,
         known=False,
+        superseded=False,
         deleted=False,
         missing=False,
         present=False,
@@ -1527,12 +1528,15 @@ class Server:
         """
         Return some info about this node's internal state.
         """
+        if known:
+            superseded = True
+
         res = attrdict()
         if nodes:
             nd = res.nodes = {}
             for n in self._nodes.values():
                 nd[n.name] = n.tick
-        if known:
+        if superseded:
             nd = res.known = {}
             for n in self._nodes.values():
                 lk = n.local_superseded
@@ -1628,15 +1632,17 @@ class Server:
                 await self._run_send_missing(None)
 
         # Step 3
-        known = msg.get("known", None)
-        if known is not None:
-            for n, k in known.items():
+        superseded = msg.get("superseded", None)
+        if superseded is None:
+            superseded = msg.get("known", None)
+        if superseded is not None:
+            for n, k in superseded.items():
                 n = Node(n, cache=self._nodes)
                 r = RangeSet()
                 r.__setstate__(k)
                 r -= n.local_present
                 # might happen when loading stale data
-                n.report_known(r)
+                n.report_superseded(r)
 
         deleted = msg.get("deleted", None)
         if deleted is not None:
