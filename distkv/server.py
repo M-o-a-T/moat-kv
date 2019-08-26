@@ -1365,7 +1365,7 @@ class Server:
 
     async def del_check(self, value):
         """
-        Called when ``(None,"del")`` is set.
+        Called when ``(None,"actor","del")`` is set.
         """
         if value is NotGiven:
             await self._del_actor.disable()
@@ -1945,6 +1945,7 @@ class Server:
                     )
                     async for r in res:
                         pl(r)
+                        import pdb;pdb.set_trace()
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
                         )
