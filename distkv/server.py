@@ -685,9 +685,7 @@ class ServerClient:
         async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             if "chain" in msg:
-                msg.chain = NodeEvent.deserialize(
-                    msg.chain, cache=self.server._nodes, nulls_ok=self.nulls_ok
-                )
+                msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server._nodes)
 
             fn = None
             if msg.get("state", "") != "start":
@@ -1165,7 +1163,7 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        self.logger.debug("IN %d %s", self._client_nr, msg)
+                        # self.logger.debug("IN %d %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -1429,8 +1427,8 @@ class Server:
         """
         The background task that watches a (sub)tree for changes.
         """
-        async with Watcher(self.root) as watcher:
-            async for msg in watcher:
+        async with Watcher(self.root, q_len=0, full=True) as watch:
+            async for msg in watch:
                 self.logger.debug("Watch: %r", msg)
                 if msg.event.node != self.node:
                     continue
@@ -1520,23 +1518,34 @@ class Server:
         self,
         nodes=False,
         known=False,
+        superseded=False,
         deleted=False,
         missing=False,
+        present=False,
         remote_missing=False,
         **_kw,
     ):
         """
         Return some info about this node's internal state.
         """
+        if known:
+            superseded = True
+
         res = attrdict()
         if nodes:
             nd = res.nodes = {}
             for n in self._nodes.values():
                 nd[n.name] = n.tick
-        if known:
+        if superseded:
             nd = res.known = {}
             for n in self._nodes.values():
-                lk = n.local_known
+                lk = n.local_superseded
+                if len(lk):
+                    nd[n.name] = lk.__getstate__()
+        if present:
+            nd = res.present = {}
+            for n in self._nodes.values():
+                lk = n.local_present
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
         if deleted:
@@ -1623,13 +1632,17 @@ class Server:
                 await self._run_send_missing(None)
 
         # Step 3
-        known = msg.get("known", None)
-        if known is not None:
-            for n, k in known.items():
+        superseded = msg.get("superseded", None)
+        if superseded is None:
+            superseded = msg.get("known", None)
+        if superseded is not None:
+            for n, k in superseded.items():
                 n = Node(n, cache=self._nodes)
                 r = RangeSet()
                 r.__setstate__(k)
-                n.report_known(r)
+                r -= n.local_present
+                # might happen when loading stale data
+                n.report_superseded(r)
 
         deleted = msg.get("deleted", None)
         if deleted is not None:
@@ -1988,7 +2001,7 @@ class Server:
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.report_known(r, local=True)
+            nn.report_superseded(r, local=True)
 
         # deleted: per-node range of ticks that have been deleted
         deleted = msg.get("deleted", {})
@@ -2129,19 +2142,18 @@ class Server:
             known = {}
             deleted = {}
             for n in nodes:
-                k = RangeSet()
-                for r in n.remote_missing & n.local_known:
+                k = n.remote_missing & n.local_superseded
+                for r in n.remote_missing & n.local_present:
                     for t in range(*r):
                         if t not in n.remote_missing:
                             # some other node could have sent this while we worked
                             await anyio.sleep(self.cfg.server.ping.gap / 3)
                             continue
                         if t in n:
+                            # could have been deleted while sleeping
                             msg = n[t].serialize()
                             await self._send_event("update", msg)
                             n.remote_missing.discard(t)
-                        elif t not in n.local_deleted:
-                            k.add(t)
                 if k:
                     known[n.name] = k.__getstate__()
 

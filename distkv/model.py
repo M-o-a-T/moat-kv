@@ -40,9 +40,10 @@ class Node:
 
     name: str = None
     tick: int = None
-    _known: RangeSet = None  # I have these as valid data. Superset of ``._deleted``.
+    _present: RangeSet = None  # I have these as valid data. Superset of ``._deleted``.
     _deleted: RangeSet = None  # I have these as no-longer-valid data
     _reported: RangeSet = None  # somebody else reported these missing data for this node
+    _superseded: RangeSet = None  # I know these once existed, but no more.
     entries: dict = None
 
     def __new__(cls, name, tick=None, cache=None, create=True):
@@ -54,9 +55,10 @@ class Node:
             self = object.__new__(cls)
             self.name = name
             self.tick = tick
-            self._known = RangeSet()
+            self._present = RangeSet()
             self._deleted = RangeSet()
             self._reported = RangeSet()
+            self._superseded = RangeSet()
             self.entries = {}
             cache[name] = self
         else:
@@ -90,7 +92,7 @@ class Node:
         return "<%s: %s @%s>" % (self.__class__.__name__, self.name, self.tick)
 
     def seen(self, tick, entry=None, local=False):
-        """An event with this tick is in the entry's chain.
+        """An event with this tick was in the entry's chain.
 
         Args:
           ``tick``: The event affecting the given entry.
@@ -99,11 +101,17 @@ class Node:
                      other nodes saw this.
 
         """
-        self._known.add(tick)
         if not local:
             self._reported.discard(tick)
         if entry is not None:
+            self._present.add(tick)
             self.entries[tick] = entry
+
+            # this might happen when loading old state.
+            if tick in self._superseded:
+                self._superseded.discard(tick)
+                logger.info("%s was marked as superseded", entry)
+
 
     def is_deleted(self, tick):
         """
@@ -118,6 +126,7 @@ class Node:
         Args:
           tick: The event that caused the deletion.
 
+        Returns: the entry, if still present
         """
         self._deleted.add(tick)
         return self.entries.get(tick, None)
@@ -126,9 +135,11 @@ class Node:
         """
         The data for this tick are definitely gone (deleted).
         """
-        self._known.add(tick)
+        self._present.discard(tick)
         self._deleted.discard(tick)
         self._reported.discard(tick)
+        self._superseded.add(tick)
+
         e = self.entries.pop(tick, None)
         if e is not None:
             e.purge_deleted()
@@ -139,9 +150,10 @@ class Node:
 
         This is a shortcut for calling :meth:`clear_deleted` on each item.
         """
-        self._known += r
+        self._present -= r
         self._deleted -= r
         self._reported -= r
+        self._superseded += r
 
         # Mark that these as really gone.
         for a, b in r:
@@ -158,9 +170,11 @@ class Node:
         Args:
           ``tick``: The event that once affected the given entry.
         """
+        self._present.discard(tick)
+        self._superseded.add(tick)
         self.entries.pop(tick, None)
 
-    def report_known(self, r: RangeSet, local=False):
+    def report_superseded(self, r: RangeSet, local=False):
         """
         Some node said that these entries may have been superseded.
 
@@ -169,15 +183,24 @@ class Node:
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
-        self._known += r
+        self._superseded += r
         if not local:
             self._reported -= r
+
+        # Are any of these present?
+        r &= self._present
+        for a, b in r:
+            for t in range(a, b):
+                e = self.entries[t]
+                if e.chain.node is self and e.chain.tick == t:
+                    logger.info("%s present but marked as superseded", e)
+
 
     def report_missing(self, r: RangeSet):
         """
         Some node doesn't know about these ticks.
 
-        Remember that: we may need to broadcast either their content,
+        We may need to broadcast either their content,
         or the fact that these ticks have been superseded.
         """
         self._reported += r
@@ -206,13 +229,27 @@ class Node:
 
         # Mark as deleted. The system will flush them later.
         self._deleted += r
-        self._known += r
         self._reported -= r
+        self._superseded += r
+
+        r &= self._present
+        for a, b in r:
+            for t in range(a, b):
+                e = self.entries.get(t, None)
+                if e is not None:
+                    logger.info("%s present but marked as deleted", e)
+                    e.purge_deleted()
+
 
     @property
-    def local_known(self):
-        """Values I have seen – they either exist or I know they've been superseded"""
-        return self._known
+    def local_present(self):
+        """Values I know about"""
+        return self._present
+
+    @property
+    def local_superseded(self):
+        """Values I knew about"""
+        return self._superseded
 
     @property
     def local_deleted(self):
@@ -221,10 +258,12 @@ class Node:
 
     @property
     def local_missing(self):
-        """Values I have not seen, the inverse of :meth:`local_known`"""
+        """Values I have not seen, the inverse of :meth:`local_present`
+        plus :meth:`local_superseded`"""
         assert self.tick
         r = RangeSet(((1, self.tick + 1),))
-        r -= self._known
+        r -= self._present
+        r -= self._superseded
         return r
 
     @property
@@ -302,14 +341,12 @@ class NodeEvent:
 
     """
 
-    def __init__(
-        self, node: Node, tick: int = None, prev: "NodeEvent" = None, check_dup=True
-    ):
+    def __init__(self, node: Node, tick: int = None, prev: "NodeEvent" = None):
         self.node = node
         if tick is None:
             tick = node.tick
         self.tick = tick
-        if check_dup and tick is not None and tick > 0:
+        if tick is not None and tick > 0:
             node.seen(tick)
         self.prev = None
         if prev is not None:
@@ -439,7 +476,7 @@ class NodeEvent:
         return res
 
     @classmethod
-    def deserialize(cls, msg, cache, check_dup=True, nulls_ok=False):
+    def deserialize(cls, msg, cache):
         if msg is None:
             return None
         msg = msg.get("chain", msg)
@@ -448,16 +485,9 @@ class NodeEvent:
             assert "prev" not in msg
             assert tick is None
             return None
-        else:
-            self = cls(
-                node=Node(msg["node"], tick=tick, cache=cache),
-                tick=tick,
-                check_dup=check_dup,
-            )
+        self = cls(node=Node(msg["node"], tick=tick, cache=cache), tick=tick)
         if "prev" in msg:
-            self.prev = cls.deserialize(
-                msg["prev"], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok
-            )
+            self.prev = cls.deserialize(msg["prev"], cache=cache)
         return self
 
     def attach(self, prev: "NodeEvent" = None, server=None):
@@ -530,7 +560,7 @@ class UpdateEvent:
                 from .types import ConvNull
             conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
-        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        event = NodeEvent.deserialize(msg, cache=cache)
         old_value = NotGiven
         if "value" in msg:
             value = conv.dec_value(msg.value, entry=entry)
@@ -786,7 +816,7 @@ class Entry:
     ):
         """Apply this :cls`UpdateEvent` to me.
 
-        Also, forward to watchers (unless ``local`` is set).
+        Also, forward to watchers.
         """
         chk = None
         if root is not None and None in root:
@@ -906,20 +936,22 @@ class Entry:
         while True:
             bad = set()
             for q in list(node.monitors):
-                if q._distkv__free > 1:
-                    q._distkv__free -= 1
+                if q._distkv__free is None or q._distkv__free > 1:
+                    if q._distkv__free is not None:
+                        q._distkv__free -= 1
                     await q.put(event)
                 else:
                     bad.add(q)
             for q in bad:
                 try:
-                    if q._distkv__free > 0:
+                    if q._distkv__free is None or q._distkv__free > 0:
                         await q.put(None)
                     node.monitors.remove(q)
                 except KeyError:
                     pass
                 else:
-                    await q.aclose()
+                    pass
+                    # await q.aclose()
             node = node.parent
             if node is None:
                 break
@@ -948,15 +980,17 @@ class Watcher:
     q = None
     q_len = 100
 
-    def __init__(self, root: Entry, full: bool = False):
+    def __init__(self, root: Entry, full: bool = False, q_len: int = None):
         self.root = root
         self.full = full
+        if q_len is not None:
+            self.q_len = q_len
 
     async def __aenter__(self):
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
         self.q = create_queue(self.q_len)
-        self.q._distkv__free = self.q_len
+        self.q._distkv__free = self.q_len or None
         self.root.monitors.add(self.q)
         return self
 
@@ -978,5 +1012,6 @@ class Watcher:
                 raise RuntimeError("Aborted. Queue filled?")
             if res.entry.path and res.entry.path[0] is None and not self.full:
                 continue
-            self.q._distkv__free += 1
+            if self.q._distkv__free is not None:
+                self.q._distkv__free += 1
             return res

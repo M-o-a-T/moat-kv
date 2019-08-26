@@ -58,14 +58,15 @@ async def test_41_ssl_basic(autojump_clock):
             assert r.value == "baz"
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 3},
-                "known": {"test_0": ((1, 4),)},
+                "known": {},
+                "present": {"test_0": ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -90,14 +91,15 @@ async def test_41_ssl_basic(autojump_clock):
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 4},
-                "known": {"test_0": ((1, 5),)},
+                "known": {"test_0": (1,)},
+                "present": {"test_0": ((2, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }

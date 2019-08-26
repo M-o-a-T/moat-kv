@@ -1134,10 +1134,15 @@ range but the end is not.
    Add a list of per-node deleted ``tick`` values, i.e. those whose entries
    have been purged from the system.
 
-.. option:: -k, --known
+.. option:: -p, --present
 
-   Add a list of per-node known  ``tick`` values, i.e. those which have
-   been superseded by subsequent changes.
+   Add a list of per-node ``tick`` values which can be retrieved via
+   node+tick, i.e. for which a chain entry exists.
+
+.. option:: -s, --superseded
+
+   Add a list of per-node ``tick`` values which have been superseded by
+   subsequent changes. This is returned as "known".
 
 .. option:: -m, --missing
 

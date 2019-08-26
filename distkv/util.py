@@ -763,7 +763,17 @@ def res_delete(res, *path, skip_empty=True):
 
 
 @asynccontextmanager
-async def as_service():
+async def as_service(obj=None):
+    """
+    This async context manager provides readiness and keepalive messages to
+    systemd.
+
+    Arguments:
+        obj: command context. Needs a ``debug`` attribute.
+
+    The CM yields a (duck-typed) event whose async ``set`` method will
+    trigger a ``READY=1`` mesage to systemd.
+    """
     from systemd.daemon import notify
  
     async def run_keepalive(usec):
@@ -780,9 +790,12 @@ async def as_service():
             return int(os.environ.get('WATCHDOG_USEC', 0))
 
     class RunMsg:
+        def __init__(self, obj):
+            self.obj = obj
+
         async def set(self):
             notify("READY=1")
-            if obj.debug:
+            if self.obj is not None and self.obj.debug:
                 print("Running.")
 
     async with anyio.create_task_group() as tg:
@@ -790,7 +803,7 @@ async def as_service():
         if usec:
             await tg.spawn(run_keepalive, usec)
         try:
-            yield tg
+            yield RunMsg(obj)
         finally:
             await tg.cancel_scope.cancel()
 

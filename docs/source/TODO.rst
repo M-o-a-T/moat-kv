@@ -58,3 +58,7 @@ Open issues
 
 * Runner: store the number of active group members / actor config in the group
 
+* Restore passing positional parameters as keywords (to code entries)
+
+* Add a maintainer mode (user flag) that allows limited access when data is missing
+

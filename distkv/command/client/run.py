@@ -45,10 +45,12 @@ async def all(obj):
     """
     from distkv.util import as_service
 
-    async with as_service():
+    async with as_service(obj) as evt:
+        _, evt = evt
         c = obj.client
         cr = await CodeRoot.as_handler(c)
         r = await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
+        await evt.set()
         while True:
             await anyio.sleep(99999)
 

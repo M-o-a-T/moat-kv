@@ -55,16 +55,16 @@ class TypeEntry(Entry):
                     if schema is not None:
                         jsonschema.validate(instance=v, schema=schema)
                     if code is not None:
-                        code(value=v, entry=None)
+                        code(v, entry=None)
                 except Exception as exc:
-                    raise ValueError("failed on %r with %r" % (v, exc))
+                    raise ValueError("failed on good value %r" % (v, ))
             for v in value["bad"]:
                 self.parent.check_value(v)
                 try:
                     if schema is not None:
                         jsonschema.validate(instance=v, schema=schema)
                     if code is not None:
-                        code(value=v, entry=None)
+                        code(v, entry=None)
                 except Exception:
                     pass
                 else:

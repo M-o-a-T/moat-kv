@@ -30,18 +30,33 @@ async def cli(obj):
     is_flag=True,
     help="Get remote-missing-node status.",
 )
-@click.option("-k", "--known", is_flag=True, help="Get known-data status.")
+@click.option("-p", "--present", is_flag=True, help="Get known-data status.")
+@click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
+@click.option("-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status.")
+@click.option("-a", "--all", is_flag=True, help="All available data.")
 @click.pass_obj
 async def state(obj, **flags):
     """
     Dump the server's state.
     """
+    if flags.pop('known',None):
+        flags['superseded'] = True
+    if flags.pop('all',None):
+        flags['superseded'] = True
+        flags['present'] = True
+        flags['nodes'] = True
+        flags['deleted'] = True
+        flags['missing'] = True
+        flags['remote_missing'] = True
     res = await obj.client._request("get_state", iter=False, **flags)
+    k = res.pop('known', None)
+    if k is not None:
+        res['superseded'] = k
     yprint(res, stream=obj.stdout)
 
 
 @cli.command()
-@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: known")
+@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded")
 @click.option(
     "-n",
     "--node",
@@ -62,7 +77,7 @@ async def mark(obj, deleted, source, node, items, broadcast):
     This is a dangerous command.
     """
 
-    k = "deleted" if deleted else "known"
+    k = "deleted" if deleted else "superseded"
     if not items:
         r = await obj.client._request("get_state", iter=False, missing=True)
         r = r["missing"]

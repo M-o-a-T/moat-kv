@@ -11,7 +11,10 @@ from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from copy import deepcopy
 import psutil
 import time
-from collections import Mapping
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState

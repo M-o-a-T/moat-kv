@@ -88,11 +88,11 @@ async def cli(obj, name, host, port, load, save, init, incremental, eval):
     elif init is not None:
         kw["init"] = init
 
-    from distkv.util import as_service, RunMsg
+    from distkv.util import as_service
 
-    async with as_service():
+    async with as_service(obj) as evt:
         s = Server(name, cfg=obj.cfg, **kw)
         if load is not None:
             await s.load(path=load, local=True)
 
-        await s.serve(log_path=save, log_inc=incremental, ready_evt=RunMsg())
+        await s.serve(log_path=save, log_inc=incremental, ready_evt=evt)

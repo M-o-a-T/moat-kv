@@ -89,14 +89,15 @@ async def test_01_basic(autojump_clock):
             assert r.tock == bart
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 3},
-                "known": {"test_0": ((1, 4),)},
+                "known": {},
+                "present": {'test_0': ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -125,14 +126,15 @@ async def test_01_basic(autojump_clock):
             bart = r.tock
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 5},
-                "known": {"test_0": ((1, 6),)},
+                "known": {"test_0": (1, 3)},
+                "present": {'test_0': (2, (4, 6),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -175,14 +177,15 @@ async def test_02_cmd(autojump_clock):
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 3},
-                "known": {"test_0": ((1, 4),)},
+                "known": {},
+                'present': {'test_0': ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -207,14 +210,15 @@ async def test_02_cmd(autojump_clock):
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 4},
-                "known": {"test_0": ((1, 5),)},
+                "known": {"test_0": (1,)},
+                'present': {'test_0': ((2, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -230,7 +234,7 @@ async def test_03_three(autojump_clock):
             assert (await ci._request("get_value", path=())).value == 125
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
@@ -240,7 +244,8 @@ async def test_03_three(autojump_clock):
                 == {
                     "node": "test_1",
                     "nodes": {"test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 }
@@ -248,7 +253,8 @@ async def test_03_three(autojump_clock):
                 == {
                     "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 }
@@ -256,7 +262,8 @@ async def test_03_three(autojump_clock):
                 == {
                     "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {"test_0": (1,)},
                     "remote_missing": {"test_0": (1,)},
                 }
@@ -264,7 +271,8 @@ async def test_03_three(autojump_clock):
                 == {
                     "node": "test_1",
                     "nodes": {"test_1": 1, "test_0": None},
-                    "known": {"test_0": (1,), "test_1": (1,)},
+                    "known": {},
+                    "present": {"test_0": (1,), "test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 }
@@ -272,7 +280,8 @@ async def test_03_three(autojump_clock):
                 == {
                     "node": "test_1",
                     "nodes": {"test_0": 0, "test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 }
@@ -289,19 +298,22 @@ async def test_03_three(autojump_clock):
                     known=True,
                     missing=True,
                     remote_missing=True,
+                    present=True,
                 )
                 del r["tock"]
                 del r["seq"]
                 assert r == {
                     "node": "test_1",
                     "nodes": {"test_0": 0, "test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 } or r == {
                     "node": "test_1",
                     "nodes": {"test_0": None, "test_1": 1},
-                    "known": {"test_1": (1,)},
+                    "known": {},
+                    "present": {"test_1": (1,)},
                     "missing": {},
                     "remote_missing": {},
                 }
@@ -342,26 +354,29 @@ async def test_03_three(autojump_clock):
                     known=True,
                     missing=True,
                     remote_missing=True,
+                    present=True,
                 )
                 del r["tock"]
                 del r["seq"]
                 assert r == {
                     "node": "test_0",
                     "nodes": {"test_0": 1, "test_1": 2},
-                    "known": {"test_0": (1,), "test_1": ((1, 3),)},
+                    'known': {'test_1': (1,)},
+                    "present": {"test_0": (1,), "test_1": (2,)},
                     "missing": {},
                     "remote_missing": {},
                 }
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_1",
                 "nodes": {"test_0": 1, "test_1": 2},
-                "known": {"test_0": (1,), "test_1": ((1, 3),)},
+                'known': {'test_1': (1,)},
+                "present": {"test_0": (1,), "test_1": (2,)},
                 "missing": {},
                 "remote_missing": {},
             }
