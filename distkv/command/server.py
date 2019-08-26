@@ -88,7 +88,7 @@ async def cli(obj, name, host, port, load, save, init, incremental, eval):
     elif init is not None:
         kw["init"] = init
 
-    from distkv.util import as_service
+    from distkv.util import as_service, RunMsg
 
     async with as_service():
         s = Server(name, cfg=obj.cfg, **kw)

@@ -639,8 +639,19 @@ class NoLock:
     async def __aexit__(self, *tb):
         return
 
+def path_eval(path, evals):
+    if not evals:
+        yield from iter(path)
+        return
+    evals = set(evals)
+    i = 0
+    for p in path:
+        i += 1
+        if i in evals:
+            p = eval(p)
+        yield p
 
-async def data_get(obj, path, recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False):
+async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False):
     if recursive:
         if raw:
             raise click.UsageError("'raw' cannot be used with 'recursive'")
@@ -653,7 +664,7 @@ async def data_get(obj, path, recursive=True, as_dict='_', maxdepth=-1, mindepth
         if empty:
             kw["add_empty"] = True
         y = {}
-        async for r in obj.client.get_tree(*path, nchain=obj.meta, **kw):
+        async for r in obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw):
             r.pop("seq", None)
             path = r.pop("path")
             if as_dict is not None:

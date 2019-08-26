@@ -574,13 +574,13 @@ class SCmd_serfmon(StreamCommand):
     async def run(self):
         msg = self.msg
         raw = msg.get("raw", False)
+        typ = msg.type
+        if typ[0] == ":":
+            typ = self.cfg.server.root + typ
 
-        if msg.type[0] == ":":
-            raise RuntimeError("Types may not start with a colon")
-
-        async with self.client.server.serf.stream("user:" + msg.type) as stream:
+        async with self.client.server.serf.stream("user:" + typ) as stream:
             async for resp in stream:
-                res = attrdict(type=msg.type)
+                res = attrdict(type=typ)
                 if raw:
                     res["raw"] = resp.payload
                 else:
@@ -1000,15 +1000,16 @@ class ServerClient:
         return await self.server.get_state(**msg)
 
     async def cmd_serfsend(self, msg):
-        if msg.type[0] == ":":
-            raise RuntimeError("Types may not start with a colon")
+        typ = msg.type
+        if typ[0] == ":":
+            typ = self.cfg.server.root + typ
         if "raw" in msg:
             assert "data" not in msg
             data = msg.raw
         else:
             data = _packer(msg.data)
         await self.server.serf.event(
-            msg.type, data, coalesce=msg.get("coalesce", False)
+            typ, data, coalesce=msg.get("coalesce", False)
         )
 
     async def cmd_delete_tree(self, msg):
@@ -1199,6 +1200,9 @@ class ServerClient:
                 if len(buf) == 0:  # Connection was closed.
                     raise anyio.exceptions.ClosedResourceError
                 unpacker.feed(buf)
+
+    def drop_old_event(self, evt, old_evt=NotGiven):
+        return self.server.drop_old_event(evt, old_evt)
 
 
 class _RecoverControl:
@@ -1654,10 +1658,12 @@ class Server:
             i = 0
             while ("_p%d" % i) in msg:
                 i += 1
+            j = i
             while i:
                 i -= 1
                 msg["_p%d" % (i + 1)] = msg["_p%d" % i]
-            msg["_p0"] = ""
+            if j:
+                msg["_p0"] = ""
 
         p = _packer(msg)
         pl = self._part_len

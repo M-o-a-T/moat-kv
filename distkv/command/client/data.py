@@ -10,9 +10,11 @@ from distkv.util import (
     MsgReader,
     PathShortener,
     NotGiven,
+    yprint,
+    data_get,
+    path_eval,
 )
 from distkv.client import StreamedRequest
-from distkv.util import yprint, data_get
 
 import logging
 
@@ -52,6 +54,7 @@ async def cli(obj):
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
+@click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.option(
     "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
 )
@@ -118,9 +121,10 @@ async def list(*a, **k):
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
+@click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, value, eval, prev, last, new):
+async def set(obj, path, eval_path, value, eval, prev, last, new):
     """
     Store a value at some DistKV position.
 
@@ -145,7 +149,7 @@ async def set(obj, path, value, eval, prev, last, new):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(*path, value=value, nchain=obj.meta, **args)
+    res = await obj.client.set(*path_eval(path, eval_path), value=value, nchain=obj.meta, **args)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
@@ -157,11 +161,12 @@ async def set(obj, path, value, eval, prev, last, new):
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
+@click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.option(
     "-e", "--eval", is_flag=True, help="The previous value shall be evaluated."
 )
 @click.pass_obj
-async def delete(obj, path, prev, last, recursive, eval):
+async def delete(obj, path, eval_path, prev, last, recursive, eval):
     """
     Delete an entry, or a whole subtree.
 
@@ -175,10 +180,10 @@ async def delete(obj, path, prev, last, recursive, eval):
     The root entry cannot be deleted.
     """
     args = {}
-    if eval and not prev:
+    if eval and prev is NotGiven:
         raise click.UsageError("You need to add a value that can be evaluated")
     if recursive:
-        if prev or last:
+        if prev is not NotGiven or last:
             raise click.UsageError("'local' and 'force' are mutually exclusive")
     else:
         if prev is not NotGiven:
@@ -190,7 +195,7 @@ async def delete(obj, path, prev, last, recursive, eval):
 
     res = await obj.client._request(
         action="delete_tree" if recursive else "delete_value",
-        path=path,
+        path=tuple(path_eval(path,eval_path)),
         nchain=obj.meta,
         **args
     )
@@ -207,11 +212,14 @@ async def delete(obj, path, prev, last, recursive, eval):
 
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
+@click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def watch(obj, path, state):
+async def watch(obj, path, eval_path, state):
     """Watch a DistKV subtree"""
     flushing = not state
+    path = tuple(path_eval(path, eval_path))
+
     async with obj.client.watch(*path, nchain=obj.meta, fetch=state) as res:
         pl = PathLongener(path)
         async for r in res:
@@ -230,13 +238,15 @@ async def watch(obj, path, state):
 @click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
 @click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
 @click.option("-i", "--infile", type=click.File("rb"), help="File to read (msgpack).")
+@click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def update(obj, path, infile, local, force):
+async def update(obj, path, eval_path, infile, local, force):
     """Send a list of updates to a DistKV subtree"""
     if local and force:
         raise click.UsageError("'local' and 'force' are mutually exclusive")
 
+    path = tuple(path_eval(path, eval_path))
     ps = PathShortener(path)
     async with MsgReader(path=path) as reader:
         with obj.client._stream(

@@ -216,6 +216,11 @@ for incremental output.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
+
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -260,6 +265,11 @@ default to 1.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
+
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -303,6 +313,11 @@ accidentally overwrite something.
 
    This value is also affected by ``--eval``.
 
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
+
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -336,6 +351,11 @@ Recursive changes only check the entry you mention on the command line.
 
    This value is also affected by ``--eval``.
 
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
+
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -363,6 +383,11 @@ Monitor changes to the state of an entry, or rather its subtree.
 
    The default is to use YAML.
 
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
+
 .. option:: path…
 
    Monitor the subtree at this location. The default is the root node.
@@ -377,6 +402,11 @@ Stream a list of changes from standard input to DistKV.
    Interpret the input as ``MsgPack`` data. XXX TODO
 
    The default is to use YAML. XXX TODO
+
+.. option:: -V, --eval-path <N>
+
+   Evaluate the ``N``th path element (counting from 1) as a Python
+   expression.
 
 .. option:: path…
 
@@ -832,6 +862,54 @@ Dump an ACL's content.
 Manipulate code stored in DistKV.
 
 
+.. program:: distkv client code list
+
+List code snippets stored in DistKV.
+
+.. option:: -d, --as-dict <text>
+
+   When you use this option, the data is printed as a dictionary.
+   The argument of this option controls which key is used for the actual
+   value; this string should not occur as a path element.
+
+   The customary value to use is a single underscore.
+
+   Using this option in conjunction with ``--recursive`` requires keeping
+   the whole data set in memory before starting to print anything. This may
+   take a long time or eat a lot of memory.
+
+.. option:: -s, --short
+
+   Print one-line entries.
+
+   Incompatible with ``-f`` and ``-d`
+
+.. option:: -f, --full
+
+   Print the actual code.
+
+   Otherwise, code is not printed and a "number of lines" ``info`` entry is
+   generated (if missing).
+
+.. option:: -m, --mindepth <integer>
+
+   When printing recursively, start at this depth off the given path.
+
+   The default is zero, i.e. include the entry itself.
+
+.. option:: -M, --maxdepth <integer>
+
+   When printing recursively, stop at this depth (inclusive).
+
+   The default is to print the whole tree. Use ``1`` to print the entry itself
+   (assuming that it has a value and you didn't use ``--mindepth=1``)
+   and its immediate children.
+
+.. option:: path…
+
+   List the code below this location. The default is the root node.
+
+
 .. program:: distkv client code get
 
 Retrieve Python code stored in the server.
@@ -940,10 +1018,16 @@ Subcommand for controlling and executing code stored in DistKV.
 
 .. option:: -n, --node <node>
 
-   The node where the code in question might run.
+   The node where the code in question will run.
 
-   Not using this option means that the code in question may run on any
-   node.
+   Code marked with this option will run on exactly this node. The default
+   is the local node name.
+
+.. option:: -g, --group <group>
+
+   The group which the code in question shall run on.
+
+   The default group is "all".
 
 
 .. program:: distkv client run all

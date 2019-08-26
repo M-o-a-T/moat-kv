@@ -338,6 +338,10 @@ class Client:
             self._helpers[path] = h
         if isinstance(h, anyio.abc.Lock):
             async with h:
+                h2 = self._helpers[path]
+                if h2 is not h:
+                    # another task already did the work
+                    return h2
 
                 async def _run(factory, evt):
                     async with factory() as f:

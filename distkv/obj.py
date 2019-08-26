@@ -33,15 +33,18 @@ class ClientEntry:
     """
 
     def __init__(self, parent, name=None):
-        self._children = dict()
+        self._init()
         self._path = parent._path + (name,)
         self._name = name
-        self.value = NotGiven
-        self.chain = None
         self._parent = weakref.ref(parent)
         self._root = weakref.ref(parent.root)
         self.client = parent.client
+
+    def _init(self):
         self._lock = anyio.create_lock()  # for saving etc.
+        self.chain = None
+        self.value = NotGiven
+        self._children = dict()
 
     @classmethod
     def child_type(cls, name):
@@ -74,6 +77,7 @@ class ClientEntry:
     @property
     def all_children(self):
         """Iterate all child nodes with data.
+
         You can send ``True`` to the iterator if you want to skip a subtree.
         """
         for k in self:
@@ -90,13 +94,19 @@ class ClientEntry:
         Arguments:
           name: The child node's name.
           exists: return the existing value? otherwise error
+
+        If this returns ``None``, the subtree shall not be tracked.
+
         """
         c = self._children.get(name, None)
         if c is not None:
             if exists:
                 return c
             raise RuntimeError("Duplicate child",self,name,c)
-        self._children[name] = c = self.child_type(name)(self, name)
+        c = self.child_type(name)
+        if c is None:
+            return
+        self._children[name] = c = c(self, name)
         return c
 
     def __getitem__(self, name):
@@ -264,13 +274,12 @@ class ClientRoot(ClientEntry):
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
     def __init__(self, client, *path, need_wait=False, cfg=None):
-        self.chain = None
-        self._children = dict()
+        self._init()
         self.client = client
         self._path = path
-        self.value = None
         self._need_wait = need_wait
         self._loaded = anyio.create_event()
+
         if cfg is None:
             cfg = {}
         self._cfg = cfg
@@ -281,7 +290,7 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg=None, key="prefix", **kw):
+    async def as_handler(cls, client, cfg=None, key="prefix", subpath=(), **kw):
         """Return a (or "the") instance of this class.
 
         The handler is created if it doesn't exist.
@@ -302,15 +311,18 @@ class ClientRoot(ClientEntry):
 
         def make():
             return client.mirror(
-                *cfg[key], root_type=cls, need_wait=True, cfg=cfg, **kw
+                *cfg[key], *subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
             )
 
-        return await client.unique_helper(*cfg[key], factory=make)
+        return await client.unique_helper(*cfg[key], *subpath, factory=make)
 
     @classmethod
     def child_type(cls, name):
         """Given a node, return the type which the child with that name should have.
         The default is :class:`ClientEntry`.
+
+        This may return ``None``. In that case the subtree with this name
+        shall not be tracked further.
         """
         return ClientEntry
 
@@ -342,9 +354,10 @@ class ClientRoot(ClientEntry):
         for elem in path:
             next_node = node.get(elem)
             if next_node is None:
-                if create:
-                    next_node = node.allocate(elem)
-                else:
+                if not create:
+                    return None
+                next_node = node.allocate(elem)
+                if next_node is None:
                     return None
 
             node = next_node

@@ -21,6 +21,7 @@ async def cli(obj):
 
 @cli.command()
 @click.option("-n", "--node", help="add details from this node")
+@click.option("-t", "--trace", is_flag=True, help="add traces, if present")
 @click.option("-a", "--all-nodes", is_flag=True, help="add details from all nodes")
 @click.option(
     "-d",
@@ -31,7 +32,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def dump(obj, as_dict, path, node, all_nodes):
+async def dump(obj, as_dict, path, node, all_nodes, trace):
     """Dump error entries.
     """
     path_ = obj.cfg["errors"].prefix
@@ -47,8 +48,14 @@ async def dump(obj, as_dict, path, node, all_nodes):
 
     y = {}
     async for r in res:
-        rp = r.value.path
-        if rp[: len(path)] != path:
+        try:
+            rp = r.value.path
+            if rp[: len(path)] != path:
+                continue
+        except AttributeError:
+            r['state']='incomplete'
+            yprint(r, stream=obj.stdout)
+            print("---", file=obj.stdout)
             continue
         rp = rp[len(path) :]
         rpe = r.pop("path")
@@ -65,6 +72,8 @@ async def dump(obj, as_dict, path, node, all_nodes):
                 nchain=3 if obj.meta else 0,
             )
             async for rr in rs:
+                if not trace:
+                    rr.value.pop('trace', None)
                 rn[rr.path[-1]] = rr if obj.meta else rr.value
         elif node is not None:
             rn = {}
@@ -77,6 +86,7 @@ async def dump(obj, as_dict, path, node, all_nodes):
             if "value" not in rr:
                 continue
             if rr is not None and "value" in rr:
+                rr.value.pop('trace', None)
                 rn[node] = rr if obj.meta else rr.value
         else:
             rn = None
@@ -95,6 +105,7 @@ async def dump(obj, as_dict, path, node, all_nodes):
 
         if as_dict is None:
             yprint([yy], stream=obj.stdout)
+            print("---", file=obj.stdout)
 
     if as_dict is not None:
         yprint(y, stream=obj.stdout)
