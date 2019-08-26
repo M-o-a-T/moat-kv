@@ -1945,7 +1945,6 @@ class Server:
                     )
                     async for r in res:
                         pl(r)
-                        import pdb;pdb.set_trace()
                         r = UpdateEvent.deserialize(
                             self.root, r, cache=self._nodes, nulls_ok=True
                         )
