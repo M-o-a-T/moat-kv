@@ -30,15 +30,15 @@ async def test_83_run(autojump_clock):
                 break
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
-            r = await SingleRunnerRoot.as_handler(c, node="testnode")
             cr = await CodeRoot.as_handler(c)
+            r = await SingleRunnerRoot.as_handler(c, subpath=(), code=cr)
             c._test_evt = anyio.create_event()
             await cr.add(
                 "forty",
                 "two",
                 code="""\
                 import trio
-                c=kw['_client']
+                c=_client
                 await c._test_evt.set()
                 await trio.sleep(10)
                 return 42
