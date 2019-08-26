@@ -183,13 +183,14 @@ class Node:
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
+        coll = r & self._present
+        r -= coll
         self._superseded += r
         if not local:
             self._reported -= r
 
         # Are any of these present?
-        r &= self._present
-        for a, b in r:
+        for a, b in coll:
             for t in range(a, b):
                 e = self.entries[t]
                 if e.chain.node is self and e.chain.tick == t:
