@@ -62,3 +62,9 @@ coverage.xml
 # Local test tools
 /kv
 /.pybuild/
+
+# devel stuff
+/T
+/init.dkv
+/packdump.py
+/x

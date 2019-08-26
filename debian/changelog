@@ -1,3 +1,10 @@
+distkv (0.11.2-2) unstable; urgency=medium
+
+  * Bugfix
+  * Ignore stuff
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Mon, 26 Aug 2019 04:31:01 +0200
+
 distkv (0.11.2-1) unstable; urgency=medium
 
   * Merge
