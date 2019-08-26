@@ -302,14 +302,12 @@ class NodeEvent:
 
     """
 
-    def __init__(
-        self, node: Node, tick: int = None, prev: "NodeEvent" = None, check_dup=True
-    ):
+    def __init__(self, node: Node, tick: int = None, prev: "NodeEvent" = None):
         self.node = node
         if tick is None:
             tick = node.tick
         self.tick = tick
-        if check_dup and tick is not None and tick > 0:
+        if tick is not None and tick > 0:
             node.seen(tick)
         self.prev = None
         if prev is not None:
@@ -439,7 +437,7 @@ class NodeEvent:
         return res
 
     @classmethod
-    def deserialize(cls, msg, cache, check_dup=True, nulls_ok=False):
+    def deserialize(cls, msg, cache):
         if msg is None:
             return None
         msg = msg.get("chain", msg)
@@ -452,12 +450,9 @@ class NodeEvent:
             self = cls(
                 node=Node(msg["node"], tick=tick, cache=cache),
                 tick=tick,
-                check_dup=check_dup,
             )
         if "prev" in msg:
-            self.prev = cls.deserialize(
-                msg["prev"], cache=cache, check_dup=check_dup, nulls_ok=nulls_ok
-            )
+            self.prev = cls.deserialize(msg["prev"], cache=cache)
         return self
 
     def attach(self, prev: "NodeEvent" = None, server=None):
@@ -530,7 +525,7 @@ class UpdateEvent:
                 from .types import ConvNull
             conv = ConvNull
         entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
-        event = NodeEvent.deserialize(msg, cache=cache, nulls_ok=nulls_ok)
+        event = NodeEvent.deserialize(msg, cache=cache)
         old_value = NotGiven
         if "value" in msg:
             value = conv.dec_value(msg.value, entry=entry)

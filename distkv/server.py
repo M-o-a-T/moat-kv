@@ -685,9 +685,7 @@ class ServerClient:
         async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             if "chain" in msg:
-                msg.chain = NodeEvent.deserialize(
-                    msg.chain, cache=self.server._nodes, nulls_ok=self.nulls_ok
-                )
+                msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server._nodes)
 
             fn = None
             if msg.get("state", "") != "start":
