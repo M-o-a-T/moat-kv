@@ -1163,7 +1163,7 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        self.logger.debug("IN %d %s", self._client_nr, msg)
+                        # self.logger.debug("IN %d %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
