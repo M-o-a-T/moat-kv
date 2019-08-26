@@ -40,9 +40,10 @@ class Node:
 
     name: str = None
     tick: int = None
-    _known: RangeSet = None  # I have these as valid data. Superset of ``._deleted``.
+    _present: RangeSet = None  # I have these as valid data. Superset of ``._deleted``.
     _deleted: RangeSet = None  # I have these as no-longer-valid data
     _reported: RangeSet = None  # somebody else reported these missing data for this node
+    _superseded: RangeSet = None  # I know these once existed, but no more.
     entries: dict = None
 
     def __new__(cls, name, tick=None, cache=None, create=True):
@@ -54,9 +55,10 @@ class Node:
             self = object.__new__(cls)
             self.name = name
             self.tick = tick
-            self._known = RangeSet()
+            self._present = RangeSet()
             self._deleted = RangeSet()
             self._reported = RangeSet()
+            self._superseded = RangeSet()
             self.entries = {}
             cache[name] = self
         else:
@@ -90,7 +92,7 @@ class Node:
         return "<%s: %s @%s>" % (self.__class__.__name__, self.name, self.tick)
 
     def seen(self, tick, entry=None, local=False):
-        """An event with this tick is in the entry's chain.
+        """An event with this tick was in the entry's chain.
 
         Args:
           ``tick``: The event affecting the given entry.
@@ -99,11 +101,17 @@ class Node:
                      other nodes saw this.
 
         """
-        self._known.add(tick)
         if not local:
             self._reported.discard(tick)
         if entry is not None:
+            self._present.add(tick)
             self.entries[tick] = entry
+
+            # this might happen when loading old state.
+            if tick in self._superseded:
+                self._superseded.discard(tick)
+                logger.info("%s was marked as superseded", entry)
+
 
     def is_deleted(self, tick):
         """
@@ -118,6 +126,7 @@ class Node:
         Args:
           tick: The event that caused the deletion.
 
+        Returns: the entry, if still present
         """
         self._deleted.add(tick)
         return self.entries.get(tick, None)
@@ -126,9 +135,11 @@ class Node:
         """
         The data for this tick are definitely gone (deleted).
         """
-        self._known.add(tick)
+        self._present.discard(tick)
         self._deleted.discard(tick)
         self._reported.discard(tick)
+        self._superseded.add(tick)
+
         e = self.entries.pop(tick, None)
         if e is not None:
             e.purge_deleted()
@@ -139,9 +150,10 @@ class Node:
 
         This is a shortcut for calling :meth:`clear_deleted` on each item.
         """
-        self._known += r
+        self._present -= r
         self._deleted -= r
         self._reported -= r
+        self._superseded += r
 
         # Mark that these as really gone.
         for a, b in r:
@@ -158,6 +170,8 @@ class Node:
         Args:
           ``tick``: The event that once affected the given entry.
         """
+        self._present.discard(tick)
+        self._superseded.add(tick)
         self.entries.pop(tick, None)
 
     def report_known(self, r: RangeSet, local=False):
@@ -169,15 +183,24 @@ class Node:
           ``local``: The message was not broadcast, thus do not assume that
                      other nodes saw this.
         """
-        self._known += r
+        self._superseded += r
         if not local:
             self._reported -= r
+
+        # Are these known to us?
+        r &= self._present
+        for a, b in r:
+            for t in range(a, b):
+                e = self.entries[t]
+                if e.chain.node is self and e.chain.tick == t:
+                    logger.info("%s present but marked as superseded", e)
+
 
     def report_missing(self, r: RangeSet):
         """
         Some node doesn't know about these ticks.
 
-        Remember that: we may need to broadcast either their content,
+        We may need to broadcast either their content,
         or the fact that these ticks have been superseded.
         """
         self._reported += r
@@ -206,13 +229,27 @@ class Node:
 
         # Mark as deleted. The system will flush them later.
         self._deleted += r
-        self._known += r
         self._reported -= r
+        self._superseded += r
+
+        r &= self._present
+        for a, b in r:
+            for t in range(a, b):
+                e = self.entries.get(t, None)
+                if e is not None:
+                    logger.info("%s present but marked as deleted", e)
+                    e.purge_deleted()
+
 
     @property
-    def local_known(self):
-        """Values I have seen – they either exist or I know they've been superseded"""
-        return self._known
+    def local_present(self):
+        """Values I know about"""
+        return self._present
+
+    @property
+    def local_superseded(self):
+        """Values I knew about"""
+        return self._superseded
 
     @property
     def local_deleted(self):
@@ -224,7 +261,8 @@ class Node:
         """Values I have not seen, the inverse of :meth:`local_known`"""
         assert self.tick
         r = RangeSet(((1, self.tick + 1),))
-        r -= self._known
+        r -= self._present
+        r -= self._superseded
         return r
 
     @property
@@ -777,7 +815,7 @@ class Entry:
     ):
         """Apply this :cls`UpdateEvent` to me.
 
-        Also, forward to watchers (unless ``local`` is set).
+        Also, forward to watchers.
         """
         chk = None
         if root is not None and None in root:
@@ -911,7 +949,8 @@ class Entry:
                 except KeyError:
                     pass
                 else:
-                    await q.aclose()
+                    pass
+                    # await q.aclose()
             node = node.parent
             if node is None:
                 break

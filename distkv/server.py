@@ -1520,6 +1520,7 @@ class Server:
         known=False,
         deleted=False,
         missing=False,
+        present=False,
         remote_missing=False,
         **_kw,
     ):
@@ -1534,7 +1535,13 @@ class Server:
         if known:
             nd = res.known = {}
             for n in self._nodes.values():
-                lk = n.local_known
+                lk = n.local_superseded
+                if len(lk):
+                    nd[n.name] = lk.__getstate__()
+        if present:
+            nd = res.present = {}
+            for n in self._nodes.values():
+                lk = n.local_present
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
         if deleted:
@@ -1627,6 +1634,8 @@ class Server:
                 n = Node(n, cache=self._nodes)
                 r = RangeSet()
                 r.__setstate__(k)
+                r -= n.local_present
+                # might happen when loading stale data
                 n.report_known(r)
 
         deleted = msg.get("deleted", None)
@@ -2127,19 +2136,18 @@ class Server:
             known = {}
             deleted = {}
             for n in nodes:
-                k = RangeSet()
-                for r in n.remote_missing & n.local_known:
+                k = n.remote_missing & n.local_superseded
+                for r in n.remote_missing & n.local_present:
                     for t in range(*r):
                         if t not in n.remote_missing:
                             # some other node could have sent this while we worked
                             await anyio.sleep(self.cfg.server.ping.gap / 3)
                             continue
                         if t in n:
+                            # could have been deleted while sleeping
                             msg = n[t].serialize()
                             await self._send_event("update", msg)
                             n.remote_missing.discard(t)
-                        elif t not in n.local_deleted:
-                            k.add(t)
                 if k:
                     known[n.name] = k.__getstate__()
 
