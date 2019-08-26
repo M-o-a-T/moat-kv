@@ -118,7 +118,7 @@ async def deleter(obj, delete, nodes):
 
     res = await obj.client._request(
         action="get_internal",
-        path=("del",),
+        path=("actor","del",),
         iter=False,
         nchain=3 if delete or nodes else 2,
     )
@@ -136,7 +136,7 @@ async def deleter(obj, delete, nodes):
 
     val = list(val)
     res = await obj.client._request(
-        action="set_internal", path=("del",), iter=False, chain=res.chain, value=val
+        action="set_internal", path=("actor","del",), iter=False, chain=res.chain, value=val
     )
     res.value = val
     yprint(res, stream=obj.stdout)
