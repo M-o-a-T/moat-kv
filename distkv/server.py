@@ -2001,7 +2001,7 @@ class Server:
             nn = Node(nn, cache=self._nodes)
             r = RangeSet()
             r.__setstate__(k)
-            nn.report_known(r, local=True)
+            nn.report_superseded(r, local=True)
 
         # deleted: per-node range of ticks that have been deleted
         deleted = msg.get("deleted", {})
