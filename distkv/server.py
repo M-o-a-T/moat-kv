@@ -1760,7 +1760,6 @@ class Server:
 
     async def _run_del(self, evt):
         try:
-            self._del_actor = DeleteActor(self)
             await self._del_actor.run(evt=evt)
         finally:
             self._del_actor = None
@@ -2428,6 +2427,8 @@ class Server:
             delay2 = anyio.create_event()
             delay3 = anyio.create_event()
 
+            # This is here, not in _run_del, because _del_actor needs to be accessible early
+            self._del_actor = DeleteActor(self)
             await self.spawn(self._run_del, delay3)
             await self.spawn(self._delete_also)
 
