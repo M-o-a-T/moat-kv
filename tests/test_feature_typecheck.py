@@ -36,6 +36,7 @@ async def test_71_basic(autojump_clock):
                         "bad": ["foo", None],
                         "good": [0, 1, 2],
                         "code": "if not isinstance(value,int): rise ValueError('not an int')",
+                        # yes this checks for the typo (SyntaxError=
                     },
                 )
             with pytest.raises(ServerError):
@@ -55,7 +56,7 @@ async def test_71_basic(autojump_clock):
                     value={
                         "bad": ["foo", 4],
                         "good": [0, 1, 2],
-                        "code": "if not isinstance(value,int): rise ValueError('not an int')",
+                        "code": "if not isinstance(value,int): raise ValueError('not an int')",
                     },
                 )
             with pytest.raises(ServerError):
