@@ -1,6 +1,8 @@
 Open issues
 ===========
 
+* Ping: ignore messages with decreasing tock (per node)
+
 * chroot operation: add and test proper sub-roots, including auth and
   whatnot
 
@@ -26,6 +28,8 @@ Open issues
 * AnyRunner: Do proper load balancing; the leader should be able to tell
   some other node to run a job if it's busy.
 
+* Add an EveryRunner (with per-node status of course).
+
 * Keep an error index on the server?  Something more general?
 
 * Restart code that's been changed (without waiting for restart/retry).
@@ -45,10 +49,6 @@ Open issues
 * Add a command to cleanly flush the server log and stop the server.
 
 * Test iterator on changed config entries
-
-* Replace the command parser's "@main.group" with something that detects
-  where it's called from and looks up its parent command using a registry.
-  Or the ``click`` data structures.
 
 * errors: better display
 
