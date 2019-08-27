@@ -17,6 +17,8 @@ TAGS = 4
 
 
 class DeleteActor:
+    _enabled = None
+
     def __init__(self, server):
         self._server = weakref.ref(server)
         self.deleted = deque()
@@ -64,7 +66,10 @@ class DeleteActor:
         """
         Enable this actor, as a group of N.
         """
-        await self.actor.enable(n)
+        if self.actor is None:
+            self._enabled = True
+        else:
+            await self.actor.enable(n)
         self.n_tags = 0
         self.n_pings = 0
         self.n_nodes = n
@@ -76,7 +81,10 @@ class DeleteActor:
 
         Completely disable deletion flushing by passing n=0.
         """
-        await self.actor.disable()
+        if self.actor is None:
+            self._enabled = False
+        else:
+            await self.actor.disable()
         self.n_tags = 0
         self.n_pings = 0
         self.n_nodes = n
@@ -98,6 +106,11 @@ class DeleteActor:
                     unpacker=unpacker,
                 ) as actor:
                     self.actor = actor
+                    if self._enabled is not None:
+                        if self._enabled:
+                            await actor.enable()
+                        else:
+                            await actor.disable()
                     if evt is not None:
                         await evt.set()
                     async for evt in actor:
