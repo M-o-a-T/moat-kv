@@ -8,4 +8,8 @@ if test ! -v NAME ; then
     exit 1
 fi
 
-exec distkv -c /etc/distkv.cfg client run all
+if test $# = 1 ; then
+    exec distkv -c /etc/distkv.cfg client run -g "$1" all
+else
+    exec distkv -c /etc/distkv.cfg client run all
+fi
