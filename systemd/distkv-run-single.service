@@ -1,5 +1,5 @@
 [Unit]
-Description=DistKV main server
+Description=DistKV default single-node runner
 After=distkv.service
 Requires=distkv.service
 
