@@ -61,6 +61,20 @@ class ClientEntry:
             return default
         return val
 
+    def find_cfg(self, *k, default=NotGiven):
+        """
+        Convenience method to get a config value
+
+        It is retrieved first from this node's value, then from the parent.
+        """
+        val = self.value_or({}, Mapping)
+        try:
+            for kk in k:
+                val = val[kk]
+            return val
+        except KeyError:
+            return self.parent.find_cfg(*k, default=default)
+
     @property
     def parent(self):
         return self._parent()
@@ -330,6 +344,28 @@ class ClientRoot(ClientEntry):
     def root(self):
         """Returns this instance."""
         return self
+
+    def find_cfg(self, *k, default=NotGiven):
+        """
+        Convenience method to get a config value.
+
+        It is retrieved first from this node's value, then from the configuration read via CFG.
+        """
+        val = self.value_or({}, Mapping)
+        try:
+            for kk in k:
+                val = val[kk]
+            return val
+        except KeyError:
+            try:
+                val = self._cfg
+                for kk in k:
+                    val = val[kk]
+                return val
+            except KeyError:
+                if default is NotGiven:
+                    raise
+                return default
 
     def follow(self, *path, create=False, unsafe=False):
         """Look up a sub-entry.
