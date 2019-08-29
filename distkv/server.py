@@ -1242,6 +1242,9 @@ class _RecoverControl:
     def __hash__(self):
         return id(self)
 
+    def mark_deleted(self, node, tick):
+        return self.server.mark_deleted(node, tick)
+
     async def cancel(self):
         await self.scope.cancel()
         rt = self.server._recover_tasks

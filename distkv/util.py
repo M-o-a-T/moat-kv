@@ -734,7 +734,10 @@ def res_update(res, *path, value=None, skip_empty=True):
     v = val
     for p in path[:-1]:
         v = v.setdefault(p,{})
-    v[p[-1]] = combine_dict(value, v[p[-1]])
+    if isinstance(value,Mapping):
+        v[path[-1]] = combine_dict(value, v.get(path[-1], {}))
+    else:
+        v[path[-1]] = value
 
     return val
 

@@ -32,6 +32,12 @@ class ClientError(DistKVError):
     pass
 
 
+class ClientConnectionError(ClientError):
+    """Some connection error"""
+
+    pass
+
+
 class ServerClosedError(ServerError):
     """The server closed our connection."""
 

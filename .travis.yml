@@ -25,3 +25,10 @@ matrix:
 
 script:
   - ci/travis.sh
+
+addons:
+  apt:
+    packages:
+      libsystemd-dev
+
+

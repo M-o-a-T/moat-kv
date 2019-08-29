@@ -115,7 +115,7 @@ async def list(*a, **k):
 
 @cli.command(short_help="Add or update an entry")
 @click.option("-v", "--value", help="The value to store. Mandatory.")
-@click.option("-e", "--eval", is_flag=True, help="The value shall be evaluated.")
+@click.option("-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated.")
 @click.option(
     "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
 )
@@ -124,7 +124,7 @@ async def list(*a, **k):
 @click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, eval_path, value, eval, prev, last, new):
+async def set(obj, path, eval_path, value, eval_, prev, last, new):
     """
     Store a value at some DistKV position.
 
@@ -135,7 +135,7 @@ async def set(obj, path, eval_path, value, eval, prev, last, new):
     accidentally overwrite something.
     """
     if eval:
-        value = __builtins__["eval"](value)
+        value = eval(value)
     args = {}
     if new:
         if prev or last:
@@ -143,8 +143,8 @@ async def set(obj, path, eval_path, value, eval, prev, last, new):
         args["chain"] = None
     else:
         if prev is not NotGiven:
-            if eval:
-                prev = __builtins__["eval"](prev)
+            if eval_:
+                prev = eval(prev)
             args["prev"] = prev
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
