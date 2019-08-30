@@ -4,10 +4,7 @@ import asyncclick as click
 
 from range_set import RangeSet
 from distkv.util import yprint
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
+from collections.abc import Mapping
 
 import logging
 

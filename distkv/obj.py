@@ -8,6 +8,7 @@ import msgpack
 import weakref
 import heapq
 from functools import partial
+from collections.abc import Mapping
 import socket
 
 try:
