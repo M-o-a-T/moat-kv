@@ -713,6 +713,14 @@ def res_get(res, *path, skip_empty=True):
     Get a node's value and access the dict items beneath it.
     """
     val = res.get('value',None)
+    return val_get(val, *path, skip_empty=skip_empty)
+
+def val_get(val, *path, skip_empty=True):
+    """
+    Get a node's value and access the dict items beneath it.
+    """
+    if val is NotGiven:
+        return None
     for p in path:
         if val is None:
             return None
@@ -728,13 +736,28 @@ def res_update(res, *path, value=None, skip_empty=True):
 
     Returns the new value.
     """
+    val = res.get('value', {})
+    return val_update(val, *path, value=value, skip_empty=skip_empty)
+
+def val_update(val, *path, value=None, skip_empty=True):
+    """
+    Set some sub-item's value, possibly merging dicts.
+    Items set to 'NotGiven' are deleted.
+
+    Returns the new value. Modified (sub)dicts will be copied.
+    """
     if skip_empty:
         path = [p for p in path if p]
-    val = res.get('value', {})
+    if val is NotGiven:
+        val = {}
+    else:
+        val = val.copy()
     v = val
     for p in path[:-1]:
-        v = v.setdefault(p,{})
-    if isinstance(value,Mapping):
+        v = v[p] = v.setdefault(p,{}).copy()
+    if value is NotGiven:
+        v.pop(path[-1], None)
+    elif isinstance(value, Mapping):
         v[path[-1]] = combine_dict(value, v.get(path[-1], {}))
     else:
         v[path[-1]] = value
@@ -748,17 +771,33 @@ def res_delete(res, *path, skip_empty=True):
 
     Returns the new value.
     """
+    val = res.get('value', {})
+    return val_delete(val, *path, skip_empty=skip_empty)
+
+def val_delete(val, *path, skip_empty=True):
+    """
+    Remove some sub-item's value, possibly removing now-empty intermediate
+    dicts.
+
+    Returns the new value. Modified (sub)dicts will be copied.
+    """
+    if val is NotGiven:
+        return NotGiven
     if skip_empty:
         path = [p for p in path if p]
-    val = res.get('value', {})
+    val = val.copy()
+    v = val
+    vc = []
+    for p in path[:-1]:
+        vc.append(v)
+        try:
+            v = v[p] = v[p].copy()
+        except KeyError:
+            return val
+    vc.append(v)
     while path:
-        v = val
-        for p in path[:-1]:
-            try:
-                v = v[p]
-            except KeyError:
-                break
-        v.pop(path.pop(), None)
+        v = vc.pop()
+        del v[path.pop()]
         if v:
             break
 
