@@ -1202,6 +1202,9 @@ class ServerClient:
     def drop_old_event(self, evt, old_evt=NotGiven):
         return self.server.drop_old_event(evt, old_evt)
 
+    def mark_deleted(self, node, tick):
+        return self.server.mark_deleted(node, tick)
+
 
 class _RecoverControl:
     _id = 0
@@ -1241,9 +1244,6 @@ class _RecoverControl:
 
     def __hash__(self):
         return id(self)
-
-    def mark_deleted(self, node, tick):
-        return self.server.mark_deleted(node, tick)
 
     async def cancel(self):
         await self.scope.cancel()
