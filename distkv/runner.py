@@ -11,10 +11,7 @@ from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from copy import deepcopy
 import psutil
 import time
-try:
-    from collections.abc import Mapping
-except ImportError:
-    from collections import Mapping
+from collections.abc import Mapping
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
@@ -471,13 +468,17 @@ class _BaseRunnerRoot(ClientRoot):
             self.err = await ErrorRoot.as_handler(self.client)
         if self.code is None:
             self.code = await CodeRoot.as_handler(self.client)
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath, key="state")
+
+        await self._state_runner()
         self.state.set_runner(self)
 
         self.node_history = NodeList(0)
         self._start_delay = self._cfg["start_delay"]
 
         await super().run_starting()
+
+    async def _state_runner(self):
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath, key="state")
 
     @property
     def name(self):
@@ -570,7 +571,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                 await self.spawn(self._age_killer)
 
                 psutil.cpu_percent(interval=None)
-                await self._act.set_value(0)
+                await act.set_value(0)
                 self.seen_load = None
 
                 async for msg in act:
@@ -763,3 +764,26 @@ class SingleRunnerRoot(_BaseRunnerRoot):
                 flag = True
             if not flag:
                 await self.notify_active()
+
+
+class AllRunnerRoot(SingleRunnerRoot):
+    """
+    This class represents the root of a code runner. Its job is to start
+    (and periodically restart, if required) the entry points stored under it.
+
+    This class behaves like `SingleRunner`, except that it runs tasks on all nodes.
+    """
+
+    SUB = "all"
+
+    err = None
+    _act = None
+    code = None
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.group = "run."+self.name
+
+    async def _state_runner(self):
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath+(self.client_name,), key="state")
+

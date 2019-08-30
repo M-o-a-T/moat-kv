@@ -8,6 +8,7 @@ import msgpack
 import weakref
 import heapq
 from functools import partial
+from collections.abc import Mapping
 import socket
 
 try:
@@ -60,6 +61,31 @@ class ClientEntry:
         if typ is not None and not isinstance(val,typ):
             return default
         return val
+
+    def val(self, *attr):
+        """
+        Shortcut to get an attribute value
+        """
+        return self.val_d(NotGiven, *attr)
+
+    def val_d(self, default, *attr):
+        """
+        Shortcut to get an attribute value, or a default
+        """
+        val = self.value
+        if val is NotGiven:
+            if default is NotGiven:
+                raise ValueError("no value set")
+            return default
+        for a in attr:
+            try:
+                val = val[a]
+            except KeyError:
+                if default is NotGiven:
+                    raise
+                return default
+        return val
+
 
     def find_cfg(self, *k, default=NotGiven):
         """

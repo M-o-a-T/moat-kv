@@ -7,7 +7,7 @@ import anyio
 
 from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
-from distkv.runner import AnyRunnerRoot, SingleRunnerRoot
+from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
 from distkv.util import yprint
 
 import logging
@@ -16,19 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.option("-n", "--node", help="node to run this code on. Empty: any one node")
+@click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")
 @click.option("-g", "--group", help="group to run this code on. Empty: any one node")
 @click.pass_obj
 async def cli(obj, node, group):
     """Run code stored in DistKV."""
     if group is None:
         group = "default"
+    if not node:
+        obj.runner_root = AnyRunnerRoot
+        subpath = (group,)
+    elif node == '-':
+        obj.runner_root = AllRunnerRoot
+        subpath = (group,)
     if node:
         obj.runner_root = SingleRunnerRoot
         subpath = (group, node)
     else:
-        obj.runner_root = AnyRunnerRoot
-        subpath = (group,)
 
     obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
     obj.path = obj.cfg["runner"]["prefix"] + obj.subpath

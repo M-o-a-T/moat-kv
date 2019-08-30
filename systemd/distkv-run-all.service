@@ -1,5 +1,5 @@
 [Unit]
-Description=DistKV default single-node runner
+Description=DistKV default all-nodes runner
 After=distkv.service
 Requires=distkv.service
 
@@ -10,7 +10,7 @@ WantedBy=multi-user.target
 
 [Service]
 Type=notify
-ExecStart=/usr/lib/distkv/run-single
+ExecStart=/usr/lib/distkv/run-all
 
 User=distkv
 Group=distkv
