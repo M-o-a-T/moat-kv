@@ -134,7 +134,7 @@ async def set(obj, path, eval_path, value, eval_, prev, last, new):
     When adding a new entry, use "--new" to ensure that you don't 
     accidentally overwrite something.
     """
-    if eval:
+    if eval_:
         value = eval(value)
     args = {}
     if new:
