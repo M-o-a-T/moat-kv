@@ -127,7 +127,10 @@ def combine_dict(*d, cls=dict) -> dict:
 
 
 class attrdict(dict):
-    """A dictionary which can be accessed via attributes, for convenience"""
+    """A dictionary which can be accessed via attributes, for convenience.
+    
+    This also supports updating path accessors.
+    """
 
     def __getattr__(self, a):
         if a.startswith("_"):
@@ -149,6 +152,86 @@ class attrdict(dict):
         except KeyError:
             raise AttributeError(a) from None
 
+    def _get(self, *path, skip_empty=True, default=NotGiven):
+        """
+        Get a node's value and access the dict items beneath it.
+        """
+        val = self
+        for p in path:
+            if val is None:
+                return None
+            if skip_empty and not p:
+                continue
+            val = val.get(p, NotGiven)
+            if val is NotGiven:
+                if default is NotGiven:
+                    raise KeyError(path)
+                return default
+        return val
+
+    def _update(self, *path, value=None, skip_empty=True):
+        """
+        Set some sub-item's value, possibly merging dicts.
+        Items set to 'NotGiven' are deleted.
+
+        Returns the new value. Modified (sub)dicts will be copied.
+        """
+        if skip_empty:
+            path = [p for p in path if p]
+        val = type(self)(**self)
+        v = val
+        if not path:
+            if isinstance(value, Mapping):
+                return combine_dict(value, val, cls=type(self))
+            else:
+                return value
+
+        for p in path[:-1]:
+            try:
+                w = v[p]
+            except KeyError:
+                w = type(v)()
+            else:
+                w = type(w)(**w)
+            v = v[p] = w
+        if value is NotGiven:
+            v.pop(path[-1], None)
+        elif not isinstance(value, Mapping):
+            v[path[-1]] = value
+        elif path[-1] in v:
+            v[path[-1]] = combine_dict(value, v[path[-1]], cls=type(self))
+        else:
+            v[path[-1]] = value
+
+        return val
+
+    def _delete(self, *path, skip_empty=True):
+        """
+        Remove some sub-item's value, possibly removing now-empty intermediate
+        dicts.
+
+        Returns the new value. Modified (sub)dicts will be copied.
+        """
+        if skip_empty:
+            path = [p for p in path if p]
+        val = type(self)(**self)
+        v = val
+        vc = []
+        for p in path[:-1]:
+            vc.append(v)
+            try:
+                w = v[p]
+            except KeyError:
+                return self
+            else:
+                v = v[p] = type(w)(**w)
+        vc.append(v)
+        while path:
+            v = vc.pop()
+            del v[path.pop()]
+            if v:
+                break
+        return val
 
 from yaml.representer import SafeRepresenter
 
@@ -708,100 +791,34 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
         obj.stdout.write(str(res))
 
 
-def res_get(res, *path, skip_empty=True):
+def res_get(res, *path, **kw):
     """
     Get a node's value and access the dict items beneath it.
     """
     val = res.get('value',None)
-    return val_get(val, *path, skip_empty=skip_empty)
-
-def val_get(val, *path, skip_empty=True):
-    """
-    Get a node's value and access the dict items beneath it.
-    """
-    if val is NotGiven:
+    if val is None:
         return None
-    for p in path:
-        if val is None:
-            return None
-        if skip_empty and not p:
-            continue
-        val = val.get(p, None)
-    return val
+    return val._get(*path, **kw)
 
-def res_update(res, *path, value=None, skip_empty=True):
+def res_update(res, *path, value=None, **kw):
     """
     Set some sub-item's value, possibly merging dicts.
     Items set to 'NotGiven' are deleted.
 
     Returns the new value.
     """
-    val = res.get('value', {})
-    return val_update(val, *path, value=value, skip_empty=skip_empty)
+    val = res.get('value', attrdict())
+    return val._update(*path, value=value, **kw)
 
-def val_update(val, *path, value=None, skip_empty=True):
-    """
-    Set some sub-item's value, possibly merging dicts.
-    Items set to 'NotGiven' are deleted.
-
-    Returns the new value. Modified (sub)dicts will be copied.
-    """
-    if skip_empty:
-        path = [p for p in path if p]
-    if val is NotGiven:
-        val = {}
-    else:
-        val = val.copy()
-    v = val
-    for p in path[:-1]:
-        v = v[p] = v.setdefault(p,{}).copy()
-    if value is NotGiven:
-        v.pop(path[-1], None)
-    elif isinstance(value, Mapping):
-        v[path[-1]] = combine_dict(value, v.get(path[-1], {}))
-    else:
-        v[path[-1]] = value
-
-    return val
-
-def res_delete(res, *path, skip_empty=True):
+def res_delete(res, *path, **kw):
     """
     Remove some sub-item's value, possibly removing now-empty intermediate
     dicts.
 
     Returns the new value.
     """
-    val = res.get('value', {})
-    return val_delete(val, *path, skip_empty=skip_empty)
-
-def val_delete(val, *path, skip_empty=True):
-    """
-    Remove some sub-item's value, possibly removing now-empty intermediate
-    dicts.
-
-    Returns the new value. Modified (sub)dicts will be copied.
-    """
-    if val is NotGiven:
-        return NotGiven
-    if skip_empty:
-        path = [p for p in path if p]
-    val = val.copy()
-    v = val
-    vc = []
-    for p in path[:-1]:
-        vc.append(v)
-        try:
-            v = v[p] = v[p].copy()
-        except KeyError:
-            return val
-    vc.append(v)
-    while path:
-        v = vc.pop()
-        del v[path.pop()]
-        if v:
-            break
-
-    return val
+    val = res.get('value', attrdict())
+    return val._delete(*path, **kw)
 
 
 @asynccontextmanager
