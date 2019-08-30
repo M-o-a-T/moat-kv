@@ -621,6 +621,8 @@ class Client:
                 self._config = await ConfigRoot.as_handler(self)
 
                 yield self
+            except TimeoutError:
+                raise
             except socket.error as e:
                 raise ServerConnectionError(host, port) from e
             else:
