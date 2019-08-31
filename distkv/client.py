@@ -434,7 +434,7 @@ class Client:
 
             finally:
                 hdl, self._handlers = self._handlers, None
-                async with anyio.open_cancel_scope(shield=True):
+                async with anyio.fail_after(2, shield=True):
                     for m in hdl.values():
                         try:
                             await m.cancel()
@@ -639,7 +639,7 @@ class Client:
                     pass
                 self.config = ClientConfig(self)
 
-                async with anyio.open_cancel_scope(shield=True):
+                async with anyio.fail_after(2, shield=True):
                     await self.tg.cancel_scope.cancel()
                     if self._socket is not None:
                         async with self._send_lock:
