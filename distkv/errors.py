@@ -100,7 +100,7 @@ class ErrorSubEntry(AttrClientEntry):
     Tracks the latest occurrence of an error, per node.
     """
 
-    ATTRS = "seen tock trace str data".split()
+    ATTRS = "seen tock trace str data comment message".split()
 
     def child_type(self, name):
         logger.warning("Unknown entry type at %r: %s", self._path, name)

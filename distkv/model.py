@@ -680,7 +680,7 @@ class Entry:
             child = self._sub.get(name, None) if self is not None else None
             if child is None:
                 if create is False:
-                    raise KeyError(name)
+                    raise KeyError(path)
                 acl.check("n")
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)(

@@ -445,7 +445,7 @@ class _BaseRunnerRoot(ClientRoot):
         self.code = code
         self._nodes = {}
         self._trigger = anyio.create_event()
-        self.__subpath = _subpath
+        self._x_subpath = _subpath
 
     @classmethod
     def child_type(cls, name):
@@ -478,7 +478,7 @@ class _BaseRunnerRoot(ClientRoot):
         await super().run_starting()
 
     async def _state_runner(self):
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath, key="state")
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self._x_subpath, key="state")
 
     @property
     def name(self):
@@ -785,5 +785,5 @@ class AllRunnerRoot(SingleRunnerRoot):
         self.group = "run."+self.name
 
     async def _state_runner(self):
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self.__subpath+(self.client_name,), key="state")
+        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self._x_subpath+(self.client.client_name,), key="state")
 

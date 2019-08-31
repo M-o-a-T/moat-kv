@@ -376,7 +376,7 @@ class _MsgRW:
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            async with anyio.open_cancel_scope(shield=True):
+            async with anyio.fail_after(2, shield=True):
                 try:
                     await self.stream.aclose()
                 except AttributeError:
@@ -465,7 +465,7 @@ class MsgWriter(_MsgRW):
             from .codec import packer  # pylint: disable=redefined-outer-name
 
     async def __aexit__(self, *tb):
-        async with anyio.open_cancel_scope(shield=True):
+        async with anyio.fail_after(2, shield=True):
             if self.buf:
                 await self.stream.write(b"".join(self.buf))
             await super().__aexit__(*tb)
@@ -516,7 +516,7 @@ class _Server:
                     conn = trio.SSLStream(conn, self.ssl, server_side=True)
                 await q.send(conn)
         finally:
-            async with anyio.open_cancel_scope(shield=True):
+            async with anyio.fail_after(2, shield=True):
                 await q.aclose()
                 await server.aclose()
 
@@ -531,7 +531,7 @@ class _Server:
 
     async def __aexit__(self, *tb):
         await self.tg.cancel_scope.cancel()
-        async with anyio.open_cancel_scope(shield=True):
+        async with anyio.fail_after(2, shield=True):
             await self.recv_q.aclose()
 
     def __aiter__(self):
