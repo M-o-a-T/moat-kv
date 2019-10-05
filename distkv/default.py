@@ -63,7 +63,7 @@ CFG = attrdict(
         ping=-15,  # set an I-am-running message every those-many seconds
         # positive: set in distkv, negative: broadcast to :distkv:run tag
         actor=attrdict(  # Actor config
-            cycle=5, nodes=-1, splits=5  # required for Runner
+            cycle=10, nodes=-1, splits=5  # required for Runner
         ),
         sub=attrdict(
             group="any",
