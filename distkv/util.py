@@ -376,7 +376,7 @@ class _MsgRW:
 
     async def __aexit__(self, *tb):
         if self.path is not None:
-            async with anyio.fail_after(2, shield=True):
+            async with anyio.open_cancel_scope(shield=True):
                 try:
                     await self.stream.aclose()
                 except AttributeError:
