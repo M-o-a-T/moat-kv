@@ -8,7 +8,14 @@ import anyio
 import outcome
 import msgpack
 import socket
-import random
+import os
+rs = os.environ.get("PYTHONHASHSEED", None)
+if rs is None:
+    import random
+else:
+    import trio._core._run as tcr
+
+    random = tcr._r
 import socket
 
 try:
