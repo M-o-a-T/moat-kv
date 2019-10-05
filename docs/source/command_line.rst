@@ -34,7 +34,7 @@ Options used only for testing are not shown in the commands' help text.
 
    You can selectively adjust debugging verbosity if you need to print, or
    ignore, some types of messages. Example: ``-vvv --log
-   asyncserf.actor=ERROR`` would suppress most chattiness of AsyncSerf's
+   asyncactor=ERROR`` would suppress most chattiness of AsyncSerf's
    actor.
 
 .. option:: -D, --debug

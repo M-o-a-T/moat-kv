@@ -72,11 +72,13 @@ CFG = attrdict(
     ),
     server=attrdict(
         # server-side configuration
+        backend="serf",
         serf=attrdict(
             # how to connect to Serf
             host="localhost",
             port=7373,
         ),
+
         root=":distkv",  # user event prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
         # which addresses/ports to accept DistKV connections on
@@ -85,8 +87,8 @@ CFG = attrdict(
             host="localhost", port=PORT, ssl=False
         ),
         change=attrdict(length=5),  # chain length: use max nr of network sections +1
-        ping=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for ping
-        delete=attrdict(cycle=5, gap=2),  # asyncserf.Actor config timing for deletion
+        ping=attrdict(cycle=10, gap=2),  # asyncserf.Actor config timing for ping
+        delete=attrdict(cycle=10, gap=2),  # asyncserf.Actor config timing for deletion
         # ping time also controls minimum startup time
     ),
     paranoia=False,  # typecheck server>server updates?

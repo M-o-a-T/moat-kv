@@ -55,15 +55,16 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         server_ctx = client_ctx = False
 
     clock = trio.hazmat.current_clock()
-    clock.autojump_threshold = 0.02
+    clock.autojump_threshold = 0.0
+    #clock.rate = 5
 
     @attr.s
     class S:
         tg = attr.ib()
         serfs = attr.ib(factory=set)
         splits = attr.ib(factory=set)
-        s = []  # servers
-        c = []  # clients
+        s = attr.ib(factory=list)  # servers
+        c = attr.ib(factory=list)  # clients
 
         async def ready(self, i=None):
             if i is not None:
@@ -122,6 +123,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         async with AsyncExitStack() as ex:
             st.ex = ex
             ex.enter_context(mock.patch("time.time", new=tm))
+            ex.enter_context(mock.patch("time.monotonic", new=tm))
             logging._startTime = tm()
 
             ex.enter_context(
@@ -214,24 +216,25 @@ class MockServ:
         s = MockSerfStream(self, event_types)
         return s
 
-    async def event(self, typ, payload, coalesce=False):
+    async def event(self, name, payload, coalesce=False):
         try:
-            logger.debug("SERF:%s: %r", typ, unpacker(payload))
+            logger.debug("SERF:%s: %r", name, unpacker(payload))
         except Exception:
-            logger.debug("SERF:%s: %r", typ, payload)
+            logger.debug("SERF:%s: %r (raw)", name, payload)
 
+        i_self = self.cfg.get("i", 0)
         for s in list(self._master.serfs):
+            i_s = s.cfg.get("i", 0)
             for x in self._master.splits:
-                if (s.cfg.get("i", 0) < x) != (self.cfg.get("i", 0) < x):
+                if (i_s < x) != (i_self < x):
                     break
             else:
-                sl = s.streams.get(typ, None)
-                if sl is not None:
-                    for s in sl:
-                        await s.q.put(payload)
+                sl = s.streams.get(name, ())
+                for s in sl:
+                    await s.q.put(payload)
 
     def stream(self, typ):
-        """compat for supporting asyncserf.actor"""
+        """compat for supporting asyncactor"""
         if not typ.startswith("user:"):
             raise RuntimeError("not supported")
         typ = typ[5:]
@@ -244,7 +247,7 @@ class MockServ:
         return s
 
     async def serf_send(self, typ, payload):
-        """compat for supporting asyncserf.actor"""
+        """compat for supporting asyncactor"""
         return await self.event(typ, payload)
 
 
@@ -255,14 +258,12 @@ class MockSerfStream:
         self.typ = typ[5:]
 
     async def __aenter__(self):
-        logger.debug("SERF:MON START:%s", self.typ)
         self.q = create_queue(100)
         self.serf.streams.setdefault(self.typ, []).append(self)
         return self
 
     async def __aexit__(self, *tb):
         self.serf.streams[self.typ].remove(self)
-        logger.debug("SERF:MON END:%s", self.typ)
         del self.q
 
     def __aiter__(self):

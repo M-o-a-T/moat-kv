@@ -821,10 +821,10 @@ class Client:
         root = root_type(self, *path, **kw)
         return root.run()
 
-    def serf_mon(self, tag: str, raw: bool = False):
+    def direct_monitor(self, tag: str, raw: bool = False):
         """
         Return an async iterator of tunneled Serf messages. This receives
-        all messages sent using :meth:`serf_send` with the same tag.
+        all messages sent using :meth:`direct_send` with the same tag.
 
         Args:
             tag: the "user:" tag to monitor.
@@ -841,7 +841,7 @@ class Client:
             error: Error message. Not present when ``raw`` is set or
                    ``data`` is present.
         usage::
-            async with client.serf_mon("test") as cl:
+            async with client.direct_monitor("test") as cl:
                 async for msg in cl:
                     if 'error' in msg:
                         raise RuntimeError(msg.error)
@@ -849,10 +849,10 @@ class Client:
         """
         return self._stream(action="serfmon", type=tag, raw=raw)
 
-    def serf_send(self, tag: str, data=None, raw: bytes = None):
+    def direct_send(self, tag: str, data=None, raw: bytes = None):
         """
         Tunnel a user-tagged message through Serf. This sends the message
-        to all active callers of :meth:`serf_mon` which use the same tag.
+        to all active callers of :meth:`direct_monitor` which use the same tag.
 
         Args:
             tag: the "user:" tag to send to.

@@ -26,7 +26,8 @@ from typing import Any
 from range_set import RangeSet
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
-from asyncserf.actor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
+from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
+from asyncactor.backend import load_transport
 from pprint import pformat
 from collections.abc import Mapping
 
@@ -35,6 +36,7 @@ from .types import RootEntry, ConvNull, NullACL, ACLFinder, ACLStepper
 from .actor.deletor import DeleteActor
 from .default import CFG
 from .codec import packer, unpacker, stream_unpacker
+from .backend import load_backend
 from .util import (
     attrdict,
     PathShortener,
@@ -1635,6 +1637,7 @@ class Server:
             if nn > 0:
                 # Some data have been reported to be missing.
                 # Send them.
+                self.logger.debug("MISS %d %r",nn,self.seen_missing)
                 await self._run_send_missing(None)
 
         # Step 3
@@ -1758,7 +1761,7 @@ class Server:
                     msg = await self._unpack_multiple(msg)
                     if not msg:  # None, empty, whatever
                         continue
-                    self.logger.debug("Recv %s: %r", action, msg)
+                    #self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
         except (CancelledError, SerfCancelledError):
@@ -1784,14 +1787,11 @@ class Server:
             sent.
         """
         async with anyio.create_task_group() as tg:
+            T = load_transport(self.cfg.server.backend)
             async with Actor(
-                client=self.serf,
-                prefix=self.cfg.server.root + ".ping",
+                T(self.serf, self.cfg.server.root + ".ping"),
                 name=self.node.name,
                 cfg=self.cfg.server.ping,
-                tg=tg,
-                packer=packer,
-                unpacker=unpacker,
             ) as actor:
                 self._actor = actor
                 await self._check_ticked()
@@ -2389,7 +2389,12 @@ class Server:
           ``log_path``: path to a binary file to write changes and initial state to.
           ``log_inc``: if saving, write changes, not the whole state.
         """
-        async with asyncserf.serf_client(**self.cfg.server.serf) as serf:
+        back = load_backend(self.cfg.server.backend)
+        try:
+            conn = self.cfg.server[self.cfg.server.backend]
+        except KeyError:
+            conn = self.cfg.server.connect
+        async with back(**conn) as serf:
             # Collect all "info/missing" messages seen since the last
             # healed network split so that they're only sent once.
             self.seen_missing = {}
@@ -2498,7 +2503,7 @@ class Server:
             async for stream in server:
                 await self.spawn(self._connect, stream)
             pass  # unwinding create_tcp_server
-        pass  # unwinding serf_client (cancelled or error)
+        pass  # unwinding the client (cancelled or error)
 
     async def _connect(self, stream):
         c = None
