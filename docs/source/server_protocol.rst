@@ -122,7 +122,7 @@ Coordination
 
 Nodes coordinate so that any housekeeping messages are transmitted by
 exactly one node instead of flooding the network. This is facilitated by
-the ``asyncserf.actor`` module.
+the ``asyncactor`` module.
 
 When a network split is healed, the Actor protocol notices. It then
 triggers ``info`` messages that retrieve any missed changes.

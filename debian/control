@@ -4,8 +4,11 @@ Section: python
 Priority: optional
 Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
   python3-anyio (>= 1.0.0-2),
-  python3-asyncserf,
+  python3-asyncserf (>= 0.16),
+  python3-asyncactor (>= 0.16),
+  python3-attr (>= 18.2.0-1),
   python3-pytest,
+  python3-range-set (>= 0.3),
 Standards-Version: 3.9.6
 Homepage: https://github.com/smurfix/distkv
 
@@ -13,7 +16,8 @@ Package: distkv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   python3-anyio (>= 1.0.0-2),
-  python3-asyncserf,
+  python3-asyncserf (>= 0.16),
+  python3-asyncactor (>= 0.16),
   python3-systemd,
   python3-range-set (>= 0.3),
   python3-attr (>= 18.2.0-1),
@@ -29,5 +33,5 @@ Description: A distributed no-master key-value store
  DistKV does not support data partitioning. Every node stores the whole
  data set and can instantly deliver mostly-uptodate data.
  .
- DistKV does not have a disk-based storage backend; periodic snapshots and
- event logs are used to restore a system, if necessary.
+ DistKV does not have a disk-based storage backend; periodic snapshots and/or
+ its event log are used to restore a system, if necessary.

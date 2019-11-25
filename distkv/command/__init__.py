@@ -121,7 +121,7 @@ def cmd():
     "-l",
     "--log",
     multiple=True,
-    help="Adjust log level. Example: '--log asyncserf.actor=DEBUG'.",
+    help="Adjust log level. Example: '--log asyncactor=DEBUG'.",
 )
 @click.option(
     "-q", "--quiet", count=True, help="Disable debugging. Opposite of '--verbose'."

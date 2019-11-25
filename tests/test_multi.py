@@ -15,7 +15,7 @@ N = 10
 
 
 def _skip_check(self):
-    if self._prefix != "test.core":
+    if getattr(self._client,'prefix', '') != "test.core":
         return False
     if not hasattr(self, "_test_foo") or not self._test_foo:
         self._test_foo = ["test_2", "test_3", "test_4"]
@@ -32,11 +32,12 @@ def _skip_check(self):
 @pytest.mark.trio
 async def test_10_many(autojump_clock):
     """
-    This test starts multiple servers at the same time.
+    This test starts multiple servers at the same time and checks that
+    final object deletion works.
     """
-    async with stdtest(test_1={"init": 420}, n=N, tocks=1000) as st:
+    async with stdtest(test_1={"init": 420}, n=N, tocks=1500) as st:
         st.ex.enter_context(
-            mock.patch("asyncserf.actor.Actor._skip_check", new=_skip_check)
+            mock.patch("asyncactor.Actor._skip_check", new=_skip_check)
         )
 
         s = st.s[1]
@@ -80,7 +81,7 @@ async def test_10_many(autojump_clock):
             assert "value" not in r
             assert r.chain is not None
 
-            with trio.fail_after(200):
+            with trio.fail_after(800):
                 while True:
                     r = await ci.get("delete", "me", nchain=2)
                     if "value" not in r and r.chain is None:
@@ -94,7 +95,7 @@ async def test_10_many(autojump_clock):
 @pytest.mark.parametrize("tocky", [-10, -2, -1, 0, 1, 2, 10])
 async def test_11_split1(autojump_clock, tocky):
     """
-    This test starts multiple servers at the same time.
+    This test checks that re-joining a split network updates everything.
     """
     n_two = 0
 
@@ -172,7 +173,7 @@ async def test_11_split1(autojump_clock, tocky):
             assert r.tock == pongtock
 
         st.join(N // 2)
-        await trio.sleep(20)
+        await trio.sleep(200)
         async with st.client(0) as c:
             r = await c.get("ping")
             assert r.value == "pongpang"

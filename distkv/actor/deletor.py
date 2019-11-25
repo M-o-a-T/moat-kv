@@ -7,11 +7,12 @@ import anyio
 import weakref
 from collections import deque
 
-from asyncserf.actor import Actor
-from asyncserf.actor import PingEvent, TagEvent
+from asyncactor import Actor
+from asyncactor.backend import get_transport
+from asyncactor import PingEvent, TagEvent
 
-from ..codec import packer, unpacker
-
+import logging
+logger = logging.getLogger(__name__)
 
 TAGS = 4
 
@@ -95,15 +96,12 @@ class DeleteActor:
         """
         try:
             async with anyio.create_task_group() as tg:
+                T = get_transport("distkv")
                 async with Actor(
-                    self.server.serf,
-                    prefix=self.server.cfg.server.root + ".del",
+                    T(self.server.serf, *self.server.cfg.server.root, "del"),
                     name=self.server.node.name,
                     cfg=self.server.cfg.server.delete,
-                    tg=tg,
                     enabled=False,
-                    packer=packer,
-                    unpacker=unpacker,
                 ) as actor:
                     self.actor = actor
                     if self._enabled is not None:

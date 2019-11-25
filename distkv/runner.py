@@ -6,8 +6,8 @@ This module's job is to run code, resp. to keep it running.
 
 import anyio
 from weakref import ref
-from asyncserf.actor import NodeList
-from asyncserf.actor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
+from asyncactor import NodeList
+from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 from copy import deepcopy
 import psutil
 import time
@@ -421,7 +421,7 @@ class StateRoot(ClientRoot):
                 val['alive'] = t
                 await self.update(val)
             else:
-                await self.client.serf_send("run", {"group": self.runner.group, "time":t, "node":self.name})
+                await self.client.msg_send("run", {"group": self.runner.group, "time":t, "node":self.name})
 
 
 class _BaseRunnerRoot(ClientRoot):
@@ -563,7 +563,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             self.tg = tg
 
             async with ClientActor(
-                self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg
+                self.client, self.name, prefix=self.group, cfg=self._cfg['actor']
             ) as act:
                 self._act = act
 
@@ -682,7 +682,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
       name (str): this runner's name. Defaults to the client's name plus
         the name stored in the root node, if any.
       actor (dict): the configuration for the underlying actor. See
-        ``asyncserf.actor`` for details.
+        ``asyncactor`` for details.
     """
 
     SUB = "single"
@@ -739,7 +739,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             self._age_q = anyio.create_queue(1)
 
             async with ClientActor(
-                self.client, self.name, prefix=self.group, tg=tg, cfg=self._cfg
+                self.client, self.name, prefix=self.group, cfg=self._cfg
             ) as act:
                 self._act = act
                 await tg.spawn(self._age_notifier)
