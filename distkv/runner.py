@@ -421,7 +421,7 @@ class StateRoot(ClientRoot):
                 val['alive'] = t
                 await self.update(val)
             else:
-                await self.client.direct_send("run", {"group": self.runner.group, "time":t, "node":self.name})
+                await self.client.msg_send("run", {"group": self.runner.group, "time":t, "node":self.name})
 
 
 class _BaseRunnerRoot(ClientRoot):

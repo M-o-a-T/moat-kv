@@ -304,20 +304,18 @@ This command returns after the new file has been opened and the initial
 state has been written, if so requested. If there was an old log stream,
 there may be some duplicate entries. No updates are skipped.
 
-serfsend
+msg_send
 --------
 
-Pass-through call to transmit a message via ``serf``. Parameters are
-``type`` (the user event to send to), ``data`` (the data to send) and
-optionally ``tag`` (a string that limits recipients to Serf nodes with this
-tag).
+Pass-through call to transmit a message. Parameters are ``type`` (the user
+event to send to) and ``data`` (the data to send).
 
 Raw binary data may be transmitted by using ``raw`` instead of ``data``.
 
-serfmon
--------
+msg_monitor
+-----------
 
-Pass-through call to receive brodcast messages via ``serf``. You'll get a
+Pass-through call to receive brodcast messages. You'll get a
 stream with ``data`` containing the decoded message. If decoding fails,
 ``raw`` contains the message's bytes and ``error`` holds a string
 representation of the decoder problem.

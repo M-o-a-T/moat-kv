@@ -237,7 +237,7 @@ async def monitor(obj):
     # TODO this does not watch changes in DistKV.
     # It also should watch individual jobs' state changes.
 
-    async with obj.client.direct_monitor("run") as cl:
+    async with obj.client.msg_monitor("run") as cl:
         async for msg in cl:
             yprint(msg, stream=obj.stdout)
             print("---", file=obj.stdout)

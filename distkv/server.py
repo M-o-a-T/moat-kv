@@ -27,7 +27,7 @@ from range_set import RangeSet
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
-from asyncactor.backend import load_transport
+from asyncactor.backend import get_transport
 from pprint import pformat
 from collections.abc import Mapping
 
@@ -36,7 +36,7 @@ from .types import RootEntry, ConvNull, NullACL, ACLFinder, ACLStepper
 from .actor.deletor import DeleteActor
 from .default import CFG
 from .codec import packer, unpacker, stream_unpacker
-from .backend import load_backend
+from .backend import get_backend
 from .util import (
     attrdict,
     PathShortener,
@@ -558,17 +558,11 @@ class SCmd_watch(StreamCommand):
                         await self.send(**res)
 
 
-class SCmd_serfmon(StreamCommand):
+class SCmd_msg_monitor(StreamCommand):
     """
-    Monitor a subtree for changes.
-    If ``state`` is set, dump the initial state before reporting them.
+    Monitor a topic for changes.
 
-    path: position to start to monitor.
-    nchain: number of change chain entries to return. Default 0=don't send chain data.
-    state: flag whether to send the current subtree before reporting changes. Default False.
-
-    The returned data is PathShortened.
-    The current state dump may not be consistent; always process changes.
+    This is a pass-through command.
     """
 
     multiline = True
@@ -576,13 +570,15 @@ class SCmd_serfmon(StreamCommand):
     async def run(self):
         msg = self.msg
         raw = msg.get("raw", False)
-        typ = msg.type
-        if typ[0] == ":":
-            typ = self.cfg.server.root + typ
+        topic = msg.topic
+        if isinstance(topic,str):
+            topic = (topic,)
+        if topic[0][0] == ":":
+            topic = self.cfg.server.root + topic
 
-        async with self.client.server.serf.stream("user:" + typ) as stream:
+        async with self.client.server.serf.monitor(*topic) as stream:
             async for resp in stream:
-                res = attrdict(type=typ)
+                res = attrdict(topic=topic)
                 if raw:
                     res["raw"] = resp.payload
                 else:
@@ -999,18 +995,18 @@ class ServerClient:
         """Return some info about this node's internal state"""
         return await self.server.get_state(**msg)
 
-    async def cmd_serfsend(self, msg):
-        typ = msg.type
-        if typ[0] == ":":
-            typ = self.cfg.server.root + typ
+    async def cmd_msg_send(self, msg):
+        topic = msg.topic
+        if isinstance(topic,str):
+            topic = (topic,)
+        if topic[0][0] == ":":
+            topic = self.cfg.server.root + topic
         if "raw" in msg:
             assert "data" not in msg
             data = msg.raw
         else:
             data = _packer(msg.data)
-        await self.server.serf.event(
-            typ, data, coalesce=msg.get("coalesce", False)
-        )
+        await self.server.serf.send(*topic, payload=data)
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
@@ -1306,7 +1302,12 @@ class Server:
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
         self.root = RootEntry(self, tock=self.tock)
+
         self.cfg: attrdict = combine_dict(cfg or {}, CFG, cls=attrdict)
+        if isinstance(self.cfg.server.root, str):
+            self.cfg.server.root = self.cfg.server.root.split('.')
+        self.cfg.server.root = tuple(self.cfg.server.root)  # idempotent
+
         self.paranoid_root = self.root if self.cfg.server.paranoia else None
         self._nodes = {}
         self.node = Node(name, None, cache=self._nodes)
@@ -1430,9 +1431,7 @@ class Server:
         omsg = msg
         self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
-            await self.serf.event(
-                self.cfg.server.root + "." + action, m, coalesce=False
-            )
+            await self.serf.send(*self.cfg.server.root, action, payload=m)
 
     async def watcher(self):
         """
@@ -1748,9 +1747,7 @@ class Server:
         """
         cmd = getattr(self, "user_" + action)
         try:
-            async with self.serf.stream(
-                "user:%s.%s" % (self.cfg.server.root, action)
-            ) as stream:
+            async with self.serf.monitor(*self.cfg.server.root, action) as stream:
                 if delay is not None:
                     await delay.wait()
 
@@ -1790,9 +1787,9 @@ class Server:
             sent.
         """
         async with anyio.create_task_group() as tg:
-            T = load_transport(self.cfg.server.backend)
+            T = get_transport("distkv")
             async with Actor(
-                T(self.serf, self.cfg.server.root + ".ping"),
+                T(self.serf, *self.cfg.server.root, "ping"),
                 name=self.node.name,
                 cfg=self.cfg.server.ping,
             ) as actor:
@@ -2061,15 +2058,12 @@ class Server:
                 await t._start()
                 clock = self.cfg.server.ping.cycle
                 tock = self.tock
-                self.logger.debug("SplitRecover: %s @%d", prio, tock)
 
                 # Step 1: send an info/ticks message
                 # for prio=0 this fires immediately. That's intentional.
                 async with anyio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
                     await t.wait(1)
                 if x.cancel_called:
-                    if prio > 0:
-                        self.logger.debug("SplitRecover: no signal 1")
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
@@ -2084,8 +2078,6 @@ class Server:
                     await t.wait(2)
 
                 if x.cancel_called:
-                    if prio > 0:
-                        self.logger.debug("SplitRecover: no signal 2")
                     msg = dict()
                     for n in list(self._nodes.values()):
                         if not n.tick:
@@ -2104,6 +2096,7 @@ class Server:
 
                     msg = attrdict(missing=msg)
                     await self._send_event("info", msg)
+
 
                 # wait a bit more before continuing. Again this depends on
                 # `prio` so that there won't be two nodes that send the same
@@ -2135,6 +2128,8 @@ class Server:
         and re-broadcast them. If the event is unavailable, send a "known"
         / "deleted" message.
         """
+
+        self.logger.debug("SendMissing %s",prio)
         clock = self.cfg.server.ping.cycle
         if prio is None:
             await anyio.sleep(clock * (1 + self._actor.random / 3))
@@ -2143,6 +2138,7 @@ class Server:
                 clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5)
             )
 
+        self.logger.debug("SendMissingGo %s %s",prio,self.sending_missing)
         while self.sending_missing:
             self.sending_missing = False
             nodes = list(self._nodes.values())
@@ -2150,6 +2146,7 @@ class Server:
             known = {}
             deleted = {}
             for n in nodes:
+                self.logger.debug("SendMissingGo %s %r %r",n.name,n.remote_missing,n.local_superseded)
                 k = n.remote_missing & n.local_superseded
                 for r in n.remote_missing & n.local_present:
                     for t in range(*r):
@@ -2392,7 +2389,7 @@ class Server:
           ``log_path``: path to a binary file to write changes and initial state to.
           ``log_inc``: if saving, write changes, not the whole state.
         """
-        back = load_backend(self.cfg.server.backend)
+        back = get_backend(self.cfg.server.backend)
         try:
             conn = self.cfg.server[self.cfg.server.backend]
         except KeyError:

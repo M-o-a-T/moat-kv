@@ -173,7 +173,7 @@ async def test_11_split1(autojump_clock, tocky):
             assert r.tock == pongtock
 
         st.join(N // 2)
-        await trio.sleep(50)
+        await trio.sleep(200)
         async with st.client(0) as c:
             r = await c.get("ping")
             assert r.value == "pongpang"

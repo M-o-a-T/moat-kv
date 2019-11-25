@@ -33,12 +33,12 @@ class ClientTransport(Transport):
         return ClientMonitor(self)
 
     async def send(self, payload):
-        await self.client.direct_send(self.prefix, payload)
+        await self.client.msg_send(self.prefix, payload)
 
 
 class ClientMonitor(MonitorStream):
     async def __aenter__(self):
-        self._mon1 = self.transport.client.direct_monitor(self.transport.prefix)
+        self._mon1 = self.transport.client.msg_monitor(self.transport.prefix)
         self._mon2 = await self._mon1.__aenter__()
         return self
 

@@ -8,7 +8,7 @@ import weakref
 from collections import deque
 
 from asyncactor import Actor
-from asyncactor.backend import load_transport
+from asyncactor.backend import get_transport
 from asyncactor import PingEvent, TagEvent
 
 import logging
@@ -96,9 +96,9 @@ class DeleteActor:
         """
         try:
             async with anyio.create_task_group() as tg:
-                T = load_transport(self.server.cfg.server.backend)
+                T = get_transport("distkv")
                 async with Actor(
-                    T(self.server.serf, self.server.cfg.server.root + ".del"),
+                    T(self.server.serf, *self.server.cfg.server.root, "del"),
                     name=self.server.node.name,
                     cfg=self.server.cfg.server.delete,
                     enabled=False,

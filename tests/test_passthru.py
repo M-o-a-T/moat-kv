@@ -18,7 +18,7 @@ async def test_51_passthru(autojump_clock):
 
             async def mon():
                 try:
-                    async with c._stream("serfmon", type="foo") as q:
+                    async with c._stream("msg_monitor", topic=("foo",)) as q:
                         async for m in q:
                             assert "data" in m
                             recv.append(m.data)
@@ -27,8 +27,8 @@ async def test_51_passthru(autojump_clock):
 
             await s.spawn(mon)
             await trio.sleep(0.2)
-            await c._request("serfsend", type="foo", data=["Hello", 42])
-            await c._request("serfsend", type="foo", data=b"duh")
+            await c._request("msg_send", topic=("foo",), data=["Hello", 42])
+            await c._request("msg_send", topic=("foo",), data=b"duh")
             await trio.sleep(0.5)
         assert recv == [("Hello", 42), b"duh"]
         pass  # closing client
@@ -44,7 +44,7 @@ async def test_52_passthru_bin(autojump_clock):
 
             async def mon():
                 try:
-                    async with c._stream("serfmon", type="foo", raw=True) as q:
+                    async with c._stream("msg_monitor", topic=("foo",), raw=True) as q:
                         async for m in q:
                             assert "data" not in m
                             recv.append(m.raw)
@@ -53,8 +53,8 @@ async def test_52_passthru_bin(autojump_clock):
 
             await s.spawn(mon)
             await trio.sleep(0.2)
-            await c._request("serfsend", type="foo", data=["Hello", 42])
-            await c._request("serfsend", type="foo", raw=b"duh")
+            await c._request("msg_send", topic=("foo",), data=["Hello", 42])
+            await c._request("msg_send", topic=("foo",), raw=b"duh")
             await trio.sleep(0.5)
         assert recv == [b"\x92\xa5Hello*", b"duh"]
         pass  # closing client

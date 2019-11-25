@@ -9,6 +9,8 @@ import outcome
 import msgpack
 import socket
 import os
+from typing import Tuple
+
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
     import random
@@ -821,10 +823,10 @@ class Client:
         root = root_type(self, *path, **kw)
         return root.run()
 
-    def direct_monitor(self, tag: str, raw: bool = False):
+    def msg_monitor(self, topic: Tuple[str], raw: bool = False):
         """
         Return an async iterator of tunneled Serf messages. This receives
-        all messages sent using :meth:`direct_send` with the same tag.
+        all messages sent using :meth:`msg_send` with the same tag.
 
         Args:
             tag: the "user:" tag to monitor.
@@ -841,18 +843,18 @@ class Client:
             error: Error message. Not present when ``raw`` is set or
                    ``data`` is present.
         usage::
-            async with client.direct_monitor("test") as cl:
+            async with client.msg_monitor("test") as cl:
                 async for msg in cl:
                     if 'error' in msg:
                         raise RuntimeError(msg.error)
                     await process_test(msg.data)
         """
-        return self._stream(action="serfmon", type=tag, raw=raw)
+        return self._stream(action="msg_monitor", topic=topic, raw=raw)
 
-    def direct_send(self, tag: str, data=None, raw: bytes = None):
+    def msg_send(self, topic: Tuple[str], data=None, raw: bytes = None):
         """
         Tunnel a user-tagged message through Serf. This sends the message
-        to all active callers of :meth:`direct_monitor` which use the same tag.
+        to all active callers of :meth:`msg_monitor` which use the same tag.
 
         Args:
             tag: the "user:" tag to send to.
@@ -862,6 +864,6 @@ class Client:
             raw: raw binary data to send, mutually exclusive with ``data``.
         """
         if raw is None:
-            return self._request(action="serfsend", type=tag, data=data)
+            return self._request(action="msg_send", topic=topic, data=data)
         else:
-            return self._request(action="serfsend", type=tag, raw=raw)
+            return self._request(action="msg_send", topic=topic, raw=raw)

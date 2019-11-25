@@ -28,7 +28,7 @@ setup(
         "PyNaCl >= 1.3",
         "diffiehellman",
         "psutil",
-        "systemd",
+        "systemd-python", # OWCH NO
     ],
     tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],

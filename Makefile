@@ -53,7 +53,7 @@ update:
 	pip install -r ci/test-requirements.txt
 
 test:
-	$(PYTEST) $(PACKAGE) $(TEST_OPTIONS)
+	env MSGPACK_PUREPYTHON=1 $(PYTEST) $(PACKAGE) $(TEST_OPTIONS)
 
 tagged:
 	git describe --tags --exact-match

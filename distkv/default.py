@@ -79,7 +79,7 @@ CFG = attrdict(
             port=7373,
         ),
 
-        root=":distkv",  # user event prefix. Should start with a colon.
+        root=(":distkv",),  # event message name prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
         # which addresses/ports to accept DistKV connections on
         bind=[attrdict()],
