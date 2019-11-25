@@ -1215,8 +1215,11 @@ class _RecoverControl:
         self.server = server
         self.scope = scope
         self.prio = prio
-        self.local_history = local_history
-        self.sources = sources
+
+        local_history=set(local_history)
+        sources=set(sources)
+        self.local_history = local_history-sources
+        self.sources = sources-local_history
         self.tock = server.tock
         type(self)._id += 1
         self._id = type(self)._id
