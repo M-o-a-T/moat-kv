@@ -509,7 +509,8 @@ class ClientRoot(ClientEntry):
             try:
                 yield self
             finally:
-                await tg.cancel_scope.cancel()
+                async with anyio.fail_after(2, shield=True):
+                    await tg.cancel_scope.cancel()
             pass  # end of 'run', closing taskgroup
 
     async def cancel(self):

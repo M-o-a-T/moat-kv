@@ -442,8 +442,8 @@ class Client:
                     unpacker.feed(buf)
 
             finally:
-                hdl, self._handlers = self._handlers, None
                 async with anyio.fail_after(2, shield=True):
+                    hdl, self._handlers = self._handlers, None
                     for m in hdl.values():
                         try:
                             await m.cancel()
@@ -562,7 +562,8 @@ class Client:
                 await res.send(error=repr(exc))
             raise
         finally:
-            await res.aclose()
+            async with anyio.fail_after(2, shield=True):
+                await res.aclose()
 
     async def _run_auth(self, auth=None):
         hello = self._server_init
@@ -641,14 +642,14 @@ class Client:
                 # which masks the exception
                 pass
             finally:
-                # Clean up our hacked config
-                try:
-                    del self._config
-                except AttributeError:
-                    pass
-                self.config = ClientConfig(self)
-
                 async with anyio.fail_after(2, shield=True):
+                    # Clean up our hacked config
+                    try:
+                        del self._config
+                    except AttributeError:
+                        pass
+                    self.config = ClientConfig(self)
+
                     await self.tg.cancel_scope.cancel()
                     if self._socket is not None:
                         async with self._send_lock:

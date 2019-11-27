@@ -162,23 +162,24 @@ class RunnerEntry(AttrClientEntry):
             state.backoff = 0
             await self.root.err.record_working("run", *self._path)
         finally:
-            if state.node == state.root.name:
-                state.node = None
-            self._running = False
-            state.stopped = t
+            async with anyio.fail_after(2, shield=True):
+                if state.node == state.root.name:
+                    state.node = None
+                self._running = False
+                state.stopped = t
 
-            if state.backoff > 0:
-                self.retry = t + (self.backoff ** state.backoff) * self.delay
-            else:
-                self.retry = None
-            async with anyio.move_on_after(2, shield=True):
-                try:
-                    await state.save()
-                except anyio.exceptions.ClosedResourceError:
-                    pass
-                except ServerError:
-                    logger.exception("Could not save")
-                await self.root.trigger_rescan()
+                if state.backoff > 0:
+                    self.retry = t + (self.backoff ** state.backoff) * self.delay
+                else:
+                    self.retry = None
+                async with anyio.move_on_after(2, shield=True):
+                    try:
+                        await state.save()
+                    except anyio.exceptions.ClosedResourceError:
+                        pass
+                    except ServerError:
+                        logger.exception("Could not save")
+                    await self.root.trigger_rescan()
 
     async def send_event(self, evt):
         if self._q is not None:
