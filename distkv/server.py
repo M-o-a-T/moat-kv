@@ -188,7 +188,8 @@ class StreamCommand:
                     )
                 await self.send(error=repr(exc))
             finally:
-                await self.send(state="end")
+                async with anyio.fail_after(2, shield=True):
+                    await self.send(state="end")
 
         else:
             res = await self.run(**kw)
@@ -2107,11 +2108,12 @@ class Server:
                 await self._run_send_missing(prio)
 
             finally:
-                # Protect against cleaning up when another recovery task has
-                # been started (because we saw another merge)
-                self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
-                self.seen_missing = {}
-                await t.cancel()
+                async with anyio.fail_after(2, shield=True):
+                    # Protect against cleaning up when another recovery task has
+                    # been started (because we saw another merge)
+                    self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
+                    self.seen_missing = {}
+                    await t.cancel()
 
     async def _run_send_missing(self, prio):
         """Start :meth:`_send_missing_data` if it's not running"""
