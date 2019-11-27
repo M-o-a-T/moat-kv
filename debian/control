@@ -16,12 +16,15 @@ Package: distkv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   python3-anyio (>= 1.0.0-2),
-  python3-asyncserf (>= 0.16),
+  python3-distmqtt (>= 0.17) | python3-asyncserf (>= 0.16),
   python3-asyncactor (>= 0.16),
   python3-systemd,
   python3-range-set (>= 0.3),
   python3-attr (>= 18.2.0-1),
   systemd (>= 241),
+Recommends:
+  python3-distmqtt (>= 0.17),
+  python3-asyncserf (>= 0.16),
 Replaces: python3-distkv
 Conflicts: python3-distkv
 Description: A distributed no-master key-value store
