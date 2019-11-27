@@ -1764,7 +1764,7 @@ class Server:
                     #self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
-        except (CancelledError, SerfCancelledError):
+        except SerfCancelledError:
             pass
 
     async def _run_del(self, evt):
