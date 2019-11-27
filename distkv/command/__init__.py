@@ -193,7 +193,11 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
         c = ctx.obj.cfg
         *sl, s = k.split(".")
         for kk in sl:
-            c = c[kk]
+            try:
+                c = c[kk]
+            except KeyError:
+                c[kk] = attrdict()
+                c = c[kk]
         if v is NotGiven:
             del c[s]
         else:
