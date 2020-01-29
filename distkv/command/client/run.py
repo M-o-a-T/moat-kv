@@ -29,10 +29,9 @@ async def cli(obj, node, group):
     elif node == '-':
         obj.runner_root = AllRunnerRoot
         subpath = (group,)
-    if node:
+    else:
         obj.runner_root = SingleRunnerRoot
         subpath = (group, node)
-    else:
 
     obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
     obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
