@@ -26,7 +26,7 @@ from typing import Any
 from range_set import RangeSet
 from functools import partial
 from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
-from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawPingEvent
+from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
 from asyncactor.backend import get_transport
 from pprint import pformat
 from collections.abc import Mapping
@@ -1809,9 +1809,13 @@ class Server:
                         )
                     elif isinstance(msg, GoodNodeEvent):
                         await self.spawn(self.fetch_data, msg.nodes)
-                    elif isinstance(msg, RawPingEvent):
+                    elif isinstance(msg, RawMsgEvent):
                         msg = msg.msg
-                        msg_node = msg["node"] if "node" in msg else msg["history"][0]
+                        msg_node = msg.get("node", None)
+                        if msg_node is None:
+                            msg_node = msg.get("history",(None,))[0]
+                            if msg_node is None:
+                                continue
                         val = msg.get("value", None)
                         if val is not None:
                             await self.tock_seen(val[0])
