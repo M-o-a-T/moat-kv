@@ -8,6 +8,7 @@ from collections import Mapping
 
 from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint
+from distkv.codec import unpacker
 
 import logging
 
@@ -79,20 +80,39 @@ async def init(obj, node, file):
 @click.argument("path", nargs=-1)
 @click.pass_obj
 async def msg(obj, path):
-    """Monitor the server-to-sever message stream.
+    """
+    Monitor the server-to-sever message stream.
+
+    The default is the main server's "ping" stream. Use '+NAME' to monitor
+    a different stream instead.
     """
     from distkv.backend import get_backend
     import msgpack
 
+    px = 0
     if not path:
         path = obj.cfg.server.root.split('.')
+        path.append('ping')
     elif len(path) == 1:
         path = path[0].split('.')
+        if len(path) == 1 and path[0].startswith('+'):
+            p = path[0][1:]
+            path = obj.cfg.server.root.split('.') + [p or '#']
+            if not p:
+                px = len(path)-1
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]
 
     async with get_backend(be)(**kw) as conn:
         async with conn.monitor(*path) as stream:
-            async for resp in stream:
-                yprint(msg, stream=obj.stdout)
+            async for msg in stream:
+                v = vars(msg)
+                if isinstance(v.get('payload'),(bytearray,bytes)):
+                    t = msg.topic
+                    v = unpacker(v['payload'])
+                    if px > 0:
+                        v['_topic'] = t[px:]
+                else:
+                    v['_type'] = type(msg).__name__
+                yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)
