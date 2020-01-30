@@ -81,18 +81,6 @@ There is no separate option to set the address for clients to connect to;
 use ``server.bind_default.port=57589`` (or your own port number) to change
 it from the default of ``27589``, or use a configuration file.
 
-.. option:: -h, --host <address>
-
-   The Serf server's IP address. The default is ``localhost``.
-
-   This option is available in the configuration file as ``server.serf.host``.
-
-.. option:: -p, --port <port>
-
-   The TCP port to connect to. The Serf default is 7373.
-
-   This option is available in the configuration file as ``server.serf.port``.
-
 .. option:: -l, --load <file>
 
    Pre-load the saved data from this file into the server before starting it.
