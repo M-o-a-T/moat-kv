@@ -102,19 +102,24 @@ async def mark(obj, deleted, source, node, items, broadcast):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command(short_help="Manage the Deleter list")
 @click.option("-d", "--delete", is_flag=True, help="Remove these nodes")
 @click.argument("nodes", nargs=-1)
 @click.pass_obj
 async def deleter(obj, delete, nodes):
     """
     Manage the Deleter list
-    
+
     This is the set of nodes that must be online for removal of deleted
     entries from DistKV's data.
 
     There should be one such node in every possible network partition.
     Also, all nodes with permanent storage should be on the list.
+
+    Usage:
+    - … deleter          -- list state
+    - … deleter NODE…    -- add this node
+    - … deleter -d NODE… -- remove this node
     """
 
     res = await obj.client._request(
