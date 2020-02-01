@@ -14,19 +14,6 @@ logger = logging.getLogger(__name__)
 
 @main.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
 @click.option(
-    "-h",
-    "--host",
-    default=None,
-    help="Serf host to connect to. Default: %s" % (CFG.server.bind_default.host),
-)
-@click.option(
-    "-p",
-    "--port",
-    type=int,
-    default=None,
-    help="Serf port to connect to. Default: %d" % (CFG.server.bind_default.port,),
-)
-@click.option(
     "-l",
     "--load",
     type=click.Path(readable=True, exists=True, allow_dash=False),
@@ -59,7 +46,7 @@ logger = logging.getLogger(__name__)
 @click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True)
 @click.argument("name", nargs=1)
 @click.pass_obj
-async def cli(obj, name, host, port, load, save, init, incremental, eval):
+async def cli(obj, name, load, save, init, incremental, eval):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -75,10 +62,6 @@ async def cli(obj, name, host, port, load, save, init, incremental, eval):
     This command requires a unique NAME argument. The name identifies this
     server on the network. Never start two servers with the same name!
     """
-    if host is not None:
-        obj.cfg.server.serf.host = host
-    if port is not None:
-        obj.cfg.server.serf.port = port
 
     kw = {}
     if eval:

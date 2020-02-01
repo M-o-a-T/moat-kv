@@ -33,9 +33,9 @@ Options used only for testing are not shown in the commands' help text.
 .. option:: -l, --log <source=LEVEL>
 
    You can selectively adjust debugging verbosity if you need to print, or
-   ignore, some types of messages. Example: ``-vvv --log
-   asyncactor=ERROR`` would suppress most chattiness of AsyncSerf's
-   actor.
+   ignore, some types of messages. Example: ``distkv -vvv --log
+   asyncactor=ERROR server NAME`` would suppress most chattiness of the
+   Actor that's responsible for inter-server synchronization.
 
 .. option:: -D, --debug
 
@@ -81,18 +81,6 @@ There is no separate option to set the address for clients to connect to;
 use ``server.bind_default.port=57589`` (or your own port number) to change
 it from the default of ``27589``, or use a configuration file.
 
-.. option:: -h, --host <address>
-
-   The Serf server's IP address. The default is ``localhost``.
-
-   This option is available in the configuration file as ``server.serf.host``.
-
-.. option:: -p, --port <port>
-
-   The TCP port to connect to. The Serf default is 7373.
-
-   This option is available in the configuration file as ``server.serf.port``.
-
 .. option:: -l, --load <file>
 
    Pre-load the saved data from this file into the server before starting it.
@@ -135,9 +123,9 @@ later.
 .. option:: name
 
 Each DistKV server requires a unique name. If you recycle a name, the old
-server using it will die (unless your Serf network is disjoint – in
-that case, one or both will terminate some random time after the networks
-are reconnecting, and you'll get inconsistent data). So don't do that.
+server using it will die (unless your network is segmented – in that case,
+one or both will terminate some random time after the networks are
+reconnecting, and you'll get inconsistent data). So don't do that.
 
 
 .. program:: distkv client
@@ -1236,10 +1224,21 @@ Create an initial data file.
    The file to write. Typically ``/var/lib/distkv/%Y-%m-%d/0.dkv``.
 
 
-.. program:: distkv dump serf
+.. program:: distkv dump msg NAME…
 
-Monitor all ``serf`` user messages. (I.e. not just those from DistKV.)
-Display as YAML.
+Monitor all back-end messages. (I.e. not just those from DistKV.)
+Decodes MsgPack messages. Display as YAML.
+
+.. option:: NAME
+
+   You may tell the monitor which stream to emit. By default it prints the
+   main server's update stream for data. You may use
+
+   * some random sequence of names, which is used as-is as the topic to
+     monitor
+   * ``+NAME``, to monitor this sub-stream instead
+   * ``+`` to monitor all sub-streams (recursively; does not work with the
+     Serf backend)
 
 
 .. program:: distkv pdb

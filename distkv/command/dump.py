@@ -83,8 +83,14 @@ async def msg(obj, path):
     """
     Monitor the server-to-sever message stream.
 
-    The default is the main server's "ping" stream. Use '+NAME' to monitor
-    a different stream instead.
+    The default is the main server's "update" stream.
+    Use '+NAME' to monitor a different stream instead.
+    Use '+' to monitor all streams.
+
+    Common streams:
+    * ping: sync: all servers (default)
+    * update: data changes
+    * del: sync: nodes responsible for cleaning up deleted records
     """
     from distkv.backend import get_backend
     import msgpack
@@ -92,7 +98,7 @@ async def msg(obj, path):
     px = 0
     if not path:
         path = obj.cfg.server.root.split('.')
-        path.append('ping')
+        path.append('update')
     elif len(path) == 1:
         path = path[0].split('.')
         if len(path) == 1 and path[0].startswith('+'):
