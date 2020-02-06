@@ -679,6 +679,7 @@ class ServerClient:
         Process an incoming message.
         """
         needAuth = self.user is None or self._user is not None
+        self.logger.debug("IN_%d %s", self._client_nr, msg)
 
         seq = msg.seq
         async with anyio.open_cancel_scope() as s:
