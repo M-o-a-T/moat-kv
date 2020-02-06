@@ -736,9 +736,6 @@ def path_eval(path, evals):
 
 async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False):
     if recursive:
-        if raw:
-            raise click.UsageError("'raw' cannot be used with 'recursive'")
-
         kw = {}
         if maxdepth is not None:
             kw["max_depth"] = maxdepth
@@ -757,13 +754,22 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
                 try:
                     yy[as_dict] = r if obj.meta else r.value
                 except AttributeError:
-                    continue
+                    if empty:
+                        yy[as_dict] = None
+                    else:
+                        continue
             else:
-                y = {}
-                try:
-                    y[path] = r if obj.meta else r.value
-                except AttributeError:
-                    continue
+                if raw:
+                    y = path
+                else:
+                    y = {}
+                    try:
+                        y[path] = r if obj.meta else r.value
+                    except AttributeError:
+                        if empty:
+                            y[path] = None
+                        else:
+                            continue
                 yprint([y], stream=obj.stdout)
 
         if as_dict is not None:

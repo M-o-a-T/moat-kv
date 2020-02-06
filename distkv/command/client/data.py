@@ -100,7 +100,7 @@ async def list(*a, **k):
     """
     List DistKV values.
 
-    This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive"
+    This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive --empty"
 
     If you read a sub-tree recursively, be aware that the whole subtree
     will be read before anything is printed. Use the "watch --state" subcommand
@@ -108,8 +108,8 @@ async def list(*a, **k):
     """
 
     k["recursive"] = True
-    k["raw"] = False
-    k["empty"] = False
+    k["raw"] = True
+    k["empty"] = True
     await data_get(*a, **k)
 
 
