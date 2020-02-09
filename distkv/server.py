@@ -165,7 +165,11 @@ class StreamCommand:
             self.multiline = None
         elif self.multiline == -1:
             raise RuntimeError("Can't explicitly send in simple interaction")
-        await self.client.send(msg)
+        try:
+            await self.client.send(msg)
+        except trio.BrokenResourceError:
+            self.client.logger.info("OERR %d", self.client._client_nr)
+
 
     async def __call__(self, **kw):
         msg = self.msg
@@ -706,7 +710,7 @@ class ServerClient:
                 await fn()
 
             except BrokenPipeError as exc:
-                self.logger.error("ERR%d: %s", self._client_nr, repr(exc))
+                self.logger.info("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
@@ -1116,7 +1120,7 @@ class ServerClient:
             try:
                 await self.stream.send_all(_packer(msg))
             except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
-                self.logger.error("ERO%d %r", self._client_nr, msg)
+                self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
 
@@ -1168,7 +1172,6 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        # self.logger.debug("IN %d %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -1199,10 +1202,14 @@ class ServerClient:
                     ConnectionResetError,
                     trioBrokenResourceError,
                 ):
-                    raise anyio.exceptions.ClosedResourceError from None
+                    self.logger.info("DEAD %d", self._client_nr)
+                    break
                 if len(buf) == 0:  # Connection was closed.
-                    raise anyio.exceptions.ClosedResourceError
+                    self.logger.info("CLOSED %d", self._client_nr)
+                    break
                 unpacker.feed(buf)
+
+            await tg.cancel_scope.cancel()
 
     def drop_old_event(self, evt, old_evt=NotGiven):
         return self.server.drop_old_event(evt, old_evt)
