@@ -3,7 +3,7 @@
 import sys
 import asyncclick as click
 
-from distkv.util import yprint
+from distkv.util import yprint, data_get
 
 import logging
 
@@ -26,9 +26,9 @@ async def list(obj):
     """List ACLs.
     """
     res = await obj.client._request(
-        action="enum_internal", path=("acl",), iter=False, nchain=obj.meta
+        action="enum_internal", path=("acl",), iter=False, nchain=obj.meta, empty=True
     )
-    yprint(res, stream=obj.stdout)
+    yprint(res if obj.meta else res.result, stream=obj.stdout)
 
 
 @cli.command()
@@ -44,26 +44,7 @@ async def list(obj):
 @click.pass_obj
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
-    res = await obj.client._request(
-        action="get_tree_internal", path=("acl", name) + path, iter=True
-    )
-    y = {}
-    async for r in res:
-        if as_dict is not None:
-            yy = y
-            for p in r.pop("path"):
-                yy = yy.setdefault(p, {})
-            if "chain" in r:
-                yy["chain"] = r.chain
-            yy[as_dict] = r.pop("value")
-        else:
-            y = {}
-            y[r.path] = r.value
-            yprint([y], stream=obj.stdout)
-
-    if as_dict:
-        yprint(y, stream=obj.stdout)
-
+    await data_get(obj, path=("acl", name) + path, internal=True)
 
 @cli.command()
 @click.argument("name", nargs=1)
@@ -105,7 +86,7 @@ async def set_(obj, acl, name, path):
 
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if len(acl) == 1 and acl in "+-":
+    if len(acl) > 1 and acl[0] in "+-":
         mode = acl[0]
         acl = acl[1:]
     else:
@@ -169,10 +150,9 @@ async def set_(obj, acl, name, path):
 @cli.command()
 @click.option("-m", "--mode", default=None, help="Mode letter to test.")
 @click.option("-a", "--acl", default=None, help="ACL to test. Default: current")
-@click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def test(obj, name, path, acl, mode):
+async def test(obj, path, acl, mode):
     """Test which ACL entry matches a path"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
