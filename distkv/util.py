@@ -734,7 +734,7 @@ def path_eval(path, evals):
             p = eval(p)
         yield p
 
-async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False):
+async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
     if recursive:
         kw = {}
         if maxdepth is not None:
@@ -744,7 +744,11 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
         if empty:
             kw["add_empty"] = True
         y = {}
-        async for r in obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw):
+        if internal:
+            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
+        else:
+            res = obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw)
+        async for r in res:
             r.pop("seq", None)
             path = r.pop("path")
             if as_dict is not None:
