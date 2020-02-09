@@ -842,16 +842,20 @@ class ServerClient:
         entry, acl = root.follow_acl(
             *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
+        empty=msg.get('empty', False)
         if with_data:
             res = {}
             for k, v in entry.items():
                 a = acl.step(k)
-                if a.allows("r") and v.data is not NotGiven:
-                    res[k] = self.conv.enc_value(v.data, entry=v)
+                if a.allows("r"):
+                    if v.data is not NotGiven:
+                        res[k] = self.conv.enc_value(v.data, entry=v)
+                    elif empty:
+                        res[k] = None
         else:
             res = []
             for k, v in entry.items():
-                if v.data is not NotGiven:
+                if empty or v.data is not NotGiven:
                     res.append(k)
         return res
 
