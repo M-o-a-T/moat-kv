@@ -1053,7 +1053,7 @@ class ServerClient:
                             conv=self.conv,
                         )
                         r["seq"] = seq
-                        del r["new_value"]  # always None
+                        r.pop("new_value",None)  # always None
                         ps(r)
                         await self.send(r)
                 res += 1
