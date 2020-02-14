@@ -449,7 +449,7 @@ class ClientRoot(ClientEntry):
         async with anyio.create_task_group() as tg:
             self._tg = tg
 
-            async def monitor():
+            async def monitor(lock):
                 pl = PathLongener(())
                 await self.run_starting()
                 async with self.client._stream(
@@ -511,7 +511,9 @@ class ClientRoot(ClientEntry):
                                     await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            await tg.spawn(monitor)
+            lock = anyio.create_event()
+            await tg.spawn(monitor, lock)
+            await lock.wait()
             try:
                 yield self
             finally:
