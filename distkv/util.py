@@ -89,7 +89,10 @@ class NotGiven:
         raise ValueError("You may not serialize this object")
 
     def __repr__(self):
-        return "<*NotGiven*>"
+        return "‹NotGiven›"
+
+    def __str__(self):
+        return "NotGiven"
 
 
 def combine_dict(*d, cls=dict) -> dict:
