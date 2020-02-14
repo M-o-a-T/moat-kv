@@ -459,10 +459,11 @@ class ClientRoot(ClientEntry):
                         if "path" not in r:
                             if r.get("state", "") == "uptodate":
                                 await self.running()
+                            await lock.set()
                             continue
                         pl(r)
                         val = r.get("value", NotGiven)
-                        entry = self.follow(*r.path, create=(val is not NotGiven), unsafe=True)
+                        entry = self.follow(*r.path, create=None, unsafe=True)
                         if entry is not None:
                             # Test for consistency
                             try:
