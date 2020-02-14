@@ -734,7 +734,7 @@ def path_eval(path, evals):
             p = eval(p)
         yield p
 
-async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
+async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
     if recursive:
         kw = {}
         if maxdepth is not None:

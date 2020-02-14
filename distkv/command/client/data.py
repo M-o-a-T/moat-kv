@@ -60,7 +60,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(*a, **k):
+async def get(obj, path, **k):
     """
     Read a DistKV value.
 
@@ -69,7 +69,7 @@ async def get(*a, **k):
     for incremental output.
     """
 
-    await data_get(*a, **k)
+    await data_get(obj, *path, **k)
 
 
 @cli.command()
@@ -96,7 +96,7 @@ async def get(*a, **k):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(*a, **k):
+async def list(obj, path, **k):
     """
     List DistKV values.
 
@@ -110,7 +110,7 @@ async def list(*a, **k):
     k["recursive"] = True
     k["raw"] = True
     k["empty"] = True
-    await data_get(*a, **k)
+    await data_get(obj, *path, **k)
 
 
 @cli.command(short_help="Add or update an entry")

@@ -44,7 +44,7 @@ async def list(obj):
 @click.pass_obj
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
-    await data_get(obj, path=("acl", name) + path, internal=True)
+    await data_get(obj, "acl", name, *path, internal=True)
 
 @cli.command()
 @click.argument("name", nargs=1)
