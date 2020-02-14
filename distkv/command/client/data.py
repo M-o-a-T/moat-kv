@@ -170,9 +170,9 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval):
     """
     Delete an entry, or a whole subtree.
 
-    You really should use "--last" (preferred) or
-    "--prev" (if you must) to ensure that no other change arrived (but note
-    that this doesn't work when deleting a subtree).
+    You really should use "--last" (preferred) or "--prev" (if you must) to
+    ensure that no other change arrived (but note that this doesn't work
+    when deleting a subtree).
 
     Non-recursively deleting an entry with children works and does *not*
     affect the child entries.
