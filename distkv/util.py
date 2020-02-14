@@ -313,7 +313,7 @@ class PathShortener:
             p = res["path"]
         except KeyError:
             return
-        if p[: self.depth] != self.prefix:
+        if list(p[: self.depth]) != list(self.prefix):
             raise RuntimeError(
                 "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
             )
