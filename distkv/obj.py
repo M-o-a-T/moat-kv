@@ -314,7 +314,7 @@ class AttrClientEntry(ClientEntry):
                 except AttributeError:
                     pass
 
-    def get_value(self, wait=False):
+    def get_value(self, wait=False, skip_none=False, skip_empty=False):
         """
         Extract value from attrs
         """
@@ -325,8 +325,13 @@ class AttrClientEntry(ClientEntry):
             except AttributeError:
                 pass
             else:
-                if v is not NotGiven:
-                    res[attr] = v
+                if v is NotGiven:
+                    continue
+                if skip_none and v is None:
+                    continue
+                if skip_empty and v == ():
+                    continue
+                res[attr] = v
         return res
 
 
