@@ -780,6 +780,18 @@ async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdep
                 yprint([y], stream=obj.stdout)
 
         if as_dict is not None:
+            if maxdepth:
+                def simplex(d):
+                    for k,v in d.items():
+                        if isinstance(v,dict):
+                            d[k] = simplex(d[k])
+                    if as_dict in d and d[as_dict] is None:
+                        if len(d) == 1:
+                            return None
+                        else:
+                            del d[as_dict]
+                    return d
+                y = simplex(y)
             yprint(y, stream=obj.stdout)
         return
 
