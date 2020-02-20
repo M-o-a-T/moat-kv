@@ -799,13 +799,13 @@ async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdep
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path, nchain=obj.meta)
+    res = await obj.client.get(*path_eval(path, eval_path), nchain=obj.meta)
     if not obj.meta:
         try:
             res = res.value
         except AttributeError:
             if obj.debug:
-                print("No data at", repr(path), file=sys.stderr)
+                print("No data at", repr(path_eval(path, eval_path)), file=sys.stderr)
             sys.exit(1)
 
     if not raw:
