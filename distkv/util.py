@@ -89,7 +89,10 @@ class NotGiven:
         raise ValueError("You may not serialize this object")
 
     def __repr__(self):
-        return "<*NotGiven*>"
+        return "‹NotGiven›"
+
+    def __str__(self):
+        return "NotGiven"
 
 
 def combine_dict(*d, cls=dict) -> dict:
@@ -313,7 +316,7 @@ class PathShortener:
             p = res["path"]
         except KeyError:
             return
-        if p[: self.depth] != self.prefix:
+        if list(p[: self.depth]) != list(self.prefix):
             raise RuntimeError(
                 "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
             )
@@ -734,11 +737,8 @@ def path_eval(path, evals):
             p = eval(p)
         yield p
 
-async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False):
+async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
     if recursive:
-        if raw:
-            raise click.UsageError("'raw' cannot be used with 'recursive'")
-
         kw = {}
         if maxdepth is not None:
             kw["max_depth"] = maxdepth
@@ -747,7 +747,11 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
         if empty:
             kw["add_empty"] = True
         y = {}
-        async for r in obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw):
+        if internal:
+            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
+        else:
+            res = obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw)
+        async for r in res:
             r.pop("seq", None)
             path = r.pop("path")
             if as_dict is not None:
@@ -757,16 +761,37 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
                 try:
                     yy[as_dict] = r if obj.meta else r.value
                 except AttributeError:
-                    continue
+                    if empty:
+                        yy[as_dict] = None
+                    else:
+                        continue
             else:
-                y = {}
-                try:
-                    y[path] = r if obj.meta else r.value
-                except AttributeError:
-                    continue
+                if raw:
+                    y = path
+                else:
+                    y = {}
+                    try:
+                        y[path] = r if obj.meta else r.value
+                    except AttributeError:
+                        if empty:
+                            y[path] = None
+                        else:
+                            continue
                 yprint([y], stream=obj.stdout)
 
         if as_dict is not None:
+            if maxdepth:
+                def simplex(d):
+                    for k,v in d.items():
+                        if isinstance(v,dict):
+                            d[k] = simplex(d[k])
+                    if as_dict in d and d[as_dict] is None:
+                        if len(d) == 1:
+                            return None
+                        else:
+                            del d[as_dict]
+                    return d
+                y = simplex(y)
             yprint(y, stream=obj.stdout)
         return
 
@@ -774,13 +799,13 @@ async def data_get(obj, path, eval_path=(), recursive=True, as_dict='_', maxdept
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path, nchain=obj.meta)
+    res = await obj.client.get(*path_eval(path, eval_path), nchain=obj.meta)
     if not obj.meta:
         try:
             res = res.value
         except AttributeError:
             if obj.debug:
-                print("No data at", repr(path), file=sys.stderr)
+                print("No data at", repr(path_eval(path, eval_path)), file=sys.stderr)
             sys.exit(1)
 
     if not raw:

@@ -55,6 +55,9 @@ class ClientEntry:
         return cls
 
     def value_or(self, default, typ=None):
+        """
+        Shortcut to coerce the value to some type
+        """
         val = self.value
         if val is NotGiven:
             return default
@@ -149,6 +152,43 @@ class ClientEntry:
         self._children[name] = c = c(self, name)
         return c
 
+    def follow(self, *path, create=None, unsafe=False):
+        """Look up a sub-entry.
+
+        Arguments:
+          *path (str): the path elements to follow.
+          create (bool): Create the entries. Default ``False``.
+            Otherwise return ``None`` if not found.
+          unsafe (bool): Allow a single path element that's a tuple.
+            This usually indicates a mistake by the caller. Defaults to
+            ``False``. Please try not to need this.
+
+        The path may not be empty. It also must not be a one-element list,
+        because that indicates that you called ``.follow(path)`` instead of
+        ``.follow(*path)``. To allow that, set ``unsafe``, though a better
+        idea is to structure your data that this is not necessary.
+        """
+        if not unsafe and len(path) == 1 and isinstance(path[0], (list, tuple)):
+            raise RuntimeError("You seem to have used 'path' instead of '*path'.")
+
+        node = self
+        n = 0
+        for elem in path:
+            n += 1
+            next_node = node.get(elem)
+            if next_node is None:
+                if create is False:
+                    return None
+                next_node = node.allocate(elem)
+            elif create and n == len(path) and next_node.value is not NotGiven:
+                raise RuntimeError("Duplicate child",self,path,n)
+
+            node = next_node
+
+        if not unsafe and node is self:
+            raise RuntimeError("Empty path")
+        return node
+
     def __getitem__(self, name):
         return self._children[name]
 
@@ -173,7 +213,7 @@ class ClientEntry:
             k = k._name
         return k in self._children
 
-    async def update(self, value, _locked=False):
+    async def update(self, value, _locked=False, wait=False):
         """Update (or simply set) this node's value.
 
         This is a coroutine.
@@ -182,11 +222,13 @@ class ClientEntry:
             r = await self.root.client.set(
                 *self._path, chain=self.chain, value=value, nchain=3
             )
+            if wait:
+                await self.root.wait_chain(r.chain)
             self.value = value
             self.chain = r.chain
             return r
 
-    async def delete(self, _locked=False, nchain=0, chain=True):
+    async def delete(self, _locked=False, nchain=0, chain=True, wait=False):
         """Delete this node's value.
 
         This is a coroutine.
@@ -196,6 +238,8 @@ class ClientEntry:
                 *self._path, nchain=nchain,
                 **({"chain":self.chain} if chain else {}),
             )
+            if wait:
+                await self.root.wait_chain(r.chain)
             self.chain = None
             return r
 
@@ -274,7 +318,7 @@ class AttrClientEntry(ClientEntry):
                 except AttributeError:
                     pass
 
-    def get_value(self, wait=False):
+    def get_value(self, wait=False, skip_none=False, skip_empty=False):
         """
         Extract value from attrs
         """
@@ -285,8 +329,13 @@ class AttrClientEntry(ClientEntry):
             except AttributeError:
                 pass
             else:
-                if v is not NotGiven:
-                    res[attr] = v
+                if v is NotGiven:
+                    continue
+                if skip_none and v is None:
+                    continue
+                if skip_empty and v == ():
+                    continue
+                res[attr] = v
         return res
 
 
@@ -331,11 +380,12 @@ class ClientRoot(ClientEntry):
 
     @classmethod
     async def as_handler(cls, client, cfg=None, key="prefix", subpath=(), **kw):
-        """Return a (or "the") instance of this class.
+        """Return an (or "the") instance of this class.
 
         The handler is created if it doesn't exist.
 
-        Instances are distinguished by their prefix (from config).
+        Instances are distinguished by a key (from config), which
+        must contain their path, and an optional subpath.
         """
         d = []
         if cfg is not None:
@@ -393,41 +443,6 @@ class ClientRoot(ClientEntry):
                     raise
                 return default
 
-    def follow(self, *path, create=False, unsafe=False):
-        """Look up a sub-entry.
-
-        Arguments:
-          *path (str): the path elements to follow.
-          create (bool): Create the entries. Default ``False``.
-            Otherwise return ``None`` if not found.
-          unsafe (bool): Allow a single path element that's a tuple.
-            This usually indicates a mistake by the caller. Defaults to
-            ``False``. Please try not to need this.
-
-        The path may not be empty. It also must not be a one-element list,
-        because that indicates that you called ``.follow(path)`` instead of
-        ``.follow(*path)``. To allow that, set ``unsafe``, though a better
-        idea is to structure your data that this is not necessary.
-        """
-        if not unsafe and len(path) == 1 and isinstance(path[0], (list, tuple)):
-            raise RuntimeError("You seem to have used 'path' instead of '*path'.")
-
-        node = self
-        for elem in path:
-            next_node = node.get(elem)
-            if next_node is None:
-                if not create:
-                    return None
-                next_node = node.allocate(elem)
-                if next_node is None:
-                    return None
-
-            node = next_node
-
-        if not unsafe and node is self:
-            raise RuntimeError("Empty path")
-        return node
-
     async def run_starting(self):
         """Hook for 'about to start reading'"""
         pass
@@ -443,7 +458,7 @@ class ClientRoot(ClientEntry):
         async with anyio.create_task_group() as tg:
             self._tg = tg
 
-            async def monitor():
+            async def monitor(lock):
                 pl = PathLongener(())
                 await self.run_starting()
                 async with self.client._stream(
@@ -453,10 +468,11 @@ class ClientRoot(ClientEntry):
                         if "path" not in r:
                             if r.get("state", "") == "uptodate":
                                 await self.running()
+                            await lock.set()
                             continue
                         pl(r)
                         val = r.get("value", NotGiven)
-                        entry = self.follow(*r.path, create=(val is not NotGiven), unsafe=True)
+                        entry = self.follow(*r.path, create=None, unsafe=True)
                         if entry is not None:
                             # Test for consistency
                             try:
@@ -505,7 +521,9 @@ class ClientRoot(ClientEntry):
                                     await heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            await tg.spawn(monitor)
+            lock = anyio.create_event()
+            await tg.spawn(monitor, lock)
+            await lock.wait()
             try:
                 yield self
             finally:

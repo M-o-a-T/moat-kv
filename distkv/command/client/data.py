@@ -60,7 +60,7 @@ async def cli(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def get(*a, **k):
+async def get(obj, path, **k):
     """
     Read a DistKV value.
 
@@ -69,7 +69,7 @@ async def get(*a, **k):
     for incremental output.
     """
 
-    await data_get(*a, **k)
+    await data_get(obj, *path, **k)
 
 
 @cli.command()
@@ -96,11 +96,11 @@ async def get(*a, **k):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(*a, **k):
+async def list(obj, path, **k):
     """
     List DistKV values.
 
-    This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive"
+    This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive --empty"
 
     If you read a sub-tree recursively, be aware that the whole subtree
     will be read before anything is printed. Use the "watch --state" subcommand
@@ -108,9 +108,9 @@ async def list(*a, **k):
     """
 
     k["recursive"] = True
-    k["raw"] = False
-    k["empty"] = False
-    await data_get(*a, **k)
+    k["raw"] = True
+    k["empty"] = True
+    await data_get(obj, *path, **k)
 
 
 @cli.command(short_help="Add or update an entry")
@@ -170,9 +170,9 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval):
     """
     Delete an entry, or a whole subtree.
 
-    You really should use "--last" (preferred) or
-    "--prev" (if you must) to ensure that no other change arrived (but note
-    that this doesn't work when deleting a subtree).
+    You really should use "--last" (preferred) or "--prev" (if you must) to
+    ensure that no other change arrived (but note that this doesn't work
+    when deleting a subtree).
 
     Non-recursively deleting an entry with children works and does *not*
     affect the child entries.

@@ -347,6 +347,9 @@ class Client:
             self._helpers[path] = h
         if isinstance(h, anyio.abc.Lock):
             async with h:
+                if self.tg is None:
+                    # race condition w/ closing
+                    return None
                 h2 = self._helpers[path]
                 if h2 is not h:
                     # another task already did the work

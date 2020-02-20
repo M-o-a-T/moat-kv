@@ -165,7 +165,11 @@ class StreamCommand:
             self.multiline = None
         elif self.multiline == -1:
             raise RuntimeError("Can't explicitly send in simple interaction")
-        await self.client.send(msg)
+        try:
+            await self.client.send(msg)
+        except trio.BrokenResourceError:
+            self.client.logger.info("OERR %d", self.client._client_nr)
+
 
     async def __call__(self, **kw):
         msg = self.msg
@@ -447,6 +451,7 @@ class SCmd_get_tree(StreamCommand):
         min_depth = msg.get("min_depth", None)
         if min_depth is not None:
             kw["min_depth"] = min_depth
+        kw["full"] = empty
 
         async def send_sub(entry, acl):
             if entry.data is NotGiven and not empty:
@@ -679,6 +684,7 @@ class ServerClient:
         Process an incoming message.
         """
         needAuth = self.user is None or self._user is not None
+        self.logger.debug("IN_%d %s", self._client_nr, msg)
 
         seq = msg.seq
         async with anyio.open_cancel_scope() as s:
@@ -704,7 +710,7 @@ class ServerClient:
                 await fn()
 
             except BrokenPipeError as exc:
-                self.logger.error("ERR%d: %s", self._client_nr, repr(exc))
+                self.logger.info("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
@@ -840,16 +846,20 @@ class ServerClient:
         entry, acl = root.follow_acl(
             *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
+        empty=msg.get('empty', False)
         if with_data:
             res = {}
             for k, v in entry.items():
                 a = acl.step(k)
-                if a.allows("r") and v.data is not NotGiven:
-                    res[k] = self.conv.enc_value(v.data, entry=v)
+                if a.allows("r"):
+                    if v.data is not NotGiven:
+                        res[k] = self.conv.enc_value(v.data, entry=v)
+                    elif empty:
+                        res[k] = None
         else:
             res = []
             for k, v in entry.items():
-                if v.data is not NotGiven:
+                if empty or v.data is not NotGiven:
                     res.append(k)
         return res
 
@@ -1043,7 +1053,7 @@ class ServerClient:
                             conv=self.conv,
                         )
                         r["seq"] = seq
-                        del r["new_value"]  # always None
+                        r.pop("new_value",None)  # always None
                         ps(r)
                         await self.send(r)
                 res += 1
@@ -1110,7 +1120,7 @@ class ServerClient:
             try:
                 await self.stream.send_all(_packer(msg))
             except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
-                self.logger.error("ERO%d %r", self._client_nr, msg)
+                self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
 
@@ -1162,7 +1172,6 @@ class ServerClient:
                 for msg in unpacker:
                     seq = None
                     try:
-                        # self.logger.debug("IN %d %s", self._client_nr, msg)
                         seq = msg.seq
                         send_q = self.in_stream.get(seq, None)
                         if send_q is not None:
@@ -1193,10 +1202,14 @@ class ServerClient:
                     ConnectionResetError,
                     trioBrokenResourceError,
                 ):
-                    raise anyio.exceptions.ClosedResourceError from None
+                    self.logger.info("DEAD %d", self._client_nr)
+                    break
                 if len(buf) == 0:  # Connection was closed.
-                    raise anyio.exceptions.ClosedResourceError
+                    self.logger.info("CLOSED %d", self._client_nr)
+                    break
                 unpacker.feed(buf)
+
+            await tg.cancel_scope.cancel()
 
     def drop_old_event(self, evt, old_evt=NotGiven):
         return self.server.drop_old_event(evt, old_evt)
