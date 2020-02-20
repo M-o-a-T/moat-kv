@@ -213,7 +213,7 @@ class ClientEntry:
             k = k._name
         return k in self._children
 
-    async def update(self, value, _locked=False):
+    async def update(self, value, _locked=False, wait=False):
         """Update (or simply set) this node's value.
 
         This is a coroutine.
@@ -222,11 +222,13 @@ class ClientEntry:
             r = await self.root.client.set(
                 *self._path, chain=self.chain, value=value, nchain=3
             )
+            if wait:
+                await self.root.wait_chain(r.chain)
             self.value = value
             self.chain = r.chain
             return r
 
-    async def delete(self, _locked=False, nchain=0, chain=True):
+    async def delete(self, _locked=False, nchain=0, chain=True, wait=False):
         """Delete this node's value.
 
         This is a coroutine.
@@ -236,6 +238,8 @@ class ClientEntry:
                 *self._path, nchain=nchain,
                 **({"chain":self.chain} if chain else {}),
             )
+            if wait:
+                await self.root.wait_chain(r.chain)
             self.chain = None
             return r
 
