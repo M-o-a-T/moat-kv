@@ -141,8 +141,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     This is the DistKV command. You need to add a subcommand for it to do
     anything.
 
-    Default values for all configuration options are located in
-    `distkv.default.CFG`.
+    You can print the current configuration with 'distkv dump cfg'.
     """
     ctx.ensure_object(attrdict)
     ctx.obj.debug = max(verbose - quiet + 1, 0)
