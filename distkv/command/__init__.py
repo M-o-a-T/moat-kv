@@ -65,12 +65,9 @@ class Loader(click.Group):
         cmd = super().get_command(ctx, name)
         if cmd is None:
             try:
-                try:
-                    cmd = load_one(name, self.__plugin_folder, "cli", main=self)
-                except FileNotFoundError:
-                    cmd = load_ext(name, self.__plugin, "cli", main=self)
-            except KeyError:
-                raise click.exceptions.UsageError("Command '%s' not found" % (name,))
+                cmd = load_one(name, self.__plugin_folder, "cli", main=self)
+            except FileNotFoundError:
+                cmd = load_ext(name, self.__plugin, "cli", main=self)
         cmd.__name__ = name
         return cmd
 
