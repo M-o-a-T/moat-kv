@@ -2369,7 +2369,7 @@ class Server:
         res = None
         if path is not None:
             await self.spawn(
-                self._saver, path=path, stream=stream, save_state=save_state, done=done
+                partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
             )
             if wait:
                 res = await done.get()
