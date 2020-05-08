@@ -7,7 +7,7 @@ from functools import partial
 from collections import Mapping
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint
+from distkv.util import yprint, PathLongener
 from distkv.codec import unpacker
 
 import logging
@@ -50,12 +50,18 @@ async def cfg(obj, path):
 
 
 @cli.command()
+@click.option("-p","--path", is_flag=True, default=False,help="Unwrap paths")
 @click.argument("file", nargs=1)
 @click.pass_obj
-async def file(obj, file):
+async def file(obj, file, path):
     """Read a MsgPack file and dump as YAML."""
+    if path:
+        pl=PathLongener()
+    else:
+        pl=lambda _:None
     async with MsgReader(path=file) as f:
         async for msg in f:
+            pl(msg)
             yprint(msg, stream=obj.stdout)
             print("---", file=obj.stdout)
 

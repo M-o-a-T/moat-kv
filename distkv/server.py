@@ -20,7 +20,6 @@ try:
     from contextlib import asynccontextmanager
 except ImportError:
     from async_generator import asynccontextmanager
-import msgpack
 import asyncserf
 from typing import Any
 from range_set import RangeSet
@@ -63,8 +62,6 @@ from . import _version_tuple
 import logging
 
 logger = logging.getLogger(__name__)
-
-_packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
 
 _client_nr = 0
@@ -589,12 +586,7 @@ class SCmd_msg_monitor(StreamCommand):
                     res["raw"] = resp.payload
                 else:
                     try:
-                        res["data"] = msgpack.unpackb(
-                            resp.payload,
-                            object_pairs_hook=attrdict,
-                            raw=False,
-                            use_list=False,
-                        )
+                        res["data"] = unpacker(resp.payload)
                     except Exception as exc:
                         res["raw"] = resp.payload
                         res["error"] = repr(exc)
@@ -1016,7 +1008,7 @@ class ServerClient:
             assert "data" not in msg
             data = msg.raw
         else:
-            data = _packer(msg.data)
+            data = packer(msg.data)
         await self.server.serf.send(*topic, payload=data)
 
     async def cmd_delete_tree(self, msg):
@@ -1118,7 +1110,7 @@ class ServerClient:
             if "tock" not in msg:
                 msg["tock"] = self.server.tock
             try:
-                await self.stream.send_all(_packer(msg))
+                await self.stream.send_all(packer(msg))
             except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
                 self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
@@ -1703,7 +1695,7 @@ class Server:
             if j:
                 msg["_p0"] = ""
 
-        p = _packer(msg)
+        p = packer(msg)
         pl = self._part_len
         if len(p) > SERF_MAXLEN:
             # Owch. We need to split this thing.
@@ -1715,7 +1707,7 @@ class Server:
                 if not p:
                     i = -i
                 px = {"_p0": (self.node.name, seq, i, px)}
-                yield _packer(px)
+                yield packer(px)
             return
         yield p
 
@@ -1766,12 +1758,7 @@ class Server:
                     await delay.wait()
 
                 async for resp in stream:
-                    msg = msgpack.unpackb(
-                        resp.payload,
-                        object_pairs_hook=attrdict,
-                        raw=False,
-                        use_list=False,
-                    )
+                    msg = unpacker(resp.payload)
                     msg = await self._unpack_multiple(msg)
                     if not msg:  # None, empty, whatever
                         continue
@@ -1806,6 +1793,7 @@ class Server:
                 T(self.serf, *self.cfg.server.root, "ping"),
                 name=self.node.name,
                 cfg=self.cfg.server.ping,
+                send_raw=True,
             ) as actor:
                 self._actor = actor
                 await self._check_ticked()
