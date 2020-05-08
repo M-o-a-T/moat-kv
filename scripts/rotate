@@ -20,4 +20,14 @@ fi
 
 export PYTHONPATH
 distkv -c /etc/distkv.cfg client log dest $I "$DEST/$D/$x.dkv"
+if test $x -eq 0 ; then
+	# Now, delete some old backups
+	cd "$DEST"
 
+	# delete hourly after ten days but keep the day's first backup
+	find . -maxdepth 1 ! -name \*-00 -mtime +10 -print0|xargs -0r rm -rf
+	# delete daily after 45 days but keep the month's first backup
+	find . -maxdepth 1 ! -name \*01-00 -mtime +45 -print0|xargs -0r rm -rf
+	# delete monthly (i.e. the rest) after a year or so
+	find . -maxdepth 1 -mtime +400 -print0|xargs -0r rm -rf
+fi
