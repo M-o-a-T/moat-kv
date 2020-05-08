@@ -1821,8 +1821,6 @@ class Server:
                         if val is not None:
                             await self.tock_seen(val[0])
                             val = val[1]
-                        else:
-                            val = 0
                         Node(msg_node, val, cache=self._nodes)
 
     async def _get_host_port(self, host):
