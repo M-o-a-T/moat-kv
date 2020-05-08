@@ -1806,6 +1806,7 @@ class Server:
                 T(self.serf, *self.cfg.server.root, "ping"),
                 name=self.node.name,
                 cfg=self.cfg.server.ping,
+                send_raw=True,
             ) as actor:
                 self._actor = actor
                 await self._check_ticked()
