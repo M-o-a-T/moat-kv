@@ -6,7 +6,6 @@ Main entry point: :func:`open_client`.
 
 import anyio
 import outcome
-import msgpack
 import socket
 import os
 from typing import Tuple
@@ -45,12 +44,11 @@ from .exceptions import (
     ServerError,
     CancelledError,
 )
+from .codec import packer, stream_unpacker
 
 import logging
 
 logger = logging.getLogger(__name__)
-
-_packer = msgpack.Packer(strict_types=False, use_bin_type=True).pack
 
 __all__ = ["NoData", "ManyData", "open_client", "StreamedRequest"]
 
@@ -413,14 +411,12 @@ class Client:
             if sock is None:
                 raise ServerClosedError("Disconnected")
 
-            await sock.send_all(_packer(params))
+            await sock.send_all(packer(params))
 
     async def _reader(self, *, evt=None):
         """Main loop for reading
         """
-        unpacker = msgpack.Unpacker(
-            object_pairs_hook=attrdict, raw=False, use_list=False
-        )
+        unpacker = stream_unpacker()
 
         async with anyio.open_cancel_scope() as s:
             if evt is not None:

@@ -735,10 +735,6 @@ def path_eval(path, evals):
         i += 1
         if i in evals:
             p = eval(p)
-            if isinstance(p,int) and p>=2**64:
-                # Encode larger ints as bitstrings.
-                p = p.to_bytes(min(16,(p.bit_length()+7)//8),'big')
-                # TODO: do something more sensible
         yield p
 
 async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
