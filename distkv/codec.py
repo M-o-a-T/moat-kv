@@ -12,7 +12,7 @@ __all__ = ["packer", "unpacker", "stream_unpacker"]
 
 def _encode(data):
     if isinstance(data,int) and data >= 1<<64:
-        return msgpack.ExtType(2, p.to_bytes((p.bit_length()+7)//8, 'big'))
+        return msgpack.ExtType(2, data.to_bytes((data.bit_length()+7)//8, 'big'))
     return data
 
 def _decode(code, data):
