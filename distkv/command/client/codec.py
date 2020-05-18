@@ -49,7 +49,7 @@ async def get(obj, path, script, encode, decode):
 @cli.command()
 @click.option("-e", "--encode", type=click.File(mode="r"), help="File with the encoder")
 @click.option("-d", "--decode", type=click.File(mode="r"), help="File with the decoder")
-@click.option("-d", "--data", type=click.File(mode="r"), help="File with the rest")
+@click.option("-D", "--data", type=click.File(mode="r"), help="File with the rest")
 @click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
 @click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
 @click.argument("path", nargs=-1)
