@@ -35,13 +35,14 @@ async def dest(obj, path, incremental):
 
 
 @cli.command()
+@click.option("-f","--full", is_flag=1, help="Also dump internal state")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def save(obj, path):
+async def save(obj, path, full):
     """
     Write the server's current state to a file.
     """
-    res = await obj.client._request("save", path=path)
+    res = await obj.client._request("save", path=path, full=full)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 

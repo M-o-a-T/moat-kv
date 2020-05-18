@@ -663,7 +663,7 @@ class Entry:
         The ACL key 'W' is special: it checks 'c' if the node is new, else
         'w'.
 
-        Returns tuple (node, acl) tuple.
+        Returns a (node, acl) tuple.
         """
         if acl is None:
             global NullACL
@@ -683,9 +683,10 @@ class Entry:
                     raise KeyError(path)
                 acl.check("n")
                 if create is not None:
-                    child = self.SUBTYPES.get(name, self.SUBTYPE)(
-                        name, self, tock=self.tock
-                    )
+                    child = self.SUBTYPES.get(name, self.SUBTYPE)
+                    if child is None:
+                        raise ValueError("Cannot add %s to %s" % (name,self))
+                    child = child(name, self, tock=self.tock)
             else:
                 acl.check("x")
             try:
@@ -834,10 +835,6 @@ class Entry:
                 evt.new_value,
             )
             return
-
-        if self._data is NotGiven:
-            if evt.event.prev is not None:
-                raise ValueError("This is a new entry, but chain is present.")
 
         if self.chain > evt.event:  # already superseded
             return

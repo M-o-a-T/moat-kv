@@ -3,7 +3,7 @@
 import asyncclick as click
 import yaml
 
-from distkv.util import yprint
+from distkv.util import yprint, NotGiven
 
 import logging
 
@@ -34,7 +34,7 @@ async def get(obj, path, script, encode, decode):
     if not path:
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_internal", path=("type",) + path, iter=False, nchain=obj.meta
+        action="get_internal", path=("codec",) + path, iter=False, nchain=obj.meta
     )
     if encode and res.get("encode", None) is not None:
         encode.write(res.pop("encode"))
@@ -49,7 +49,7 @@ async def get(obj, path, script, encode, decode):
 @cli.command()
 @click.option("-e", "--encode", type=click.File(mode="r"), help="File with the encoder")
 @click.option("-d", "--decode", type=click.File(mode="r"), help="File with the decoder")
-@click.option("-d", "--data", type=click.File(mode="r"), help="File with the rest")
+@click.option("-D", "--data", type=click.File(mode="r"), help="File with the rest")
 @click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
 @click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
 @click.argument("path", nargs=-1)
@@ -63,6 +63,11 @@ async def set(obj, path, encode, decode, data, in_, out):
         msg = yaml.safe_load(data)
     else:
         msg = {}
+    chain = NotGiven
+    if "value" in msg:
+        chain = msg.get("chain", NotGiven)
+        msg = msg["value"]
+
     if "encode" in msg:
         if encode:
             raise click.UsageError("Duplicate encode script")
@@ -93,6 +98,7 @@ async def set(obj, path, encode, decode, data, in_, out):
         path=("codec",) + path,
         iter=False,
         nchain=obj.meta,
+        chain=chain,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

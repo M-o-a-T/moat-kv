@@ -1063,7 +1063,8 @@ class ServerClient:
             return {"changed": res}
 
     async def cmd_log(self, msg):
-        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False))
+        full=msg.get('full',False)
+        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False), full=full)
         return True
 
     async def cmd_save(self, msg):

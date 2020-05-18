@@ -158,6 +158,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
             except PermissionError:
                 pass
 
+    _cfg(os.path.expanduser("~/config/distkv.cfg"))
     _cfg(os.path.expanduser("~/.config/distkv.cfg"))
     _cfg(os.path.expanduser("~/.distkv.cfg"))
     _cfg("/etc/distkv/distkv.cfg")

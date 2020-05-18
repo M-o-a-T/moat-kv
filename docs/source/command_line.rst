@@ -57,6 +57,7 @@ Options used only for testing are not shown in the commands' help text.
    readable:
 
    * ~/config/distkv.cfg
+   * ~/.config/distkv.cfg
    * ~/.distkv.cfg
    * /etc/distkv/distkv.cfg
    * /etc/distkv.cfg

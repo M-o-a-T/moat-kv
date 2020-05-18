@@ -1,6 +1,6 @@
 #
 """
-Test auth method.
+Password-based auth method.
 
 Does not limit anything, allows everything.
 """
