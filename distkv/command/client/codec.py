@@ -3,7 +3,7 @@
 import asyncclick as click
 import yaml
 
-from distkv.util import yprint
+from distkv.util import yprint, NotGiven
 
 import logging
 
@@ -63,6 +63,11 @@ async def set(obj, path, encode, decode, data, in_, out):
         msg = yaml.safe_load(data)
     else:
         msg = {}
+    chain = NotGiven
+    if "value" in msg:
+        chain = msg.get("chain", NotGiven)
+        msg = msg["value"]
+
     if "encode" in msg:
         if encode:
             raise click.UsageError("Duplicate encode script")
@@ -93,6 +98,7 @@ async def set(obj, path, encode, decode, data, in_, out):
         path=("codec",) + path,
         iter=False,
         nchain=obj.meta,
+        chain=chain,
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
