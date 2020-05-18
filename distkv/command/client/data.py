@@ -161,12 +161,13 @@ async def set(obj, path, eval_path, value, eval_, prev, last, new):
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
+@click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
 @click.option("-V", "--eval-path", type=int,multiple=True, help="Eval this path element")
 @click.option(
     "-e", "--eval", is_flag=True, help="The previous value shall be evaluated."
 )
 @click.pass_obj
-async def delete(obj, path, eval_path, prev, last, recursive, eval):
+async def delete(obj, path, eval_path, prev, last, recursive, eval, internal):
     """
     Delete an entry, or a whole subtree.
 
@@ -185,6 +186,8 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval):
     if recursive:
         if prev is not NotGiven or last:
             raise click.UsageError("'local' and 'force' are mutually exclusive")
+        if internal:
+            raise click.UsageError("'internal' and 'recursive' are mutually exclusive")
     else:
         if prev is not NotGiven:
             if eval:
@@ -194,7 +197,7 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client._request(
-        action="delete_tree" if recursive else "delete_value",
+        action="delete_tree" if recursive else "delete_internal" if internal else "delete_value",
         path=tuple(path_eval(path,eval_path)),
         nchain=obj.meta,
         **args
