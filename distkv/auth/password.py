@@ -78,10 +78,12 @@ class ServerUserMaker(BaseServerAuthMaker):
     async def recv(cls, cmd, data):
         self = cls()
         self._name = data.ident
-        pwd = await unpack_pwd(cmd.client, data.password)
+        self._aux = data.get("aux")
+        if data.password is not None:
+            pwd = await unpack_pwd(cmd.client, data.password)
 
-        # TODO use Argon2 to re-hash this
-        self.password = pwd
+            # TODO use Argon2 to re-hash this
+            self.password = pwd
         return self
 
     async def send(self, cmd):
@@ -120,7 +122,7 @@ class ServerUser(RootServerUser):
 
 
 class ClientUserMaker(BaseClientAuthMaker):
-    schema = dict(
+    gen_schema = dict(
         type="object",
         additionalProperties=True,
         properties=dict(
@@ -128,6 +130,14 @@ class ClientUserMaker(BaseClientAuthMaker):
             password=dict(type="string", minLength=5),
         ),
         required=["name", "password"],
+    )
+    mod_schema = dict(
+        type="object",
+        additionalProperties=True,
+        properties=dict(
+            password=dict(type="string", minLength=5),
+        ),
+        #required=[],
     )
     _name = None
     _pass = None
@@ -140,28 +150,36 @@ class ClientUserMaker(BaseClientAuthMaker):
     # Overly-complicated methods of exchanging the user name
 
     @classmethod
-    def build(cls, user):
-        self = super().build(user)
+    def build(cls, user, _initial=True):
+        self = super().build(user, _initial=_initial)
         self._name = user["name"]
-        self._pass = user["password"].encode("utf-8")
+        if 'password' in user:
+            self._pass = user["password"].encode("utf-8")
         return self
 
     @classmethod
-    async def recv(cls, client: Client, ident: str, _kind: str = "user"):
+    async def recv(cls, client: Client, ident: str, _kind: str = "user", _initial=True):
         """Read a record representing a user from the server."""
         m = await client._request(
-            action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident
+            action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident,
+            nchain=0 if _initial else 2,
         )
         # just to verify that the user exists
         # There's no reason to send the password hash back
-        self = cls()
+        self = cls(_initial=_initial)
         self._name = m.name
-        self._chain = m.chain
+        try:
+            self._chain = m.chain
+        except AttributeError:
+            pass
         return self
 
     async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
-        pw = await pack_pwd(client, self._pass, self._length)
+        if self._pass is None:
+            pw = None
+        else:
+            pw = await pack_pwd(client, self._pass, self._length)
 
         await client._request(
             action="auth_set",
@@ -170,6 +188,8 @@ class ClientUserMaker(BaseClientAuthMaker):
             kind=_kind,
             password=pw,
             chain=self._chain,
+            aux=self._aux,
+            **msg
         )
 
     def export(self):

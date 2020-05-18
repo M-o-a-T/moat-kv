@@ -230,32 +230,35 @@ class BaseClientAuthMaker(_AuthLoaded):
     """
     This class is used for creating a data record which describes a user record.
 
-    This is not the same as a :class:`BaseClientAuth`; this class is used to
-    represent stored user data on the server, while a :class:`BaseClientAuth` is used solely
-    for authentication.
+    While :class:`BaseClientAuth` is used solely for authentication,
+    this class is used to represent the server's user data.
 
     The schema verifies the input to :meth:`build`.
     """
 
-    schema = null_schema
-    aux_schema = None  # overidden by the loader
+    gen_schema = null_schema
+    mod_schema = null_schema
+    aux_schema = None  # overridden by the loader
     _chain = None
 
-    def __init__(self, **data):
+    def __init__(self, _initial=True, **data):
         aux = data.pop("aux", {})
 
-        jsonschema.validate(instance=data, schema=type(self).schema)
+        if _initial:
+            jsonschema.validate(instance=data, schema=type(self).gen_schema)
+        else:
+            jsonschema.validate(instance=data, schema=type(self).mod_schema)
         jsonschema.validate(instance=aux, schema=type(self).aux_schema)
         for k, v in data.items():
             setattr(self, k, v)
         self._aux = aux
 
     @classmethod
-    def build(cls, user):
+    def build(cls, user, _initial=True):
         """
         Create a user record from the data conforming to this schema.
         """
-        return cls(**user)
+        return cls(**user, _initial=_initial)
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
@@ -270,12 +273,16 @@ class BaseClientAuthMaker(_AuthLoaded):
         return "*"
 
     @classmethod
-    async def recv(cls, client: Client, ident: str, _kind="user"):
-        """Read this user from the server."""
+    async def recv(cls, client: Client, ident: str, _kind="user", _initial=True):
+        """Read this user from the server.
+        
+        Sample code …
+        """
         res = await client._request(
-            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident
+            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident,
+            nchain=0 if _initial else 2,
         )
-        self = cls()
+        self = cls(_initial=_initial)
         self._chain = res.chain
         return self
 
@@ -358,7 +365,7 @@ class BaseServerAuth(_AuthLoaded):
         This includes information to identify the user, but not anything
         that'd be suitable for verifying or even faking authorization.
         """
-        return {}
+        return {'name':self._name}
 
     async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.

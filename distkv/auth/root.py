@@ -44,7 +44,8 @@ class ServerUser(RootServerUser):
 
 
 class ClientUserMaker(BaseClientAuthMaker):
-    schema = {"type": "object", "additionalProperties": False}
+    gen_schema = {"type": "object", "additionalProperties": False}
+    mod_schema = {"type": "object", "additionalProperties": False}
 
     @property
     def ident(self):

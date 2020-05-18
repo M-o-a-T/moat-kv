@@ -342,7 +342,7 @@ class SCmd_auth_get(StreamCommand):
     plus any other data the client-side manager object sends
     """
 
-    multiline = True
+    multiline = False
 
     async def run(self):
         from .auth import loader
@@ -359,9 +359,14 @@ class SCmd_auth_get(StreamCommand):
 
         auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
         data = auth.follow(msg.typ, kind, msg.ident, create=False)
-        cls = loader(msg.typ, kind, server=True, make=True)
+        cls = loader(msg.typ, kind, server=True, make=False)
         user = cls.load(data)
-        return await user.send(self)
+
+        res = user.info()
+        nchain = msg.get('nchain',0)
+        if nchain:
+            res['chain'] = data.chain.serialize(nchain=nchain)
+        return res
 
 
 class SCmd_auth_set(StreamCommand):
@@ -399,7 +404,6 @@ class SCmd_auth_set(StreamCommand):
         user = await cls.recv(self, msg)
         msg.value = user.save()
         msg.path = (*root, None, "auth", msg.typ, kind, user.ident)
-        msg.chain = user._chain
         return await client.cmd_set_value(msg, _nulls_ok=True)
 
 

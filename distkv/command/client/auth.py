@@ -142,7 +142,7 @@ async def get(obj, ident):
     if obj._DEBUG:
         lv._length = 16
 
-    u = await lv.recv(obj.client, ident)
+    u = await lv.recv(obj.client, ident, _initial=False)
     yprint(u.export(), stream=obj.stdout)
 
 
@@ -171,7 +171,7 @@ async def add_mod_user(obj, args, modify, add):
     if obj._DEBUG:
         u._length = 16
     if modify:
-        ou = await u.recv(obj.client, modify)
+        ou = await u.recv(obj.client, modify, _initial=False)
         kw = ou.export()
     else:
         kw = {}
@@ -182,7 +182,7 @@ async def add_mod_user(obj, args, modify, add):
         for a in add:
             split_one(a, ax)
 
-    u = u.build(kw)
+    u = u.build(kw, _initial=False)
     if modify is None or u.ident != modify:
         u._chain = None  # new user
     else:
