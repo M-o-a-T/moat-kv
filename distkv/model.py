@@ -835,10 +835,6 @@ class Entry:
             )
             return
 
-        if self._data is NotGiven:
-            if evt.event.prev is not None:
-                raise ValueError("This is a new entry, but chain is present.")
-
         if self.chain > evt.event:  # already superseded
             return
 
