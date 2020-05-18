@@ -258,7 +258,10 @@ class MatchRoot(MetaPathEntry):
 
     def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
-        match = self._find_node(entry)
+        try:
+            match = self._find_node(entry)
+        except KeyError:
+            match = None
         if match is None:
             return
         typ = self.parent["type"].follow(*match._data["type"])
