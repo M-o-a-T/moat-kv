@@ -3,7 +3,7 @@
 import asyncclick as click
 
 from range_set import RangeSet
-from distkv.util import yprint
+from distkv.util import yprint, PathLongener
 from collections.abc import Mapping
 
 import logging
@@ -163,9 +163,11 @@ async def dump(obj, path):
     """
 
     y = {}
+    pl=PathLongener()
     async for r in await obj.client._request(
         "get_tree_internal", path=path, iter=True, nchain=0
     ):
+        pl(r)
         path = r["path"]
         yy = y
         for p in path:
