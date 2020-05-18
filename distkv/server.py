@@ -576,7 +576,7 @@ class SCmd_msg_monitor(StreamCommand):
         topic = msg.topic
         if isinstance(topic,str):
             topic = (topic,)
-        if topic[0][0] == ":":
+        if len(topic) and topic[0][0] == ":":
             topic = self.cfg.server.root + topic
 
         async with self.client.server.serf.monitor(*topic) as stream:
