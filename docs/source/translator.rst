@@ -67,29 +67,27 @@ Putting it all together
 Given the following structure, values stored at ("foo", anything, "bar")
 must be integers::
 
-    _: 123
-    null:
-      match:
-        foo:
-          +:
-            bar:
-              _:
-                type:
-                - int
-                - percent
-      type:
-        int:
-          _:
-            bad: [none, "foo"]
-            code: 'if not isinstance(value,int): raise ValueError(''not an int'')'
-            good: [0,2]
-          percent:
+    match:
+      foo:
+        +:
+          bar:
             _:
-              bad: [-1,555]
-              code: 'if not 0<=value<=100: raise ValueError(''not a percentage'')
-    
-                '
-              good: [0,100,50]
+              type:
+              - int
+              - percent
+    type:
+      int:
+        _:
+          bad: [none, "foo"]
+          code: 'if not isinstance(value,int): raise ValueError(''not an int'')'
+          good: [0,2]
+        percent:
+          _:
+            bad: [-1,555]
+            code: 'if not 0<=value<=100: raise ValueError(''not a percentage'')'
+            good: [0,100,50]
+    ---
+    _: 123
     foo:
       dud:
         bar:
@@ -97,8 +95,16 @@ must be integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_typecheck.py::test_72_cmd``, when
-dumped with the command ``distkv client get -rd_``.
+dumped with the commands ``distkv client internal dump`` and
+``distkv client get -rd_``.
 
+On the command line, you can do the same thing thus::
+
+    $ echo "if not isinstance(value,int): raise ValueError('not an int')" | \
+      distkv client type set -b None -b  '"foo"' -g 0 -g 2 -s - int
+    $ echo "if not 0<=value<=100: raise ValueError('not a percentage')" | \
+      distkv client type set -b -1 -b  555 -g 0 -g 100 -g 50 -s - int percent
+    $ distkv client type match -t int -t percent foo + bar
 
 +++++++++++
 Translation
@@ -111,15 +117,16 @@ the Boolean ``state`` attribute of ``home.bath.light``. Or maybe the value
 is a percentage and you'd like to ensure that the stored value is 0.5
 instead of "50%", and that no rogue client can set it to -20 or "gotcha".
 
-To ensure this, DistKV employs a two-level type mechanism.
+To ensure this, DistKV uses two typing mechanisms. One has been described,
+above, and ensures that the values are correct:
 
 * "type" entries describe the type of entry ("this is an integer between 0
   and 42").
 
 * "match" entries describe the path position to which that type applies
 
-In addition, a similar mechanism may be used to convert clients' values to
-DistKV entries and back.
+Another, similar mechanism may then be used to convert clients' values to
+DistKV entries and back:
 
 * "codec" entries describe distinct converters ("50%" => 0.5; "ON" => 'set
   the entry's "state" property to ``True``')
@@ -168,39 +175,39 @@ write stringified integers under keys below the "inty" key, which will be
 stored as integers::
 
 
-    null:
-      auth:
+    auth:
+      _:
+        current: _test
+      _test:
+        user:
+          con:
+            _:
+              _aux:
+                conv: foo
+          std:
+            _:
+              _aux: {}
+    codec:
+      int:
         _:
-          current: _test
-        _test:
-          user:
-            con:
-              _:
-                _aux:
-                  conv: foo
-            std:
-              _:
-                _aux: {}
-      codec:
-        int:
-          _:
-            decode: assert isinstance(value,str); return int(value)
-            encode: return str(value)
-            in:
-            - [ '1', 1 ]
-            - [ '2', 2 ]
-            - [ '3', 3 ]
-            out:
-            - [ 1, '1' ]
-            - [ 2, '2' ]
-            - [ -3, '-3' ]
-      conv:
-        foo:
-          inty:
-            '#':
-              _:
-                codec:
-                - int
+          decode: assert isinstance(value,str); return int(value)
+          encode: return str(value)
+          in:
+          - [ '1', 1 ]
+          - [ '2', 2 ]
+          - [ '3', 3 ]
+          out:
+          - [ 1, '1' ]
+          - [ 2, '2' ]
+          - [ -3, '-3' ]
+    conv:
+      foo:
+        inty:
+          '#':
+            _:
+              codec:
+              - int
+    ---
     inty:
       _: hello
       ten:
@@ -214,7 +221,8 @@ stored as integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_convert.py::test_71_basic``, when
-dumped with the command ``distkv client get -rd_``.
+dumped with the commands ``distkv client internal dump`` and
+``distkv client get -rd_``.
 
 Paths
 =====
