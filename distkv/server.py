@@ -918,6 +918,7 @@ class ServerClient:
             except ClientError:
                 raise
             except Exception as exc:
+                logger.exception("Err %s: %r", exc, msg)
                 raise ClientError(repr(exc)) from None
                 # TODO pass exceptions to the client
 
