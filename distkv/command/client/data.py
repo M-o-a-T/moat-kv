@@ -138,7 +138,7 @@ async def set(obj, path, eval_path, value, eval_, prev, last, new):
         value = eval(value)
     args = {}
     if new:
-        if prev or last:
+        if prev is not NotGiven or last:
             raise click.UsageError("'new' and 'prev'/'last' are mutually exclusive")
         args["chain"] = None
     else:
