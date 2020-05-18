@@ -76,9 +76,9 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
         msg = yaml.safe_load(data)
     else:
         msg = {}
-    chain = None
+    chain = NotGiven
     if "value" in msg:
-        chain = msg.get("chain", None)
+        chain = msg.get("chain", NotGiven)
         msg = msg["value"]
 
     msg.setdefault("good", [])
