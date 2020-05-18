@@ -1063,12 +1063,13 @@ class ServerClient:
             return {"changed": res}
 
     async def cmd_log(self, msg):
-        full=msg.get('full',False)
-        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False), full=full)
+        await self.server.run_saver(path=msg.path, save_state=msg.get("fetch", False))
         return True
 
     async def cmd_save(self, msg):
-        await self.server.save(path=msg.path)
+        full=msg.get('full',False)
+        await self.server.save(path=msg.path, full=full)
+
         return True
 
     async def cmd_stop(self, msg):
@@ -2230,11 +2231,11 @@ class Server:
         await writer(msg)
         await self.root.walk(saver, full=full)
 
-    async def save(self, path: str = None, stream=None):
+    async def save(self, path: str = None, stream=None, full=True):
         """Save the current state to ``path`` or ``stream``."""
         shorter = PathShortener([])
         async with MsgWriter(path=path, stream=stream) as mw:
-            await self._save(mw, shorter)
+            await self._save(mw, shorter, full=full)
 
     async def save_stream(
         self,
