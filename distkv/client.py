@@ -66,12 +66,15 @@ async def open_client(**cfg):
     """
     This async context manager returns an opened client connection.
 
-    There is no attempt to reconnect if the Serf connection should fail.
+    There is no attempt to reconnect if the connection should fail.
     """
     client = Client(cfg)
     async with anyio.create_task_group() as tg:
         async with client._connected(tg) as client:
             yield client
+            pass # end connected
+        pass # end taskgroup
+    pass # end client
 
 
 class StreamedRequest:
