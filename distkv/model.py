@@ -683,9 +683,10 @@ class Entry:
                     raise KeyError(path)
                 acl.check("n")
                 if create is not None:
-                    child = self.SUBTYPES.get(name, self.SUBTYPE)(
-                        name, self, tock=self.tock
-                    )
+                    child = self.SUBTYPES.get(name, self.SUBTYPE)
+                    if child is None:
+                        raise ValueError("Cannot add %s to %s" % (name,self))
+                    child = child(name, self, tock=self.tock)
             else:
                 acl.check("x")
             try:
