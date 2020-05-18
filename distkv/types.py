@@ -352,14 +352,15 @@ class ConvEntry(MetaEntry):
     """
 
     async def set(self, value):
-        if isinstance(value.codec, str):
-            value.codec = (value.codec,)
-        elif not isinstance(value.codec, (list, tuple)):
-            raise ValueError("Codec is not a string or list")
-        try:
-            self.metaroot["codec"].follow(*value.codec, create=False)
-        except KeyError:
-            raise ClientError("This codec does not exist")
+        if value is not NotGiven:
+            if isinstance(value.codec, str):
+                value.codec = (value.codec,)
+            elif not isinstance(value.codec, (list, tuple)):
+                raise ValueError("Codec is not a string or list")
+            try:
+                self.metaroot["codec"].follow(*value.codec, create=False)
+            except KeyError:
+                raise ClientError("This codec does not exist")
         # crashes if nonexistent
         await super().set(value)
 
