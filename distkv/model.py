@@ -663,7 +663,7 @@ class Entry:
         The ACL key 'W' is special: it checks 'c' if the node is new, else
         'w'.
 
-        Returns tuple (node, acl) tuple.
+        Returns a (node, acl) tuple.
         """
         if acl is None:
             global NullACL
