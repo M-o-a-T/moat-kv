@@ -1105,6 +1105,7 @@ class ServerClient:
             return
         async with self._send_lock:
             if self._send_lock is None:
+                # yes this can happen, when the connection is torn down
                 return
 
             if "tock" not in msg:
