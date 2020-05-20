@@ -414,7 +414,11 @@ class Client:
             if sock is None:
                 raise ServerClosedError("Disconnected")
 
-            await sock.send_all(packer(params))
+            try:
+                p = packer(params)
+            except TypeError as e:
+                raise ValueError("Unable to pack: %r" % repr(params)) from e
+            await sock.send_all(p)
 
     async def _reader(self, *, evt=None):
         """Main loop for reading

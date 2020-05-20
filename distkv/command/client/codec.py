@@ -98,7 +98,7 @@ async def set(obj, path, encode, decode, data, in_, out):
         path=("codec",) + path,
         iter=False,
         nchain=obj.meta,
-        chain=chain,
+        **({} if chain is NotGiven else {'chain':chain}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

@@ -57,8 +57,6 @@ class ServerUserMaker(BaseServerAuthMaker):
         assert msg.step == "HasName"
         self = cls()
         self.name = msg.name
-        self._aux = msg.get("aux")
-        self._chain = msg.get("chain")
         return self
 
     async def send(self, cmd):

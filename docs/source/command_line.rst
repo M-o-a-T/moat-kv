@@ -485,7 +485,7 @@ Manage DistKV users.
 Each authorization method has its own schema for validating users.
 
 
-.. program:: distkv client auth user add
+.. program:: distkv client auth user add <key>=<value>…
 
 Add a new user.
 
@@ -494,29 +494,42 @@ Example: ``distkv client -a root auth -m password user add name=foo password=bar
 The identifier which you'd use to subsequently refer to that user is
 printed when this command completes.
 
-.. option:: -a, --add <key>=<value>
-
-   Set an additional parameter, i.e. one that controls DistKV's handling of
-   that user. Used e.g. for setting the user's ACL.
-
 .. option:: <key>=<value>
 
-   Set an auth-specific parameter, i.e. one that's controlled by the auth
-   mode.
+   Set an auth-specific parameter. If you write ``password?`` instead of
+   ``password=SomeSecret``, you tell DistKV to read the actual data from the
+   terminal (without echo) so that it won't show up in your history.
 
 
-.. program:: distkv client auth user mod
+.. program:: distkv client auth user mod <ident> <key>=<value>…
 
 Modify a user.
 
-.. option:: -a, --add <key>=<value>
+.. option:: <ident>
 
-   Set or change an additional parameter, i.e. 
+   The identifier DistKV has assigned to the user.
+
+.. option:: <key>=<value>
+   Set an auth-specific parameter.
 
 
-.. option:: <userid>
+.. program:: distkv client auth user param <ident> <type> <key>
 
-The ID of the user to modify. Printed when adding or listing the user.
+Modify a user's setting.
+
+.. option:: <ident>
+
+   The identifier DistKV has assigned to the user.
+
+.. option:: <type>
+
+   The type of setting to modify. The server interprets "acl" and "conv".
+
+.. option:: <key>
+
+   The type-dependent setting to use as stored in DistKV. For ACLs the
+   relevant record is added with ``distkv client acl set <key> …``, for data
+   conversion ``distkv client codec convert <key> …``.
 
 
 .. program:: distkv client auth user auth

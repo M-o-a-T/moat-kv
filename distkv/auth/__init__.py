@@ -76,11 +76,19 @@ null_schema = {"type": "object", "additionalProperties": False}
 # Additional schema data for specific types
 add_schema = {
     "user": {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "acl": {type: "string", "minLength": 1},
-            "conv": {type: "string", "minLength": 1},
+        "acl": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "key": {type: "string", "minLength": 1},
+            },
+        },
+        "conv": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "key": {type: "string", "minLength": 1},
+            },
         },
     }
 }
@@ -93,8 +101,7 @@ def loader(method: str, typ: str, *a, **k):
     cls = import_module(m).load(typ, *a, **k)
     cls._auth_method = method
     cls._auth_typ = typ
-    if k.get("make", False):
-        cls.aux_schema = add_schema.get(typ, null_schema)
+    cls.aux_schemas = add_schema.get(typ, null_schema)
     return cls
 
 
@@ -238,20 +245,15 @@ class BaseClientAuthMaker(_AuthLoaded):
 
     gen_schema = null_schema
     mod_schema = null_schema
-    aux_schema = None  # overridden by the loader
     _chain = None
 
     def __init__(self, _initial=True, **data):
-        aux = data.pop("aux", {})
-
         if _initial:
             jsonschema.validate(instance=data, schema=type(self).gen_schema)
         else:
             jsonschema.validate(instance=data, schema=type(self).mod_schema)
-        jsonschema.validate(instance=aux, schema=type(self).aux_schema)
         for k, v in data.items():
             setattr(self, k, v)
-        self._aux = aux
 
     @classmethod
     def build(cls, user, _initial=True):
@@ -262,7 +264,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {"aux": self._aux}
+        return {}
 
     @property
     def ident(self):
@@ -296,7 +298,6 @@ class BaseClientAuthMaker(_AuthLoaded):
                 kind=_kind,
                 ident=self.ident,
                 chain=self._chain,
-                aux=self._aux,
                 data=self.send_data(),
             )
         except NoData:
@@ -322,7 +323,6 @@ class BaseServerAuth(_AuthLoaded):
     can_auth_write = False
 
     def __init__(self, data: dict = {}):  # pylint: disable=dangerous-default-value
-        self._aux = None
         if data:
             for k, v in data.items():
                 setattr(self, k, v)
@@ -336,24 +336,22 @@ class BaseServerAuth(_AuthLoaded):
         """Verify that @data authenticates this user."""
         jsonschema.validate(instance=data.get("data", {}), schema=type(self).schema)
 
-    def aux_conv(self, root: Entry):
+    def aux_conv(self, data: Entry, root: Entry):
         from ..types import ConvNull
 
         try:
-            conv = self._aux.get("conv")
-            if conv is None:
-                return ConvNull
-            res, _ = root.follow_acl(None, "conv", conv, create=False, nulls_ok=True)
+            data = data['conv'].data['key']
+            res, _ = root.follow_acl(None, "conv", data, create=False, nulls_ok=True)
             return res
         except (KeyError, AttributeError):
             return ConvNull
 
-    def aux_acl(self, root: Entry):
+    def aux_acl(self, data: Entry, root: Entry):
         try:
-            acl = self._aux.get("acl")
-            if acl is None:
+            data = data['acl'].data['key']
+            if data == '*':
                 return NullACL
-            acl, _ = root.follow_acl(None, "acl", acl, create=False, nulls_ok=True)
+            acl, _ = root.follow_acl(None, "acl", data, create=False, nulls_ok=True)
             return ACLFinder(acl)
         except (KeyError, AttributeError):
             return NullACL
@@ -401,12 +399,9 @@ class BaseServerAuthMaker(_AuthLoaded):
     """
 
     schema = null_schema
-    aux_schema = None  # set by the loader
+    aux_schemas = None  # set by the loader
 
-    def __init__(self, chain=None, data=None, aux=None):
-        self._aux = aux
-        if aux is not None:
-            assert "_aux" not in data
+    def __init__(self, chain=None, data=None):
         if data is not None:
             for k, v in data.items():
                 setattr(self, k, v)
@@ -419,12 +414,10 @@ class BaseServerAuthMaker(_AuthLoaded):
 
     @classmethod
     async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":  # pylint: disable=unused-argument
-        """Create a new user by reading the record from the client"""
+        """Create/update a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
-        ax = data.get("aux", None) or {}
         jsonschema.validate(instance=dt, schema=cls.schema)
-        jsonschema.validate(instance=ax, schema=cls.aux_schema)
-        self = cls(chain=data.chain, data=dt, aux=ax)
+        self = cls(chain=data.chain, data=dt)
         return self
 
     @property

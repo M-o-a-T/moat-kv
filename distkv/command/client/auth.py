@@ -2,7 +2,7 @@
 
 import asyncclick as click
 
-from distkv.util import split_one
+from distkv.util import split_one, NotGiven
 from distkv.auth import loader, gen_auth
 from distkv.util import yprint
 
@@ -147,25 +147,66 @@ async def get(obj, ident):
 
 
 @user.command()
-@click.option("-a", "--add", multiple=True, help="additional non-method-specific data")
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def add(obj, args, add):
+async def add(obj, args):
     """Add a user."""
-    await add_mod_user(obj, args, None, add)
+    await add_mod_user(obj, args, None)
 
 
 @user.command()
-@click.option("-a", "--add", multiple=True, help="additional non-method-specific data")
+@click.option("-n", "--new", is_flag=True, help="New: ignore previous content")
+@click.argument("ident", nargs=1)
+@click.argument("type", nargs=1)
+@click.argument("key", nargs=1)
+@click.argument("args", nargs=-1)
+@click.pass_obj
+async def param(obj, new, ident, type, key, args):
+    """Set user parameters for auth, conversion, etc."""
+    auth = await one_auth(obj)
+    u = loader(auth, "user", make=True, server=False)
+    if obj._DEBUG:
+        u._length = 16
+    ou = await u.recv(obj.client, ident, _initial=False)
+    res = await obj.client._request(
+        action="get_internal", path=("auth",auth,"user",ident,type), iter=False, nchain=3)
+
+    kw = res.get('value', NotGiven)
+    if new or kw is NotGiven:
+        kw = {}
+        res.chain = None
+    if key == '-':
+        if args:
+            raise click.UsageError("You can't set params when deleting")
+        res = await obj.client._request(
+            action="delete_internal", path=("auth",auth,"user",ident,type), iter=False, chain=res.chain)
+
+    else:
+        kw['key'] = key
+
+        for a in args:
+            split_one(a, kw)
+
+        res = await obj.client._request(
+            action="set_internal", path=("auth",auth,"user",ident,type), iter=False, chain=res.chain, value=kw)
+    if obj.meta:
+        #res.ident = ident
+        #res.type = type
+        yprint(res, stream=obj.stdout)
+    else:
+        print(ident, type, key, file=obj.stdout)
+
+
+@user.command()
 @click.argument("ident", nargs=1)
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def mod(obj, ident, args, add):
+async def mod(obj, ident, args):
     """Change a user."""
-    await add_mod_user(obj, args, ident, add)
+    await add_mod_user(obj, args, ident)
 
 
-async def add_mod_user(obj, args, modify, add):
+async def add_mod_user(obj, args, modify):
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
     if obj._DEBUG:
@@ -177,10 +218,6 @@ async def add_mod_user(obj, args, modify, add):
         kw = {}
     for a in args:
         split_one(a, kw)
-    if add:
-        ax = kw.setdefault("aux", {})
-        for a in add:
-            split_one(a, ax)
 
     u = u.build(kw, _initial=False)
     if modify is None or u.ident != modify:

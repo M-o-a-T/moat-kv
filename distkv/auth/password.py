@@ -72,24 +72,20 @@ class ServerUserMaker(BaseServerAuthMaker):
     def ident(self):
         return self._name
 
-    # Overly-complicated methods of exchanging the user name
-
     @classmethod
     async def recv(cls, cmd, data):
         self = cls()
-        self._name = data.ident
+        self._name = data["ident"]
         self._aux = data.get("aux")
-        if data.password is not None:
-            pwd = await unpack_pwd(cmd.client, data.password)
+        pwd = data.get("password")
+        pwd = await unpack_pwd(cmd.client, pwd)
 
-            # TODO use Argon2 to re-hash this
-            self.password = pwd
+        # TODO use Argon2 to re-hash this
+        self.password = pwd
         return self
 
     async def send(self, cmd):
         return  # nothing to do, we don't share the hash
-
-    # Annoying methods to read+save the user name from/to KV
 
     @classmethod
     def load(cls, data):
@@ -176,17 +172,14 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
-        if self._pass is None:
-            pw = None
-        else:
-            pw = await pack_pwd(client, self._pass, self._length)
+        if self._pass is not None:
+            msg['password'] = await pack_pwd(client, self._pass, self._length)
 
         await client._request(
             action="auth_set",
             ident=self._name,
             typ=type(self)._auth_method,
             kind=_kind,
-            password=pw,
             chain=self._chain,
             aux=self._aux,
             **msg
@@ -194,7 +187,9 @@ class ClientUserMaker(BaseClientAuthMaker):
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {"name": self._name}
+        res = super().export()
+        res["name"] = self._name
+        return res
 
 
 class ClientUser(BaseClientAuth):

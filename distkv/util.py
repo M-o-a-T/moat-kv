@@ -128,6 +128,16 @@ def combine_dict(*d, cls=dict) -> dict:
             res[k] = combine_dict(*v, cls=cls)
     return res
 
+def drop_dict(data: dict, drop: tuple) -> dict:
+    data = data.copy()
+    for d in drop:
+        vv = data
+        if isinstance(d,tuple):
+            for dd in d[:-1]:
+                vv = vv[dd] = vv[dd].copy()
+            d = d[-1]
+        del vv[d]
+    return data
 
 class attrdict(dict):
     """A dictionary which can be accessed via attributes, for convenience.
