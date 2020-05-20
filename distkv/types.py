@@ -356,6 +356,8 @@ class ConvEntry(MetaEntry):
 
     async def set(self, value):
         if value is not NotGiven:
+            # can't run a nonexistent value through a codec
+
             if isinstance(value.codec, str):
                 value.codec = (value.codec,)
             elif not isinstance(value.codec, (list, tuple)):
@@ -364,7 +366,6 @@ class ConvEntry(MetaEntry):
                 self.metaroot["codec"].follow(*value.codec, create=False)
             except KeyError:
                 raise ClientError("This codec does not exist")
-        # crashes if nonexistent
         await super().set(value)
 
 
