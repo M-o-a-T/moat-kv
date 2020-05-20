@@ -98,7 +98,7 @@ async def set(obj, path, encode, decode, data, in_, out):
         path=("codec",) + path,
         iter=False,
         nchain=obj.meta,
-        chain=chain,
+        **({} if chain is NotGiven else {'chain':chain}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -108,7 +108,7 @@ async def set(obj, path, encode, decode, data, in_, out):
 @click.option(
     "-c", "--codec", multiple=True, help="Codec to link to. Multiple for hierarchical."
 )
-@click.option("-d", "--delete", help="Use to delete this converter.")
+@click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj

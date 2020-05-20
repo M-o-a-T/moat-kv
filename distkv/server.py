@@ -43,6 +43,7 @@ from .util import (
     MsgWriter,
     MsgReader,
     combine_dict,
+    drop_dict,
     create_tcp_server,
     gen_ssl,
     num2byte,
@@ -267,8 +268,8 @@ class SCmd_auth(StreamCommand):
                 client._chroot(root)
                 client.user = user
 
-                client.conv = user.aux_conv(client.root)
-                client.acl = user.aux_acl(client.root)
+                client.conv = user.aux_conv(data, client.root)
+                client.acl = user.aux_acl(data, client.root)
         finally:
             client._user = None
 
@@ -342,7 +343,7 @@ class SCmd_auth_get(StreamCommand):
     plus any other data the client-side manager object sends
     """
 
-    multiline = True
+    multiline = False
 
     async def run(self):
         from .auth import loader
@@ -359,9 +360,14 @@ class SCmd_auth_get(StreamCommand):
 
         auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
         data = auth.follow(msg.typ, kind, msg.ident, create=False)
-        cls = loader(msg.typ, kind, server=True, make=True)
+        cls = loader(msg.typ, kind, server=True, make=False)
         user = cls.load(data)
-        return await user.send(self)
+
+        res = user.info()
+        nchain = msg.get('nchain',0)
+        if nchain:
+            res['chain'] = data.chain.serialize(nchain=nchain)
+        return res
 
 
 class SCmd_auth_set(StreamCommand):
@@ -392,14 +398,22 @@ class SCmd_auth_set(StreamCommand):
             raise RuntimeError("Cannot write tenant users")
         kind = msg.get("kind", "user")
 
-        # just ensure that the 'auth' base node exists
-        client.root.follow_acl(*root, None, "auth", nulls_ok=2, create=True)
         cls = loader(msg.typ, kind, server=True, make=True)
+        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
 
-        user = await cls.recv(self, msg)
+        try:
+            data = auth.follow(msg.typ, kind, msg.ident, create=False)
+        except KeyError:
+            val = msg.value
+        else:
+            user = cls.load(data)
+            val = user.save()
+            val = drop_dict(val, msg.pop('drop',()))
+            val = combine_dict(msg, val)
+
+        user = await cls.recv(self, val)
         msg.value = user.save()
         msg.path = (*root, None, "auth", msg.typ, kind, user.ident)
-        msg.chain = user._chain
         return await client.cmd_set_value(msg, _nulls_ok=True)
 
 
@@ -594,37 +608,6 @@ class SCmd_msg_monitor(StreamCommand):
                 await self.send(**res)
 
 
-class SCmd_update(StreamCommand):
-    """
-    Stream a stored update to the server and apply it.
-    """
-
-    multiline = False
-
-    async def run(self):
-        client = self.client
-        conv = client.conv
-        tock_seen = client.server.tock_seen
-        msg = self.msg
-
-        path = msg.get("path", None)
-        longer = PathLongener(path) if path is not None else lambda x: x
-        n = 0
-        async for msg in self.in_q:
-            await tock_seen(msg.get("tock", None))
-            longer(msg)
-            msg = UpdateEvent.deserialize(
-                client.root,
-                msg,
-                nulls_ok=client.nulls_ok,
-                conv=conv,
-                cache=client._nodes,
-            )
-            await msg.entry.apply(msg, server=self, root=self.client.root)
-            n += 1
-        await self.send(count=n)
-
-
 class ServerClient:
     """Represent one (non-server) client."""
 
@@ -768,7 +751,6 @@ class ServerClient:
     async def cmd_auth_set(self, msg):
         class AuthSet(SingleMixin, SCmd_auth_set):
             pass
-
         return await AuthSet(self, msg)()
 
     async def cmd_auth_list(self, msg):
@@ -869,7 +851,7 @@ class ServerClient:
         if root is None:
             root = self.root
         try:
-            entry, acl = root.follow_acl(
+            entry, _ = root.follow_acl(
                 *msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok
             )
         except KeyError:
@@ -918,6 +900,7 @@ class ServerClient:
             except ClientError:
                 raise
             except Exception as exc:
+                logger.exception("Err %s: %r", exc, msg)
                 raise ClientError(repr(exc)) from None
                 # TODO pass exceptions to the client
 

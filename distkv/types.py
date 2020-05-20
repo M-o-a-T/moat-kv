@@ -258,7 +258,10 @@ class MatchRoot(MetaPathEntry):
 
     def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
-        match = self._find_node(entry)
+        try:
+            match = self._find_node(entry)
+        except KeyError:
+            match = None
         if match is None:
             return
         typ = self.parent["type"].follow(*match._data["type"])
@@ -352,15 +355,17 @@ class ConvEntry(MetaEntry):
     """
 
     async def set(self, value):
-        if isinstance(value.codec, str):
-            value.codec = (value.codec,)
-        elif not isinstance(value.codec, (list, tuple)):
-            raise ValueError("Codec is not a string or list")
-        try:
-            self.metaroot["codec"].follow(*value.codec, create=False)
-        except KeyError:
-            raise ClientError("This codec does not exist")
-        # crashes if nonexistent
+        if value is not NotGiven:
+            # can't run a nonexistent value through a codec
+
+            if isinstance(value.codec, str):
+                value.codec = (value.codec,)
+            elif not isinstance(value.codec, (list, tuple)):
+                raise ValueError("Codec is not a string or list")
+            try:
+                self.metaroot["codec"].follow(*value.codec, create=False)
+            except KeyError:
+                raise ClientError("This codec does not exist")
         await super().set(value)
 
 

@@ -57,8 +57,6 @@ class ServerUserMaker(BaseServerAuthMaker):
         assert msg.step == "HasName"
         self = cls()
         self.name = msg.name
-        self._aux = msg.get("aux")
-        self._chain = msg.get("chain")
         return self
 
     async def send(self, cmd):
@@ -66,7 +64,9 @@ class ServerUserMaker(BaseServerAuthMaker):
         msg = await cmd.recv()
         assert msg.step == "WantName"
         await cmd.send(
-            step="SendName", name=self.name, chain=self._chain.serialize(nchain=3)
+            step="SendName",
+            name=self.name,
+            chain=self._chain.serialize(nchain=3),
         )
         msg = await cmd.recv()
 
@@ -84,13 +84,19 @@ class ServerUser(RootServerUser):
 
 
 class ClientUserMaker(BaseClientAuthMaker):
-    schema = dict(
+    gen_schema = dict(
         type="object",
         additionalProperties=False,
         properties=dict(
             name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
         ),
         required=["name"],
+    )
+    mod_schema = dict(
+        type="object",
+        additionalProperties=False,
+        properties = dict(),
+        #required=[],
     )
     name = None
 
@@ -101,7 +107,7 @@ class ClientUserMaker(BaseClientAuthMaker):
     # Overly-complicated methods of exchanging the user name
 
     @classmethod
-    async def recv(cls, client: Client, ident: str, _kind: str = "user"):
+    async def recv(cls, client: Client, ident: str, _kind: str = "user", _initial=True):
         """Read a record representing a user from the server."""
         async with client._stream(
             action="auth_get",
@@ -109,6 +115,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             kind=_kind,
             ident=ident,
             stream=True,
+            nchain=0 if _initial else 2,
         ) as s:
             m = await s.recv()
             assert m.step == "SendWant", m
@@ -117,7 +124,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             assert m.step == "SendName", m
             assert m.name == ident
 
-            self = cls(name=m.name)
+            self = cls(name=m.name, _initial=_initial)
             self._chain = m.chain
             return self
 
