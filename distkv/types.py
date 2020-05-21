@@ -149,9 +149,9 @@ class NodeFinder:
                 steps.append((node, True))
             # Nodes found with '#' stay on the list
             # so that they can match multiple entries.
-        if not steps:
-            raise KeyError(name)
-        if new:
+        #if not steps:
+        #    raise KeyError(name)
+        if steps and new:
             return type(self)(steps, **self.copy_args)
         else:
             self.steps = steps
@@ -258,10 +258,7 @@ class MatchRoot(MetaPathEntry):
 
     def check_value(self, value, entry, **kv):
         """Check this value for this entry against my match hierarchy"""
-        try:
-            match = self._find_node(entry)
-        except KeyError:
-            match = None
+        match = self._find_node(entry)
         if match is None:
             return
         typ = self.parent["type"].follow(*match._data["type"])
