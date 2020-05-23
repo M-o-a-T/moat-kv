@@ -1329,14 +1329,20 @@ class Server:
             n = None
             try:
                 self.node.tick += 1
+                nt = self.node.tick
                 self._tock += 1
                 await self._set_tock()  # updates actor
                 n = NodeEvent(self.node)
                 yield n
-            except Exception as exc:
-                if n is not None and n.tick not in self.node:
+            except BaseException as exc:
+                if n is not None:
                     self.logger.warning("Deletion %s %d due to %r",self.node, n.tick, exc)
-                    self.node.report_deleted(RangeSet((n.tick,)), self)
+                    self.node.report_deleted(RangeSet((nt,)), self)
+                    async with anyio.move_on_after(2, shield=True):
+                        await self.server._send_event("info", dict(
+                            node="",
+                            tick=0,
+                            deleted={self.name:(nt,)}))
                 raise
             finally:
                 self._tock += 1
