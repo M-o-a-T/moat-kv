@@ -3,7 +3,7 @@
 import asyncclick as click
 import yaml
 
-from distkv.util import yprint, NotGiven
+from distkv.util import yprint, NotGiven, PathLongener
 
 import logging
 
@@ -44,6 +44,20 @@ async def get(obj, path, script, encode, decode):
     if not obj.meta:
         res = res.value
     yprint(res, stream=obj.stdout)
+
+
+@cli.command()
+@click.argument("path", nargs=-1)
+@click.pass_obj
+async def list(obj, path):
+    """List type information entries"""
+    res = await obj.client._request(
+        action="get_tree_internal", path=("codec",) + path, iter=True, nchain=obj.meta
+    )
+    pl = PathLongener(())
+    async for r in res:
+        pl(r)
+        print(" ".join(str(x) for x in r.path), file=obj.stdout)
 
 
 @cli.command()
@@ -109,16 +123,43 @@ async def set(obj, path, encode, decode, data, in_, out):
     "-c", "--codec", multiple=True, help="Codec to link to. Multiple for hierarchical."
 )
 @click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
+@click.option("-l", "--list", is_flag=True, help="Use to list this converter; '-' to list all.")
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def convert(obj, path, codec, name, delete):
+async def convert(obj, path, codec, name, delete, list):
     """Match a codec to a path (read, if no codec given)"""
-    if not path:
+    if delete and list:
+        raise click.UsageError("You can't both list and delete a path.")
+    if not path and not list:
         raise click.UsageError("You need a non-empty path.")
     if codec and delete:
         raise click.UsageError("You can't both set and delete a path.")
 
+    if list:
+        if name == '-':
+            if path:
+                raise click.UsageError("You can't use a path here.")
+            res = await obj.client._request(
+                action="enum_internal", path=("conv",), iter=False, nchain=0, empty=True
+            )
+            for r in res.result:
+                print(r, file=obj.stdout)
+
+            
+        else:
+            res = await obj.client._request(
+                action="get_tree_internal", path=("conv",name) + path, iter=True, nchain=obj.meta
+            )
+            pl = PathLongener(())
+            async for r in res:
+                pl(r)
+                try:
+                    print(" ".join(str(x) for x in r.path), ":", " ".join(r.value['codec']), file=obj.stdout)
+                except Exception as e:
+                    print(" ".join(str(x) for x in r.path), ":", e)
+
+        return
     if delete:
         res = await obj.client._request(
             action="delete_internal", path=("conv", name) + path
@@ -138,3 +179,4 @@ async def convert(obj, path, codec, name, delete):
         print(res.tock, file=obj.stdout)
     else:
         print(" ".join(res.type), file=obj.stdout)
+
