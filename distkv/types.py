@@ -355,6 +355,8 @@ class ConvEntry(MetaEntry):
         if value is not NotGiven:
             # can't run a nonexistent value through a codec
 
+            if not hasattr(value,'codec'):
+                raise ValueError("Duh? "+repr(value))
             if isinstance(value.codec, str):
                 value.codec = (value.codec,)
             elif not isinstance(value.codec, (list, tuple)):
