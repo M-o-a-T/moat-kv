@@ -31,4 +31,4 @@ fi
 
 systemctl enable distkv.service
 systemctl enable distkv-rotate.timer
-systemctl restart distkv.service
+systemctl restart distkv.service &
