@@ -173,8 +173,10 @@ class CodeRoot(ClientRoot):
         await self.wait_chain(r.chain)
 
     def __call__(self, name, *a, **kw):
+        if isinstance(name,str):
+            name = name.split(".")
         c = self
-        for k in name.split("."):
+        for k in name:
             c = c[k]
         if c is self:
             raise RuntimeError("Empty code names don't make sense")
