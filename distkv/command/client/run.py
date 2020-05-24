@@ -8,7 +8,7 @@ import anyio
 from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint
+from distkv.util import yprint, PathLongener
 
 import logging
 
@@ -47,6 +47,8 @@ async def all(obj):
     This does not return.
     """
     from distkv.util import as_service
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
 
     async with as_service(obj) as evt:
         _, evt = evt
@@ -72,6 +74,20 @@ async def all(obj):
 async def list(obj, state, as_dict, path):
     """List run entries.
     """
+    if obj.subpath[-1] == "-":
+        if path:
+            raise click.UsageError("Group '-' can only be used without a path.")
+
+        path = obj.path[:-1]
+        res = await obj.client._request(
+            action="get_tree", path=path, iter=True, max_depth=2,nchain=obj.meta, empty=True
+        )
+        pl=PathLongener(())
+        async for r in res:
+            pl(r)
+            print(r.path[-1],file=obj.stdout)
+        return
+
     if not path:
         path = ()
     path = obj.path+path
@@ -119,6 +135,8 @@ async def list(obj, state, as_dict, path):
 async def state(obj, path, result):
     """Get the status of a runner entry.
     """
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
     if result and obj.meta:
         raise click.UsageError("You can't use '-v' and '-r' at the same time.")
     if not path:
@@ -143,6 +161,8 @@ async def state(obj, path, result):
 @click.pass_obj
 async def get(obj, path):
     """Read a runner entry"""
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
     path = obj.path+ path
@@ -175,6 +195,8 @@ async def get(obj, path):
 @click.pass_obj
 async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     """Save / modify a run entry."""
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
     if eval_:
@@ -235,6 +257,8 @@ async def monitor(obj):
 
     # TODO this does not watch changes in DistKV.
     # It also should watch individual jobs' state changes.
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
 
     async with obj.client.msg_monitor("run") as cl:
         async for msg in cl:
