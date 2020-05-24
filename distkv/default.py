@@ -65,9 +65,10 @@ CFG = attrdict(
         actor=attrdict(  # Actor config
             cycle=10, nodes=-1, splits=5  # required for Runner
         ),
-        sub=attrdict(
+        sub=attrdict(  # tags for various runner modes
             group="any",
             single="at",
+            all="all",
         ),
     ),
     server=attrdict(
