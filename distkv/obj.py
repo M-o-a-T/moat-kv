@@ -146,7 +146,7 @@ class ClientEntry:
             raise RuntimeError("Duplicate child",self,name,c)
         c = self.child_type(name)
         if c is None:
-            return
+            raise KeyError(name)
         self._children[name] = c = c(self, name)
         return c
 
