@@ -146,7 +146,7 @@ class ClientEntry:
             raise RuntimeError("Duplicate child",self,name,c)
         c = self.child_type(name)
         if c is None:
-            return
+            raise KeyError(name)
         self._children[name] = c = c(self, name)
         return c
 
@@ -170,9 +170,7 @@ class ClientEntry:
             raise RuntimeError("You seem to have used 'path' instead of '*path'.")
 
         node = self
-        n = 0
-        for elem in path:
-            n += 1
+        for n,elem in enumerate(path, start=1):
             next_node = node.get(elem)
             if next_node is None:
                 if create is False:

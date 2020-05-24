@@ -3,6 +3,7 @@ Code to load external modules
 """
 
 import os
+import asyncclick as click
 
 def load_one(name, path, endpoint=None, **ns):
     fn = os.path.join(path, name)+".py"
@@ -77,6 +78,9 @@ def load_ext(name, func, endpoint=None, **kw):
     if not _ext_cache:
         _cache_ext()
 
-    return load_one(func, _ext_cache[name], endpoint, **kw)
+    try:
+        return load_one(func, _ext_cache[name], endpoint, **kw)
+    except KeyError:
+        raise click.UsageError("I do not know %r" %(name,))
 
     
