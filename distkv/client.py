@@ -188,6 +188,7 @@ class StreamedRequest:
             params["state"] = "start"
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
+        logger.debug("Send %s", {'seq':self.seq, **params})
         await self._client._send(seq=self.seq, **params)
 
     async def recv(self):
@@ -629,6 +630,7 @@ class Client:
                 await self.tg.spawn(self._reader)
                 async with anyio.fail_after(init_timeout):
                     self._server_init = await hello.get()
+                    logger.debug("Hello %s", self._server_init)
                     self.server_name = self._server_init.node
                     self.client_name = cfg["name"] or self.server_name
                     await self._run_auth(auth)
