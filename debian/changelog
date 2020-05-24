@@ -1,3 +1,9 @@
+distkv (0.19.5-1) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Sun, 24 May 2020 20:45:31 +0200
+
 distkv (0.19.4-1) unstable; urgency=medium
 
   * Merge
