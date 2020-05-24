@@ -556,7 +556,7 @@ class SCmd_watch(StreamCommand):
                     ml = len(m.entry.path) - len(msg.path)
                     if ml < min_depth:
                         continue
-                    if max_depth => 0 and ml > max_depth:
+                    if max_depth >= 0 and ml > max_depth:
                         continue
                     a = acl
                     for p in getattr(m, "path", [])[shorter.depth :]:
