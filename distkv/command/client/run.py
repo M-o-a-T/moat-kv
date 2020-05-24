@@ -31,7 +31,7 @@ async def cli(obj, node, group):
         subpath = (group,)
     else:
         obj.runner_root = SingleRunnerRoot
-        subpath = (group, node)
+        subpath = (node, group)
 
     obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
     obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
