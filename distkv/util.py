@@ -632,7 +632,7 @@ def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-
     """Compile this code block to a procedure.
 
     Args:
-        code: the code block to execute
+        code: the code block to execute. Text, will be indented.
         vars: variable names to pass into the code
         path: the location where the code is stored
         use_async: False if sync code, True if async, None if in thread

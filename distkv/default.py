@@ -56,8 +56,8 @@ CFG = attrdict(
     codes=attrdict(prefix=(".distkv", "code", "proc")),
     modules=attrdict(prefix=(".distkv", "code", "module")),
     runner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=(".distkv", "run"),  # main storage location
-        state=(".distkv", "state"),  # for distkv.runner.SingleRunnerRoot
+        prefix=(".distkv", "run"),  # storage for runnable commands
+        state=(".distkv", "state"),  # storage for runner states
         name="run",  # Serf event name, suffixed by subpath
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
