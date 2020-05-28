@@ -354,6 +354,9 @@ class PathLongener:
 
     def __init__(self, prefix:tuple =()):
         self.depth = len(prefix)
+        if not isinstance(prefix,tuple):
+            # may be a list, dammit
+            prefix = tuple(prefix)
         self.path = prefix
 
     def __call__(self, res):
