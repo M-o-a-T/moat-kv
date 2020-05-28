@@ -1335,10 +1335,10 @@ class Server:
                     self.logger.warning("Deletion %s %d due to %r",self.node, n.tick, exc)
                     self.node.report_deleted(RangeSet((nt,)), self)
                     async with anyio.move_on_after(2, shield=True):
-                        await self.server._send_event("info", dict(
+                        await self._send_event("info", dict(
                             node="",
                             tick=0,
-                            deleted={self.name:(nt,)}))
+                            deleted={self.node.name:(nt,)}))
                 raise
             finally:
                 self._tock += 1
