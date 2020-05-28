@@ -54,7 +54,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
     else:
         server_ctx = client_ctx = False
 
-    clock = trio.hazmat.current_clock()
+    clock = trio.lowlevel.current_clock()
     clock.autojump_threshold = 0.0
     #clock.rate = 5
 

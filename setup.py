@@ -16,7 +16,7 @@ setup(
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
         "asyncclick",
-        "trio >= 0.11",
+        "trio >= 0.15",
         "anyio",
         "range_set >= 0.2",
         "attrs >= 18.2",
