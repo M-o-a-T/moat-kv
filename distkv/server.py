@@ -165,7 +165,7 @@ class StreamCommand:
             raise RuntimeError("Can't explicitly send in simple interaction")
         try:
             await self.client.send(msg)
-        except trio.BrokenResourceError:
+        except trioBrokenResourceError:
             self.client.logger.info("OERR %d", self.client._client_nr)
 
 
