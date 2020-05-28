@@ -181,7 +181,6 @@ class ClientUserMaker(BaseClientAuthMaker):
             typ=type(self)._auth_method,
             kind=_kind,
             chain=self._chain,
-            aux=self._aux,
             **msg
         )
 

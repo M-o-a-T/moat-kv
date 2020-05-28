@@ -137,7 +137,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             m = await s.recv()
             assert m.step == "GiveName", m
             await s.send(
-                step="HasName", name=self.name, chain=self._chain, aux=self._aux
+                step="HasName", name=self.name, chain=self._chain
             )
             m = await s.recv()
             assert m.chain.prev is None

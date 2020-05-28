@@ -428,11 +428,9 @@ class BaseServerAuthMaker(_AuthLoaded):
     def save(self):
         """Return a record to represent this user, suitable for saving to DistKV"""
         # does NOT contain "ident" or "chain"!
-        # contains an attribute for "_aux"
-        return {"_aux": self._aux}
+        return {}
 
     async def send(self, cmd: StreamCommand):  # pylint: disable=unused-argument
         """Send a record to the client, possibly multi-step / secured / whatever"""
-        res = self._aux.copy()
         res["chain"] = self._chain.serialize() if self._chain else None
         return res
