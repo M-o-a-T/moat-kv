@@ -151,7 +151,7 @@ class NodeFinder:
             # so that they can match multiple entries.
         #if not steps:
         #    raise KeyError(name)
-        if steps and new:
+        if new:
             return type(self)(steps, **self.copy_args)
         else:
             self.steps = steps
