@@ -17,28 +17,28 @@ __all__ = [
     ]
 
 class ClientActor(Actor):
-    def __init__(self, client, *a, prefix, **kw):
-        super().__init__(ClientTransport(client, prefix), *a, **kw)
+    def __init__(self, client, *a, topic, **kw):
+        super().__init__(ClientTransport(client, topic), *a, **kw)
 
 class ClientTransport(Transport):
     """
     This class exports the client's direct messaging interface to the
     actor.
     """
-    def __init__(self, client, prefix):
+    def __init__(self, client, topic):
         self.client = client
-        self.prefix = prefix
+        self.topic = topic
 
     def monitor(self):
         return ClientMonitor(self)
 
     async def send(self, payload):
-        await self.client.msg_send(self.prefix, payload)
+        await self.client.msg_send(self.topic, payload)
 
 
 class ClientMonitor(MonitorStream):
     async def __aenter__(self):
-        self._mon1 = self.transport.client.msg_monitor(self.transport.prefix)
+        self._mon1 = self.transport.client.msg_monitor(self.transport.topic)
         self._mon2 = await self._mon1.__aenter__()
         return self
 

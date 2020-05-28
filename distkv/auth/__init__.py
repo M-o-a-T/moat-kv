@@ -66,7 +66,7 @@ from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict
+from ..util import split_one, attrdict, NotGiven
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -363,7 +363,7 @@ class BaseServerAuth(_AuthLoaded):
         This includes information to identify the user, but not anything
         that'd be suitable for verifying or even faking authorization.
         """
-        return {'name':self._name}
+        return {}
 
     async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.
@@ -402,7 +402,7 @@ class BaseServerAuthMaker(_AuthLoaded):
     aux_schemas = None  # set by the loader
 
     def __init__(self, chain=None, data=None):
-        if data is not None:
+        if data is not None and data is not NotGiven:
             for k, v in data.items():
                 setattr(self, k, v)
         self._chain = chain
@@ -417,7 +417,7 @@ class BaseServerAuthMaker(_AuthLoaded):
         """Create/update a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
         jsonschema.validate(instance=dt, schema=cls.schema)
-        self = cls(chain=data.chain, data=dt)
+        self = cls(chain=data['chain'], data=dt)
         return self
 
     @property
@@ -428,11 +428,9 @@ class BaseServerAuthMaker(_AuthLoaded):
     def save(self):
         """Return a record to represent this user, suitable for saving to DistKV"""
         # does NOT contain "ident" or "chain"!
-        # contains an attribute for "_aux"
-        return {"_aux": self._aux}
+        return {}
 
     async def send(self, cmd: StreamCommand):  # pylint: disable=unused-argument
         """Send a record to the client, possibly multi-step / secured / whatever"""
-        res = self._aux.copy()
         res["chain"] = self._chain.serialize() if self._chain else None
         return res

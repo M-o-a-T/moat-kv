@@ -399,17 +399,13 @@ class SCmd_auth_set(StreamCommand):
         kind = msg.get("kind", "user")
 
         cls = loader(msg.typ, kind, server=True, make=True)
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
+        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=True)
 
-        try:
-            data = auth.follow(msg.typ, kind, msg.ident, create=False)
-        except KeyError:
-            val = msg.value
-        else:
-            user = cls.load(data)
-            val = user.save()
-            val = drop_dict(val, msg.pop('drop',()))
-            val = combine_dict(msg, val)
+        data = auth.follow(msg.typ, kind, msg.ident, create=True)
+        user = cls.load(data)
+        val = user.save()
+        val = drop_dict(val, msg.pop('drop',()))
+        val = combine_dict(msg, val)
 
         user = await cls.recv(self, val)
         msg.value = user.save()
@@ -1339,10 +1335,10 @@ class Server:
                     self.logger.warning("Deletion %s %d due to %r",self.node, n.tick, exc)
                     self.node.report_deleted(RangeSet((nt,)), self)
                     async with anyio.move_on_after(2, shield=True):
-                        await self.server._send_event("info", dict(
+                        await self._send_event("info", dict(
                             node="",
                             tick=0,
-                            deleted={self.name:(nt,)}))
+                            deleted={self.node.name:(nt,)}))
                 raise
             finally:
                 self._tock += 1

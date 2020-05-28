@@ -58,7 +58,8 @@ async def test_82_many(autojump_clock):
                 ez = await ErrorRoot.as_handler(cz, name="a3")
 
                 async def err(e):
-                    await e.record_error("tester", "dup", message="Owchie at {node}", data={'node':e.name})
+                    with trio.CancelScope(shield=True):
+                        await e.record_error("tester", "dup", message="Owchie at {node}", data={'node':e.name})
                 async with trio.open_nursery() as tg:
                     tg.start_soon(err, ex)
                     tg.start_soon(err, ey)
@@ -73,7 +74,7 @@ async def test_82_many(autojump_clock):
                 n = 0
                 for err in ex.all_errors("tester"):
                     n += 1
-                    assert len(list(err)) == 3
+                    assert len(list(err)) == 3, list(err)
                     for k in err:
                         assert k._name in {"a1","a2","a3"}, k
                     await err.resolve()

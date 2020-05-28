@@ -31,6 +31,8 @@ async def test_81_basic(autojump_clock):
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
+            # TODO control what happens when stepping to where's no ACL
+            #await c._request("set_internal", path=("acl", "foo"), value="x")
             await c._request("set_internal", path=("acl", "foo", "one"), value="rxnc")
             await c._request(
                 "set_internal", path=("acl", "foo", "one", "two"), value="rc"
@@ -39,9 +41,12 @@ async def test_81_basic(autojump_clock):
             um = loader("_test", "user", make=True, server=False)
             u = um.build({"name": "std"})
             await u.send(c)
-            u = um.build({"name": "aclix", "aux": {"acl": "foo"}})
+            u = um.build({"name": "aclix"})
             await u.send(c)
+            await c._request("set_internal", path=("auth","_test","user","aclix","acl"), value=dict(key="foo"), iter=False)
             await c._request("set_auth_typ", typ="_test")
+            #, "aux": {"acl": "foo"}})
+
 
         recv = []
         um = loader("_test", "user", make=False, server=False)
@@ -52,4 +57,6 @@ async def test_81_basic(autojump_clock):
             with pytest.raises(ServerError):
                 await c.set("one", "two", "three", value=12)
             with pytest.raises(ServerError):
-                await c.set("foo", value=22)
+                await c.set("one", "two", value=22)
+#           with pytest.raises(ServerError):
+#               await c.set("foo", value=23)

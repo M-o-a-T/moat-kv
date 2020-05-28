@@ -117,7 +117,7 @@ class DeleteActor:
                             if val is None:
                                 self.n_pings = self.n_tags = 0
                                 continue
-                            if len(evt.msg["history"]) < self.n_nodes:
+                            if len(evt.msg.history) < self.n_nodes:
                                 self.n_pings = self.n_tags = 0
                                 continue
                             self.n_pings += 1

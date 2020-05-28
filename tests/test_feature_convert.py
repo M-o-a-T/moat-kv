@@ -49,7 +49,8 @@ async def test_71_basic(autojump_clock):
             um = loader("_test", "user", make=True, server=False)
             u = um.build({"name": "std"})
             await u.send(c)
-            u = um.build({"name": "con", "aux": {"conv": "foo"}})
+            u = um.build({"name": "con"})
+            await c._request("set_internal", path=("auth","_test","user","con","conv"), value=dict(key="foo"), iter=False)
             await u.send(c)
             await c._request("set_auth_typ", typ="_test")
 

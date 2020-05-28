@@ -86,7 +86,7 @@ class RunnerEntry(AttrClientEntry):
 
     @property
     def state(self):
-        return self.root.state.follow(*self.subpath, create=True)
+        return self.root.state.follow(*self.subpath, create=None)
 
     async def run(self):
         if self.code is None:
@@ -564,7 +564,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             self.tg = tg
 
             async with ClientActor(
-                self.client, self.name, prefix=self.group, cfg=self._cfg['actor']
+                self.client, self.name, topic=self.group, cfg=self._cfg['actor']
             ) as act:
                 self._act = act
 
@@ -740,7 +740,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             self._age_q = anyio.create_queue(1)
 
             async with ClientActor(
-                self.client, self.name, prefix=self.group, cfg=self._cfg
+                self.client, self.name, topic=self.group, cfg=self._cfg
             ) as act:
                 self._act = act
                 await tg.spawn(self._age_notifier)
