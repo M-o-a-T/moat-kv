@@ -438,7 +438,7 @@ class AclEntry(MetaEntry):
 AclEntry.SUBTYPE = AclEntry
 
 
-class AclName(MetaPathEntry):
+class AclName(AclEntry):
     """I am a named tree for ACL entries.
     """
 
@@ -449,10 +449,6 @@ class AclName(MetaPathEntry):
         if acl is None:
             return None
         return typ in acl.value
-
-    async def set(self, value):
-        if value is not None:
-            raise ValueError("This node can't have data.")
 
 
 class AclRoot(MetaEntry):
