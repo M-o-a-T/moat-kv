@@ -352,18 +352,20 @@ class PathLongener:
     attributes is a no-op.
     """
 
-    def __init__(self, prefix=()):
+    def __init__(self, prefix:tuple =()):
         self.depth = len(prefix)
         self.path = prefix
 
     def __call__(self, res):
-        try:
-            p = res.path
-        except AttributeError:
+        p = res.get('path', None)
+        if p is None:
             return
         d = res.pop("depth", None)
         if d is None:
             return
+        if not isinstance(p,tuple):
+            # may be a list, dammit
+            p = tuple(p)
         p = self.path[: self.depth + d] + p
         self.path = p
         res["path"] = p

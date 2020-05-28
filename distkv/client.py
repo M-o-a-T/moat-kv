@@ -838,7 +838,7 @@ class Client:
         all messages sent using :meth:`msg_send` with the same tag.
 
         Args:
-            tag: the "user:" tag to monitor.
+            tag: the topic / "user:" tag to monitor.
                  The first character may not be '+'.
                  Do not include Serf's "user:" prefix.
             raw: If ``True``, will not try to msgpack-decode incoming
@@ -852,7 +852,7 @@ class Client:
             error: Error message. Not present when ``raw`` is set or
                    ``data`` is present.
         usage::
-            async with client.msg_monitor("test") as cl:
+            async with client.msg_monitor(["test"]) as cl:
                 async for msg in cl:
                     if 'error' in msg:
                         raise RuntimeError(msg.error)
