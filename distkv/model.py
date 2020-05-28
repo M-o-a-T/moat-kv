@@ -665,6 +665,8 @@ class Entry:
 
         Returns a (node, acl) tuple.
         """
+
+        # KEEP IN SYNC with `follow`, below!
         if acl is None:
             global NullACL
             if NullACL is None:
@@ -702,11 +704,31 @@ class Entry:
         acl.check(acl_key)
         return (self, acl)
 
-    def follow(self, *a, **kw):
+    def follow(self, *path, create=True, nulls_ok=False):
         """
-        As :meth:`follow_acl`, but only returns the node.
+        As :meth:`follow_acl`, but isn't interested in ACLs and only returns the node.
         """
-        return self.follow_acl(*a, **kw)[0]
+        # KEEP IN SYNC with `follow_acl`, above!
+
+        first = True
+        for name in path:
+            if name is None and not nulls_ok:
+                raise ValueError("Null path element")
+            if nulls_ok == 1:  # root only
+                nulls_ok = False
+            child = self._sub.get(name, None) if self is not None else None
+            if child is None:
+                if create is False:
+                    raise KeyError(path)
+                if create is not None:
+                    child = self.SUBTYPES.get(name, self.SUBTYPE)
+                    if child is None:
+                        raise ValueError("Cannot add %s to %s" % (name,self))
+                    child = child(name, self, tock=self.tock)
+            first = False
+            self = child
+        return self
+
 
     def __getitem__(self, name):
         return self._sub[name]
