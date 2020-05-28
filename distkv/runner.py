@@ -86,7 +86,7 @@ class RunnerEntry(AttrClientEntry):
 
     @property
     def state(self):
-        return self.root.state.follow(*self.subpath, create=True)
+        return self.root.state.follow(*self.subpath, create=None)
 
     async def run(self):
         if self.code is None:
