@@ -363,7 +363,7 @@ class BaseServerAuth(_AuthLoaded):
         This includes information to identify the user, but not anything
         that'd be suitable for verifying or even faking authorization.
         """
-        return {'name':self._name}
+        return {}
 
     async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.
@@ -417,7 +417,7 @@ class BaseServerAuthMaker(_AuthLoaded):
         """Create/update a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
         jsonschema.validate(instance=dt, schema=cls.schema)
-        self = cls(chain=data.chain, data=dt)
+        self = cls(chain=data['chain'], data=dt)
         return self
 
     @property
