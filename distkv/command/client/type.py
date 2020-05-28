@@ -4,7 +4,7 @@ import asyncclick as click
 import json
 import yaml
 
-from distkv.util import yprint
+from distkv.util import yprint, NotGiven
 
 import logging
 
@@ -116,7 +116,7 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
         path=("type",) + path,
         iter=False,
         nchain=obj.meta,
-        chain=chain,
+        **({} if chain is NotGiven else {"chain":chain})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

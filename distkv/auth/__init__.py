@@ -66,7 +66,7 @@ from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict
+from ..util import split_one, attrdict, NotGiven
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -402,7 +402,7 @@ class BaseServerAuthMaker(_AuthLoaded):
     aux_schemas = None  # set by the loader
 
     def __init__(self, chain=None, data=None):
-        if data is not None:
+        if data is not None and data is not NotGiven:
             for k, v in data.items():
                 setattr(self, k, v)
         self._chain = chain
