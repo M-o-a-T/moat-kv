@@ -35,6 +35,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         del CFG["_stdout"]
     TESTCFG = copy.deepcopy(CFG)
     TESTCFG.server.port = None
+    TESTCFG.server.backend = "serf"
     TESTCFG.root = "test"
     if C_OUT is not NotGiven:
         CFG["_stdout"] = C_OUT
