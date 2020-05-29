@@ -17,8 +17,7 @@ from distkv.default import CFG
 from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
-from distkv.util import attrdict, combine_dict, NotGiven
-from asyncserf.util import ValueEvent
+from distkv.util import attrdict, combine_dict, NotGiven, ValueEvent
 from asyncserf.stream import SerfEvent
 from anyio import create_queue
 

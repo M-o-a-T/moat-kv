@@ -24,7 +24,7 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 from functools import partial
-from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
+from asyncserf.util import CancelledError as SerfCancelledError
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
 from asyncactor.backend import get_transport
 from pprint import pformat
@@ -49,6 +49,7 @@ from .util import (
     num2byte,
     byte2num,
     NotGiven,
+    ValueEvent,
 )
 from .exceptions import (
     ClientError,

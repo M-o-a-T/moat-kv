@@ -25,7 +25,6 @@ except ImportError:
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
 
-from asyncserf.util import ValueEvent
 from .util import (
     attrdict,
     gen_ssl,
@@ -34,6 +33,7 @@ from .util import (
     PathLongener,
     NotGiven,
     combine_dict,
+    ValueEvent,
 )
 from .default import CFG
 from .exceptions import (
