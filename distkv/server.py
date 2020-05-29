@@ -25,6 +25,7 @@ from typing import Any
 from range_set import RangeSet
 from functools import partial
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
+from asyncactor import TagEvent, UntagEvent, DetagEvent
 from asyncactor.backend import get_transport
 from pprint import pformat
 from collections.abc import Mapping
@@ -1821,6 +1822,10 @@ class Server:
                             await self.tock_seen(val[0])
                             val = val[1]
                         Node(msg_node, val, cache=self._nodes)
+                    elif isinstance(msg, (TagEvent,UntagEvent,DetagEvent)):
+                        pass
+                        # TODO tell clients, for cleanup tasks in handlers,
+                        # e.g. error needs to consolidate messages
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to.
