@@ -3,7 +3,7 @@ import trio
 import anyio
 import time
 
-from .mock_serf import stdtest
+from .mock_mqtt import stdtest
 
 from .run import run
 from functools import partial
