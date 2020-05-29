@@ -356,6 +356,7 @@ async def test_03_three(autojump_clock):
                 assert r.chain.prev.node == "test_0"
                 assert r.chain.prev.tick == 1
                 assert r.chain.prev.prev is None
+                await trio.sleep(1)
 
                 with pytest.raises(ServerError):
                     await c._request("get_value", node="test_1", tick=1)

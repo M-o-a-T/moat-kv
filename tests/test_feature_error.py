@@ -70,6 +70,7 @@ async def test_82_many(autojump_clock):
                     if h[0] != ":":
                         break
                 r = await run("client", "-m", "-h", h, "-p", p, "data", "get", "-rd_", do_stdout=False)
+                await trio.sleep(2)
 
                 n = 0
                 for err in ex.all_errors("tester"):
