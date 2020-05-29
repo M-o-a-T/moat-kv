@@ -591,7 +591,13 @@ class SCmd_msg_monitor(StreamCommand):
 
         async with self.client.server.serf.monitor(*topic) as stream:
             async for resp in stream:
-                res = attrdict(topic=topic)
+                if hasattr(resp,'topic'):
+                    t = resp.topic
+                    if isinstance(t,str):
+                        t = t.split('.')
+                else:
+                    t = topic
+                res = {"topic": t}
                 if raw:
                     res["raw"] = resp.payload
                 else:

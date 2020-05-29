@@ -230,9 +230,14 @@ class MockServ:
                 if (i_s < x) != (i_self < x):
                     break
             else:
-                sl = s.streams.get(name, ())
-                for s in sl:
-                    await s.q.put(payload)
+                oname = name
+                n = name.split('.')
+                while n:
+                    sl = s.streams.get(name, ())
+                    for sn in sl:
+                        await sn.q.put((oname,payload))
+                    n.pop()
+                    name = ".".join(n)
 
     def stream(self, typ):
         """compat for supporting asyncactor"""
@@ -273,5 +278,6 @@ class MockSerfStream:
     async def __anext__(self):
         res = await self.q.get()
         evt = SerfEvent(self)
-        evt.payload = res
+        evt.topic, evt.payload = res
         return evt
+

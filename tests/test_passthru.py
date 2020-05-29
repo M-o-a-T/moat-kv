@@ -21,14 +21,16 @@ async def test_51_passthru(autojump_clock):
                     async with c._stream("msg_monitor", topic=("foo",)) as q:
                         async for m in q:
                             assert "data" in m
+                            assert m.topic[0] == "foo"
+                            assert m.topic[1] in {"bar","baz"}
                             recv.append(m.data)
                 except CancelledError:
                     pass
 
             await s.spawn(mon)
             await trio.sleep(0.2)
-            await c._request("msg_send", topic=("foo",), data=["Hello", 42])
-            await c._request("msg_send", topic=("foo",), data=b"duh")
+            await c._request("msg_send", topic=("foo","bar"), data=["Hello", 42])
+            await c._request("msg_send", topic=("foo","baz"), data=b"duh")
             await trio.sleep(0.5)
         assert recv == [("Hello", 42), b"duh"]
         pass  # closing client
