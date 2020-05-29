@@ -1433,7 +1433,6 @@ class Server:
             msg["node"] = self.node.name
         if "tick" not in msg:
             msg["tick"] = self.node.tick
-        omsg = msg
         self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
             await self.serf.send(*self.cfg.server.root, action, payload=m)
