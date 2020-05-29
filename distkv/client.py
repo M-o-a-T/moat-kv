@@ -732,6 +732,21 @@ class Client:
             action="delete_value", path=path, iter=False, nchain=nchain, **kw
         )
 
+    async def list(self, *path, with_data=False, empty=None, **kw):
+        """
+        Retrieve the next data level.
+
+        Args:
+          with_data (bool): Return the data along with the keys. Default False.
+          empty (bool): Return [names of] empty nodes. Default True if
+            with_data is not set.
+        """
+        if empty is None:
+            empty = not with_data
+        res = await self._request(action="enum", path=path,
+                with_data=with_data, empty=empty, **kw)
+        return res.result
+
     async def get_tree(self, *path, long_path=True, **kw):
         """
         Retrieve a complete DistKV subtree.

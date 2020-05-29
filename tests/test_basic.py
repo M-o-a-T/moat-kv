@@ -58,6 +58,7 @@ async def test_01_basic(autojump_clock):
             r = await c.set("foo", value="hello", nchain=3)
             r = await c.set("foo", "bar", value="baz", nchain=3)
             bart = r.tock
+            r = await c.set("foo", "baz", value="quux", nchain=3)
             r = await c.get()
             assert r.value == 123
             assert r.tock < await c.get_tock()
@@ -69,11 +70,26 @@ async def test_01_basic(autojump_clock):
                 {"path": (), "value": 123},
                 {"path": ("foo",), "value": "hello"},
                 {"path": ("foo", "bar"), "value": "baz"},
+                {"path": ("foo", "baz"), "value": "quux"},
             ]
+            r = await c.list()
+            assert r == (None,".distkv",'foo',)
+            r = await c.list("foo")
+            assert r == ('bar','baz')
+            r = await c.list("foo", with_data=True)
+            assert r == dict(bar="baz",baz="quux")
+            r = await c.list("foo","bar")
+            assert r == ()
+
             async with c._stream("get_tree", path=(), max_depth=2) as rr:
                 r = await collect(rr)
             assert r == exp
 
+            async with c._stream("get_tree", path=(), min_depth=1) as rr:
+                r = await collect(rr)
+            assert r == exp[1:]
+
+            exp.pop()
             exp.pop()
             async with c._stream("get_tree", path=(), iter=True, max_depth=1) as rr:
                 r = await collect(rr)
@@ -95,9 +111,9 @@ async def test_01_basic(autojump_clock):
             del r["seq"]
             assert r == {
                 "node": "test_0",
-                "nodes": {"test_0": 3},
+                "nodes": {"test_0": 4},
                 "known": {},
-                "present": {'test_0': ((1, 4),)},
+                "present": {'test_0': ((1, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -110,7 +126,7 @@ async def test_01_basic(autojump_clock):
 
             r = await c.set(value=1234, nchain=3)
             assert r.prev == 123
-            assert r.chain.tick == 4
+            assert r.chain.tick == 5
 
             # does not yet exist
             with pytest.raises(ServerError):
@@ -119,7 +135,7 @@ async def test_01_basic(autojump_clock):
             with pytest.raises(ServerError):
                 await c._request("get_value", node="test_0", tick=1)
             # works
-            assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
+            assert (await c._request("get_value", node="test_0", tick=5)).value == 1234
 
             r = await c.set("foo", "bar", value="bazz")
             assert r.tock > bart
@@ -132,9 +148,9 @@ async def test_01_basic(autojump_clock):
             del r["seq"]
             assert r == {
                 "node": "test_0",
-                "nodes": {"test_0": 5},
+                "nodes": {"test_0": 6},
                 "known": {"test_0": (1, 3)},
-                "present": {'test_0': (2, (4, 6),)},
+                "present": {'test_0': (2, (4, 7),)},
                 "missing": {},
                 "remote_missing": {},
             }

@@ -768,7 +768,7 @@ class ServerClient:
         return await self.cmd_set_value(msg, root=self.metaroot)
 
     async def cmd_enum_internal(self, msg):
-        return await self.cmd_enumerate(msg, root=self.metaroot)
+        return await self.cmd_enum(msg, root=self.metaroot)
 
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
@@ -808,11 +808,13 @@ class ServerClient:
         else:
             return {"access": acl.result.data if acl.allows("a") else True}
 
-    async def cmd_enumerate(self, msg, with_data=False, _nulls_ok=None, root=None):
+    async def cmd_enum(self, msg, with_data=None, _nulls_ok=None, root=None):
         """Get all sub-nodes.
         """
         if root is None:
             root = self.root
+        if with_data is None:
+            with_data = msg.get('with_data', False)
         entry, acl = root.follow_acl(
             *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
@@ -822,7 +824,7 @@ class ServerClient:
             for k, v in entry.items():
                 a = acl.step(k)
                 if a.allows("r"):
-                    if v.data is not NotGiven:
+                    if v.data is not NotGiven and acl.allows("x"):
                         res[k] = self.conv.enc_value(v.data, entry=v)
                     elif empty:
                         res[k] = None
@@ -830,8 +832,12 @@ class ServerClient:
             res = []
             for k, v in entry.items():
                 if empty or v.data is not NotGiven:
-                    res.append(k)
-        return res
+                    a = acl.step(k)
+                    if a.allows("e"):
+                        res.append(k)
+        return {"result": res}
+
+    cmd_enumerate = cmd_enum # backwards compat: XXX remove
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
