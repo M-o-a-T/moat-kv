@@ -19,6 +19,8 @@ from typing import Union, Dict, Optional
 from ssl import SSLContext
 from functools import partial
 
+from .exceptions import CancelledError
+
 import logging
 logger = logging.getLogger(__name__)
 
