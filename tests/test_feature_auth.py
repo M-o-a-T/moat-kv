@@ -2,7 +2,7 @@ import pytest
 import jsonschema
 from functools import partial
 
-from .mock_serf import stdtest
+from .mock_mqtt import stdtest
 from .run import run
 from distkv.client import ServerError
 from distkv.exceptions import ClientAuthRequiredError, ClientAuthMethodError

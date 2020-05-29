@@ -1,6 +1,6 @@
 import pytest
 
-from .mock_serf import stdtest
+from .mock_mqtt import stdtest
 from distkv.client import ServerError
 from distkv.util import PathLongener
 
@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+pytestmark = pytest.mark.xfail()
 
 async def collect(i, path=()):
     res = []

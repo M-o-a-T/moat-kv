@@ -1,7 +1,7 @@
 import pytest
 import trio
 
-from .mock_serf import stdtest
+from .mock_mqtt import stdtest
 from .run import run
 
 # from .run import run
@@ -70,10 +70,12 @@ async def test_82_many(autojump_clock):
                     if h[0] != ":":
                         break
                 r = await run("client", "-m", "-h", h, "-p", p, "data", "get", "-rd_", do_stdout=False)
+                await trio.sleep(2)
 
                 n = 0
                 for err in ex.all_errors("tester"):
                     n += 1
+                    logger.warning("DEL ASSERT %d",n)
                     assert len(list(err)) == 3, list(err)
                     for k in err:
                         assert k._name in {"a1","a2","a3"}, k

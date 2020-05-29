@@ -2,6 +2,7 @@ import pytest
 import trio
 import mock
 
+# doesn't work with MQTT because we can't split
 from .mock_serf import stdtest
 import asyncserf
 import msgpack
@@ -81,7 +82,7 @@ async def test_10_many(autojump_clock):
             assert "value" not in r
             assert r.chain is not None
 
-            with trio.fail_after(800):
+            with trio.fail_after(9999):
                 while True:
                     r = await ci.get("delete", "me", nchain=2)
                     if "value" not in r and r.chain is None:

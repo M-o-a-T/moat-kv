@@ -238,7 +238,8 @@ class Node:
             for t in range(a, b):
                 e = self.entries.get(t, None)
                 if e is not None:
-                    logger.info("%s present but marked as deleted", e)
+                    if e.data is not NotGiven:
+                        logger.info("%s present but marked as deleted", e)
                     e.purge_deleted()
 
 

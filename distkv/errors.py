@@ -106,6 +106,15 @@ class ErrorSubEntry(AttrClientEntry):
         logger.warning("Unknown entry type at %r: %s", self._path, name)
         return ClientEntry
 
+    def __repr__(self):
+        return "‹%s %s %d›" % (self.__class__.__name__,self._path[-3:], getattr(self,'tock',-1))
+
+    async def set_value(self, val):
+        await super().set_value(val)
+        if val is NotGiven:
+            p = self.parent
+            if p is not None:
+                await self.parent.check_move()
 
 class ErrorEntry(AttrClientEntry):
     """
@@ -136,6 +145,11 @@ class ErrorEntry(AttrClientEntry):
         while self._real_entry is not None:
             self = self._real_entry  # pylint: disable=self-cls-assignment
         return self
+
+    async def check_move(self):
+        dest = self.real_entry
+        if dest is not self:
+            await self.root.add_clean(self)
 
     async def resolve(self):
         """
@@ -233,21 +247,26 @@ class ErrorEntry(AttrClientEntry):
         """
 
         dest = self.real_entry
+        # logger.warning("DEL 1 %r %r",self,dest)
         assert dest is not self, self
         kid = self.get(self.root.name)
         if kid is not None:
             dkid = dest.get(self.root.name)
+            # logger.warning("DEL 2 %r %r %r %r",self,dest,kid,dkid)
             if dkid is None:
                 val = kid.get_value()
                 dkid = dest.allocate(self.root.name)
                 await dkid.set_value(val)
                 await dkid.save()
-            elif dkid.tock > kid.tock:
+            elif getattr(dkid,'tock',0) < getattr(kid,'tock',0):
                 await dkid.set_value(val)
                 await dkid.save()
+            # logger.warning("DEL 3 %r %r %r",self,dest,dkid)
             await kid.delete()
         if not len(self):
+            # logger.warning("DEL 4 %r",self)
             await self.delete()
+        # logger.warning("DEL 5 %r",self)
 
     async def set_value(self, val):
         """Overridden: set_value
@@ -269,6 +288,7 @@ class ErrorEntry(AttrClientEntry):
         await super().set_value(val)
 
         drop, keep = await self.root._unique(self)
+        # logger.debug("UNIQ %r %r %r %s/%s",self,drop,keep, "x" if drop is None else drop.subpath[0],self.root.name)
         if drop is not None:
             #self.root._dropped(drop)
             drop._real_entry = keep
@@ -320,10 +340,18 @@ class ErrorRoot(ClientRoot):
         self._active = defaultdict(dict)  # subsystem > path > Entry
         self._done = defaultdict(WeakValueDictionary)  # subsystem > path > Entry
         self._latest = Cache(100)
+        self._to_clean = set()
 
     @classmethod
     def child_type(cls, name):
         return ErrorStep
+
+    def add_clean(self, entry):
+        # self._to_clean.add(entry)
+        pass
+        # TODO run cleanup code that consolidates these errors when we get a TagMessage
+        # TODO use a weakset
+
 
     def all_errors(self, subsystem=None):
         """

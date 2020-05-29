@@ -24,8 +24,8 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 from functools import partial
-from asyncserf.util import CancelledError as SerfCancelledError, ValueEvent
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
+from asyncactor import TagEvent, UntagEvent, DetagEvent
 from asyncactor.backend import get_transport
 from pprint import pformat
 from collections.abc import Mapping
@@ -49,6 +49,7 @@ from .util import (
     num2byte,
     byte2num,
     NotGiven,
+    ValueEvent,
 )
 from .exceptions import (
     ClientError,
@@ -184,7 +185,7 @@ class StreamCommand:
                 if res is not None:
                     await self.send(**res)
             except Exception as exc:
-                if not isinstance(exc, SerfCancelledError):
+                if not isinstance(exc, CancelledError):
                     self.client.logger.exception(
                         "ERS%d %r", self.client._client_nr, self.msg
                     )
@@ -1191,7 +1192,7 @@ class ServerClient:
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
-                    self.logger.info("CLOSED %d", self._client_nr)
+                    self.logger.debug("CLOSED %d", self._client_nr)
                     break
                 unpacker.feed(buf)
 
@@ -1434,7 +1435,6 @@ class Server:
             msg["node"] = self.node.name
         if "tick" not in msg:
             msg["tick"] = self.node.tick
-        omsg = msg
         self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
             await self.serf.send(*self.cfg.server.root, action, payload=m)
@@ -1762,10 +1762,10 @@ class Server:
                     msg = await self._unpack_multiple(msg)
                     if not msg:  # None, empty, whatever
                         continue
-                    #self.logger.debug("Recv %s: %r", action, msg)
+                    self.logger.debug("Recv %s: %r", action, msg)
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
-        except SerfCancelledError:
+        except CancelledError:
             pass
 
     async def _run_del(self, evt):
@@ -1822,6 +1822,10 @@ class Server:
                             await self.tock_seen(val[0])
                             val = val[1]
                         Node(msg_node, val, cache=self._nodes)
+                    elif isinstance(msg, (TagEvent,UntagEvent,DetagEvent)):
+                        pass
+                        # TODO tell clients, for cleanup tasks in handlers,
+                        # e.g. error needs to consolidate messages
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to.

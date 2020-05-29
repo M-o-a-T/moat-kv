@@ -1,6 +1,6 @@
 import pytest
 
-from .mock_serf import stdtest
+from .mock_mqtt import stdtest
 
 import logging
 

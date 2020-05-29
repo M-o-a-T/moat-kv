@@ -1,132 +1,169 @@
 import pytest
 import trio
-import anyio
+from time import time
 
-from .mock_mqtt import stdtest
+from .mock_serf import stdtest
 from .run import run
 from distkv.client import ServerError
 from distkv.util import PathLongener
-from functools import partial
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+# This is a basic Trio test which we keep around to check that
+# (a) the autojump clock works as advertised
+# (b) we can use trio.
 @pytest.mark.trio
-async def test_21_load_save(autojump_clock, tmpdir):
-    """also used to check watching"""
-    path = tmpdir.join("foo")
-    logger.debug("START")
-    msgs = []
-    s = None
+async def test_00_trio_clock(autojump_clock):
+    assert trio.current_time() == 0
+    t = time()
 
-    async def watch_changes(c, evt):
-        lg = PathLongener(())
-        async with c.watch(nchain=3, fetch=True) as res:
-            await evt.set()
-            async for m in res:
-                logger.info(m)
-                lg(m)
-                if m.get("value", None) is not None:
-                    msgs.append(m)
+    for i in range(10):
+        start_time = trio.current_time()
+        await trio.sleep(i)
+        end_time = trio.current_time()
 
-    async with stdtest(args={"init": 234}, tocks=30) as st:
+        assert end_time - start_time == i
+    assert time() - t < 1
+
+
+@pytest.mark.trio
+async def test_00_runner(autojump_clock):
+    with pytest.raises(AssertionError):
+        await run("--doesnotexist")
+    await run("--doesnotexist", expect_exit=2)
+    # await run('pdb','pdb')  # used for verifying that debugging works
+
+
+async def collect(i, path=()):
+    res = []
+    pl = PathLongener(path)
+    async for r in i:
+        r.pop("tock", 0)
+        r.pop("seq", 0)
+        pl(r)
+        res.append(r)
+    return res
+
+
+@pytest.mark.trio
+async def test_01_basic(autojump_clock):
+    async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c.get()).value == 234
-            evt = anyio.create_event()
-            await c.tg.spawn(watch_changes, c, evt)
-            await evt.wait()
+            assert (await c.get()).value == 123
 
-            await c.set("foo", value="hello", nchain=3)
-            await c.set("foo", "bar", value="baz", nchain=3)
-            await c.set(value=2345, nchain=3)
-            await trio.sleep(1)  # allow the writer to write
+            r = await c.set("foo", value="hello", nchain=3)
+            r = await c.set("foo", "bar", value="baz", nchain=3)
+            bart = r.tock
+            r = await c.set("foo", "baz", value="quux", nchain=3)
+            r = await c.get()
+            assert r.value == 123
+            assert r.tock < await c.get_tock()
+
+            r = await c.get("foo")
+            assert r.value == "hello"
+
+            exp = [
+                {"path": (), "value": 123},
+                {"path": ("foo",), "value": "hello"},
+                {"path": ("foo", "bar"), "value": "baz"},
+                {"path": ("foo", "baz"), "value": "quux"},
+            ]
+            r = await c.list()
+            assert r == (None,".distkv",'foo',)
+            r = await c.list("foo")
+            assert r == ('bar','baz')
+            r = await c.list("foo", with_data=True)
+            assert r == dict(bar="baz",baz="quux")
+            r = await c.list("foo","bar")
+            assert r == ()
+
+            async with c._stream("get_tree", path=(), max_depth=2) as rr:
+                r = await collect(rr)
+            assert r == exp
+
+            async with c._stream("get_tree", path=(), min_depth=1) as rr:
+                r = await collect(rr)
+            assert r == exp[1:]
+
+            exp.pop()
+            exp.pop()
+            async with c._stream("get_tree", path=(), iter=True, max_depth=1) as rr:
+                r = await collect(rr)
+            assert r == exp
+
+            exp.pop()
+            async with c._stream("get_tree", path=(), iter=True, max_depth=0) as rr:
+                r = await collect(rr)
+            assert r == exp
+
+            r = await c.get("foo", "bar")
+            assert r.value == "baz"
+            assert r.tock == bart
+
+            r = await c._request(
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+            )
+            del r["tock"]
+            del r["seq"]
+            assert r == {
+                "node": "test_0",
+                "nodes": {"test_0": 4},
+                "known": {},
+                "present": {'test_0': ((1, 5),)},
+                "missing": {},
+                "remote_missing": {},
+            }
+
+            assert (await c._request("get_value", node="test_0", tick=1)).value == 123
+            assert (
+                await c._request("get_value", node="test_0", tick=2)
+            ).value == "hello"
+            assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
+
+            r = await c.set(value=1234, nchain=3)
+            assert r.prev == 123
+            assert r.chain.tick == 5
+
+            # does not yet exist
+            with pytest.raises(ServerError):
+                await c._request("get_value", node="test_0", tick=8)
+            # has been superseded
+            with pytest.raises(ServerError):
+                await c._request("get_value", node="test_0", tick=1)
+            # works
+            assert (await c._request("get_value", node="test_0", tick=5)).value == 1234
+
+            r = await c.set("foo", "bar", value="bazz")
+            assert r.tock > bart
+            bart = r.tock
+
+            r = await c._request(
+                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+            )
+            del r["tock"]
+            del r["seq"]
+            assert r == {
+                "node": "test_0",
+                "nodes": {"test_0": 6},
+                "known": {"test_0": (1, 3)},
+                "present": {'test_0': (2, (4, 7),)},
+                "missing": {},
+                "remote_missing": {},
+            }
+
+            r = await c.delete("foo")
+            assert r.tock > bart
+
+            r = await c.get("foo", "bar")
+            assert r.value == "bazz"
+            assert r.tock == bart
+
             pass  # client end
-
-        logger.debug("SAVE %s", path)
-        await s.save(path)
-        logger.debug("SAVED")
         pass  # server end
-
-    logger.debug("NEXT")
-    for m in msgs:
-        m.pop("tock", None)
-        m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 1},
-            "path": (),
-            "value": 234,
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 2},
-            "path": ("foo",),
-            "value": "hello",
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 3},
-            "path": ("foo", "bar"),
-            "value": "baz",
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 4},
-            "path": (),
-            "value": 2345,
-        },
-    ]
-
-    msgs = []
-    async with stdtest(run=False, tocks=40) as st:
-        s, = st.s
-        logger.debug("LOAD %s", path)
-        await s.load(path, local=True)
-        logger.debug("LOADED")
-
-        evt = anyio.create_event()
-        await st.tg.spawn(partial(st.s[0].serve, ready_evt=evt))
-        await evt.wait()
-
-        logger.debug("RUNNING")
-
-        async with st.client() as c:
-            evt = anyio.create_event()
-            await c.tg.spawn(watch_changes, c, evt)
-            await evt.wait()
-
-            await c.set("foof", value="again")
-            assert (await c.get("foo")).value == "hello"
-            assert (await c.get("foo", "bar")).value == "baz"
-            assert (await c.get()).value == 2345
-            await trio.sleep(1)  # allow the writer to write
-
-    for m in msgs:
-        m.pop("tock", None)
-        m.pop("seq", None)
-    assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 2},
-            "path": ("foo",),
-            "value": "hello",
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 3},
-            "path": ("foo", "bar"),
-            "value": "baz",
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 4},
-            "path": (),
-            "value": 2345,
-        },
-        {
-            "chain": {"node": "test_0", "prev": None, "tick": 5},
-            "path": ("foof",),
-            "value": "again",
-        },
-    ]
-    logger.debug("OK")
 
 
 @pytest.mark.trio
@@ -164,7 +201,7 @@ async def test_02_cmd(autojump_clock):
                 "node": "test_0",
                 "nodes": {"test_0": 3},
                 "known": {},
-                "present": {"test_0": ((1, 4),)},
+                'present': {'test_0': ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -196,8 +233,8 @@ async def test_02_cmd(autojump_clock):
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 4},
-                "known": {'test_0': (1,)},
-                "present": {"test_0": ((2, 5),)},
+                "known": {"test_0": (1,)},
+                'present': {'test_0': ((2, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -210,7 +247,7 @@ async def test_03_three(autojump_clock):
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
         s, si = st.s
         async with st.client(1) as ci:
-            assert (await ci.get()).value == 125
+            assert (await ci._request("get_value", path=())).value == 125
 
             r = await ci._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
@@ -275,9 +312,9 @@ async def test_03_three(autojump_clock):
                     "get_state",
                     nodes=True,
                     known=True,
-                    present=True,
                     missing=True,
                     remote_missing=True,
+                    present=True,
                 )
                 del r["tock"]
                 del r["seq"]
@@ -297,7 +334,7 @@ async def test_03_three(autojump_clock):
                     "remote_missing": {},
                 }
 
-                assert (await c.get()).value == 125
+                assert (await c._request("get_value", path=())).value == 125
 
                 r = await c.set(value=126, nchain=3)
                 assert r.prev == 125
@@ -319,7 +356,6 @@ async def test_03_three(autojump_clock):
                 assert r.chain.prev.node == "test_0"
                 assert r.chain.prev.tick == 1
                 assert r.chain.prev.prev is None
-                await trio.sleep(1)
 
                 with pytest.raises(ServerError):
                     await c._request("get_value", node="test_1", tick=1)
@@ -332,21 +368,20 @@ async def test_03_three(autojump_clock):
                     "get_state",
                     nodes=True,
                     known=True,
-                    present=True,
                     missing=True,
                     remote_missing=True,
+                    present=True,
                 )
                 del r["tock"]
                 del r["seq"]
                 assert r == {
                     "node": "test_0",
                     "nodes": {"test_0": 1, "test_1": 2},
-                    "known": {'test_1': (1,)},
+                    'known': {'test_1': (1,)},
                     "present": {"test_0": (1,), "test_1": (2,)},
                     "missing": {},
                     "remote_missing": {},
                 }
-                pass  # client2 end
 
             r = await ci._request(
                 "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
@@ -356,7 +391,7 @@ async def test_03_three(autojump_clock):
             assert r == {
                 "node": "test_1",
                 "nodes": {"test_0": 1, "test_1": 2},
-                "known": {'test_1': (1,)},
+                'known': {'test_1': (1,)},
                 "present": {"test_0": (1,), "test_1": (2,)},
                 "missing": {},
                 "remote_missing": {},
