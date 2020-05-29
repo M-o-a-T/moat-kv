@@ -74,6 +74,10 @@ async def test_01_basic(autojump_clock):
                 r = await collect(rr)
             assert r == exp
 
+            async with c._stream("get_tree", path=(), min_depth=1) as rr:
+                r = await collect(rr)
+            assert r == exp[1:]
+
             exp.pop()
             async with c._stream("get_tree", path=(), iter=True, max_depth=1) as rr:
                 r = await collect(rr)
