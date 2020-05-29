@@ -824,7 +824,7 @@ class ServerClient:
             for k, v in entry.items():
                 a = acl.step(k)
                 if a.allows("r"):
-                    if v.data is not NotGiven:
+                    if v.data is not NotGiven and acl.allows("x"):
                         res[k] = self.conv.enc_value(v.data, entry=v)
                     elif empty:
                         res[k] = None
@@ -832,7 +832,9 @@ class ServerClient:
             res = []
             for k, v in entry.items():
                 if empty or v.data is not NotGiven:
-                    res.append(k)
+                    a = acl.step(k)
+                    if a.allows("e"):
+                        res.append(k)
         return {"result": res}
 
     cmd_enumerate = cmd_enum # backwards compat: XXX remove
