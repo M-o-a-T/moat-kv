@@ -813,6 +813,8 @@ class ServerClient:
         """
         if root is None:
             root = self.root
+        if with_data is None:
+            with_data = msg.get('with_data', False)
         entry, acl = root.follow_acl(
             *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
@@ -831,7 +833,7 @@ class ServerClient:
             for k, v in entry.items():
                 if empty or v.data is not NotGiven:
                     res.append(k)
-        return res
+        return {"result": res}
 
     cmd_enumerate = cmd_enum # backwards compat: XXX remove
 
