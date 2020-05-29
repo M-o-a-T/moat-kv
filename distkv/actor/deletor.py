@@ -127,7 +127,7 @@ class DeleteActor:
                                     max(self.max_seen, val[1]),
                                 )
                                 if val[0] > mx > 0:
-                                    await self.server.resync_deleted(evt.msg["history"])
+                                    await self.server.resync_deleted(evt.msg.history)
                                     continue
                                 self.purge_to(val[0])
                                 self.max_seen = max(self.max_seen, val[1])
