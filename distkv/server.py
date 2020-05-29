@@ -1191,7 +1191,7 @@ class ServerClient:
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
-                    self.logger.info("CLOSED %d", self._client_nr)
+                    self.logger.debug("CLOSED %d", self._client_nr)
                     break
                 unpacker.feed(buf)
 
