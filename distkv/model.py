@@ -812,7 +812,7 @@ class Entry:
         logger.debug("CHOP %r", self)
         this, p = self, self.parent
         while p is not None:
-            del p._sub[this.name]
+            p._sub.pop(this.name,None)
             if p._sub:
                 return
             this, p = p, p.parent

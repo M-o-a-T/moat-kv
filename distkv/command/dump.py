@@ -109,7 +109,12 @@ async def msg(obj, path):
         path = path[0].split('.')
         if len(path) == 1 and path[0].startswith('+'):
             p = path[0][1:]
-            path = obj.cfg.server.root.split('.') + [p or '#']
+            path = obj.cfg.server.root
+            if isinstance(path,str):
+                path = path.split('.')
+            else:
+                path = list(path)
+            path += [p or '#']
             if not p:
                 px = len(path)-1
     be = obj.cfg.server.backend

@@ -177,3 +177,17 @@ async def dump(obj, path):
         except KeyError:
             pass
     yprint(y, stream=obj.stdout)
+
+@cli.command()
+@click.argument("node", nargs=1)
+@click.argument("tick", type=int, nargs=1)
+@click.pass_obj
+async def get(obj, node,tick):
+    """
+    Fetch data by node+tick.
+
+    This looks up internal data.
+    """
+
+    res = await obj.client._request("get_value", node=node, tick=tick, nchain=99)
+    yprint(res, stream=obj.stdout)
