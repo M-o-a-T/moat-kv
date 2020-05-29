@@ -2,7 +2,7 @@
 This module contains the default values for distkv configuration.
 """
 
-from .util import attrdict, combine_dict
+from .util import attrdict, combine_dict, NotGiven
 from .ext import list_ext, load_ext
 
 __all__ = ["PORT", "CFG"]
@@ -73,7 +73,7 @@ CFG = attrdict(
     ),
     server=attrdict(
         # server-side configuration
-        backend="serf",
+        backend=NotGiven,  # must be specified
         serf=attrdict(
             # how to connect to Serf
             host="localhost",
