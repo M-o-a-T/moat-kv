@@ -24,7 +24,6 @@ import asyncserf
 from typing import Any
 from range_set import RangeSet
 from functools import partial
-from asyncserf.util import CancelledError as SerfCancelledError
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
 from asyncactor.backend import get_transport
 from pprint import pformat
@@ -185,10 +184,9 @@ class StreamCommand:
                 if res is not None:
                     await self.send(**res)
             except Exception as exc:
-                if not isinstance(exc, SerfCancelledError):
-                    self.client.logger.exception(
-                        "ERS%d %r", self.client._client_nr, self.msg
-                    )
+                self.client.logger.exception(
+                    "ERS%d %r", self.client._client_nr, self.msg
+                )
                 await self.send(error=repr(exc))
             finally:
                 async with anyio.fail_after(2, shield=True):
@@ -1753,21 +1751,18 @@ class Server:
             avoid consistency problems on startup.
         """
         cmd = getattr(self, "user_" + action)
-        try:
-            async with self.serf.monitor(*self.cfg.server.root, action) as stream:
-                if delay is not None:
-                    await delay.wait()
+        async with self.serf.monitor(*self.cfg.server.root, action) as stream:
+            if delay is not None:
+                await delay.wait()
 
-                async for resp in stream:
-                    msg = unpacker(resp.payload)
-                    msg = await self._unpack_multiple(msg)
-                    if not msg:  # None, empty, whatever
-                        continue
-                    #self.logger.debug("Recv %s: %r", action, msg)
-                    await self.tock_seen(msg.get("tock", 0))
-                    await cmd(msg)
-        except SerfCancelledError:
-            pass
+            async for resp in stream:
+                msg = unpacker(resp.payload)
+                msg = await self._unpack_multiple(msg)
+                if not msg:  # None, empty, whatever
+                    continue
+                #self.logger.debug("Recv %s: %r", action, msg)
+                await self.tock_seen(msg.get("tock", 0))
+                await cmd(msg)
 
     async def _run_del(self, evt):
         try:
