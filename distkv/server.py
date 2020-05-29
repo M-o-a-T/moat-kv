@@ -768,7 +768,7 @@ class ServerClient:
         return await self.cmd_set_value(msg, root=self.metaroot)
 
     async def cmd_enum_internal(self, msg):
-        return await self.cmd_enumerate(msg, root=self.metaroot)
+        return await self.cmd_enum(msg, root=self.metaroot)
 
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
@@ -808,7 +808,7 @@ class ServerClient:
         else:
             return {"access": acl.result.data if acl.allows("a") else True}
 
-    async def cmd_enumerate(self, msg, with_data=False, _nulls_ok=None, root=None):
+    async def cmd_enum(self, msg, with_data=None, _nulls_ok=None, root=None):
         """Get all sub-nodes.
         """
         if root is None:
@@ -832,6 +832,8 @@ class ServerClient:
                 if empty or v.data is not NotGiven:
                     res.append(k)
         return res
+
+    cmd_enumerate = cmd_enum # backwards compat: XXX remove
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
