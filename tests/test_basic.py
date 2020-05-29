@@ -243,7 +243,7 @@ async def test_02_cmd(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_03_three():  # autojump_clock):
+async def test_03_three(autojump_clock):
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
         s, si = st.s
         async with st.client(1) as ci:
