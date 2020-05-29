@@ -230,14 +230,12 @@ class MockServ:
                 if (i_s < x) != (i_self < x):
                     break
             else:
-                oname = name
-                n = name.split('.')
+                n = tuple(name.split('.'))
                 while n:
-                    sl = s.streams.get(name, ())
+                    sl = s.streams.get(n, ())
                     for sn in sl:
-                        await sn.q.put((oname,payload))
-                    n.pop()
-                    name = ".".join(n)
+                        await sn.q.put((name,payload))
+                    n = n[:-1]
 
     def stream(self, typ):
         """compat for supporting asyncactor"""
@@ -261,7 +259,7 @@ class MockSerfStream:
     def __init__(self, serf, typ):
         self.serf = serf
         assert typ.startswith("user:")
-        self.typ = typ[5:]
+        self.typ = tuple(typ[5:].split('.'))
 
     async def __aenter__(self):
         self.q = create_queue(100)
