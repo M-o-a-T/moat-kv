@@ -57,6 +57,7 @@ from .exceptions import (
     CancelledError,
     ACLError,
     ServerClosedError,
+    ServerConnectionError,
 )
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
@@ -1506,8 +1507,8 @@ class Server:
 
             #           except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
             #               raise
-            except Exception:
-                raise
+            except (ServerConnectionError,ServerClosedError):
+                self.logger.exception("Unable to connect to %s" % (nodes,))
             #               self.logger.exception("Unable to connect to %s" % (nodes,))
             else:
                 # The recipient will broadcast "info.deleted" messages for
