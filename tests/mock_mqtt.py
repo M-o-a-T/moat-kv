@@ -144,7 +144,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                         "server": {
                             "bind_default": {
                                 "host": "127.0.0.1",
-                                "port": i + 50120,
+                                "port": i + PORT+1,
                                 "ssl": server_ctx,
                             },
                             "backend":"mqtt",
