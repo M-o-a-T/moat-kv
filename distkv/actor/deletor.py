@@ -12,6 +12,7 @@ from asyncactor.backend import get_transport
 from asyncactor import PingEvent, TagEvent
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 TAGS = 4
@@ -45,7 +46,7 @@ class DeleteActor:
         self.tags = self.tags[-TAGS:]
         await self.actor.set_value((self.tags[0], self.tags[-1]))
 
-    def add_deleted(self, nodes: "NodeSet"):
+    def add_deleted(self, nodes: "NodeSet"):  # noqa: F821
         """
         These nodes are deleted. Remember them for some time.
         """
@@ -95,48 +96,47 @@ class DeleteActor:
         The task that monitors the Delete actor.
         """
         try:
-            async with anyio.create_task_group() as tg:
-                T = get_transport("distkv")
-                async with Actor(
-                    T(self.server.serf, *self.server.cfg.server.root, "del"),
-                    name=self.server.node.name,
-                    cfg=self.server.cfg.server.delete,
-                    enabled=False,
-                ) as actor:
-                    self.actor = actor
-                    if self._enabled is not None:
-                        if self._enabled:
-                            await actor.enable()
-                        else:
-                            await actor.disable()
-                    if evt is not None:
-                        await evt.set()
-                    async for evt in actor:
-                        if isinstance(evt, PingEvent):
-                            val = evt.value
-                            if val is None:
-                                self.n_pings = self.n_tags = 0
+            T = get_transport("distkv")
+            async with Actor(
+                T(self.server.serf, *self.server.cfg.server.root, "del"),
+                name=self.server.node.name,
+                cfg=self.server.cfg.server.delete,
+                enabled=False,
+            ) as actor:
+                self.actor = actor
+                if self._enabled is not None:
+                    if self._enabled:
+                        await actor.enable()
+                    else:
+                        await actor.disable()
+                if evt is not None:
+                    await evt.set()
+                async for evt in actor:
+                    if isinstance(evt, PingEvent):
+                        val = evt.value
+                        if val is None:
+                            self.n_pings = self.n_tags = 0
+                            continue
+                        if len(evt.msg.history) < self.n_nodes:
+                            self.n_pings = self.n_tags = 0
+                            continue
+                        self.n_pings += 1
+                        if self.n_pings > self.n_nodes:
+                            mx, self.max_seen = (
+                                self.max_seen,
+                                max(self.max_seen, val[1]),
+                            )
+                            if val[0] > mx > 0:
+                                await self.server.resync_deleted(evt.msg.history)
                                 continue
-                            if len(evt.msg.history) < self.n_nodes:
-                                self.n_pings = self.n_tags = 0
-                                continue
-                            self.n_pings += 1
-                            if self.n_pings > self.n_nodes:
-                                mx, self.max_seen = (
-                                    self.max_seen,
-                                    max(self.max_seen, val[1]),
-                                )
-                                if val[0] > mx > 0:
-                                    await self.server.resync_deleted(evt.msg.history)
-                                    continue
-                                self.purge_to(val[0])
-                                self.max_seen = max(self.max_seen, val[1])
+                            self.purge_to(val[0])
+                            self.max_seen = max(self.max_seen, val[1])
 
-                        elif isinstance(evt, TagEvent):
-                            if actor.history_size == self.n_nodes:
-                                self.n_tags += 1
-                                if self.n_tags > 2:
-                                    self.purge_to(self.tags[0])
-                                await self.tock_me()
+                    elif isinstance(evt, TagEvent):
+                        if actor.history_size == self.n_nodes:
+                            self.n_tags += 1
+                            if self.n_tags > 2:
+                                self.purge_to(self.tags[0])
+                            await self.tock_me()
         finally:
             self.actor = None

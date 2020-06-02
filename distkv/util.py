@@ -22,6 +22,7 @@ from functools import partial
 from .exceptions import CancelledError
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +53,7 @@ def yprint(data, stream=sys.stdout, compact=False):
     else:
         yaml.safe_dump(data, stream=stream, default_flow_style=compact)
 
+
 def yformat(data, compact=None):
     """
     Return ``data`` as a multi-line YAML string.
@@ -61,6 +63,7 @@ def yformat(data, compact=None):
     :param compact: Write single lines if possible. default False.
     """
     from io import StringIO
+
     s = StringIO()
     yprint(data, compact=compact, stream=s)
     return s.getvalue()
@@ -133,20 +136,22 @@ def combine_dict(*d, cls=dict) -> dict:
             res[k] = combine_dict(*v, cls=cls)
     return res
 
+
 def drop_dict(data: dict, drop: tuple) -> dict:
     data = data.copy()
     for d in drop:
         vv = data
-        if isinstance(d,tuple):
+        if isinstance(d, tuple):
             for dd in d[:-1]:
                 vv = vv[dd] = vv[dd].copy()
             d = d[-1]
         del vv[d]
     return data
 
+
 class attrdict(dict):
     """A dictionary which can be accessed via attributes, for convenience.
-    
+
     This also supports updating path accessors.
     """
 
@@ -250,6 +255,7 @@ class attrdict(dict):
             if v:
                 break
         return val
+
 
 from yaml.representer import SafeRepresenter
 
@@ -357,21 +363,21 @@ class PathLongener:
     attributes is a no-op.
     """
 
-    def __init__(self, prefix:tuple =()):
+    def __init__(self, prefix: tuple = ()):
         self.depth = len(prefix)
-        if not isinstance(prefix,tuple):
+        if not isinstance(prefix, tuple):
             # may be a list, dammit
             prefix = tuple(prefix)
         self.path = prefix
 
     def __call__(self, res):
-        p = res.get('path', None)
+        p = res.get("path", None)
         if p is None:
             return
         d = res.pop("depth", None)
         if d is None:
             return
-        if not isinstance(p,tuple):
+        if not isinstance(p, tuple):
             # may be a list, dammit
             p = tuple(p)
         p = self.path[: self.depth + d] + p
@@ -638,7 +644,7 @@ def _call_proc(code, *a, **kw):
     return code(*a)
 
 
-def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-builtin
+def make_proc(code, variables, *path, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
@@ -650,10 +656,12 @@ def make_proc(code, vars, *path, use_async=False):  # pylint: disable=redefined-
         the procedure to call. All keyval arguments will be in the local
         dict.
     """
-    vars = ",".join(vars)
+    vars = ",".join(variables)
     hdr = """\
 def _proc(%s):
-    """ % (vars,)
+    """ % (
+        vars,
+    )
 
     if use_async:
         hdr = "async " + hdr
@@ -697,11 +705,11 @@ class Cache:
     they're not removed, the actual cache size might only be 2/3rd of SIZE.
     """
 
-    def __init__(self, size, attr="_cache_pos"):
+    def __init__(self, size):
         self._size = size
         self._head = 0
         self._tail = 0
-        self._attr = attr
+        self._attr = "_cache__pos"
         self._q = deque()
 
     def keep(self, entry):
@@ -745,6 +753,7 @@ class NoLock:
     async def __aexit__(self, *tb):
         return
 
+
 def path_eval(path, evals):
     if not evals:
         yield from iter(path)
@@ -754,10 +763,22 @@ def path_eval(path, evals):
     for p in path:
         i += 1
         if i in evals:
-            p = eval(p)
+            p = eval(p)  # pylint: disable=eval-used
         yield p
 
-async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdepth=-1, mindepth=0, empty=False, raw=False, internal=False):
+
+async def data_get(
+    obj,
+    *path,
+    eval_path=(),
+    recursive=True,
+    as_dict="_",
+    maxdepth=-1,
+    mindepth=0,
+    empty=False,
+    raw=False,
+    internal=False
+):
     if recursive:
         kw = {}
         if maxdepth is not None:
@@ -768,9 +789,13 @@ async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdep
             kw["add_empty"] = True
         y = {}
         if internal:
-            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
+            res = await obj.client._request(
+                action="get_tree_internal", path=path, iter=True, **kw
+            )
         else:
-            res = obj.client.get_tree(*path_eval(path, eval_path), nchain=obj.meta, **kw)
+            res = obj.client.get_tree(
+                *path_eval(path, eval_path), nchain=obj.meta, **kw
+            )
         async for r in res:
             r.pop("seq", None)
             path = r.pop("path")
@@ -801,9 +826,10 @@ async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdep
 
         if as_dict is not None:
             if maxdepth:
+
                 def simplex(d):
-                    for k,v in d.items():
-                        if isinstance(v,dict):
+                    for k, v in d.items():
+                        if isinstance(v, dict):
                             d[k] = simplex(d[k])
                     if as_dict in d and d[as_dict] is None:
                         if len(d) == 1:
@@ -811,6 +837,7 @@ async def data_get(obj, *path, eval_path=(), recursive=True, as_dict='_', maxdep
                         else:
                             del d[as_dict]
                     return d
+
                 y = simplex(y)
             yprint(y, stream=obj.stdout)
         return
@@ -840,10 +867,11 @@ def res_get(res, *path, **kw):
     """
     Get a node's value and access the dict items beneath it.
     """
-    val = res.get('value',None)
+    val = res.get("value", None)
     if val is None:
         return None
     return val._get(*path, **kw)
+
 
 def res_update(res, *path, value=None, **kw):
     """
@@ -852,8 +880,9 @@ def res_update(res, *path, value=None, **kw):
 
     Returns the new value.
     """
-    val = res.get('value', attrdict())
+    val = res.get("value", attrdict())
     return val._update(*path, value=value, **kw)
+
 
 def res_delete(res, *path, **kw):
     """
@@ -862,7 +891,7 @@ def res_delete(res, *path, **kw):
 
     Returns the new value.
     """
-    val = res.get('value', attrdict())
+    val = res.get("value", attrdict())
     return val._delete(*path, **kw)
 
 
@@ -878,8 +907,8 @@ async def as_service(obj=None):
     The CM yields a (duck-typed) event whose async ``set`` method will
     trigger a ``READY=1`` mesage to systemd.
     """
-    from systemd.daemon import notify
- 
+    from systemd.daemon import notify  # pylint: disable=no-name-in-module
+
     async def run_keepalive(usec):
         usec /= 1500000  # 2/3rd of usec ⇒ sec
         pid = os.getpid()
@@ -889,9 +918,9 @@ async def as_service(obj=None):
 
     def need_keepalive():
         pid = os.getpid()
-        epid = int(os.environ.get('WATCHDOG_PID', pid))
+        epid = int(os.environ.get("WATCHDOG_PID", pid))
         if pid == epid:
-            return int(os.environ.get('WATCHDOG_USEC', 0))
+            return int(os.environ.get("WATCHDOG_USEC", 0))
 
     class RunMsg:
         def __init__(self, obj):

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 import io
-import sys
 import signal
 import time
 import trio  # signaling
@@ -16,11 +15,11 @@ except ImportError:
     class trioBrokenResourceError(Exception):
         pass
 
+
 try:
     from contextlib import asynccontextmanager
 except ImportError:
     from async_generator import asynccontextmanager
-import asyncserf
 from typing import Any
 from range_set import RangeSet
 from functools import partial
@@ -57,6 +56,7 @@ from .exceptions import (
     CancelledError,
     ACLError,
     ServerClosedError,
+    ServerConnectionError,
 )
 from . import client as distkv_client  # needs to be mock-able
 from . import _version_tuple
@@ -112,7 +112,7 @@ class StreamCommand:
 
     def __new__(cls, client, msg):
         if cls is StreamCommand:
-            cls = globals()["SCmd_" + msg.action]
+            cls = globals()["SCmd_" + msg.action]  # pylint: disable=self-cls-assignment
             return cls(client, msg)
         else:
             return object.__new__(cls)
@@ -168,7 +168,6 @@ class StreamCommand:
             await self.client.send(msg)
         except trioBrokenResourceError:
             self.client.logger.info("OERR %d", self.client._client_nr)
-
 
     async def __call__(self, **kw):
         msg = self.msg
@@ -365,9 +364,9 @@ class SCmd_auth_get(StreamCommand):
         user = cls.load(data)
 
         res = user.info()
-        nchain = msg.get('nchain',0)
+        nchain = msg.get("nchain", 0)
         if nchain:
-            res['chain'] = data.chain.serialize(nchain=nchain)
+            res["chain"] = data.chain.serialize(nchain=nchain)
         return res
 
 
@@ -405,7 +404,7 @@ class SCmd_auth_set(StreamCommand):
         data = auth.follow(msg.typ, kind, msg.ident, create=True)
         user = cls.load(data)
         val = user.save()
-        val = drop_dict(val, msg.pop('drop',()))
+        val = drop_dict(val, msg.pop("drop", ()))
         val = combine_dict(msg, val)
 
         user = await cls.recv(self, val)
@@ -439,7 +438,7 @@ class SCmd_get_tree(StreamCommand):
                 create=False,
                 nulls_ok=client.nulls_ok,
                 acl=client.acl,
-                acl_key="e"
+                acl_key="e",
             )
         else:
             entry, _ = root.follow_acl(
@@ -509,7 +508,7 @@ class SCmd_watch(StreamCommand):
             acl=client.acl,
             acl_key="x",
             create=True,
-            nulls_ok=client.nulls_ok
+            nulls_ok=client.nulls_ok,
         )
         nchain = msg.get("nchain", 0)
         max_depth = msg.get("max_depth", -1)
@@ -585,17 +584,17 @@ class SCmd_msg_monitor(StreamCommand):
         msg = self.msg
         raw = msg.get("raw", False)
         topic = msg.topic
-        if isinstance(topic,str):
+        if isinstance(topic, str):
             topic = (topic,)
         if len(topic) and topic[0][0] == ":":
-            topic = self.cfg.server.root + topic
+            topic = self.client.server.cfg.root + topic
 
         async with self.client.server.serf.monitor(*topic) as stream:
             async for resp in stream:
-                if hasattr(resp,'topic'):
+                if hasattr(resp, "topic"):
                     t = resp.topic
-                    if isinstance(t,str):
-                        t = t.split('.')
+                    if isinstance(t, str):
+                        t = t.split(".")
                 else:
                     t = topic
                 res = {"topic": t}
@@ -620,6 +619,7 @@ class ServerClient:
     _dh_key = None
     conv = ConvNull
     acl: ACLStepper = NullACL
+    tg = None
 
     def __init__(self, server: "Server", stream: anyio.abc.Stream):
         self.server = server
@@ -754,6 +754,7 @@ class ServerClient:
     async def cmd_auth_set(self, msg):
         class AuthSet(SingleMixin, SCmd_auth_set):
             pass
+
         return await AuthSet(self, msg)()
 
     async def cmd_auth_list(self, msg):
@@ -780,28 +781,28 @@ class ServerClient:
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
 
-    async def cmd_get_tock(self, msg):
+    async def cmd_get_tock(self, msg):  # pylint: disable=unused-argument
         return {"tock": self.server.tock}
 
     async def cmd_test_acl(self, msg):
         """Check which ACL a path matches."""
         root = self.root
-        path = msg.path
         mode = msg.get("mode") or "x"
         acl = self.acl
         acl2 = msg.get("acl", None)
-        first = True
         try:
             _entry, _acl = root.follow_acl(
                 *msg.path,
                 acl=self.acl,
                 acl_key="a" if acl2 is None else mode,
                 nulls_ok=False,
-                create=None
+                create=None,
             )
 
             if acl2 is not None:
-                ok = acl.allows("a")
+                ok = acl.allows(  # pylint: disable=no-value-for-parameter # pylint is confused
+                    "a"
+                )
                 acl2 = root.follow(None, "acl", acl2, create=False, nulls_ok=True)
                 acl2 = ACLFinder(acl2)
                 _entry, acl = root.follow_acl(
@@ -821,11 +822,11 @@ class ServerClient:
         if root is None:
             root = self.root
         if with_data is None:
-            with_data = msg.get('with_data', False)
+            with_data = msg.get("with_data", False)
         entry, acl = root.follow_acl(
             *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
-        empty=msg.get('empty', False)
+        empty = msg.get("empty", False)
         if with_data:
             res = {}
             for k, v in entry.items():
@@ -844,7 +845,7 @@ class ServerClient:
                         res.append(k)
         return {"result": res}
 
-    cmd_enumerate = cmd_enum # backwards compat: XXX remove
+    cmd_enumerate = cmd_enum  # backwards compat: XXX remove
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
@@ -992,10 +993,10 @@ class ServerClient:
 
     async def cmd_msg_send(self, msg):
         topic = msg.topic
-        if isinstance(topic,str):
+        if isinstance(topic, str):
             topic = (topic,)
         if topic[0][0] == ":":
-            topic = self.cfg.server.root + topic
+            topic = self.server.cfg.root + topic
         if "raw" in msg:
             assert "data" not in msg
             data = msg.raw
@@ -1037,7 +1038,7 @@ class ServerClient:
                             conv=self.conv,
                         )
                         r["seq"] = seq
-                        r.pop("new_value",None)  # always None
+                        r.pop("new_value", None)  # always None
                         ps(r)
                         await self.send(r)
                 res += 1
@@ -1059,7 +1060,7 @@ class ServerClient:
         return True
 
     async def cmd_save(self, msg):
-        full=msg.get('full',False)
+        full = msg.get("full", False)
         await self.server.save(path=msg.path, full=full)
 
         return True
@@ -1121,7 +1122,7 @@ class ServerClient:
 
     async def run(self):
         """Main loop for this client connection."""
-        unpacker = stream_unpacker()  # pylint: redefined-outer-name
+        unpacker_ = stream_unpacker()  # pylint: disable=redefined-outer-name
 
         async with anyio.create_task_group() as tg:
             self.tg = tg
@@ -1156,7 +1157,7 @@ class ServerClient:
             await self.send(msg)
 
             while True:
-                for msg in unpacker:
+                for msg in unpacker_:
                     seq = None
                     try:
                         seq = msg.seq
@@ -1185,16 +1186,13 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive_some(4096)
-                except (
-                    ConnectionResetError,
-                    trioBrokenResourceError,
-                ):
+                except (ConnectionResetError, trioBrokenResourceError):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
                     self.logger.debug("CLOSED %d", self._client_nr)
                     break
-                unpacker.feed(buf)
+                unpacker_.feed(buf)
 
             await tg.cancel_scope.cancel()
 
@@ -1213,10 +1211,10 @@ class _RecoverControl:
         self.scope = scope
         self.prio = prio
 
-        local_history=set(local_history)
-        sources=set(sources)
-        self.local_history = local_history-sources
-        self.sources = sources-local_history
+        local_history = set(local_history)
+        sources = set(sources)
+        self.local_history = local_history - sources
+        self.sources = sources - local_history
         self.tock = server.tock
         type(self)._id += 1
         self._id = type(self)._id
@@ -1288,6 +1286,7 @@ class Server:
           when setting up an entirely new DistKV network.
     """
 
+    # pylint: disable=no-member # mis-categorizing cfg as tuple
     serf = None
     _ready = None
     _ready2 = None
@@ -1299,14 +1298,15 @@ class Server:
     seen_missing = None
     fetch_running = None
     sending_missing = None
+    ports = None
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self._tock = 0
         self.root = RootEntry(self, tock=self.tock)
 
-        self.cfg: attrdict = combine_dict(cfg or {}, CFG, cls=attrdict)
+        self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
         if isinstance(self.cfg.server.root, str):
-            self.cfg.server.root = self.cfg.server.root.split('.')
+            self.cfg.server.root = self.cfg.server.root.split(".")
         self.cfg.server.root = tuple(self.cfg.server.root)  # idempotent
 
         self.paranoid_root = self.root if self.cfg.server.paranoia else None
@@ -1345,13 +1345,15 @@ class Server:
                 yield n
             except BaseException as exc:
                 if n is not None:
-                    self.logger.warning("Deletion %s %d due to %r",self.node, n.tick, exc)
+                    self.logger.warning(
+                        "Deletion %s %d due to %r", self.node, n.tick, exc
+                    )
                     self.node.report_deleted(RangeSet((nt,)), self)
                     async with anyio.move_on_after(2, shield=True):
-                        await self._send_event("info", dict(
-                            node="",
-                            tick=0,
-                            deleted={self.node.name:(nt,)}))
+                        await self._send_event(
+                            "info",
+                            dict(node="", tick=0, deleted={self.node.name: (nt,)}),
+                        )
                 raise
             finally:
                 self._tock += 1
@@ -1424,8 +1426,6 @@ class Server:
         Args:
           action (str): the endpoint to send to. Prefixed by ``cfg.root``.
           msg: the message to send.
-          coalesce (bool): Flag whether old messages may be thrown away.
-            Default: ``False``.
         """
         if "tock" not in msg:
             msg["tock"] = self.tock
@@ -1471,6 +1471,7 @@ class Server:
                 )
                 auth = cfg.get("auth", None)
                 from .auth import gen_auth
+
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
@@ -1481,7 +1482,7 @@ class Server:
 
                     async def send_nodes():
                         nonlocal nodes, n_nodes
-                        await client._request(
+                        await client._request(  # pylint: disable=cell-var-from-loop
                             "check_deleted",
                             iter=False,
                             nchain=-1,
@@ -1504,11 +1505,8 @@ class Server:
                     if n_nodes > 0:
                         await send_nodes()
 
-            #           except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
-            #               raise
-            except Exception:
-                raise
-            #               self.logger.exception("Unable to connect to %s" % (nodes,))
+            except (ServerConnectionError, ServerClosedError):
+                self.logger.exception("Unable to connect to %s", nodes)
             else:
                 # The recipient will broadcast "info.deleted" messages for
                 # whatever it doesn't have, so we're done here.
@@ -1645,7 +1643,7 @@ class Server:
             if nn > 0:
                 # Some data have been reported to be missing.
                 # Send them.
-                self.logger.debug("MISS %d %r",nn,self.seen_missing)
+                self.logger.debug("MISS %d %r", nn, self.seen_missing)
                 await self._run_send_missing(None)
 
         # Step 3
@@ -1722,7 +1720,7 @@ class Server:
                 nn, seq, i, p = p
                 s = self._part_cache.get((nn, seq), None)
                 if s is None:
-                    self._part_cache[(nn,seq)] = s = [None]
+                    self._part_cache[(nn, seq)] = s = [None]
                 if i < 0:
                     i = -i
                     s[0] = b""
@@ -1787,49 +1785,48 @@ class Server:
           delay: an event to set after the initial ping message has been
             sent.
         """
-        async with anyio.create_task_group() as tg:
-            T = get_transport("distkv")
-            async with Actor(
-                T(self.serf, *self.cfg.server.root, "ping"),
-                name=self.node.name,
-                cfg=self.cfg.server.ping,
-                send_raw=True,
-            ) as actor:
-                self._actor = actor
-                await self._check_ticked()
-                await delay.set()
-                async for msg in actor:
-                    # self.logger.debug("IN %r",msg)
-                    if isinstance(msg, RecoverEvent):
-                        await self.spawn(
-                            self.recover_split,
-                            msg.prio,
-                            msg.replace,
-                            msg.local_nodes,
-                            msg.remote_nodes,
-                        )
-                    elif isinstance(msg, GoodNodeEvent):
-                        await self.spawn(self.fetch_data, msg.nodes)
-                    elif isinstance(msg, RawMsgEvent):
-                        msg = msg.msg
-                        msg_node = msg.get("node", None)
+        T = get_transport("distkv")
+        async with Actor(
+            T(self.serf, *self.cfg.server.root, "ping"),
+            name=self.node.name,
+            cfg=self.cfg.server.ping,
+            send_raw=True,
+        ) as actor:
+            self._actor = actor
+            await self._check_ticked()
+            await delay.set()
+            async for msg in actor:
+                # self.logger.debug("IN %r",msg)
+                if isinstance(msg, RecoverEvent):
+                    await self.spawn(
+                        self.recover_split,
+                        msg.prio,
+                        msg.replace,
+                        msg.local_nodes,
+                        msg.remote_nodes,
+                    )
+                elif isinstance(msg, GoodNodeEvent):
+                    await self.spawn(self.fetch_data, msg.nodes)
+                elif isinstance(msg, RawMsgEvent):
+                    msg = msg.msg
+                    msg_node = msg.get("node", None)
+                    if msg_node is None:
+                        msg_node = msg.get("history", (None,))[0]
                         if msg_node is None:
-                            msg_node = msg.get("history",(None,))[0]
-                            if msg_node is None:
-                                continue
-                        val = msg.get("value", None)
-                        if val is not None:
-                            await self.tock_seen(val[0])
-                            val = val[1]
-                        Node(msg_node, val, cache=self._nodes)
-                    elif isinstance(msg, (TagEvent,UntagEvent,DetagEvent)):
-                        pass
-                        # TODO tell clients, for cleanup tasks in handlers,
-                        # e.g. error needs to consolidate messages
+                            continue
+                    val = msg.get("value", None)
+                    if val is not None:
+                        await self.tock_seen(val[0])
+                        val = val[1]
+                    Node(msg_node, val, cache=self._nodes)
+                elif isinstance(msg, (TagEvent, UntagEvent, DetagEvent)):
+                    pass
+                    # TODO tell clients, for cleanup tasks in handlers,
+                    # e.g. error needs to consolidate messages
 
     async def _get_host_port(self, host):
         """Retrieve the remote system to connect to.
-        
+
         WARNING: While this is nice, there'a chicken-and-egg problem here.
         While you can use the hostmap to temporarily add new hosts with
         unusual addresses, the new host still needs a config entry.
@@ -1927,6 +1924,7 @@ class Server:
                 )
                 auth = cfg.get("auth", None)
                 from .auth import gen_auth
+
                 cfg["auth"] = gen_auth(auth)
 
                 async with distkv_client.open_client(connect=cfg) as client:
@@ -1977,7 +1975,7 @@ class Server:
             except (AttributeError, KeyError, ValueError, AssertionError, TypeError):
                 raise
             except Exception:
-                self.logger.exception("Unable to connect to %s:%d" % (host,port))
+                self.logger.exception("Unable to connect to %s:%d", host, port)
             else:
                 # At this point we successfully cloned some other
                 # node's state, so we now need to find whatever that
@@ -2065,7 +2063,6 @@ class Server:
             try:
                 await t._start()
                 clock = self.cfg.server.ping.cycle
-                tock = self.tock
 
                 # Step 1: send an info/ticks message
                 # for prio=0 this fires immediately. That's intentional.
@@ -2105,7 +2102,6 @@ class Server:
                     msg = attrdict(missing=msg)
                     await self._send_event("info", msg)
 
-
                 # wait a bit more before continuing. Again this depends on
                 # `prio` so that there won't be two nodes that send the same
                 # data at the same time, hopefully.
@@ -2138,7 +2134,7 @@ class Server:
         / "deleted" message.
         """
 
-        self.logger.debug("SendMissing %s",prio)
+        self.logger.debug("SendMissing %s", prio)
         clock = self.cfg.server.ping.cycle
         if prio is None:
             await anyio.sleep(clock * (1 + self._actor.random / 3))
@@ -2147,7 +2143,7 @@ class Server:
                 clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5)
             )
 
-        self.logger.debug("SendMissingGo %s %s",prio,self.sending_missing)
+        self.logger.debug("SendMissingGo %s %s", prio, self.sending_missing)
         while self.sending_missing:
             self.sending_missing = False
             nodes = list(self._nodes.values())
@@ -2155,7 +2151,12 @@ class Server:
             known = {}
             deleted = {}
             for n in nodes:
-                self.logger.debug("SendMissingGo %s %r %r",n.name,n.remote_missing,n.local_superseded)
+                self.logger.debug(
+                    "SendMissingGo %s %r %r",
+                    n.name,
+                    n.remote_missing,
+                    n.local_superseded,
+                )
                 k = n.remote_missing & n.local_superseded
                 for r in n.remote_missing & n.local_present:
                     for t in range(*r):
@@ -2208,9 +2209,7 @@ class Server:
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
                     await self.tock_seen(m.tock)
-                    await m.entry.apply(
-                        m, server=self, root=self.paranoid_root
-                    )
+                    await m.entry.apply(m, server=self, root=self.paranoid_root)
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
                 else:
@@ -2244,8 +2243,7 @@ class Server:
         stream: anyio.abc.Stream = None,
         save_state: bool = False,
         done: ValueEvent = None,
-        done_val = None,
-        full = False,
+        done_val=None,
     ):
         """Save the current state to ``path`` or ``stream``.
         Continue writing updates until cancelled.
@@ -2257,8 +2255,7 @@ class Server:
             If ``False`` (the default), only write changes.
           done: set when writing changes commences, signalling
             that the old save file (if any) may safely be closed.
-          full: save everything, inc. internal data.
-        
+
         Exactly one of ``stream`` or ``path`` must be set.
 
         This task flushes the current buffer to disk when one second
@@ -2314,11 +2311,7 @@ class Server:
                             cnt += 1
 
     async def _saver(
-        self,
-        path: str = None,
-        stream=None,
-        done: ValueEvent = None,
-        save_state=False,
+        self, path: str = None, stream=None, done: ValueEvent = None, save_state=False
     ):
 
         async with anyio.open_cancel_scope() as s:
@@ -2327,7 +2320,11 @@ class Server:
             self._savers.append(state)
             try:
                 await self.save_stream(
-                    path=path, stream=stream, done=done, done_val=s, save_state=save_state, full=True
+                    path=path,
+                    stream=stream,
+                    done=done,
+                    done_val=s,
+                    save_state=save_state,
                 )
             except EnvironmentError as err:
                 if done is None:
@@ -2353,28 +2350,33 @@ class Server:
           save_state (bool): Flag whether to write the current state.
             If ``False`` (the default), only write changes.
           wait: wait for the save to really start.
-        
+
         """
         done = ValueEvent() if wait else None
         res = None
         if path is not None:
             await self.spawn(
-                partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
+                partial(
+                    self._saver,
+                    path=path,
+                    stream=stream,
+                    save_state=save_state,
+                    done=done,
+                )
             )
             if wait:
                 res = await done.get()
 
         # At this point the new saver is operational, so we cancel the old one(s).
         while self._savers is not None and self._savers[0][0] is not res:
-            s,sd = self._savers.pop(0)
+            s, sd = self._savers.pop(0)
             await s.cancel()
             await sd.wait()
-
 
     async def _sigterm(self):
         with trio.open_signal_receiver(signal.SIGTERM) as r:
             async for s in r:
-                for s,sd in self._savers:
+                for s, sd in self._savers:
                     await s.cancel()
                     await sd.wait()
                 break
@@ -2404,6 +2406,8 @@ class Server:
         except KeyError:
             conn = self.cfg.server.connect
         async with back(**conn) as serf:
+            # pylint: disable=attribute-defined-outside-init
+
             # Collect all "info/missing" messages seen since the last
             # healed network split so that they're only sent once.
             self.seen_missing = {}
@@ -2528,7 +2532,9 @@ class Server:
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                if isinstance(exc, (trioBrokenResourceError, anyio.exceptions.ClosedResourceError)):
+                if isinstance(
+                    exc, (trioBrokenResourceError, anyio.exceptions.ClosedResourceError)
+                ):
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)

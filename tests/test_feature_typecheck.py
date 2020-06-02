@@ -24,9 +24,8 @@ async def collect(i, path=()):
 
 
 @pytest.mark.trio
-async def test_71_basic(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=80) as st:
         async with st.client() as c:
             with pytest.raises(ServerError):
                 await c._request(
@@ -141,10 +140,11 @@ async def test_71_basic(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_72_cmd(autojump_clock, tmpdir):
-    async with stdtest(args={"init": 123}) as st:
+async def test_72_cmd(autojump_clock, tmpdir):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=80) as st:
         s, = st.s
         async with st.client() as c:
+            h = p = None  # pylint
             for h, p, *_ in s.ports:
                 if h[0] != ":":
                     break

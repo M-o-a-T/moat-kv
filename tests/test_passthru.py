@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.trio
-async def test_51_passthru(autojump_clock):
+async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:
@@ -22,15 +22,15 @@ async def test_51_passthru(autojump_clock):
                         async for m in q:
                             assert "data" in m
                             assert m.topic[0] == "foo"
-                            assert m.topic[1] in {"bar","baz"}
+                            assert m.topic[1] in {"bar", "baz"}
                             recv.append(m.data)
                 except CancelledError:
                     pass
 
             await s.spawn(mon)
             await trio.sleep(0.2)
-            await c._request("msg_send", topic=("foo","bar"), data=["Hello", 42])
-            await c._request("msg_send", topic=("foo","baz"), data=b"duh")
+            await c._request("msg_send", topic=("foo", "bar"), data=["Hello", 42])
+            await c._request("msg_send", topic=("foo", "baz"), data=b"duh")
             await trio.sleep(0.5)
         assert recv == [("Hello", 42), b"duh"]
         pass  # closing client
@@ -38,7 +38,7 @@ async def test_51_passthru(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_52_passthru_bin(autojump_clock):
+async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
         s, = st.s
         async with st.client() as c:

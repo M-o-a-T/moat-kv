@@ -66,6 +66,7 @@ async def unpack_pwd(client, password):
 
 class ServerUserMaker(BaseServerAuthMaker):
     _name = None
+    _aux = None
     password: str = None
 
     @property
@@ -130,10 +131,8 @@ class ClientUserMaker(BaseClientAuthMaker):
     mod_schema = dict(
         type="object",
         additionalProperties=True,
-        properties=dict(
-            password=dict(type="string", minLength=5),
-        ),
-        #required=[],
+        properties=dict(password=dict(type="string", minLength=5)),
+        # required=[],
     )
     _name = None
     _pass = None
@@ -149,7 +148,7 @@ class ClientUserMaker(BaseClientAuthMaker):
     def build(cls, user, _initial=True):
         self = super().build(user, _initial=_initial)
         self._name = user["name"]
-        if 'password' in user:
+        if "password" in user:
             self._pass = user["password"].encode("utf-8")
         return self
 
@@ -157,7 +156,10 @@ class ClientUserMaker(BaseClientAuthMaker):
     async def recv(cls, client: Client, ident: str, _kind: str = "user", _initial=True):
         """Read a record representing a user from the server."""
         m = await client._request(
-            action="auth_get", typ=cls._auth_method, kind=_kind, ident=ident,
+            action="auth_get",
+            typ=cls._auth_method,
+            kind=_kind,
+            ident=ident,
             nchain=0 if _initial else 2,
         )
         # just to verify that the user exists
@@ -170,10 +172,12 @@ class ClientUserMaker(BaseClientAuthMaker):
             pass
         return self
 
-    async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
+    async def send(
+        self, client: Client, _kind="user", **msg
+    ):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
         if self._pass is not None:
-            msg['password'] = await pack_pwd(client, self._pass, self._length)
+            msg["password"] = await pack_pwd(client, self._pass, self._length)
 
         await client._request(
             action="auth_set",

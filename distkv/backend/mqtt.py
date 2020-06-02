@@ -7,17 +7,21 @@ from . import Backend
 # Simply setting connect=asyncserf.serf_client interferes with mocking
 # when testing.
 
+
 class MqttMessage:
-    def __init__(self,topic,payload):
+    def __init__(self, topic, payload):
         self.topic = topic
         self.payload = payload
 
+
 class MqttBackend(Backend):
+    client = None
+
     @asynccontextmanager
-    async def connect(self, **kw):
+    async def connect(self, *a, **kw):
         C = MQTTClient(self._tg, codec=NoopCodec())
         try:
-            await C.connect(**kw)
+            await C.connect(*a, **kw)
             self.client = C
             yield self
         finally:
@@ -27,18 +31,22 @@ class MqttBackend(Backend):
 
     @asynccontextmanager
     async def monitor(self, *topic):
-        topic = '/'.join(topic)
+        topic = "/".join(topic)
         async with self.client.subscription(topic) as sub:
+
             async def sub_get(sub):
                 async for msg in sub:
-                    yield MqttMessage(msg.topic.split('/'), msg.data)
+                    yield MqttMessage(msg.topic.split("/"), msg.data)
+
             yield sub_get(sub)
 
-    def send(self, *topic, payload):
+    def send(self, *topic, payload):  # pylint: disable=invalid-overridden-method
         """
         Send this payload to this topic.
         """
-        return self.client.publish('/'.join(topic), message=payload)
+        # client.publish is also async, pass-thru
+        return self.client.publish("/".join(topic), message=payload)
+
 
 @asynccontextmanager
 async def connect(**kw):
@@ -46,4 +54,3 @@ async def connect(**kw):
         c = MqttBackend(tg)
         async with c.connect(**kw):
             yield c
-

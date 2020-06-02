@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # (a) the autojump clock works as advertised
 # (b) we can use trio.
 @pytest.mark.trio
-async def test_00_trio_clock(autojump_clock):
+async def test_00_trio_clock(autojump_clock):  # pylint: disable=unused-argument
     assert trio.current_time() == 0
     t = time()
 
@@ -30,7 +30,7 @@ async def test_00_trio_clock(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_00_runner(autojump_clock):
+async def test_00_runner(autojump_clock):  # pylint: disable=unused-argument
     with pytest.raises(AssertionError):
         await run("--doesnotexist")
     await run("--doesnotexist", expect_exit=2)
@@ -49,9 +49,8 @@ async def collect(i, path=()):
 
 
 @pytest.mark.trio
-async def test_01_basic(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
             assert (await c.get()).value == 123
 
@@ -73,12 +72,12 @@ async def test_01_basic(autojump_clock):
                 {"path": ("foo", "baz"), "value": "quux"},
             ]
             r = await c.list()
-            assert r == (None,".distkv",'foo',)
+            assert r == (None, ".distkv", "foo")
             r = await c.list("foo")
-            assert r == ('bar','baz')
+            assert r == ("bar", "baz")
             r = await c.list("foo", with_data=True)
-            assert r == dict(bar="baz",baz="quux")
-            r = await c.list("foo","bar")
+            assert r == dict(bar="baz", baz="quux")
+            r = await c.list("foo", "bar")
             assert r == ()
 
             async with c._stream("get_tree", path=(), max_depth=2) as rr:
@@ -105,7 +104,12 @@ async def test_01_basic(autojump_clock):
             assert r.tock == bart
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -113,7 +117,7 @@ async def test_01_basic(autojump_clock):
                 "node": "test_0",
                 "nodes": {"test_0": 4},
                 "known": {},
-                "present": {'test_0': ((1, 5),)},
+                "present": {"test_0": ((1, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -142,7 +146,12 @@ async def test_01_basic(autojump_clock):
             bart = r.tock
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -150,7 +159,7 @@ async def test_01_basic(autojump_clock):
                 "node": "test_0",
                 "nodes": {"test_0": 6},
                 "known": {"test_0": (1, 3)},
-                "present": {'test_0': (2, (4, 7),)},
+                "present": {"test_0": (2, (4, 7))},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -167,11 +176,12 @@ async def test_01_basic(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_02_cmd(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
             assert (await c.get()).value == 123
+            s, = st.s
+            h = p = None  # pylint
             for h, p, *_ in s.ports:
                 if h[0] != ":":
                     break
@@ -193,7 +203,12 @@ async def test_02_cmd(autojump_clock):
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -201,7 +216,7 @@ async def test_02_cmd(autojump_clock):
                 "node": "test_0",
                 "nodes": {"test_0": 3},
                 "known": {},
-                'present': {'test_0': ((1, 4),)},
+                "present": {"test_0": ((1, 4),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -226,7 +241,12 @@ async def test_02_cmd(autojump_clock):
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -234,7 +254,7 @@ async def test_02_cmd(autojump_clock):
                 "node": "test_0",
                 "nodes": {"test_0": 4},
                 "known": {"test_0": (1,)},
-                'present': {'test_0': ((2, 5),)},
+                "present": {"test_0": ((2, 5),)},
                 "missing": {},
                 "remote_missing": {},
             }
@@ -243,14 +263,18 @@ async def test_02_cmd(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_03_three(autojump_clock):
+async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
-        s, si = st.s
         async with st.client(1) as ci:
             assert (await ci._request("get_value", path=())).value == 125
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -378,21 +402,26 @@ async def test_03_three(autojump_clock):
                 assert r == {
                     "node": "test_0",
                     "nodes": {"test_0": 1, "test_1": 2},
-                    'known': {'test_1': (1,)},
+                    "known": {"test_1": (1,)},
                     "present": {"test_0": (1,), "test_1": (2,)},
                     "missing": {},
                     "remote_missing": {},
                 }
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_1",
                 "nodes": {"test_0": 1, "test_1": 2},
-                'known': {'test_1': (1,)},
+                "known": {"test_1": (1,)},
                 "present": {"test_0": (1,), "test_1": (2,)},
                 "missing": {},
                 "remote_missing": {},

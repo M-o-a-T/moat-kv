@@ -1,20 +1,9 @@
 # command line interface
 
-import os
-import sys
 import asyncclick as click
-import json
 from functools import partial
 
-from distkv.util import (
-    attrdict,
-    combine_dict,
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    split_one,
-    NotGiven,
-)
+from distkv.util import attrdict, combine_dict
 from distkv.client import open_client
 from distkv.command import Loader
 from distkv.default import CFG
@@ -46,7 +35,9 @@ class NullObj:
         raise self._exc
 
 
-@main.group(cls=partial(Loader, __file__, "client"))  # pylint: disable=undefined-variable
+@main.group(  # pylint: disable=undefined-variable
+    cls=partial(Loader, __file__, "client")
+)
 @click.option(
     "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,)
 )

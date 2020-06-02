@@ -11,8 +11,8 @@ setup(
     author="Matthias Urlichs",
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
-    packages=find_packages()+["distkv_ext.dummy"],
-    #namespace_packages=["distkv_ext.dummy"],
+    packages=find_packages() + ["distkv_ext.dummy"],
+    # namespace_packages=["distkv_ext.dummy"],
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
         "asyncclick",
@@ -28,7 +28,7 @@ setup(
         "PyNaCl >= 1.3",
         "diffiehellman",
         "psutil",
-        "systemd-python", # OWCH NO
+        "systemd-python",  # OWCH NO
     ],
     tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],

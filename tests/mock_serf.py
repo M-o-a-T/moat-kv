@@ -14,7 +14,6 @@ from functools import partial
 
 from distkv.client import open_client
 from distkv.default import CFG
-from distkv.exceptions import CancelledError
 from distkv.server import Server
 from distkv.codec import unpacker
 from distkv.util import attrdict, combine_dict, NotGiven, ValueEvent
@@ -29,7 +28,7 @@ otm = time.time
 
 
 @asynccontextmanager
-async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
+async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
         del CFG["_stdout"]
@@ -56,7 +55,7 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
 
     clock = trio.lowlevel.current_clock()
     clock.autojump_threshold = 0.0
-    #clock.rate = 5
+    # clock.rate = 5
 
     @attr.s
     class S:
@@ -86,8 +85,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                 if host[0] == ":":
                     continue
                 try:
-                    async with open_client(connect=dict(
-                        host=host, port=port, ssl=client_ctx, **kv)
+                    async with open_client(
+                        connect=dict(host=host, port=port, ssl=client_ctx, **kv)
                     ) as c:
                         yield c
                         return
@@ -118,10 +117,14 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         except RuntimeError:
             return otm()
 
+    async def mock_set_tock(self, old):
+        assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
+        await old()
+
     async with anyio.create_task_group() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
-            st.ex = ex
+            st.ex = ex  # pylint: disable=attribute-defined-outside-init
             ex.enter_context(mock.patch("time.time", new=tm))
             ex.enter_context(mock.patch("time.monotonic", new=tm))
             logging._startTime = tm()
@@ -149,11 +152,11 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                     TESTCFG,
                 )
                 s = Server(name, **args)
-                # ex.enter_context(
-                #     mock.patch.object(
-                #         s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
-                #     )
-                # )
+                ex.enter_context(
+                    mock.patch.object(
+                        s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock)
+                    )
+                )
                 ex.enter_context(
                     mock.patch.object(
                         s, "_get_host_port", new=partial(mock_get_host_port, st)
@@ -211,17 +214,12 @@ class MockServ:
         await self._tg.spawn(run, evt)
         return await evt.get()
 
-    def stream(self, event_types="*"):
-        if "," in event_types or not event_types.startswith("user:"):
-            raise RuntimeError("not supported")
-        s = MockSerfStream(self, event_types)
-        return s
-
-    async def event(self, name, payload, coalesce=False):
+    async def event(self, name, payload, coalesce=True):
         try:
             logger.debug("SERF:%s: %r", name, unpacker(payload))
         except Exception:
             logger.debug("SERF:%s: %r (raw)", name, payload)
+        assert not coalesce, "'coalesce' must be cleared!"
 
         i_self = self.cfg.get("i", 0)
         for s in list(self._master.serfs):
@@ -230,11 +228,11 @@ class MockServ:
                 if (i_s < x) != (i_self < x):
                     break
             else:
-                n = tuple(name.split('.'))
+                n = tuple(name.split("."))
                 while n:
                     sl = s.streams.get(n, ())
                     for sn in sl:
-                        await sn.q.put((name,payload))
+                        await sn.q.put((name, payload))
                     n = n[:-1]
 
     def stream(self, typ):
@@ -256,10 +254,12 @@ class MockServ:
 
 
 class MockSerfStream:
+    q = None
+
     def __init__(self, serf, typ):
         self.serf = serf
         assert typ.startswith("user:")
-        self.typ = tuple(typ[5:].split('.'))
+        self.typ = tuple(typ[5:].split("."))
 
     async def __aenter__(self):
         self.q = create_queue(100)
@@ -278,4 +278,3 @@ class MockSerfStream:
         evt = SerfEvent(self)
         evt.topic, evt.payload = res
         return evt
-

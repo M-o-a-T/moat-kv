@@ -20,18 +20,18 @@ CFG = attrdict(
         "loggers": {"asyncserf": {"level": "INFO"}},
         "root": {"handlers": ["stderr"], "level": "INFO"},
         "handlers": {
-#           "logfile": {
-#               "class": "logging.FileHandler",
-#               "filename": "test.log",
-#               "level": "DEBUG",
-#               "formatter": "std",
-#           },
+            #           "logfile": {
+            #               "class": "logging.FileHandler",
+            #               "filename": "test.log",
+            #               "level": "DEBUG",
+            #               "formatter": "std",
+            #           },
             "stderr": {
                 "class": "logging.StreamHandler",
                 "level": "DEBUG",
                 "formatter": "std",
                 "stream": "ext://sys.stderr",
-            },
+            }
         },
         "formatters": {
             "std": {
@@ -66,9 +66,7 @@ CFG = attrdict(
             cycle=10, nodes=-1, splits=5  # required for Runner
         ),
         sub=attrdict(  # tags for various runner modes
-            group="any",
-            single="at",
-            all="all",
+            group="any", single="at", all="all"
         ),
     ),
     server=attrdict(
@@ -79,7 +77,6 @@ CFG = attrdict(
             host="localhost",
             port=7373,
         ),
-
         root=(":distkv",),  # event message name prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
         # which addresses/ports to accept DistKV connections on
@@ -101,5 +98,5 @@ CFG = attrdict(
     },
 )
 
-for n,f in list_ext('config'):
-    CFG[n] = combine_dict(load_ext(n,"config","CFG"), CFG.get(n,{}), cls=attrdict)
+for n, f in list_ext("config"):
+    CFG[n] = combine_dict(load_ext(n, "config", "CFG"), CFG.get(n, {}), cls=attrdict)

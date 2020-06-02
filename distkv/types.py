@@ -56,8 +56,8 @@ class TypeEntry(Entry):
                         jsonschema.validate(instance=v, schema=schema)
                     if code is not None:
                         code(v, entry=None)
-                except Exception as exc:
-                    raise ValueError("failed on good value %r" % (v, ))
+                except Exception:
+                    raise ValueError("failed on good value %r" % (v,))
             for v in value["bad"]:
                 self.parent.check_value(v)
                 try:
@@ -122,7 +122,7 @@ MatchEntry.SUBTYPE = MatchEntry
 
 class NodeFinder:
     """A generic object that can walk down a possibly-wildcard-equipped path.
-    
+
     Example: given a path `one.two.three` and a root `bar` with subtree `bar.#.three`,
     `NodeFinder(bar).step(one).step(two).step(three)` will return the node
     at `bar.#.three` (assuming that nothing more specific hangs off `bar`).
@@ -149,7 +149,7 @@ class NodeFinder:
                 steps.append((node, True))
             # Nodes found with '#' stay on the list
             # so that they can match multiple entries.
-        #if not steps:
+        # if not steps:
         #    raise KeyError(name)
         if new:
             return type(self)(steps, **self.copy_args)
@@ -355,8 +355,8 @@ class ConvEntry(MetaEntry):
         if value is not NotGiven:
             # can't run a nonexistent value through a codec
 
-            if not hasattr(value,'codec'):
-                raise ValueError("Duh? "+repr(value))
+            if not hasattr(value, "codec"):
+                raise ValueError("Duh? " + repr(value))
             if isinstance(value.codec, str):
                 value.codec = (value.codec,)
             elif not isinstance(value.codec, (list, tuple)):
@@ -421,7 +421,7 @@ class ConvRoot(MetaEntry):
             raise ValueError("This node can't have data.")
 
 
-class AclEntry(MetaEntry):
+class AclEntry(MetaPathEntry):
     """I represent an ACL.
 
     My data must be a string of ACLish characters.

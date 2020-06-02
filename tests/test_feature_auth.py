@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.trio
-async def test_22_auth_basic(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
+async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=50) as st:
         s, = st.s
+        h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
@@ -63,21 +64,20 @@ typ: root
 
 
 @pytest.mark.trio
-async def test_23_auth_test(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
+async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=80) as st:
         s, = st.s
+        h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        run_cm = partial(run, "-D", "client", "-m", "-h", h, "-p", p)
         await run_c("data", "set", "-v", "there", "hello")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
 
         run_a = partial(run_c, "-a", "root", "auth", "-m", "_test")
-        run_am = partial(run_cm, "-a", "root", "auth", "-m", "_test")
         await run_a("user", "add", "name=fubar")
         res = await run_a("user", "list")
         assert res.stdout == "fubar\n"
@@ -107,9 +107,10 @@ typ: _test
 
 @pytest.mark.trio
 async def test_24_auth_password(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
+    async with stdtest(args={"init": 123}, tocks=99) as st:
         s, = st.s
         autojump_clock.autojump_threshold = 1
+        h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break

@@ -15,9 +15,7 @@ from functools import partial
 
 from distkv.client import open_client
 from distkv.default import CFG
-from distkv.exceptions import CancelledError
 from distkv.server import Server
-from distkv.codec import unpacker
 from distkv.util import attrdict, combine_dict, NotGiven
 from distmqtt.broker import create_broker
 
@@ -27,27 +25,19 @@ logger = logging.getLogger(__name__)
 
 otm = time.time
 
-PORT = 40000 + (os.getpid()+10)%10000
+PORT = 40000 + (os.getpid() + 10) % 10000
 
 broker_cfg = {
-    'listeners': {
-        'default': {
-            'type': 'tcp',
-            'bind': '127.0.0.1:%d' % PORT,
-        },
-    },
-    'timeout-disconnect-delay': 2,
-    'auth': {
-        'allow-anonymous': True,
-        'password-file': None
-    },
+    "listeners": {"default": {"type": "tcp", "bind": "127.0.0.1:%d" % PORT}},
+    "timeout-disconnect-delay": 2,
+    "auth": {"allow-anonymous": True, "password-file": None},
 }
 
 URI = "mqtt://127.0.0.1:%d/" % PORT
 
 
 @asynccontextmanager
-async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
+async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
         del CFG["_stdout"]
@@ -72,8 +62,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         server_ctx = client_ctx = False
 
     clock = trio.lowlevel.current_clock()
-    #clock.autojump_threshold = 0.1
-    #clock.rate = 5
+    # clock.autojump_threshold = 0.1
+    # clock.rate = 5
 
     @attr.s
     class S:
@@ -102,8 +92,8 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                 if host[0] == ":":
                     continue
                 try:
-                    async with open_client(connect=dict(
-                        host=host, port=port, ssl=client_ctx, **kv)
+                    async with open_client(
+                        connect=dict(host=host, port=port, ssl=client_ctx, **kv)
                     ) as c:
                         yield c
                         return
@@ -125,14 +115,18 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
         except RuntimeError:
             return otm()
 
+    async def mock_set_tock(self, old):
+        assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
+        await old()
+
     async with anyio.create_task_group() as tg:
         st = S(tg)
         async with AsyncExitStack() as ex:
-            st.ex = ex
+            st.ex = ex  # pylint: disable=attribute-defined-outside-init
             ex.enter_context(mock.patch("time.time", new=tm))
             ex.enter_context(mock.patch("time.monotonic", new=tm))
             logging._startTime = tm()
-            broker = await ex.enter_async_context(create_broker(config=broker_cfg))
+            await ex.enter_async_context(create_broker(config=broker_cfg))
 
             for i in range(n):
                 name = "test_" + str(i)
@@ -144,21 +138,21 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                         "server": {
                             "bind_default": {
                                 "host": "127.0.0.1",
-                                "port": i + 50120,
+                                "port": i + PORT + 1,
                                 "ssl": server_ctx,
                             },
-                            "backend":"mqtt",
-                            "mqtt":{"uri":URI},
+                            "backend": "mqtt",
+                            "mqtt": {"uri": URI},
                         },
                     },
                     TESTCFG,
                 )
                 s = Server(name, **args)
-                # ex.enter_context(
-                #     mock.patch.object(
-                #         s, "_send_ping", new=partial(mock_send_ping, s, s._send_ping)
-                #     )
-                # )
+                ex.enter_context(
+                    mock.patch.object(
+                        s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock)
+                    )
+                )
                 ex.enter_context(
                     mock.patch.object(
                         s, "_get_host_port", new=partial(mock_get_host_port, st)
@@ -182,5 +176,3 @@ async def stdtest(n=1, run=True, client=True, ssl=False, tocks=20, **kw):
                     await tg.cancel_scope.cancel()
         logger.info("End")
         pass  # unwinding AsyncExitStack
-
-

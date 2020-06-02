@@ -49,27 +49,29 @@ class Loader(click.Group):
         rv = super().list_commands(ctx)
 
         for filename in os.listdir(self.__plugin_folder):
-            if filename[0] in '._':
+            if filename[0] in "._":
                 continue
             if filename.endswith(".py"):
                 rv.append(filename[:-3])
-            elif os.path.isfile(os.path.join(self.__plugin_folder,filename,'__init__.py')):
+            elif os.path.isfile(
+                os.path.join(self.__plugin_folder, filename, "__init__.py")
+            ):
                 rv.append(filename)
 
-        for n,_ in list_ext(self.__plugin):
+        for n, _ in list_ext(self.__plugin):
             rv.append(n)
         rv.sort()
         return rv
 
     def get_command(self, ctx, name):  # pylint: disable=arguments-differ
-        cmd = super().get_command(ctx, name)
-        if cmd is None:
+        command = super().get_command(ctx, name)
+        if command is None:
             try:
-                cmd = load_one(name, self.__plugin_folder, "cli", main=self)
+                command = load_one(name, self.__plugin_folder, "cli", main=self)
             except FileNotFoundError:
-                cmd = load_ext(name, self.__plugin, "cli", main=self)
-        cmd.__name__ = name
-        return cmd
+                command = load_ext(name, self.__plugin, "cli", main=self)
+        command.__name__ = name
+        return command
 
 
 def cmd():
@@ -97,11 +99,13 @@ def cmd():
     except click.exceptions.Abort:
         print("Aborted.", file=sys.stderr)
         pass
-    except EnvironmentError:
+    except EnvironmentError:  # pylint: disable=try-except-raise
         raise
-    except (EnvironmentError, ClientError, ServerError) as err:
+    except (ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)
+
+
 #   except BaseException as exc:
 #       print(exc)
 #       sys.exit(1)

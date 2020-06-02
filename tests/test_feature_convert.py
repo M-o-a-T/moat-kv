@@ -27,8 +27,8 @@ async def collect(i, path=()):
 
 
 @pytest.mark.trio
-async def test_71_basic(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
+async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=100) as st:
         s, = st.s
         async with st.client() as c:
             await c._request(
@@ -50,7 +50,12 @@ async def test_71_basic(autojump_clock):
             u = um.build({"name": "std"})
             await u.send(c)
             u = um.build({"name": "con"})
-            await c._request("set_internal", path=("auth","_test","user","con","conv"), value=dict(key="foo"), iter=False)
+            await c._request(
+                "set_internal",
+                path=("auth", "_test", "user", "con", "conv"),
+                value=dict(key="foo"),
+                iter=False,
+            )
             await u.send(c)
             await c._request("set_auth_typ", typ="_test")
 
