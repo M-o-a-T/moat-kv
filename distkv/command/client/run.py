@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")
+@click.option(
+    "-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes"
+)
 @click.option("-g", "--group", help="group to run this code on. Empty: any one node")
 @click.pass_obj
 async def cli(obj, node, group):
@@ -26,7 +28,7 @@ async def cli(obj, node, group):
     if not node:
         obj.runner_root = AnyRunnerRoot
         subpath = (group,)
-    elif node == '-':
+    elif node == "-":
         obj.runner_root = AllRunnerRoot
         subpath = (group,)
     else:
@@ -38,15 +40,16 @@ async def cli(obj, node, group):
     obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
 
 
-@cli.command()
+@cli.command("all")
 @click.pass_obj
-async def all(obj):
+async def all_(obj):
     """
     Run code that needs to run.
 
     This does not return.
     """
     from distkv.util import as_service
+
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
 
@@ -54,13 +57,13 @@ async def all(obj):
         _, evt = evt
         c = obj.client
         cr = await CodeRoot.as_handler(c)
-        r = await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
+        await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
         await evt.set()
         while True:
             await anyio.sleep(99999)
 
 
-@cli.command()
+@cli.command("list")
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.option(
     "-d",
@@ -71,7 +74,7 @@ async def all(obj):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(obj, state, as_dict, path):
+async def list_(obj, state, as_dict, path):
     """List run entries.
     """
     if obj.subpath[-1] == "-":
@@ -80,19 +83,24 @@ async def list(obj, state, as_dict, path):
 
         path = obj.path[:-1]
         res = await obj.client._request(
-            action="get_tree", path=path, iter=True, max_depth=2,nchain=obj.meta, empty=True
+            action="get_tree",
+            path=path,
+            iter=True,
+            max_depth=2,
+            nchain=obj.meta,
+            empty=True,
         )
-        pl=PathLongener(())
+        pl = PathLongener(())
         async for r in res:
             pl(r)
-            print(r.path[-1],file=obj.stdout)
+            print(r.path[-1], file=obj.stdout)
         return
 
     if not path:
         path = ()
-    path = obj.path+path
+    path = obj.path + path
     if state:
-        state = obj.statepath+path
+        state = obj.statepath + path
     res = await obj.client._request(
         action="get_tree", path=path, iter=True, nchain=obj.meta
     )
@@ -128,11 +136,11 @@ async def list(obj, state, as_dict, path):
         yprint(y, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command("state")
 @click.option("-r", "--result", is_flag=True, help="Just print the actual result.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def state(obj, path, result):
+async def state_(obj, path, result):
     """Get the status of a runner entry.
     """
     if obj.subpath[-1] == "-":
@@ -165,7 +173,7 @@ async def get(obj, path):
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    path = obj.path+ path
+    path = obj.path + path
 
     res = await obj.client._request(
         action="get_value", path=path, iter=False, nchain=obj.meta
@@ -176,7 +184,7 @@ async def get(obj, path):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command("set")
 @click.option(
     "-c", "--code", help="Path to the code that should run. Space separated path."
 )
@@ -193,14 +201,14 @@ async def get(obj, path):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
+async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     """Save / modify a run entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
     if eval_:
-        code = eval(code)
+        code = eval(code)  # pylint: disable=eval-used
         if not isinstance(code, (list, tuple)):
             raise click.UsageError("'code' must be a list")
     elif code is not None:
@@ -239,13 +247,11 @@ async def set(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
         res["target"] = time.time() + tm
 
     res = await obj.client.set(
-        *path,
-        value=res,
-        nchain=3,
-        **({"chain": chain} if obj.meta else {})
+        *path, value=res, nchain=3, **({"chain": chain} if obj.meta else {})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
+
 
 @click.command()
 @click.pass_obj
@@ -264,5 +270,3 @@ async def monitor(obj):
         async for msg in cl:
             yprint(msg, stream=obj.stdout)
             print("---", file=obj.stdout)
-            await process_test(msg.data)
-

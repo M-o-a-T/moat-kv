@@ -82,9 +82,9 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
                     yield r
 
 
-@cli.command()
+@cli.command("list")
 @click.pass_obj
-async def list(obj):
+async def list_(obj):
     """List known auth methods"""
     async for auth in enum_auth(obj):
         print(auth, file=obj.stdout)
@@ -107,13 +107,12 @@ async def init(obj, switch):
 
 
 @cli.group()
-@click.pass_obj
-async def user(obj):
+async def user():
     """Manage users."""
     pass
 
 
-@user.command()
+@user.command("list")
 @click.option(
     "-v",
     "--verbose",
@@ -121,7 +120,7 @@ async def user(obj):
     help="Print complete results. Default: just the names",
 )
 @click.pass_obj  # pylint: disable=function-redefined
-async def list(obj, verbose):
+async def list_user(obj, verbose):
     """List all users (raw data)."""
     async for r in enum_typ(obj, nchain=obj.meta):
         if obj.meta or verbose:
@@ -161,37 +160,50 @@ async def add(obj, args):
 @click.argument("key", nargs=1)
 @click.argument("args", nargs=-1)
 @click.pass_obj
-async def param(obj, new, ident, type, key, args):
+async def param(obj, new, ident, type, key, args):  # pylint: disable=redefined-builtin
     """Set user parameters for auth, conversion, etc."""
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
     if obj._DEBUG:
         u._length = 16
-    ou = await u.recv(obj.client, ident, _initial=False)
+    # ou = await u.recv(obj.client, ident, _initial=False)  # unused
     res = await obj.client._request(
-        action="get_internal", path=("auth",auth,"user",ident,type), iter=False, nchain=3)
+        action="get_internal",
+        path=("auth", auth, "user", ident, type),
+        iter=False,
+        nchain=3,
+    )
 
-    kw = res.get('value', NotGiven)
+    kw = res.get("value", NotGiven)
     if new or kw is NotGiven:
         kw = {}
         res.chain = None
-    if key == '-':
+    if key == "-":
         if args:
             raise click.UsageError("You can't set params when deleting")
         res = await obj.client._request(
-            action="delete_internal", path=("auth",auth,"user",ident,type), iter=False, chain=res.chain)
+            action="delete_internal",
+            path=("auth", auth, "user", ident, type),
+            iter=False,
+            chain=res.chain,
+        )
 
     else:
-        kw['key'] = key
+        kw["key"] = key
 
         for a in args:
             split_one(a, kw)
 
         res = await obj.client._request(
-            action="set_internal", path=("auth",auth,"user",ident,type), iter=False, chain=res.chain, value=kw)
+            action="set_internal",
+            path=("auth", auth, "user", ident, type),
+            iter=False,
+            chain=res.chain,
+            value=kw,
+        )
     if obj.meta:
-        #res.ident = ident
-        #res.type = type
+        # res.ident = ident
+        # res.type = type
         yprint(res, stream=obj.stdout)
     else:
         print(ident, type, key, file=obj.stdout)
@@ -243,7 +255,7 @@ async def add_mod_user(obj, args, modify):
 @click.pass_obj
 async def auth_(obj, auth):
     """Test user authorization."""
-    user = gen_auth(auth)
+    user = gen_auth(auth)  # pylint: disable=redefined-outer-name
     await user.auth(obj.client)
     if obj.debug > 0:
         print("OK.", file=obj.stdout)

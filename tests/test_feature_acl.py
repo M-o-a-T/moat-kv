@@ -1,5 +1,4 @@
 import pytest
-import trio
 
 from .mock_mqtt import stdtest
 
@@ -27,12 +26,11 @@ async def collect(i, path=()):
 
 
 @pytest.mark.trio
-async def test_81_basic(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
             # TODO control what happens when stepping to where's no ACL
-            #await c._request("set_internal", path=("acl", "foo"), value="x")
+            # await c._request("set_internal", path=("acl", "foo"), value="x")
             await c._request("set_internal", path=("acl", "foo", "one"), value="rxnc")
             await c._request(
                 "set_internal", path=("acl", "foo", "one", "two"), value="rc"
@@ -43,12 +41,15 @@ async def test_81_basic(autojump_clock):
             await u.send(c)
             u = um.build({"name": "aclix"})
             await u.send(c)
-            await c._request("set_internal", path=("auth","_test","user","aclix","acl"), value=dict(key="foo"), iter=False)
+            await c._request(
+                "set_internal",
+                path=("auth", "_test", "user", "aclix", "acl"),
+                value=dict(key="foo"),
+                iter=False,
+            )
             await c._request("set_auth_typ", typ="_test")
-            #, "aux": {"acl": "foo"}})
+            # , "aux": {"acl": "foo"}})
 
-
-        recv = []
         um = loader("_test", "user", make=False, server=False)
 
         async with st.client(auth=um.build({"name": "aclix"})) as c:
@@ -58,5 +59,7 @@ async def test_81_basic(autojump_clock):
                 await c.set("one", "two", "three", value=12)
             with pytest.raises(ServerError):
                 await c.set("one", "two", value=22)
+
+
 #           with pytest.raises(ServerError):
 #               await c.set("foo", value=23)

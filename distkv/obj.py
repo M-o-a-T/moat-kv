@@ -4,12 +4,9 @@ Object interface to distkv data
 """
 
 import anyio
-import msgpack
 import weakref
 import heapq
-from functools import partial
 from collections.abc import Mapping
-import socket
 
 try:
     from contextlib import asynccontextmanager
@@ -31,6 +28,9 @@ class ClientEntry:
     :meth:`Client.mirror`.
     """
 
+    value = NotGiven
+    chain = None
+
     def __init__(self, parent, name=None):
         self._init()
         self._path = parent._path + (name,)
@@ -46,7 +46,7 @@ class ClientEntry:
         self._children = dict()
 
     @classmethod
-    def child_type(cls, name):
+    def child_type(cls, name):  # pylint: disable=unused-argument
         """Given a node, return the type which the child with that name should have.
         The default is "same as this class".
         """
@@ -59,7 +59,7 @@ class ClientEntry:
         val = self.value
         if val is NotGiven:
             return default
-        if typ is not None and not isinstance(val,typ):
+        if typ is not None and not isinstance(val, typ):
             return default
         return val
 
@@ -86,7 +86,6 @@ class ClientEntry:
                     raise
                 return default
         return val
-
 
     def find_cfg(self, *k, default=NotGiven):
         """
@@ -143,7 +142,7 @@ class ClientEntry:
         if c is not None:
             if exists:
                 return c
-            raise RuntimeError("Duplicate child",self,name,c)
+            raise RuntimeError("Duplicate child", self, name, c)
         c = self.child_type(name)
         if c is None:
             raise KeyError(name)
@@ -170,14 +169,14 @@ class ClientEntry:
             raise RuntimeError("You seem to have used 'path' instead of '*path'.")
 
         node = self
-        for n,elem in enumerate(path, start=1):
+        for n, elem in enumerate(path, start=1):
             next_node = node.get(elem)
             if next_node is None:
                 if create is False:
                     return None
                 next_node = node.allocate(elem)
             elif create and n == len(path) and next_node.value is not NotGiven:
-                raise RuntimeError("Duplicate child",self,path,n)
+                raise RuntimeError("Duplicate child", self, path, n)
 
             node = next_node
 
@@ -231,15 +230,14 @@ class ClientEntry:
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.delete(
-                *self._path, nchain=nchain,
-                **({"chain":self.chain} if chain else {}),
+                *self._path, nchain=nchain, **({"chain": self.chain} if chain else {})
             )
             if wait:
                 await self.root.wait_chain(r.chain)
             self.chain = None
             return r
 
-    async def set_value(self, value=NotGiven):
+    async def set_value(self, value):
         """Callback to set the value when data has arrived.
 
         This method is strictly for overriding.
@@ -293,10 +291,10 @@ class AttrClientEntry(ClientEntry):
 
     ATTRS = ()
 
-    async def update(self, val):
+    async def update(self, value, **kw):  # pylint: disable=arguments-differ
         raise RuntimeError("Nope. Set attributes and call '.save()'.")
 
-    async def set_value(self, val=NotGiven):
+    async def set_value(self, value):
         """Callback to set the value when data has arrived.
 
         This method sets the actual attributes.
@@ -304,17 +302,17 @@ class AttrClientEntry(ClientEntry):
         This method is strictly for overriding.
         Don't call me, I'll call you.
         """
-        await super().set_value(val)
+        await super().set_value(value)
         for k in self.ATTRS:
-            if val is not NotGiven and k in val:
-                setattr(self, k, val[k])
+            if value is not NotGiven and k in value:
+                setattr(self, k, value[k])
             else:
                 try:
                     delattr(self, k)
                 except AttributeError:
                     pass
 
-    def get_value(self, wait=False, skip_none=False, skip_empty=False):
+    def get_value(self, skip_none=False, skip_empty=False):
         """
         Extract value from attrs
         """
@@ -334,12 +332,10 @@ class AttrClientEntry(ClientEntry):
                 res[attr] = v
         return res
 
-
     async def save(self, wait=False):
         """
         Save myself to storage, by copying ATTRS to a new value.
         """
-        res = {}
         async with self._lock:
             r = await super().update(value=self.get_value(), _locked=True)
             if wait:
@@ -356,9 +352,12 @@ class ClientRoot(ClientEntry):
 
     """
 
+    _tg = None
+
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
     def __init__(self, client, *path, need_wait=False, cfg=None):
+        # pylint: disable=super-init-not-called
         self._init()
         self.client = client
         self._path = path
@@ -485,7 +484,9 @@ class ClientRoot(ClientEntry):
                                 pass
 
                             # update entry
-                            entry.prev_chain, entry.chain = entry.chain, (None if val is NotGiven else r.get("chain", None))
+                            entry.chain = (
+                                None if val is NotGiven else r.get("chain", None)
+                            )
                             await entry.set_value(val)
 
                             if val is NotGiven and not entry:
@@ -494,7 +495,8 @@ class ClientRoot(ClientEntry):
                                 # parents) from our tree.
                                 n = list(entry.subpath)
                                 while n:
-                                    # no-op except for class-specific side effects like setting an event
+                                    # no-op except for class-specific side effects
+                                    # like setting an event
                                     await entry.set_value(NotGiven)
 
                                     entry = entry.parent
@@ -549,4 +551,3 @@ class ClientRoot(ClientEntry):
 
     def spawn(self, *a, **kw):
         return self._tg.spawn(*a, **kw)
-

@@ -24,7 +24,7 @@ PACKAGE = distkv
 PYTHON ?= python3
 export PYTHONPATH=$(shell pwd)
 
-PYTEST ?= ${PYTHON} $(shell which pytest-3)
+PYTEST ?= pytest
 TEST_OPTIONS ?= -xvvv --full-trace
 PYLINT_RC ?= .pylintrc
 
@@ -53,7 +53,10 @@ update:
 	pip install -r ci/test-requirements.txt
 
 test:
-	env MSGPACK_PUREPYTHON=1 $(PYTEST) $(PACKAGE) $(TEST_OPTIONS)
+	black distkv tests setup.py
+	flake8 distkv tests setup.py
+	pylint distkv tests setup.py
+	env MSGPACK_PUREPYTHON=1 $(PYTEST) $(TEST_OPTIONS) tests
 
 tagged:
 	git describe --tags --exact-match

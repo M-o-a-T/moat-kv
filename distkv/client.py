@@ -17,7 +17,6 @@ else:
     import trio._core._run as tcr
 
     random = tcr._r
-import socket
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
@@ -72,9 +71,9 @@ async def open_client(**cfg):
     async with anyio.create_task_group() as tg:
         async with client._connected(tg) as client:
             yield client
-            pass # end connected
-        pass # end taskgroup
-    pass # end client
+            pass  # end connected
+        pass  # end taskgroup
+    pass  # end client
 
 
 class StreamedRequest:
@@ -188,7 +187,7 @@ class StreamedRequest:
             params["state"] = "start"
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
-        logger.debug("Send %s", {'seq':self.seq, **params})
+        logger.debug("Send %s", {"seq": self.seq, **params})
         await self._client._send(seq=self.seq, **params)
 
     async def recv(self):
@@ -253,12 +252,14 @@ class _SingleReply:
         pass
 
 
-class _ClientConfig:
+class ClientConfig:
     """Accessor for configuration, possibly stored in DistKV.
     """
+
+    _changed = None  # pylint
+
     def __init__(self, client, *a, **k):
         self._init(client)
-        super().__init__(client, *a, **k)
 
     def _init(self, client):
         self._client = client
@@ -266,7 +267,7 @@ class _ClientConfig:
         self._changed = anyio.create_event()
 
     def __getattr__(self, k):
-        if k.startswith('_'):
+        if k.startswith("_"):
             return object.__getattribute__(self, k)
         v = self._current.get(k, NotGiven)
         if v is NotGiven:
@@ -292,13 +293,11 @@ class _ClientConfig:
         class CfgWatcher:
             def __ainit__(slf):  # pylint: disable=no-self-argument
                 return slf
+
             async def __anext__(slf):  # pylint: disable=no-self-argument
                 await self._changed.wait()
-        return CfgWatcher()
 
-class ClientConfig(_ClientConfig):
-    def __init__(self, client):
-        self._init(client)
+        return CfgWatcher()
 
 
 class Client:
@@ -310,6 +309,9 @@ class Client:
 
     _server_init = None  # Server greeting
     _dh_key = None
+    _config = None
+    _socket = None
+    tg = None
     exit_stack = None
 
     server_name = None
@@ -426,7 +428,8 @@ class Client:
         """
         unpacker = stream_unpacker()
 
-        async with anyio.open_cancel_scope() as s:
+        async with anyio.open_cancel_scope():
+            # XXX store the scope so that the redaer may get cancelled?
             if evt is not None:
                 await evt.set()
             try:
@@ -457,7 +460,9 @@ class Client:
                         except anyio.exceptions.ClosedResourceError:
                             pass
 
-    async def _request(self, action, iter=None, seq=None, _async=False, **params):
+    async def _request(
+        self, action, iter=None, seq=None, _async=False, **params
+    ):  # pylint: disable=redefined-builtin  # iter
         """Send a request. Wait for a reply.
 
         Args:
@@ -601,12 +606,13 @@ class Client:
         hello = ValueEvent()
         self._handlers[0] = hello
 
-        cfg = self._cfg['connect']
+        cfg = self._cfg["connect"]
         host = cfg["host"]
         port = cfg["port"]
         auth = cfg["auth"]
         if auth is not None:
             from .auth import gen_auth
+
             auth = gen_auth(auth)
         init_timeout = cfg["init_timeout"]
         ssl = gen_ssl(cfg["ssl"], server=False)
@@ -636,6 +642,7 @@ class Client:
                     await self._run_auth(auth)
 
                 from .config import ConfigRoot
+
                 self._config = await ConfigRoot.as_handler(self)
 
                 yield self
@@ -710,7 +717,7 @@ class Client:
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
+    def delete(self, *path, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Delete a node.
 
@@ -743,8 +750,9 @@ class Client:
         """
         if empty is None:
             empty = not with_data
-        res = await self._request(action="enum", path=path,
-                with_data=with_data, empty=empty, **kw)
+        res = await self._request(
+            action="enum", path=path, with_data=with_data, empty=empty, **kw
+        )
         return res.result
 
     async def get_tree(self, *path, long_path=True, **kw):
@@ -843,6 +851,7 @@ class Client:
         """
         if root_type is None:
             from .obj import ClientRoot
+
             root_type = ClientRoot
         root = root_type(self, *path, **kw)
         return root.run()

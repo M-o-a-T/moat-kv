@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.trio
-async def test_21_load_save(autojump_clock, tmpdir):
+async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-argument
     """also used to check watching"""
     path = tmpdir.join("foo")
     logger.debug("START")
@@ -130,11 +130,12 @@ async def test_21_load_save(autojump_clock, tmpdir):
 
 
 @pytest.mark.trio
-async def test_02_cmd(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
+async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=50) as st:
         s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
+            h = p = None  # pylint
             for h, p, *_ in s.ports:
                 if h[0] != ":":
                     break
@@ -156,7 +157,12 @@ async def test_02_cmd(autojump_clock):
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -189,14 +195,19 @@ async def test_02_cmd(autojump_clock):
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_0",
                 "nodes": {"test_0": 4},
-                "known": {'test_0': (1,)},
+                "known": {"test_0": (1,)},
                 "present": {"test_0": ((2, 5),)},
                 "missing": {},
                 "remote_missing": {},
@@ -206,14 +217,18 @@ async def test_02_cmd(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_03_three(autojump_clock):
+async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
-        s, si = st.s
         async with st.client(1) as ci:
             assert (await ci.get()).value == 125
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -341,7 +356,7 @@ async def test_03_three(autojump_clock):
                 assert r == {
                     "node": "test_0",
                     "nodes": {"test_0": 1, "test_1": 2},
-                    "known": {'test_1': (1,)},
+                    "known": {"test_1": (1,)},
                     "present": {"test_0": (1,), "test_1": (2,)},
                     "missing": {},
                     "remote_missing": {},
@@ -349,14 +364,19 @@ async def test_03_three(autojump_clock):
                 pass  # client2 end
 
             r = await ci._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
             assert r == {
                 "node": "test_1",
                 "nodes": {"test_0": 1, "test_1": 2},
-                "known": {'test_1': (1,)},
+                "known": {"test_1": (1,)},
                 "present": {"test_0": (1,), "test_1": (2,)},
                 "missing": {},
                 "remote_missing": {},

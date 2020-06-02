@@ -14,15 +14,14 @@ ACL = set("rwdcxena")
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.pass_obj
-async def cli(obj):
+async def cli():
     """Manage ACLs. Usage: … acl …"""
     pass
 
 
-@cli.command()
+@cli.command("list")
 @click.pass_obj
-async def list(obj):
+async def list_(obj):
     """List ACLs.
     """
     res = await obj.client._request(
@@ -44,7 +43,8 @@ async def list(obj):
 @click.pass_obj
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
-    await data_get(obj, "acl", name, *path, internal=True)
+    await data_get(obj, "acl", name, *path, internal=True, as_dict=as_dict)
+
 
 @cli.command()
 @click.argument("name", nargs=1)
@@ -52,7 +52,7 @@ async def dump(obj, name, path, as_dict):
 @click.pass_obj
 async def get(obj, name, path):
     """Read an ACL.
-    
+
     This command does not test a path. Use "… acl test …" for that.
     """
     if not path:

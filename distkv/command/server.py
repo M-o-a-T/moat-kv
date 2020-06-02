@@ -1,10 +1,7 @@
 # command line interface
 
-import os
 import asyncclick as click
-import anyio
 
-from distkv.default import CFG
 from distkv.server import Server
 
 import logging
@@ -43,10 +40,17 @@ logger = logging.getLogger(__name__)
     "a cluster for the first time!",
     hidden=True,
 )
-@click.option("-e", "--eval", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True)
+@click.option(
+    "-e",
+    "--eval",
+    "eval_",
+    is_flag=True,
+    help="The 'init' value shall be evaluated.",
+    hidden=True,
+)
 @click.argument("name", nargs=1)
 @click.pass_obj
-async def cli(obj, name, load, save, init, incremental, eval):
+async def cli(obj, name, load, save, init, incremental, eval_):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -64,8 +68,8 @@ async def cli(obj, name, load, save, init, incremental, eval):
     """
 
     kw = {}
-    if eval:
-        kw["init"] = __builtins__["eval"](init)
+    if eval_:
+        kw["init"] = eval(init)  # pylint: disable=eval-used
     elif init == "-":
         kw["init"] = None
     elif init is not None:

@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group(short_help="Manage logging.")  # pylint: disable=undefined-variable
-@click.pass_obj
-async def cli(obj):
+async def cli():
     """
     This subcommand controls a server's logging.
     """
@@ -35,7 +34,7 @@ async def dest(obj, path, incremental):
 
 
 @cli.command()
-@click.option("-f","--full", is_flag=1, help="Also dump internal state")
+@click.option("-f", "--full", is_flag=1, help="Also dump internal state")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def save(obj, path, full):

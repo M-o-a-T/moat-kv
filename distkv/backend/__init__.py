@@ -1,8 +1,8 @@
-
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
 
 __all__ = ["get_backend", "Backend"]
+
 
 class Backend(metaclass=ABCMeta):
     def __init__(self, tg):
@@ -37,9 +37,10 @@ class Backend(metaclass=ABCMeta):
         Send this payload to this topic.
         """
 
+
 def get_backend(name):
     from importlib import import_module
-    if '.' not in name:
-        name = "distkv.backend."+name
-    return import_module(name).connect
 
+    if "." not in name:
+        name = "distkv.backend." + name
+    return import_module(name).connect

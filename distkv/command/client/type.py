@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.pass_obj
-async def cli(obj):
+async def cli():
     """Manage types and type matches. Usage: … type …"""
     pass
 
@@ -50,7 +49,7 @@ async def get(obj, path, script, schema, yaml_):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command("set")
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
 @click.option(
@@ -67,7 +66,7 @@ async def get(obj, path, script, schema, yaml_):
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, good, bad, script, schema, yaml_, data):
+async def set_(obj, path, good, bad, script, schema, yaml_, data):
     """Write type checker information."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -84,9 +83,9 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
     msg.setdefault("good", [])
     msg.setdefault("bad", [])
     for x in good:
-        msg["good"].append(eval(x))
+        msg["good"].append(eval(x))  # pylint: disable=eval-used
     for x in bad:
-        msg["bad"].append(eval(x))
+        msg["bad"].append(eval(x))  # pylint: disable=eval-used
 
     if "code" in msg:
         if script:
@@ -116,7 +115,7 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
         path=("type",) + path,
         iter=False,
         nchain=obj.meta,
-        **({} if chain is NotGiven else {"chain":chain})
+        **({} if chain is NotGiven else {"chain": chain})
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -130,7 +129,7 @@ async def set(obj, path, good, bad, script, schema, yaml_, data):
 @click.option("-d", "--delete", help="Use to delete this mapping.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def match(obj, path, type, delete, raw):
+async def match(obj, path, type, delete, raw):  # pylint: disable=redefined-builtin
     """Match a type to a path (read, if no type given)"""
     if not path:
         raise click.UsageError("You need a non-empty path.")

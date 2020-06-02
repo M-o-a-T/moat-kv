@@ -1,14 +1,6 @@
 import pytest
-import trio
-import time
 
 from .mock_mqtt import stdtest
-
-from .run import run
-from functools import partial
-
-from distkv.client import ServerError
-from distkv.util import PathLongener
 
 from distkv.code import CodeRoot, ModuleRoot
 from distkv.errors import ErrorRoot
@@ -18,9 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.trio
-async def test_81_basic(autojump_clock):
+async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
-        s, = st.s
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
@@ -29,9 +20,8 @@ async def test_81_basic(autojump_clock):
 
 
 @pytest.mark.trio
-async def test_82_module(autojump_clock):
-    async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+async def test_82_module(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=40) as st:
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             m = await ModuleRoot.as_handler(c)

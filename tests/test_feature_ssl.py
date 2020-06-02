@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.xfail()
 
+
 async def collect(i, path=()):
     res = []
     pl = PathLongener(path)
@@ -22,9 +23,8 @@ async def collect(i, path=()):
 
 
 @pytest.mark.trio
-async def test_41_ssl_basic(autojump_clock):
+async def test_41_ssl_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(ssl=True, args={"init": 123}) as st:
-        s, = st.s
         async with st.client() as c:
             assert (await c.get()).value == 123
 
@@ -59,7 +59,12 @@ async def test_41_ssl_basic(autojump_clock):
             assert r.value == "baz"
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]
@@ -92,7 +97,12 @@ async def test_41_ssl_basic(autojump_clock):
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
 
             r = await c._request(
-                "get_state", nodes=True, known=True, missing=True, remote_missing=True, present=True
+                "get_state",
+                nodes=True,
+                known=True,
+                missing=True,
+                remote_missing=True,
+                present=True,
             )
             del r["tock"]
             del r["seq"]

@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.pass_obj
-async def cli(obj):
+async def cli():
     """Manage code stored in DistKV."""
     pass
 
@@ -34,7 +33,7 @@ async def get(obj, path, script):
         iter=False,
         nchain=obj.meta,
     )
-    if 'value' not in res:
+    if "value" not in res:
         if obj.debug:
             print("No entry here.", file=sys.stderr)
         sys.exit(1)
@@ -47,20 +46,22 @@ async def get(obj, path, script):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command("set")
 @click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
 @click.option(
     "-t", "--thread", is_flag=True, help="The code should run in a worker thread"
 )
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
-@click.option("-v", "--vars", multiple=True, type=str, help="Required variables")
+@click.option(
+    "-v", "--vars", "vars_", multiple=True, type=str, help="Required variables"
+)
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def set(obj, path, thread, script, data, vars, async_, info):
+async def set_(obj, path, thread, script, data, vars_, async_, info):
     """Save Python code."""
     if async_:
         if thread:
@@ -97,39 +98,38 @@ async def set(obj, path, thread, script, data, vars, async_, info):
         msg["code"] = script.read()
 
     if "vars" in msg:
-        if vars:
+        if vars_:
             raise click.UsageError("Duplicate variables")
-    elif vars:
-        vl = msg['vars'] = []
-        for vv in vars:
-            vl.extend(vv.split(','))
+    elif vars_:
+        vl = msg["vars"] = []
+        for vv in vars_:
+            vl.extend(vv.split(","))
 
     res = await obj.client.set(
         *obj.cfg["codes"]["prefix"],
         *path,
         value=msg,
         nchain=obj.meta,
-        **({'chain':chain} if chain is not NotGiven else {}),
+        **({"chain": chain} if chain is not NotGiven else {}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
 @cli.group("module")
-@click.pass_obj
-async def mod(obj):
+async def mod():
     """
     Change the code of a module stored in DistKV
     """
 
 
-@mod.command()
+@mod.command("get")
 @click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj  # pylint: disable=function-redefined
-async def get(obj, path, script):
+async def get_mod(obj, path, script):
     """Read a module entry"""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -144,16 +144,16 @@ async def get(obj, path, script):
 
     code = res.pop("code", None)
     if code is not None:
-        code = code.rstrip('\n \t')+"\n"
+        code = code.rstrip("\n \t") + "\n"
         if script:
             print(code, file=script)
         else:
-            res['code'] = code
+            res["code"] = code
 
     yprint(res, stream=obj.stdout)
 
 
-@mod.command()
+@mod.command("set")
 @click.option(
     "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
 )
@@ -162,7 +162,7 @@ async def get(obj, path, script):
 )
 @click.argument("path", nargs=-1)  # pylint: disable=function-redefined
 @click.pass_obj
-async def set(obj, path, script, data):
+async def set_mod(obj, path, script, data):
     """Save a Python module to DistKV."""
     if not path:
         raise click.UsageError("You need a non-empty path.")
@@ -196,7 +196,7 @@ async def set(obj, path, script, data):
         yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command("list")
 @click.option(
     "-d",
     "--as-dict",
@@ -222,7 +222,7 @@ async def set(obj, path, script, data):
 @click.option("-s", "--short", is_flag=True, help="print shortened entries.")
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def list(obj, path, as_dict, maxdepth, mindepth, full, short):
+async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     """
     List code entries.
 
@@ -239,16 +239,18 @@ async def list(obj, path, as_dict, maxdepth, mindepth, full, short):
     if mindepth is not None:
         kw["min_depth"] = mindepth
     y = {}
-    async for r in obj.client.get_tree(*obj.cfg['codes'].prefix, *path, nchain=obj.meta, **kw):
+    async for r in obj.client.get_tree(
+        *obj.cfg["codes"].prefix, *path, nchain=obj.meta, **kw
+    ):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:
-            if 'info' not in r.value:
+            if "info" not in r.value:
                 r.value.info = "<%d lines>" % (len(r.value.code.splitlines()),)
-            del r.value['code']
+            del r.value["code"]
 
         if short:
-            print (' '.join(path),"::",r.value.info)
+            print(" ".join(path), "::", r.value.info)
             continue
 
         if as_dict is not None:

@@ -3,28 +3,30 @@ This module implements a :class:`asyncactor.Actor` which works on top of
 a DistKV client.
 """
 
-import anyio
 from ..util import singleton
 from asyncactor.abc import Transport, MonitorStream
 from asyncactor import Actor  # noqa
 
 __all__ = [
-        "ClientActor",
-        "ActorState",
-        "DetachedState",
-        "PartialState",
-        "CompleteState",
-    ]
+    "ClientActor",
+    "ActorState",
+    "DetachedState",
+    "PartialState",
+    "CompleteState",
+]
+
 
 class ClientActor(Actor):
     def __init__(self, client, *a, topic, **kw):
         super().__init__(ClientTransport(client, topic), *a, **kw)
+
 
 class ClientTransport(Transport):
     """
     This class exports the client's direct messaging interface to the
     actor.
     """
+
     def __init__(self, client, topic):
         self.client = client
         self.topic = topic
@@ -37,6 +39,10 @@ class ClientTransport(Transport):
 
 
 class ClientMonitor(MonitorStream):
+    _mon1 = None
+    _mon2 = None
+    _it = None
+
     async def __aenter__(self):
         self._mon1 = self.transport.client.msg_monitor(self.transport.topic)
         self._mon2 = await self._mon1.__aenter__()

@@ -1,5 +1,5 @@
 """
-This module locally stores code that's been uploaded to DistKV 
+This module locally stores code that's been uploaded to DistKV
 so that it can be called easily.
 
 "Code" consists of either Python modules or single procedures.
@@ -36,7 +36,7 @@ class ModuleRoot(ClientRoot):
 
     CFG = "modules"
 
-    err: "ErrorRoot" = None
+    err: "ErrorRoot" = None  # noqa: F821
 
     @classmethod
     def child_type(cls, name):
@@ -70,6 +70,8 @@ class ModuleRoot(ClientRoot):
 
 
 class ModuleEntry(ClientEntry):
+    _module = None
+
     @property
     def name(self):
         return ".".join(self.subpath)
@@ -91,7 +93,7 @@ class ModuleEntry(ClientEntry):
             m = make_module(c, *self.subpath)
         except Exception as exc:
             self._module = None
-            logger.warn("Could not compile @%r", self.subpath)
+            logger.warning("Could not compile @%r", self.subpath)
             await self.root.err.record_error(
                 "compile",
                 *self.subpath,
@@ -112,7 +114,7 @@ class CodeRoot(ClientRoot):
     You typically don't create this class directly; instead, call
     :meth:`CodeRoot.as_handler`::
 
-        errs = await CodeRoot.as_handler(client, your_config.get("error-handler",{})                        
+        errs = await CodeRoot.as_handler(client, your_config.get("error-handler",{})
 
     The prefix defaults to ``("code","proc")``.
 
@@ -120,7 +122,7 @@ class CodeRoot(ClientRoot):
 
     Arguments:
       prefix (list): Where to store the code in DtsiKV.
-        The default is ``('.distkv','code','proc')``. 
+        The default is ``('.distkv','code','proc')``.
 
     The code is stored as a dict.
 
@@ -150,7 +152,7 @@ class CodeRoot(ClientRoot):
         self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
-    async def add(self, *path, code=None, is_async=None, vars=()):
+    async def add(self, *path, code=None, is_async=None, variables=()):
         """
         Add or replace this code at this location.
         """
@@ -158,11 +160,11 @@ class CodeRoot(ClientRoot):
             return await self.remove(*path)
 
         # test-compile the code for validity
-        make_proc(code, vars, *path, use_async=is_async)
+        make_proc(code, variables, *path, use_async=is_async)
 
         r = await self.client.set(
             *(self._path + path),
-            value=dict(code=code, is_async=is_async, vars=vars),
+            value=dict(code=code, is_async=is_async, vars=variables),
             nchain=2
         )
         await self.wait_chain(r.chain)
@@ -173,7 +175,7 @@ class CodeRoot(ClientRoot):
         await self.wait_chain(r.chain)
 
     def __call__(self, name, *a, **kw):
-        if isinstance(name,str):
+        if isinstance(name, str):
             name = name.split(".")
         c = self
         for k in name:

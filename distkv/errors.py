@@ -107,14 +107,19 @@ class ErrorSubEntry(AttrClientEntry):
         return ClientEntry
 
     def __repr__(self):
-        return "‹%s %s %d›" % (self.__class__.__name__,self._path[-3:], getattr(self,'tock',-1))
+        return "‹%s %s %d›" % (
+            self.__class__.__name__,
+            self._path[-3:],
+            getattr(self, "tock", -1),
+        )
 
-    async def set_value(self, val):
-        await super().set_value(val)
-        if val is NotGiven:
+    async def set_value(self, value):
+        await super().set_value(value)
+        if value is NotGiven:
             p = self.parent
             if p is not None:
                 await self.parent.check_move()
+
 
 class ErrorEntry(AttrClientEntry):
     """
@@ -134,7 +139,12 @@ class ErrorEntry(AttrClientEntry):
         self.node, self.tock = self.subpath[-2:]
 
     def __repr__(self):
-        return "<%s: %s %s: %s>" % (self.__class__.__name__, "/".join(str(x) for x in self.subpath), self.subsystem, " ".join(str(x) for x in self.path))
+        return "<%s: %s %s: %s>" % (
+            self.__class__.__name__,
+            "/".join(str(x) for x in self.subpath),
+            self.subsystem,
+            " ".join(str(x) for x in self.path),
+        )
 
     @classmethod
     def child_type(cls, name):
@@ -174,12 +184,12 @@ class ErrorEntry(AttrClientEntry):
             res = self.allocate(node)
         res.seen = time()
         res.tock = await self.root.client.get_tock()
-        res.comment=comment or repr(exc)
-        
+        res.comment = comment or repr(exc)
+
         if exc is not None:
             t = traceback.format_exception(type(exc), exc, exc.__traceback__)
             if len(t) > 40:
-                t = t[:10]+["…\n"]+t[:30]
+                t = t[:10] + ["…\n"] + t[:30]
             res.trace = "".join(t)
         if message is not None:
             res.message = message
@@ -205,11 +215,11 @@ class ErrorEntry(AttrClientEntry):
             await res.save()
         except TypeError:
             for k in res.ATTRS:
-                v = getattr(res,k,None)
+                v = getattr(res, k, None)
                 try:
                     packer(v)
                 except TypeError:
-                    setattr(res,k,repr(v))
+                    setattr(res, k, repr(v))
             await res.save()
 
     async def add_comment(self, node, comment, data):
@@ -226,7 +236,7 @@ class ErrorEntry(AttrClientEntry):
         logger.info("Comment %s: %s", node, comment)
         await self.root.client.set(*self._path, chain=self.chain, value=res)
 
-    async def delete(self):
+    async def delete(self):  # pylint: disable=signature-differs,arguments-differ
         """
         Delete myself from storage.
 
@@ -258,7 +268,7 @@ class ErrorEntry(AttrClientEntry):
                 dkid = dest.allocate(self.root.name)
                 await dkid.set_value(val)
                 await dkid.save()
-            elif getattr(dkid,'tock',0) < getattr(kid,'tock',0):
+            elif getattr(dkid, "tock", 0) < getattr(kid, "tock", 0):
                 await dkid.set_value(val)
                 await dkid.save()
             # logger.warning("DEL 3 %r %r %r",self,dest,dkid)
@@ -268,29 +278,32 @@ class ErrorEntry(AttrClientEntry):
             await self.delete()
         # logger.warning("DEL 5 %r",self)
 
-    async def set_value(self, val):
+    async def set_value(self, value):
         """Overridden: set_value
-        
+
         Stores a pointer to the error in the root and keeps the records unique
         """
 
         await self.root._pop(self)
-        if val is NotGiven:
+        if value is NotGiven:
             if self.value is NotGiven:
                 return
-            keep = await self.root.get_error_record(self.subsystem, *self.path, create=False)
+            keep = await self.root.get_error_record(
+                self.subsystem, *self.path, create=False
+            )
             if keep is not None:
                 self._real_entry = keep.real_entry
                 await self.move_to_real()
-            await super().set_value(val)
+            await super().set_value(value)
             return
 
-        await super().set_value(val)
+        await super().set_value(value)
 
         drop, keep = await self.root._unique(self)
-        # logger.debug("UNIQ %r %r %r %s/%s",self,drop,keep, "x" if drop is None else drop.subpath[0],self.root.name)
+        # logger.debug("UNIQ %r %r %r %s/%s",self,drop,keep,
+        # "x" if drop is None else drop.subpath[0],self.root.name)
         if drop is not None:
-            #self.root._dropped(drop)
+            # self.root._dropped(drop)
             drop._real_entry = keep
 
             if drop.subpath[0] == self.root.name:
@@ -346,12 +359,11 @@ class ErrorRoot(ClientRoot):
     def child_type(cls, name):
         return ErrorStep
 
-    def add_clean(self, entry):
+    async def add_clean(self, entry):
         # self._to_clean.add(entry)
         pass
         # TODO run cleanup code that consolidates these errors when we get a TagMessage
         # TODO use a weakset
-
 
     def all_errors(self, subsystem=None):
         """
@@ -371,8 +383,9 @@ class ErrorRoot(ClientRoot):
     async def get_error_record(self, subsystem, *path, create=True):
         """Retrieve or generate an error record for a particular subsystem
         and path.
-        
-        If ``create`` is set, the record may be incomplete and must be filled and stored by the caller.
+
+        If ``create`` is set, the record may be incomplete and
+        must be filled and stored by the caller.
         """
 
         err = self._active[subsystem].get(path, None)
@@ -414,13 +427,13 @@ class ErrorRoot(ClientRoot):
         elif other.node < entry.node:
             return entry, other
 
-        raise RuntimeError("This cannot happen: %s %s", entry.node, entry.tock)
+        raise RuntimeError("This cannot happen: %s %s" % (entry.node, entry.tock))
 
-    async def record_working(
+    async def record_working(  # pylint: disable=dangerous-default-value
         self, subsystem, *path, comment=None, data={}, force=False
     ):
         """This exception has been fixed.
-        
+
         Arguments:
           subsystem (str): The subsystem with the error.
           *path: the path to the no-longer-offending entry.
@@ -438,12 +451,11 @@ class ErrorRoot(ClientRoot):
             await rec.real_entry.add_comment(self.name, comment, data)
         return rec
 
-    async def record_error(
+    async def record_error(  # pylint: disable=dangerous-default-value
         self,
         subsystem,
         *path,
         exc=None,
-        reason=None,
         data={},
         severity=0,
         message=None,
@@ -451,7 +463,7 @@ class ErrorRoot(ClientRoot):
         comment: str = None
     ):
         """An exception has occurred for this subtype and path.
-        
+
         Arguments:
           subsystem (str): The subsystem with the error.
           *path: the path to the no-longer-offending entry.
@@ -475,21 +487,17 @@ class ErrorRoot(ClientRoot):
         rec.path = path
         rec.resolved = False
         rec.count += 1
-        if not hasattr(rec, 'first_seen'):
+        if not hasattr(rec, "first_seen"):
             rec.first_seen = time()
         rec.last_seen = time()
 
         try:
             await rec.save()
         except anyio.exceptions.ClosedResourceError:
-            return # owch, but can't be helped
+            return  # owch, but can't be helped
 
         await rec.real_entry.add_exc(
-            self.name,
-            exc=exc,
-            data=data,
-            comment=comment,
-            message=message,
+            self.name, exc=exc, data=data, comment=comment, message=message
         )
         return rec
 
@@ -507,7 +515,6 @@ class ErrorRoot(ClientRoot):
             ]
         except KeyError:
             pass
-
 
     def _push(self, entry):
         if entry.subsystem is None or entry.path is None:

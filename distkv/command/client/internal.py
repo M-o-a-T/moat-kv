@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
-@click.pass_obj
-async def cli(obj):
+async def cli():
     """
     This subcommand queries and controls the server's internal state.
     """
@@ -33,31 +32,35 @@ async def cli(obj):
 )
 @click.option("-p", "--present", is_flag=True, help="Get known-data status.")
 @click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
-@click.option("-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status.")
+@click.option(
+    "-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status."
+)
 @click.option("-a", "--all", is_flag=True, help="All available data.")
 @click.pass_obj
 async def state(obj, **flags):
     """
     Dump the server's state.
     """
-    if flags.pop('known',None):
-        flags['superseded'] = True
-    if flags.pop('all',None):
-        flags['superseded'] = True
-        flags['present'] = True
-        flags['nodes'] = True
-        flags['deleted'] = True
-        flags['missing'] = True
-        flags['remote_missing'] = True
+    if flags.pop("known", None):
+        flags["superseded"] = True
+    if flags.pop("all", None):
+        flags["superseded"] = True
+        flags["present"] = True
+        flags["nodes"] = True
+        flags["deleted"] = True
+        flags["missing"] = True
+        flags["remote_missing"] = True
     res = await obj.client._request("get_state", iter=False, **flags)
-    k = res.pop('known', None)
+    k = res.pop("known", None)
     if k is not None:
-        res['superseded'] = k
+        res["superseded"] = k
     yprint(res, stream=obj.stdout)
 
 
 @cli.command()
-@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded")
+@click.option(
+    "-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded"
+)
 @click.option(
     "-n",
     "--node",
@@ -124,7 +127,7 @@ async def deleter(obj, delete, nodes):
 
     res = await obj.client._request(
         action="get_internal",
-        path=("actor","del",),
+        path=("actor", "del"),
         iter=False,
         nchain=3 if delete or nodes else 2,
     )
@@ -144,9 +147,13 @@ async def deleter(obj, delete, nodes):
         yprint(res, stream=obj.stdout)
         return
 
-    val = {'nodes': list(val)}
+    val = {"nodes": list(val)}
     res = await obj.client._request(
-        action="set_internal", path=("actor","del",), iter=False, chain=res.chain, value=val
+        action="set_internal",
+        path=("actor", "del"),
+        iter=False,
+        chain=res.chain,
+        value=val,
     )
     res.value = val
     yprint(res, stream=obj.stdout)
@@ -163,7 +170,7 @@ async def dump(obj, path):
     """
 
     y = {}
-    pl=PathLongener()
+    pl = PathLongener()
     async for r in await obj.client._request(
         "get_tree_internal", path=path, iter=True, nchain=0
     ):
@@ -178,11 +185,12 @@ async def dump(obj, path):
             pass
     yprint(y, stream=obj.stdout)
 
+
 @cli.command()
 @click.argument("node", nargs=1)
 @click.argument("tick", type=int, nargs=1)
 @click.pass_obj
-async def get(obj, node,tick):
+async def get(obj, node, tick):
     """
     Fetch data by node+tick.
 

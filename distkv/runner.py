@@ -15,10 +15,10 @@ from collections.abc import Mapping
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState
-from .util import NotGiven
+from .util import NotGiven, combine_dict
 
 from .exceptions import ServerError
-from .obj import AttrClientEntry, ClientRoot, ClientEntry
+from .obj import AttrClientEntry, ClientRoot
 
 import logging
 
@@ -75,6 +75,7 @@ class RunnerEntry(AttrClientEntry):
     _q = None  # send events to the running task. Async tasks only.
     _running = False  # .run is active. Careful with applying updates.
     _task = None
+    retry = None
 
     def __init__(self, *a, **k):
         self.data = {}  # local data
@@ -97,7 +98,7 @@ class RunnerEntry(AttrClientEntry):
             self._running = True
             try:
                 if state.node is not None:
-                    raise RuntimeError("already running on %s", state.node)
+                    raise RuntimeError("already running on %s" % (state.node,))
                 code = self.root.code.follow(*self.code, create=False)
                 data = self.data
                 if data is None:
@@ -126,8 +127,9 @@ class RunnerEntry(AttrClientEntry):
                 async with anyio.create_task_group() as tg:
                     sc = tg.cancel_scope
                     self.scope = sc
-                    oka = getattr(self, 'ok_after', -1)
+                    oka = getattr(self, "ok_after", -1)
                     if oka > 0:
+
                         async def is_ok(oka):
                             await anyio.sleep(oka)
                             state.backoff = 0
@@ -195,13 +197,13 @@ class RunnerEntry(AttrClientEntry):
         if not self._running:
             await state.save(wait=True)
 
-    async def set_value(self, val):
+    async def set_value(self, value):
         c = self.code
-        await super().set_value(val)
+        await super().set_value(value)
 
         # Check whether running code needs to be killed off
         if self.scope is not None:
-            if val is NotGiven or c != self.code:
+            if value is NotGiven or c != self.code:
                 # The code changed.
                 self._comment = "Cancel: Code changed"
                 await self.scope.cancel()
@@ -317,7 +319,7 @@ class StateEntry(AttrClientEntry):
 
     async def startup(self):
         try:
-            run = self.runner
+            self.runner
         except KeyError:
             # The code entry doesn't exist any more.
             await self.delete()
@@ -366,7 +368,7 @@ class StateEntry(AttrClientEntry):
             return
         elif self.node is None or n == self.root.runner.name:
             # Owch. Our job got taken away from us.
-            self._comment = "Cancel: Node set to %r" % (self.node,)
+            run._comment = "Cancel: Node set to %r" % (self.node,)
             await run.scope.cancel()
         elif n is not None:
             logger.warning(
@@ -386,6 +388,8 @@ class StateRoot(ClientRoot):
     be changed by anybody while this subtree may only be affected by the
     actual runner. Otherwise we get interesting race conditions.
     """
+
+    _runner = None
 
     @classmethod
     def child_type(cls, name):
@@ -413,16 +417,19 @@ class StateRoot(ClientRoot):
                 await s.stale()
 
     _last_t = 0
+
     async def ping(self):
         t = time.time()
-        if t-self._last_t >= abs(self._cfg['ping']):
-            self._last_t=t
-            if self._cfg['ping'] > 0:
-                val = self.value_or({},Mapping)
-                val['alive'] = t
+        if t - self._last_t >= abs(self._cfg["ping"]):
+            self._last_t = t
+            if self._cfg["ping"] > 0:
+                val = self.value_or({}, Mapping)
+                val["alive"] = t
                 await self.update(val)
             else:
-                await self.client.msg_send("run", {"group": self.runner.group, "time":t, "node":self.name})
+                await self.client.msg_send(
+                    "run", {"group": self.runner.group, "time": t, "node": self.name}
+                )
 
 
 class _BaseRunnerRoot(ClientRoot):
@@ -436,6 +443,9 @@ class _BaseRunnerRoot(ClientRoot):
     code = None
     ready = False
     _run_next = 0
+    node_history = None
+    _start_delay = None
+    state = None
 
     CFG = "runner"
     SUB = None
@@ -453,13 +463,17 @@ class _BaseRunnerRoot(ClientRoot):
         return RunnerEntry
 
     @classmethod
-    async def as_handler(cls, client, subpath, cfg=None, **kw):
+    async def as_handler(
+        cls, client, subpath, cfg=None, **kw
+    ):  # pylint: disable=arguments-differ
         assert cls.SUB is not None
         if cfg is None:
             cfg_ = client._cfg["runner"]
         else:
             cfg_ = combine_dict(cfg, client._cfg["runner"])
-        return await super().as_handler(client, subpath=subpath, _subpath=subpath, cfg=cfg_, **kw)
+        return await super().as_handler(
+            client, subpath=subpath, _subpath=subpath, cfg=cfg_, **kw
+        )
 
     async def run_starting(self):
         from .errors import ErrorRoot
@@ -479,14 +493,16 @@ class _BaseRunnerRoot(ClientRoot):
         await super().run_starting()
 
     async def _state_runner(self):
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self._x_subpath, key="state")
+        self.state = await StateRoot.as_handler(
+            self.client, cfg=self._cfg, subpath=self._x_subpath, key="state"
+        )
 
     @property
     def name(self):
         """my node name"""
         return self.client.client_name
 
-    def get_node(self, name):
+    def get_node(self, name):  # pylint: disable=unused-argument
         """
         If the runner keeps track of "foreign" nodes, allocate them
         """
@@ -546,10 +562,14 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     SUB = "group"
 
     _stale_times = None
+    _age_q = None
+    _act = None
+    tg = None
+    seen_load = None
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run."+self._name
+        self.group = "run." + self._name
 
     def get_node(self, name):
         return RunnerNode(self, name)
@@ -564,7 +584,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             self.tg = tg
 
             async with ClientActor(
-                self.client, self.name, topic=self.group, cfg=self._cfg['actor']
+                self.client, self.name, topic=self.group, cfg=self._cfg["actor"]
             ) as act:
                 self._act = act
 
@@ -637,7 +657,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         t1 = time.time()
         while self._age_q is not None:
             await self.find_stale_nodes(t1)
-            async with anyio.move_on_after(self.max_age) as sc:
+            async with anyio.move_on_after(self.max_age):
                 await self._age_q.get()
                 t1 = time.time()
                 continue
@@ -674,7 +694,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
     Arguments:
       cores (tuple): list of nodes whose reachability may determine
         whether the code uses local/emergency/??? mode.
-      
+
     Config file:
 
     Arguments:
@@ -690,16 +710,19 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     err = None
     _act = None
+    _age_q = None
     code = None
+    state = None
+    tg = None
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run."+self._path[-2]
+        self.group = "run." + self._path[-2]
 
-    async def set_value(self, val):
-        await super().set_value(val)
+    async def set_value(self, value):
+        await super().set_value(value)
         try:
-            cores = val["cores"]
+            cores = value["cores"]
         except (TypeError, KeyError):
             if self._act is not None:
                 await self._act.disable(0)
@@ -783,8 +806,12 @@ class AllRunnerRoot(SingleRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run."+self.name
+        self.group = "run." + self.name
 
     async def _state_runner(self):
-        self.state = await StateRoot.as_handler(self.client, cfg=self._cfg, subpath=self._x_subpath+(self.client.client_name,), key="state")
-
+        self.state = await StateRoot.as_handler(
+            self.client,
+            cfg=self._cfg,
+            subpath=self._x_subpath + (self.client.client_name,),
+            key="state",
+        )

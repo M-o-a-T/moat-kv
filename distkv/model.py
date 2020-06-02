@@ -112,7 +112,6 @@ class Node:
                 self._superseded.discard(tick)
                 logger.info("%s was marked as superseded", entry)
 
-
     def is_deleted(self, tick):
         """
         Check whether this tick has been marked as deleted.
@@ -196,7 +195,6 @@ class Node:
                 if e.chain.node is self and e.chain.tick == t:
                     logger.info("%s present but marked as superseded", e)
 
-
     def report_missing(self, r: RangeSet):
         """
         Some node doesn't know about these ticks.
@@ -241,7 +239,6 @@ class Node:
                     if e.data is not NotGiven:
                         logger.info("%s present but marked as deleted", e)
                     e.purge_deleted()
-
 
     @property
     def local_present(self):
@@ -497,7 +494,9 @@ class NodeEvent:
         if prev is not None:
             prev = prev.filter(self.node, server=server)
         if self.prev is not None or prev is not None:
-            self = NodeEvent(node=self.node, tick=self.tick, prev=prev)  # pylint: disable=self-cls-assignment
+            self = NodeEvent(  # pylint: disable=self-cls-assignment
+                node=self.node, tick=self.tick, prev=prev
+            )
         return self
 
 
@@ -688,7 +687,7 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name,self))
+                        raise ValueError("Cannot add %s to %s" % (name, self))
                     child = child(name, self, tock=self.tock)
             else:
                 acl.check("x")
@@ -697,7 +696,7 @@ class Entry:
             except KeyError:
                 raise ACLError(acl.result, name) from None
             first = False
-            self = child
+            self = child  # pylint: disable=self-cls-assignment
 
         # If the caller doesn't know if the node exists, help them out.
         if acl_key == "W":
@@ -711,7 +710,6 @@ class Entry:
         """
         # KEEP IN SYNC with `follow_acl`, above!
 
-        first = True
         for name in path:
             if name is None and not nulls_ok:
                 raise ValueError("Null path element")
@@ -724,12 +722,10 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name,self))
+                        raise ValueError("Cannot add %s to %s" % (name, self))
                     child = child(name, self, tock=self.tock)
-            first = False
-            self = child
+            self = child  # pylint: disable=self-cls-assignment
         return self
-
 
     def __getitem__(self, name):
         return self._sub[name]
@@ -812,21 +808,18 @@ class Entry:
         logger.debug("CHOP %r", self)
         this, p = self, self.parent
         while p is not None:
-            p._sub.pop(this.name,None)
+            p._sub.pop(this.name, None)
             if p._sub:
                 return
             this, p = p, p.parent
 
-    async def set_data(
-        self, event: NodeEvent, data: Any, local: bool = False, server=None, tock=None
-    ):
+    async def set_data(self, event: NodeEvent, data: Any, server=None, tock=None):
         """This entry is updated by that event.
 
         Args:
           event: The :class:`NodeEvent` to base the update on.
           data (Any): whatever the node should contains. Use :any:`distkv.util.NotGiven`
             to delete.
-          local (bool): Flag whether the event should be forwarded to watchers.
 
         Returns:
           The :class:`UpdateEvent` that has been generated and applied.
@@ -836,9 +829,7 @@ class Entry:
         await self.apply(evt, server=server)
         return evt
 
-    async def apply(
-        self, evt: UpdateEvent, server=None, root=None
-    ):
+    async def apply(self, evt: UpdateEvent, server=None, root=None):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers.
@@ -867,9 +858,7 @@ class Entry:
                 logger.warning("*** inconsistency ***")
                 logger.warning("Node: %s", self.path)
                 logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warning(
-                    "New: %s :%s: %r", evt.event, evt.tock, evt.entry.value
-                )
+                logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt.entry.value)
                 if evt.tock < self.tock:
                     logger.warning("New value ignored")
                     return
@@ -897,7 +886,9 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False):
+    async def walk(
+        self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False
+    ):
         """
         Call coroutine ``proc`` on this node and all its children).
 

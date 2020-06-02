@@ -79,16 +79,12 @@ add_schema = {
         "acl": {
             "type": "object",
             "additionalProperties": False,
-            "properties": {
-                "key": {type: "string", "minLength": 1},
-            },
+            "properties": {"key": {type: "string", "minLength": 1}},
         },
         "conv": {
             "type": "object",
             "additionalProperties": False,
-            "properties": {
-                "key": {type: "string", "minLength": 1},
-            },
+            "properties": {"key": {type: "string", "minLength": 1}},
         },
     }
 }
@@ -150,7 +146,9 @@ async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=unused-argument
+async def null_client_login(
+    stream, user: "BaseClientAuth"
+):  # pylint: disable=unused-argument
     return stream
 
 
@@ -277,11 +275,14 @@ class BaseClientAuthMaker(_AuthLoaded):
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user", _initial=True):
         """Read this user from the server.
-        
+
         Sample code …
         """
         res = await client._request(
-            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident,
+            "auth_get",
+            typ=cls._auth_method,
+            kind=_kind,
+            ident=ident,
             nchain=0 if _initial else 2,
         )
         self = cls(_initial=_initial)
@@ -340,7 +341,7 @@ class BaseServerAuth(_AuthLoaded):
         from ..types import ConvNull
 
         try:
-            data = data['conv'].data['key']
+            data = data["conv"].data["key"]
             res, _ = root.follow_acl(None, "conv", data, create=False, nulls_ok=True)
             return res
         except (KeyError, AttributeError):
@@ -348,8 +349,8 @@ class BaseServerAuth(_AuthLoaded):
 
     def aux_acl(self, data: Entry, root: Entry):
         try:
-            data = data['acl'].data['key']
-            if data == '*':
+            data = data["acl"].data["key"]
+            if data == "*":
                 return NullACL
             acl, _ = root.follow_acl(None, "acl", data, create=False, nulls_ok=True)
             return ACLFinder(acl)
@@ -365,13 +366,17 @@ class BaseServerAuth(_AuthLoaded):
         """
         return {}
 
-    async def check_read(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
+    async def check_read(
+        self, *path, client: ServerClient, data=None
+    ):  # pylint: disable=unused-argument
         """Check that this user may read the element at this location.
         This method may modify the data.
         """
         return data
 
-    async def check_write(self, *path, client: ServerClient, data=None):  # pylint: disable=unused-argument
+    async def check_write(
+        self, *path, client: ServerClient, data=None
+    ):  # pylint: disable=unused-argument
         """Check that this user may write the element at this location.
         This method may modify the data.
         """
@@ -413,11 +418,13 @@ class BaseServerAuthMaker(_AuthLoaded):
         return cls(chain=data.chain, data=data.data)
 
     @classmethod
-    async def recv(cls, cmd: StreamCommand, data: attrdict) -> "BaseServerAuthMaker":  # pylint: disable=unused-argument
+    async def recv(
+        cls, cmd: StreamCommand, data: attrdict  # pylint: disable=unused-argument
+    ) -> "BaseServerAuthMaker":
         """Create/update a new user by reading the record from the client"""
         dt = data.get("data", None) or {}
         jsonschema.validate(instance=dt, schema=cls.schema)
-        self = cls(chain=data['chain'], data=dt)
+        self = cls(chain=data["chain"], data=dt)
         return self
 
     @property
@@ -432,5 +439,6 @@ class BaseServerAuthMaker(_AuthLoaded):
 
     async def send(self, cmd: StreamCommand):  # pylint: disable=unused-argument
         """Send a record to the client, possibly multi-step / secured / whatever"""
+        res = {}
         res["chain"] = self._chain.serialize() if self._chain else None
         return res

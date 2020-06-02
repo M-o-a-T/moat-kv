@@ -64,9 +64,7 @@ class ServerUserMaker(BaseServerAuthMaker):
         msg = await cmd.recv()
         assert msg.step == "WantName"
         await cmd.send(
-            step="SendName",
-            name=self.name,
-            chain=self._chain.serialize(nchain=3),
+            step="SendName", name=self.name, chain=self._chain.serialize(nchain=3)
         )
         msg = await cmd.recv()
 
@@ -98,7 +96,7 @@ class ClientUserMaker(BaseClientAuthMaker):
         properties=dict(
             name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
         ),
-        #required=[],
+        # required=[],
     )
     name = None
 
@@ -133,14 +131,16 @@ class ClientUserMaker(BaseClientAuthMaker):
     async def send(self, client: Client, _kind="user"):
         """Send a record representing this user to the server."""
         async with client._stream(
-            action="auth_set", typ=type(self)._auth_method, kind=_kind, ident=self.ident, stream=True
+            action="auth_set",
+            typ=type(self)._auth_method,
+            kind=_kind,
+            ident=self.ident,
+            stream=True,
         ) as s:
             # we could initially send the ident but don't here, for testing
             m = await s.recv()
             assert m.step == "GiveName", m
-            await s.send(
-                step="HasName", name=self.name, chain=self._chain
-            )
+            await s.send(step="HasName", name=self.name, chain=self._chain)
             m = await s.recv()
             assert m.chain.prev is None
 

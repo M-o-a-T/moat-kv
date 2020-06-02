@@ -7,7 +7,7 @@ The payload is encoded with `msgpack
 <https://github.com/msgpack/msgpack/blob/master/spec.md>` (Serf does not
 pass arbitrary payload objects) and sent as ``user`` events with a
 configurable name that defaults to name of ``distkv.XXX`` ("XXX" being the
-action's type). The ``coalesce`` flag must always be ``False``.
+action's type).
 
 All strings are required to be UTF-8 encoded.
 

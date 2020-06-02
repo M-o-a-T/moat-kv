@@ -3,7 +3,6 @@ An online-updated config store
 
 """
 
-import anyio
 try:
     from contextlib import asynccontextmanager
 except ImportError:
@@ -13,6 +12,7 @@ from .errors import ServerError
 from .obj import ClientRoot, ClientEntry
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,8 +25,8 @@ class ConfigEntry(ClientEntry):
         logger.warning("Online config sub-entries are ignored")
         return ClientEntry
 
-    async def set_value(self, v):
-        await self.root.client.config._update(self._name, v)
+    async def set_value(self, value):
+        await self.root.client.config._update(self._name, value)
 
 
 class ConfigRoot(ClientRoot):
@@ -46,4 +46,3 @@ class ConfigRoot(ClientRoot):
                 yield x
         except ServerError:
             logger.exception("No config data")
-

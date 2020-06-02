@@ -6,10 +6,6 @@ import time
 from .mock_mqtt import stdtest
 
 from .run import run
-from functools import partial
-
-from distkv.client import ServerError
-from distkv.util import PathLongener
 
 from distkv.code import CodeRoot
 from distkv.runner import SingleRunnerRoot
@@ -20,11 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.trio
-async def test_83_run(autojump_clock):
-    from distkv import runner
-
-    async with stdtest(args={"init": 123}) as st:
+async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=100) as st:
         s, = st.s
+        h = p = None  # pylint
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break

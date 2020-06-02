@@ -1,9 +1,7 @@
 # command line interface
 
 import asyncclick as click
-import time
 
-from distkv.exceptions import ServerError
 from distkv.errors import ErrorRoot
 from distkv.util import yprint
 
@@ -21,15 +19,14 @@ async def cli(obj):
 
 @cli.command()
 @click.option("-n", "--node", help="add details from this node")
-@click.option("-s", "--subsystem", "subsys", help="only show errors from this subsystem")
+@click.option(
+    "-s", "--subsystem", "subsys", help="only show errors from this subsystem"
+)
 @click.option("-r", "--resolved", is_flag=True, help="only resolved errors")
 @click.option("-t", "--trace", is_flag=True, help="add traces, if present")
 @click.option("-a", "--all-nodes", is_flag=True, help="add details from all nodes")
 @click.option(
-    "-d",
-    "--as-dict",
-    default=None,
-    help="Dump a list of all open (or resolved) error."
+    "-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error."
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
@@ -38,7 +35,6 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
     """
     path_ = obj.cfg["errors"].prefix
     d = 1
-    d2 = 0
     if node is not None:
         path_ += (node,)
     else:
@@ -47,9 +43,9 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
     async def one(r):
         nonlocal y
         val = r.value
-        if 'resolved' not in val and not all_nodes:
+        if "resolved" not in val and not all_nodes:
             return
-        if resolved == (not val.get('resolved',False)):
+        if resolved == (not val.get("resolved", False)):
             return
         try:
             rp = val.path
@@ -59,9 +55,9 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             rp = ("incomplete",) + r.path
             if not as_dict:
                 val.path = rp
-        if rp[:len(path)] != path:
+        if rp[: len(path)] != path:
             return
-        rp = rp[len(path):]
+        rp = rp[len(path) :]
         if node is None:
             val.syspath = r.path
         else:
@@ -73,7 +69,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
                 action="get_tree",
                 min_depth=1,
                 max_depth=1,
-                path=path_+r.path[-2:],
+                path=path_ + r.path[-2:],
                 iter=True,
                 nchain=3 if obj.meta else 0,
             )
@@ -85,7 +81,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
                         continue
                 else:
                     if not trace:
-                        rr.value.pop('trace', None)
+                        rr.value.pop("trace", None)
                     rn[rr.path[-1]] = rr if obj.meta else rr.value
 
             if rn:
@@ -94,7 +90,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
         if as_dict is not None:
             yy = y
             if subsys is None:
-                yy = yy.setdefault(val.get("subsystem","unknown"), {})
+                yy = yy.setdefault(val.get("subsystem", "unknown"), {})
             for p in rp:
                 yy = yy.setdefault(p, {})
             yy[as_dict] = r if obj.meta else val
@@ -119,8 +115,10 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             path_ = path_[:-1]
             r.path = (node, tock)
             node = None
+
             async def ait(r):
                 yield r
+
             res = ait(r)
 
     if res is None:
@@ -132,5 +130,3 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
 
     if as_dict is not None:
         yprint(y, stream=obj.stdout)
-
-

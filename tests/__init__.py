@@ -6,8 +6,7 @@ logger = logging.getLogger(__name__)
 from yaml import safe_load
 
 
-def load_cfg(cfg):
-    global cfgpath
+def load_cfg(cfg):  # pylint: disable=redefined-outer-name
     if os.path.exists(cfg):
         pass
     elif os.path.exists(os.path.join("tests", cfg)):  # pragma: no cover
@@ -17,7 +16,6 @@ def load_cfg(cfg):
     else:  # pragma: no cover
         raise RuntimeError("Config file '%s' not found" % (cfg,))
 
-    cfgpath = cfg
     with open(cfg) as f:
         cfg = safe_load(f)
 
