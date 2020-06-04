@@ -258,7 +258,7 @@ class ClientConfig:
 
     _changed = None  # pylint
 
-    def __init__(self, client, *a, **k):
+    def __init__(self, client, *a, **k):  # pylint: disable=unused-argument
         self._init(client)
 
     def _init(self, client):
@@ -645,17 +645,12 @@ class Client:
 
                 self._config = await ConfigRoot.as_handler(self)
 
-                yield self
             except TimeoutError:
                 raise
             except socket.error as e:
                 raise ServerConnectionError(host, port) from e
             else:
-                # This is intentionally not in the error path
-                # cancelling the nursey causes open_client() to
-                # exit without a yield which triggers an async error,
-                # which masks the exception
-                pass
+                yield self
             finally:
                 async with anyio.fail_after(2, shield=True):
                     # Clean up our hacked config

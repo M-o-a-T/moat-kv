@@ -644,7 +644,9 @@ def _call_proc(code, *a, **kw):
     return code(*a)
 
 
-def make_proc(code, variables, *path, use_async=False):  # pylint: disable=redefined-builtin
+def make_proc(
+    code, variables, *path, use_async=False
+):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
