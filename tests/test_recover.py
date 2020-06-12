@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 N = 10
 NN = 10
+NX = 10
 
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
@@ -66,16 +67,17 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
     This test starts multiple servers at the same time and checks that
     dropping random messages ultimately recovers.
     """
-    async with stdtest(test_1={"init": 420}, n=N, tocks=1500) as st:
+    async with stdtest(test_1={"init": 420}, n=N, tocks=15000) as st:
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg))
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg))
         st.ex.enter_context(mock.patch("distkv.server.Server._send_event", new=send_evt))
         st.ex.enter_context(mock.patch("distkv.server.Server._unpack_multiple", new=unpack_multiple))
 
-        for i in range(N):
-            async with st.client(i) as ci:
-                for j in range(NN):
-                    await ci.set("test",i,j, value=(i,j))
+        for x in range(NX):
+            for i in range(N):
+                async with st.client((i+x)%N) as ci:
+                    for j in range(NN):
+                        await ci.set("test",i,j, value=(i,j,x))
 
         await trio.sleep(1)
 
@@ -85,9 +87,11 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
             for s in range(N):
                 async with st.client(s) as ci:
                     c = 0
-                    async for r in ci.get_tree("test", min_depth=2):
-                        assert r.value == (r.path[-2],r.path[-1]), r
-                        c += 1
+                    async for r in ci.get_tree("test", min_depth=2,nchain=5):
+                        if r.value == (r.path[-2],r.path[-1],NX-1):
+                            c += 1
+                        else:
+                            logger.info("%d: old %r", s, r)
                     if c != N*NN:
                         res = await ci._request("get_state", iter=False, missing=True)
                         logger.info("%d: missing %d %r", s,N*NN-c, res.missing)

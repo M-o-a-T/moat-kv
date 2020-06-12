@@ -866,6 +866,8 @@ class Entry:
                 logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
                 if evt.tock < self.tock:
                     logger.warning("New value ignored")
+                    # also mark the new event's chain as superseded
+                    server.drop_old_event(self.chain, evt.event)
                     return
                 logger.warning("New value used")
 
