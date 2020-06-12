@@ -245,7 +245,7 @@ async def watch(obj, path, eval_path, state):
                 flushing = True
             del r["seq"]
             r["time"] = time.monotonic()
-            r["date"] = datetime.datetime.now().strftime("%S-%m-%d %H:%M:%S")
+            r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             yprint(r, stream=obj.stdout)
             print("---", file=obj.stdout)
             if flushing:

@@ -1,6 +1,7 @@
 # command line interface
 
 import asyncclick as click
+import datetime
 
 from distkv.errors import ErrorRoot
 from distkv.util import yprint
@@ -47,6 +48,15 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             return
         if resolved == (not val.get("resolved", False)):
             return
+        fs = val.get('first_seen')
+        if fs:
+            val.first_seen_date = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
+        ls = val.get('last_seen')
+        if ls:
+            val.last_seen_date = datetime.datetime.fromtimestamp(ls).strftime("%Y-%m-%d %H:%M:%S")
+        fs = val.get('seen')
+        if fs:
+            val['seen_date'] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
         try:
             rp = val.path
             if as_dict:
@@ -74,6 +84,10 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
                 nchain=3 if obj.meta else 0,
             )
             async for rr in rs:
+                val = rr.value
+                fs = val.get('seen')
+                if fs:
+                    val['seen_date'] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
                 if not all_nodes:
                     try:
                         rn[rr.path[-1]] = rr.value.trace

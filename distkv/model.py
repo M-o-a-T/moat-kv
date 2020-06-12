@@ -853,21 +853,21 @@ class Entry:
         if self.chain > evt.event:  # already superseded
             return
 
+        if hasattr(evt, "new_value"):
+            evt_val = evt.new_value
+        else:
+            evt_val = evt.value
+
         if self._data is not NotGiven:
             if not (self.chain < evt.event):
                 logger.warning("*** inconsistency ***")
                 logger.warning("Node: %s", self.path)
                 logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt.entry.value)
+                logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
                 if evt.tock < self.tock:
                     logger.warning("New value ignored")
                     return
                 logger.warning("New value used")
-
-        if hasattr(evt, "new_value"):
-            evt_val = evt.new_value
-        else:
-            evt_val = evt.value
 
         if chk is not None and evt_val is not NotGiven:
             chk.check_value(evt_val, self)
