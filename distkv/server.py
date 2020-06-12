@@ -190,7 +190,7 @@ class StreamCommand:
                     )
                 await self.send(error=repr(exc))
             finally:
-                async with anyio.fail_after(2, shield=True):
+                async with anyio.move_on_after(2, shield=True):
                     await self.send(state="end")
 
         else:
@@ -2111,7 +2111,7 @@ class Server:
                 await self._run_send_missing(prio)
 
             finally:
-                async with anyio.fail_after(2, shield=True):
+                async with anyio.open_cancel_scope(shield=True):
                     # Protect against cleaning up when another recovery task has
                     # been started (because we saw another merge)
                     self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
@@ -2331,7 +2331,8 @@ class Server:
                     raise
                 await done.set_error(err)
             finally:
-                await sd.set()
+                async with anyio.open_cancel_scope(shield=True):
+                    await sd.set()
 
     async def run_saver(
         self, path: str = None, stream=None, save_state=False, wait: bool = True
@@ -2546,6 +2547,7 @@ class Server:
             except Exception:
                 pass
         finally:
-            if c is not None:
-                self._clients.remove(c)
-            await stream.aclose()
+            async with anyio.move_on_after(2, shield=True):
+                if c is not None:
+                    self._clients.remove(c)
+                await stream.aclose()
