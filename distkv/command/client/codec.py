@@ -45,7 +45,8 @@ async def get(obj, path, script, encode, decode):
     yprint(res, stream=script or obj.stdout)
 
 
-@cli.command()
+@cli.command(name="list")
+@click.pass_obj
 @click.argument("path", nargs=-1)
 async def list_(obj, path):
     """List type information entries"""
@@ -124,7 +125,7 @@ async def set_(obj, path, encode, decode, data, in_, out):
 @click.option(
     "-l",
     "--list",
-    "list_",
+    "list_this",
     is_flag=True,
     help="Use to list this converter; '-' to list all.",
 )
