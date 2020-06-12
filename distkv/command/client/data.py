@@ -253,27 +253,15 @@ async def watch(obj, path, eval_path, state):
 
 
 @cli.command()
-@click.option("-l", "--local", is_flag=True, help="Load locally, don't broadcast")
-@click.option("-f", "--force", is_flag=True, help="Overwrite existing values")
-@click.option("-i", "--infile", type=click.File("rb"), help="File to read (msgpack).")
+@click.option("-i", "--infile", type=click.Path(), help="File to read (msgpack).")
 @click.option(
     "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
 )
 @click.argument("path", nargs=-1)
 @click.pass_obj
-async def update(obj, path, eval_path, infile, local, force):
+async def update(obj, path, eval_path, infile):
     """Send a list of updates to a DistKV subtree"""
-    if local and force:
-        raise click.UsageError("'local' and 'force' are mutually exclusive")
-
     path = tuple(path_eval(path, eval_path))
-    ps = PathShortener(path)
-    async with MsgReader(stream=infile) as reader:
-        with obj.client._stream(
-            action="update", path=path, force=force, local=local
-        ) as sender:
-            async for r in reader:
-                ps(r)
-                await sender.send(r)
-
-    print(sender.result)
+    async with MsgReader(path=infile) as reader:
+        async for msg in reader:
+            await obj.client.set(*path, *msg.path, value=msg.value)
