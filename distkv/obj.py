@@ -96,7 +96,10 @@ class ClientEntry:
         val = self.value_or({}, Mapping)
         try:
             for kk in k:
-                val = val[kk]
+                try:
+                    val = val[kk]
+                except TypeError:
+                    raise TypeError(self.value,k,val,kk)
             return val
         except KeyError:
             return self.parent.find_cfg(*k, default=default)
