@@ -2,6 +2,7 @@
 
 import sys
 import asyncclick as click
+import yaml
 
 from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint, PathLongener
@@ -60,6 +61,16 @@ async def file_(obj, file, path):
             pl(msg)
             yprint(msg, stream=obj.stdout)
             print("---", file=obj.stdout)
+
+
+@cli.command("yaml")
+@click.argument("msgpack", nargs=1)
+@click.pass_obj
+async def yaml_(obj, msgpack):
+    """Read a YAML file from stdin and dump as msgpack."""
+    async with MsgWriter(path=msgpack) as f:
+        for d in yaml.safe_load_all(sys.stdin):
+            await f(d)
 
 
 @cli.command()
