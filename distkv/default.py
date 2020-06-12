@@ -17,7 +17,10 @@ PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 CFG = attrdict(
     logging={  # a magic incantation
         "version": 1,
-        "loggers": {"asyncserf": {"level": "INFO"}},
+        "loggers": {
+            "asyncserf": {"level": "INFO"},
+            "xknx.raw_socket": {"level": "INFO"},
+        },
         "root": {"handlers": ["stderr"], "level": "INFO"},
         "handlers": {
             #           "logfile": {
