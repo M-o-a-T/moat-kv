@@ -851,6 +851,10 @@ class Entry:
             return
 
         if self.chain > evt.event:  # already superseded
+            logger.warning("*** superseded ***")
+            logger.warning("Node: %s", self.path)
+            logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
+            logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
             return
 
         if hasattr(evt, "new_value"):
