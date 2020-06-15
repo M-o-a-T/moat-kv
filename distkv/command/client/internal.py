@@ -32,6 +32,8 @@ async def cli():
 )
 @click.option("-p", "--present", is_flag=True, help="Get known-data status.")
 @click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
+@click.option("-d", "--debug", is_flag=True, help="Get internal verbosity.")
+@click.option("-D", "--debugger", is_flag=True, help="Start a remote debugger. DO NOT USE.")
 @click.option(
     "-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status."
 )
