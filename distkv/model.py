@@ -404,7 +404,7 @@ class NodeEvent:
             other = other.prev
             if other is None:
                 return False
-        return self.tick <= other.tick
+        return self.tick < other.tick
 
     def __gt__(self, other):
         """Check whether this node succedes ``other``, i.e. this event is
@@ -418,7 +418,7 @@ class NodeEvent:
             self = self.prev  # pylint: disable=self-cls-assignment
             if self is None:
                 return False
-        return self.tick >= other.tick
+        return self.tick > other.tick
 
     def __lte__(self, other):
         return self.__eq__(other) or self.__lt__(other)
@@ -829,7 +829,8 @@ class Entry:
         await self.apply(evt, server=server)
         return evt
 
-    async def apply(self, evt: UpdateEvent, server=None, root=None):
+    async def apply(self, evt: UpdateEvent, server=None, root=None,
+            loading=False):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers.
@@ -851,6 +852,10 @@ class Entry:
             return
 
         if self.chain > evt.event:  # already superseded
+            logger.warning("*** superseded ***")
+            logger.warning("Node: %s", self.path)
+            logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
+            logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
             return
 
         if hasattr(evt, "new_value"):
@@ -860,16 +865,19 @@ class Entry:
 
         if self._data is not NotGiven:
             if not (self.chain < evt.event):
-                logger.warning("*** inconsistency ***")
-                logger.warning("Node: %s", self.path)
-                logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
-                logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
+                if not loading:
+                    logger.warning("*** inconsistency ***")
+                    logger.warning("Node: %s", self.path)
+                    logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
+                    logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
                 if evt.tock < self.tock:
-                    logger.warning("New value ignored")
+                    if not loading:
+                        logger.warning("New value ignored")
                     # also mark the new event's chain as superseded
                     server.drop_old_event(self.chain, evt.event)
                     return
-                logger.warning("New value used")
+                if not loading:
+                    logger.warning("New value used")
 
         if chk is not None and evt_val is not NotGiven:
             chk.check_value(evt_val, self)

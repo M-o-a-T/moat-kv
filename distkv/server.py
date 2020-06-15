@@ -1293,6 +1293,7 @@ class Server:
     _actor = None
     _del_actor = None
     cfg: attrdict = None
+    force_startup: bool = False
 
     spawn: anyio.abc.TaskGroup = None
     seen_missing = None
@@ -1709,7 +1710,7 @@ class Server:
             return
         yield p
 
-    async def _unpack_multiple(self, msg):
+    def _unpack_multiple(self, msg):
         """
         Undo the effects of _pack_multiple.
         """
@@ -1731,6 +1732,8 @@ class Server:
                     return None
                 p = b"".join(s)
                 del self._part_cache[(nn, seq)]
+                msg = unpacker(p)
+                msg["_p0"] = ''
 
             i = 0
             while ("_p%d" % (i + 1)) in msg:
@@ -1757,7 +1760,7 @@ class Server:
 
                 async for resp in stream:
                     msg = unpacker(resp.payload)
-                    msg = await self._unpack_multiple(msg)
+                    msg = self._unpack_multiple(msg)
                     if not msg:  # None, empty, whatever
                         continue
                     self.logger.debug("Recv %s: %r", action, msg)
@@ -1905,7 +1908,7 @@ class Server:
             await self._check_ticked()
         self.fetch_running = None
 
-    async def fetch_data(self, nodes):
+    async def fetch_data(self, nodes, authoritative=False):
         """
         We are newly started and don't have any data.
 
@@ -1981,13 +1984,16 @@ class Server:
                 # node's state, so we now need to find whatever that
                 # node didn't have.
 
+                if authoritative:
+                    # … or not.
+                    self._discard_all_missing()
                 for nst in self._nodes.values():
                     if nst.tick and len(nst.local_missing):
                         self.fetch_missing.add(nst)
                 if len(self.fetch_missing):
                     self.fetch_running = False
                     await self.spawn(self.do_send_missing)
-                else:
+                if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
                         self.node.tick = 0
                     self.fetch_running = None
@@ -2181,7 +2187,7 @@ class Server:
         self.sending_missing = None
 
     async def load(
-        self, path: str = None, stream: io.IOBase = None, local: bool = False
+            self, path: str = None, stream: io.IOBase = None, local: bool = False, authoritative: bool = False
     ):
         """Load data from this stream
 
@@ -2209,12 +2215,25 @@ class Server:
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
                     await self.tock_seen(m.tock)
-                    await m.entry.apply(m, server=self, root=self.paranoid_root)
+                    await m.entry.apply(m, server=self, root=self.paranoid_root, loading=True)
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
+
+        if authoritative:
+            self._discard_all_missing()
+
         self.logger.debug("Loading finished.")
+
+    def _discard_all_missing(self):
+        for n in self._nodes.values():
+            if not n.tick:
+                continue
+            lk = n.local_missing
+
+            if len(lk):
+                n.report_superseded(lk, local=True)
 
     async def _save(self, writer, shorter, nchain=-1, full=False):
         """Save the current state.
@@ -2393,14 +2412,16 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_path=None, log_inc=False, ready_evt=None):
+    async def serve(self, log_path=None, log_inc=False, force=False, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
           ``log_inc``: if saving, write changes, not the whole state.
+          ``force``: start up even if entries are missing
         """
+        self.force_startup = force
         back = get_backend(self.cfg.server.backend)
         try:
             conn = self.cfg.server[self.cfg.server.backend]

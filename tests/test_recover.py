@@ -54,12 +54,12 @@ async def send_evt(self, action: str, msg: dict):
     return await _old_send(self,action, msg)
 
 _old_upm = Server._unpack_multiple
-async def unpack_multiple(self, msg: dict):
+def unpack_multiple(self, msg: dict):
     if random.random() < F4:
         logger.info("NoIN  %s %r", self.node.name, msg)
         return
     logger.debug("IN  %s %r", self.node.name, msg)
-    return await _old_upm(self, msg)
+    return _old_upm(self, msg)
 
 @pytest.mark.trio
 async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
