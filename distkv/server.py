@@ -1709,7 +1709,7 @@ class Server:
             return
         yield p
 
-    async def _unpack_multiple(self, msg):
+    def _unpack_multiple(self, msg):
         """
         Undo the effects of _pack_multiple.
         """
@@ -1759,7 +1759,7 @@ class Server:
 
                 async for resp in stream:
                     msg = unpacker(resp.payload)
-                    msg = await self._unpack_multiple(msg)
+                    msg = self._unpack_multiple(msg)
                     if not msg:  # None, empty, whatever
                         continue
                     self.logger.debug("Recv %s: %r", action, msg)
