@@ -1537,6 +1537,8 @@ class Server:
         deleted=False,
         missing=False,
         present=False,
+        debug=False,
+        debugger=False,
         remote_missing=False,
         **_kw,
     ):
@@ -1583,6 +1585,18 @@ class Server:
                 lk = n.remote_missing
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
+        if debug:
+            nd = res.debug = attrdict()
+            # TODO insert some debugging info
+
+        if debugger:
+            try:
+                import pdb_clone as pdb
+            except ImportError:
+                res["debugger"] = "Import error"
+            else:
+                pdb().set_trace_remote(host=b'127.0.0.1', port=57935)
+
         res["node"] = self.node.name
         res["tock"] = self.tock
         return res
