@@ -854,7 +854,7 @@ async def data_get(
             res = res.value
         except AttributeError:
             if obj.debug:
-                print("No data at", repr(path_eval(path, eval_path)), file=sys.stderr)
+                print("No data at", list(repr(path_eval(path, eval_path))), file=sys.stderr)
             sys.exit(1)
 
     if not raw:
