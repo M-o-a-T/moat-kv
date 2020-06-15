@@ -1767,7 +1767,13 @@ class Server:
                     await self.tock_seen(msg.get("tock", 0))
                     await cmd(msg)
         except CancelledError:
-            pass
+            self.logger.warning("Cancelled %s",action)
+            raise
+        except BaseException as exc:
+            self.logger.exception("Died %s: %r",action,exc)
+            raise
+        else:
+            self.logger.error("Stream ended %s",action)
 
     async def _run_del(self, evt):
         try:
