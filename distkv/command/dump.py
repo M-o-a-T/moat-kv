@@ -116,6 +116,13 @@ async def msg_(obj, path):
     """
     from distkv.backend import get_backend
 
+    class _Unpack:
+        def __init__(self):
+            self._part_cache = dict()
+    import distkv.server
+    _Unpack._unpack_multiple = distkv.server.Server._unpack_multiple
+    _unpacker = _Unpack()._unpack_multiple
+
     px = 0
     if not path:
         path = obj.cfg.server.root.split(".")
@@ -142,9 +149,15 @@ async def msg_(obj, path):
                 if isinstance(v.get("payload"), (bytearray, bytes)):
                     t = msg.topic
                     v = unpacker(v["payload"])
+                    if '_p0' in v:
+                        import pdb;pdb.set_trace()
+                    v = _unpacker(v)
+                    if v is None:
+                        continue
                     if px > 0:
                         v["_topic"] = t[px:]
                 else:
                     v["_type"] = type(msg).__name__
+
                 yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)
