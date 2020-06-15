@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 @click.argument("name", nargs=1)
 @click.argument("nodes", nargs=-1)
 @click.pass_obj
-async def cli(obj, name, load, save, init, incremental, eval_, authoritative, force, nodes):
+async def cli(obj, name, load, save, init, incremental, eval_, auth, force, nodes):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -104,14 +104,14 @@ async def cli(obj, name, load, save, init, incremental, eval_, authoritative, fo
 
     if load and nodes:
         raise click.UsageError("Either read from a file or fetch from a node. Not both.")
-    if authoritative and force:
+    if auth and force:
         raise click.UsageError("Using both '-a' and '-f' is redundant. Choose one.")
 
     async with as_service(obj) as evt:
         s = Server(name, cfg=obj.cfg, **kw)
         if load is not None:
-            await s.load(path=load, local=True, authoritative=authoritative)
+            await s.load(path=load, local=True, authoritative=auth)
         if nodes:
-            await s.fetch_data(nodes, authoritative=authoritative)
+            await s.fetch_data(nodes, authoritative=auth)
 
         await s.serve(log_path=save, log_inc=incremental, force=force, ready_evt=evt)
