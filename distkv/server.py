@@ -1731,6 +1731,8 @@ class Server:
                     return None
                 p = b"".join(s)
                 del self._part_cache[(nn, seq)]
+                msg = unpacker(p)
+                msg["_p0"] = ''
 
             i = 0
             while ("_p%d" % (i + 1)) in msg:
