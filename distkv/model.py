@@ -851,17 +851,17 @@ class Entry:
             )
             return
 
+        if hasattr(evt, "new_value"):
+            evt_val = evt.new_value
+        else:
+            evt_val = evt.value
+
         if self.chain > evt.event:  # already superseded
             logger.warning("*** superseded ***")
             logger.warning("Node: %s", self.path)
             logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
             logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
             return
-
-        if hasattr(evt, "new_value"):
-            evt_val = evt.new_value
-        else:
-            evt_val = evt.value
 
         if self._data is not NotGiven:
             if not (self.chain < evt.event):
