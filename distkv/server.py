@@ -1908,7 +1908,7 @@ class Server:
             await self._check_ticked()
         self.fetch_running = None
 
-    async def fetch_data(self, nodes):
+    async def fetch_data(self, nodes, authoritative=False):
         """
         We are newly started and don't have any data.
 
@@ -1984,6 +1984,9 @@ class Server:
                 # node's state, so we now need to find whatever that
                 # node didn't have.
 
+                if authoritative:
+                    # … or not.
+                    self._discard_all_missing()
                 for nst in self._nodes.values():
                     if nst.tick and len(nst.local_missing):
                         self.fetch_missing.add(nst)
@@ -2219,15 +2222,18 @@ class Server:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
 
         if authoritative:
-            for n in self._nodes.values():
-                if not n.tick:
-                    continue
-                lk = n.local_missing
-
-                if len(lk):
-                    n.report_superseded(lk, local=True)
+            self._discard_all_missing()
 
         self.logger.debug("Loading finished.")
+
+    def _discard_all_missing(self):
+        for n in self._nodes.values():
+            if not n.tick:
+                continue
+            lk = n.local_missing
+
+            if len(lk):
+                n.report_superseded(lk, local=True)
 
     async def _save(self, writer, shorter, nchain=-1, full=False):
         """Save the current state.

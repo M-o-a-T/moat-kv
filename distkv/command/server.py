@@ -62,8 +62,9 @@ logger = logging.getLogger(__name__)
     help="Force 'successful' startup even if data are missing.",
 )
 @click.argument("name", nargs=1)
+@click.argument("nodes", nargs=-1)
 @click.pass_obj
-async def cli(obj, name, load, save, init, incremental, eval_, authoritative, force):
+async def cli(obj, name, load, save, init, incremental, eval_, authoritative, force, nodes):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -78,6 +79,17 @@ async def cli(obj, name, load, save, init, incremental, eval_, authoritative, fo
 
     This command requires a unique NAME argument. The name identifies this
     server on the network. Never start two servers with the same name!
+
+    You can force the server to fetch its data from a specific node, in
+    case some data are corrupted. (This should never be necessary.)
+
+    A server will refuse to start up as long as it knows about missing
+    entries. Use the 'force' flag to disable that. You should disable
+    any clients which use this server until the situation is resolved!
+
+    An auhthoritative server doesn't have missing data in its storage by
+    definition. This flag is used in the 'run' script when loading from a
+    file.
     """
 
     kw = {}
@@ -90,9 +102,16 @@ async def cli(obj, name, load, save, init, incremental, eval_, authoritative, fo
 
     from distkv.util import as_service
 
+    if load and nodes:
+        raise click.UsageError("Either read from a file or fetch from a node. Not both.")
+    if authoritative and force:
+        raise click.UsageError("Using both '-a' and '-f' is redundant. Choose one.")
+
     async with as_service(obj) as evt:
         s = Server(name, cfg=obj.cfg, **kw)
         if load is not None:
             await s.load(path=load, local=True, authoritative=authoritative)
+        if nodes:
+            await s.fetch_data(nodes, authoritative=authoritative)
 
         await s.serve(log_path=save, log_inc=incremental, force=force, ready_evt=evt)
