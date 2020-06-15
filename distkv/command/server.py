@@ -52,13 +52,18 @@ logger = logging.getLogger(__name__)
     "-a",
     "--auth",
     "--authoritative",
-    "authoritative",
     is_flag=True,
     help="Data in this file is complete: mark anything missing as known even if not.",
 )
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="Force 'successful' startup even if data are missing.",
+)
 @click.argument("name", nargs=1)
 @click.pass_obj
-async def cli(obj, name, load, save, init, incremental, eval_, authoritative):
+async def cli(obj, name, load, save, init, incremental, eval_, authoritative, force):
     """
     This command starts a DistKV server. It defaults to connecting to the local Serf
     agent.
@@ -90,4 +95,4 @@ async def cli(obj, name, load, save, init, incremental, eval_, authoritative):
         if load is not None:
             await s.load(path=load, local=True, authoritative=authoritative)
 
-        await s.serve(log_path=save, log_inc=incremental, ready_evt=evt)
+        await s.serve(log_path=save, log_inc=incremental, force=force, ready_evt=evt)

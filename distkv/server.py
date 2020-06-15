@@ -1293,6 +1293,7 @@ class Server:
     _actor = None
     _del_actor = None
     cfg: attrdict = None
+    force_startup: bool = False
 
     spawn: anyio.abc.TaskGroup = None
     seen_missing = None
@@ -1989,7 +1990,7 @@ class Server:
                 if len(self.fetch_missing):
                     self.fetch_running = False
                     await self.spawn(self.do_send_missing)
-                else:
+                if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
                         self.node.tick = 0
                     self.fetch_running = None
@@ -2405,14 +2406,16 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
-    async def serve(self, log_path=None, log_inc=False, ready_evt=None):
+    async def serve(self, log_path=None, log_inc=False, force=False, ready_evt=None):
         """Task that opens a Serf connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
           ``log_path``: path to a binary file to write changes and initial state to.
           ``log_inc``: if saving, write changes, not the whole state.
+          ``force``: start up even if entries are missing
         """
+        self.force_startup = force
         back = get_backend(self.cfg.server.backend)
         try:
             conn = self.cfg.server[self.cfg.server.backend]
