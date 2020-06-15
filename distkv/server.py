@@ -1806,6 +1806,7 @@ class Server:
             await delay.set()
             async for msg in actor:
                 # self.logger.debug("IN %r",msg)
+
                 if isinstance(msg, RecoverEvent):
                     await self.spawn(
                         self.recover_split,
@@ -1814,8 +1815,10 @@ class Server:
                         msg.local_nodes,
                         msg.remote_nodes,
                     )
+
                 elif isinstance(msg, GoodNodeEvent):
                     await self.spawn(self.fetch_data, msg.nodes)
+
                 elif isinstance(msg, RawMsgEvent):
                     msg = msg.msg
                     msg_node = msg.get("node", None)
@@ -1828,6 +1831,11 @@ class Server:
                         await self.tock_seen(val[0])
                         val = val[1]
                     Node(msg_node, val, cache=self._nodes)
+
+                elif isinstance(msg, TagEvent):
+                    # We're "it"; find missing data
+                    await self._send_missing()
+
                 elif isinstance(msg, (TagEvent, UntagEvent, DetagEvent)):
                     pass
                     # TODO tell clients, for cleanup tasks in handlers,
@@ -2095,24 +2103,7 @@ class Server:
                     await t.wait(2)
 
                 if x.cancel_called:
-                    msg = dict()
-                    for n in list(self._nodes.values()):
-                        if not n.tick:
-                            continue
-                        m = n.local_missing
-                        mr = self.seen_missing.get(n.name, None)
-                        if mr is not None:
-                            m -= mr
-                        if len(m) == 0:
-                            continue
-                        msg[n.name] = m.__getstate__()
-                        if mr is None:
-                            self.seen_missing[n.name] = m
-                        else:
-                            mr += m
-
-                    msg = attrdict(missing=msg)
-                    await self._send_event("info", msg)
+                    await self._send_missing(force=True)
 
                 # wait a bit more before continuing. Again this depends on
                 # `prio` so that there won't be two nodes that send the same
@@ -2129,6 +2120,27 @@ class Server:
                     self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
                     self.seen_missing = {}
                     await t.cancel()
+
+    async def _send_missing(self, force=False):
+        msg = dict()
+        for n in list(self._nodes.values()):
+            if not n.tick:
+                continue
+            m = n.local_missing
+            mr = self.seen_missing.get(n.name, None)
+            if mr is not None:
+                m -= mr
+            if len(m) == 0:
+                continue
+            msg[n.name] = m.__getstate__()
+            if mr is None:
+                self.seen_missing[n.name] = m
+            else:
+                mr += m
+
+        if force or msg:
+            msg = attrdict(missing=msg)
+            await self._send_event("info", msg)
 
     async def _run_send_missing(self, prio):
         """Start :meth:`_send_missing_data` if it's not running"""
