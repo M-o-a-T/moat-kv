@@ -2183,7 +2183,7 @@ class Server:
         self.sending_missing = None
 
     async def load(
-        self, path: str = None, stream: io.IOBase = None, local: bool = False
+            self, path: str = None, stream: io.IOBase = None, local: bool = False, authoritative: bool = False
     ):
         """Load data from this stream
 
@@ -2211,11 +2211,21 @@ class Server:
                         self.root, m, cache=self._nodes, nulls_ok=True
                     )
                     await self.tock_seen(m.tock)
-                    await m.entry.apply(m, server=self, root=self.paranoid_root)
+                    await m.entry.apply(m, server=self, root=self.paranoid_root, loading=True)
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
+
+        if authoritative:
+            for n in self._nodes.values():
+                if not n.tick:
+                    continue
+                lk = n.local_missing
+
+                if len(lk):
+                    n.report_superseded(lk, local=True)
+
         self.logger.debug("Loading finished.")
 
     async def _save(self, writer, shorter, nchain=-1, full=False):
