@@ -149,8 +149,6 @@ async def msg_(obj, path):
                 if isinstance(v.get("payload"), (bytearray, bytes)):
                     t = msg.topic
                     v = unpacker(v["payload"])
-                    if '_p0' in v:
-                        import pdb;pdb.set_trace()
                     v = _unpacker(v)
                     if v is None:
                         continue
