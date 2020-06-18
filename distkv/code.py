@@ -114,14 +114,14 @@ class CodeRoot(ClientRoot):
     You typically don't create this class directly; instead, call
     :meth:`CodeRoot.as_handler`::
 
-        errs = await CodeRoot.as_handler(client, your_config.get("error-handler",{})
+        code = await CodeRoot.as_handler(client, your_config.get("code-storage",{})
 
     The prefix defaults to ``("code","proc")``.
 
     Configuration:
 
     Arguments:
-      prefix (list): Where to store the code in DtsiKV.
+      prefix (list): Where to store the code in DistKV.
         The default is ``('.distkv','code','proc')``.
 
     The code is stored as a dict.
