@@ -10,6 +10,7 @@ from asyncactor import Actor  # noqa
 __all__ = [
     "ClientActor",
     "ActorState",
+    "BrokenState",
     "DetachedState",
     "PartialState",
     "CompleteState",
@@ -64,26 +65,30 @@ class ClientMonitor(MonitorStream):
 # about the current connectivity state.
 #
 class ActorState:
-    """abstract base class for states"""
+    """base class for states"""
+    def __init__(self, msg=None):
+        self.msg = msg
+    pass
+
+
+class BrokenState(ActorState):
+    """I have no idea what's happening, probably nothing good"""
 
     pass
 
 
-@singleton
 class DetachedState(ActorState):
     """I am detached, my actor group is not visible"""
 
     pass
 
 
-@singleton
 class PartialState(ActorState):
     """Some but not all members of my actor group are visible"""
 
     pass
 
 
-@singleton
 class CompleteState(ActorState):
     """All members of my actor group are visible"""
 

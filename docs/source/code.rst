@@ -136,9 +136,9 @@ Variables
 
 The runners pass a couple of variables to their code.
 
-* _entry
+* _self
 
-  The current runner entry. Try not to modify it.
+  The controller. It can do a few things. See `distkv.runner.CallAdmin`, below.
 
 * _client
 
@@ -154,7 +154,8 @@ The runners pass a couple of variables to their code.
   :cls:`asyncactor.ActorState`, to signal whether the running node is
   connected to any / all of your DistKV-using infrastructure.
 
-These are available as global variables.
+These variables, as well as the contents of the data associated with the
+runner, are available as global variables.
 
 Node Groups
 ===========
@@ -165,4 +166,49 @@ group to synchronize job startup.
 Runners also forward the group's membership information to your code as it
 changes. You can use this information to implement "emergency operation
 when disconnected" or similar fallback strategies.
+
+=========
+CallAdmin
+=========
+
+Your code has access to a ``_self`` variable which contains a `CallAdmin` object.
+The typical usage pattern is to start monitoring some DistKV entries with
+`CallAdmin.watch`, then iterate ``_info`` for the values of those entries.
+When you get a `ReadyMsg` event, all values have been transmitted; you can
+then set up some timeouts, set other values, access external services, and
+do whatever else your code needs to do.
+
+Traditional DiskKV client code requires an async context manager for most
+scoped operations. Since a `CallAdmin` is scoped by definition, it can
+manage these scopes for you. Thus, instead of writing boilerplate code like
+this::
+
+   async with _client.watch("some","special","path") as w1:
+      async with _client.watch("some","other","path") as w2:
+         async with anyio.create_task_group() as tg:
+            q = anyio.create_queue()
+            async def _watch(w):
+               async for msg in w:
+                  await q.put(msg)
+            async def _timeout(t):
+               await q.put(distkv.runner.TimerMsg())
+            await tg.spawn(_watch, w1)
+            await tg.spawn(_watch, w2)
+            await tg.spawn(_timeout, 100)
+            async for msg in q:
+               await process(msg)
+
+you can simplify this to::
+
+   await _self.watch("some","special","path")
+   await _self.watch("some","other","path")
+   await _self.timer(100)
+   async for msg in _info:
+      if isinstance(msg, distkv.runner.ChangeMsg):
+         await process_timeout()
+      elif isinstance(msg, distkv.runner.ChangeMsg):
+         await process_data(msg.msg)
+
+Distinguishing these messages can be further simplified by using distinct
+``cls=`` parameters in your ``watch`` and ``timer`` calls.
 

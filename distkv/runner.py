@@ -12,9 +12,13 @@ from copy import deepcopy
 import psutil
 import time
 from collections.abc import Mapping
+try:
+    from contextlib import AsyncExitStack, asynccontextmanager
+except ImportError:
+    from async_exit_stack import AsyncExitStack, asynccontextmanager
 
 from .actor import ClientActor
-from .actor import DetachedState, PartialState, CompleteState, ActorState
+from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
 from .util import NotGiven, combine_dict
 
 from .exceptions import ServerError
@@ -35,6 +39,199 @@ class NotSelected(RuntimeError):
     pass
 
 
+class ErrorRecorded(RuntimeError):
+    pass
+
+
+class RunnerMsg(ActorState):
+    """Superclass for runner-generated messages.
+
+    Not directly instantiated.
+    """
+    pass
+
+class ChangeMsg(RunnerMsg):
+    """A message telling your code that some entry has been updated.
+
+    Subclass this and use it as `CallAdmin.watch`'s ``cls`` parameter for easier
+    disambiguation.
+    """
+    pass
+
+
+class ReadyMsg(RunnerMsg):
+    """
+    This message is queued when the last watcher has read all data.
+    """
+    pass
+
+class TimerMsg(RunnerMsg):
+    """
+    A message telling your code that a timer triggers.
+
+    Subclass this and use it as `CallAdmin.timer`'s ``cls`` parameter for easier
+    disambiguation.
+    """
+    pass
+
+
+class CallAdmin:
+    """
+    This class collects some standard tasks which async DistKV-embedded
+    code might want to do.
+    """
+    def __init__(self, runner, state, data):
+        self._runner = runner
+        self._state = state
+        self._data = data
+        self._client = runner.root.client
+        self._err = runner.root.err
+        self._q = runner._q
+        self._path = runner._path
+        self._subpath = runner.subpath
+        self._n_watch = 0
+
+    async def _run(self, code, data):
+        """Called by the runner to actually execute the code."""
+        logger.debug("Start %r with %r", self._runner._path, self._runner.code)
+        async with anyio.create_task_group() as tg:
+            self._taskgroup = tg
+            async with AsyncExitStack() as stack:
+                self._stack = stack
+                sc = tg.cancel_scope
+
+                self._taskgroup = tg
+                self._runner.scope = sc
+                data["_self"] = self
+
+                oka = getattr(self._runner, "ok_after", 0)
+                if oka > 0:
+                    async def is_ok(oka):
+                        await anyio.sleep(oka)
+                        await self.setup_done()
+                    await tg.spawn(is_ok, oka)
+
+                res = code(**data)
+                if code.is_async is not None:
+                    res = await res
+
+                await sc.cancel()
+                return res
+
+    async def spawn(self, proc, *a, **kw):
+        """
+        Start a background subtask.
+
+        The task is auto-cancelled when your code ends.
+
+        Returns: an `anyio.abc.CancelScope` which you can use to cancel the
+            subtask.
+        """
+        async def _spawn(evt,proc,a,kw):
+            nonlocal scope
+            async with anyio.open_cancel_scope() as scope:
+                await evt.set()
+                await proc(*a,**kw)
+
+        scope = None
+        evt = anyio.create_event()
+        await self._taskgroup.spawn(_spawn,evt,proc,a,kw)
+        await evt.wait()
+        return scope
+
+    async def setup_done(self, **kw):
+        """
+        Call this when your code has successfully started up.
+        """
+        self._state.backoff = 0
+        await self._state.save()
+        await self._err.record_working("run", *self._runner._path, **kw)
+
+    async def error(self, **kw):
+        """
+        Record that an error has occurred. This function records specific
+        error data, then raises `ErrorRecorded` which the code is not
+        supposed to catch.
+
+        See `distkv.errors.ErrorRoot.record_error` for keyword details.
+        """
+        await self._err.record_error("run", *self._path, **kw)
+        raise ErrorRecorded()
+
+    async def open_context(self, ctx):
+        return await self._stack.enter_async_context(ctx)
+
+    async def watch(self, *path, cls=ChangeMsg, **kw):
+        """
+        Create a watcher. This path is monitored as per `distkv.client.Client.watch`;
+        messages are encapsulated in `ChangeMsg` objects.
+        A `ReadyMsg` will be sent when all watchers have transmitted their
+        initial state.
+
+        By default a watcher will only monitor a single entry. Set
+        ``max_depth`` if you also want child entries.
+        """
+        class Watcher:
+            def __init__(self, admin, runner, client, cls, path, kw):
+                self.admin = admin
+                self.runner = runner
+                self.client = client
+                self.path = path
+                self.kw = kw
+                self.cls = cls
+                self.scope = None
+
+            async def run(self):
+                async with anyio.open_cancel_scope() as sc:
+                    self.scope = sc
+                    async with self.client.watch(*path,**kw) as watcher:
+                        async for msg in watcher:
+                            if 'path' in msg:
+                                await self.runner.send_event(cls(msg))
+                            elif msg.get('state','') == "uptodate":
+                                self.admin._n_watch -= 1
+                                if not self.admin._n_watch:
+                                    await self.runner.send_event(ReadyMsg(msg))
+
+            async def cancel(self):
+                if self.scope is None:
+                    return False
+                sc, self.scope = self.scope, None
+                await sc.cancel()
+
+        if kw.setdefault('fetch', True):
+            self._n_watch += 1
+
+        w = Watcher(self, self._runner, self._client, cls, path, kw)
+        await self._taskgroup.spawn(w.run)
+        return w
+
+    async def timer(self, delay, cls=TimerMsg):
+        class Timer:
+            def __init__(self, runner, delay, cls):
+                self.runner = runner
+                self.delay = delay
+                self.cls = cls
+                self.scope = None
+
+            async def run(self):
+                async with anyio.open_cancel_scope() as sc:
+                    self.scope = sc
+                    await anyio.wait(delay)
+                    await self.runner.send_event(self.cls())
+                    self.scope = None
+
+            async def cancel(self):
+                if self.scope is None:
+                    return False
+                sc, self.scope = self.scope, None
+                await sc.cancel()
+                return True
+        t = Timer(self._runner, delay, cls)
+        await self._taskgroup.spawn(t.run)
+        return t
+
+
 class RunnerEntry(AttrClientEntry):
     """
     An entry representing some hopefully-running code.
@@ -44,21 +241,29 @@ class RunnerEntry(AttrClientEntry):
     On error, it will run ``delay`` seconds later (if >0), multiplied by 2**backoff.
 
     Arguments:
-      code (list): pointer to the code that's to be started.
-      data (dict): additional data for the code.
-      delay (float): time before restarting the job on error
-      repeat (float): time before restarting on success
-      target (float): time the job should be started at
+        code (list): pointer to the code that's to be started.
+        data (dict): additional data for the code.
+        delay (float): time before restarting the job on error.
+            Default 100.
+        repeat (float): time before restarting on success.
+            Default: zero: no restart.
+        target (float): time the job should be started at.
+            Default: zero: don't start.
+        ok_after (float): the job is marked OK if it has run this long.
+            Default: zero: the code will do that itself.
+        backoff (float): Exponential back-off factor on errors.
+            Default: 1.4.
 
     The code runs with these additional keywords::
 
-      _entry: this object
-      _client: the DistKV client connection
-      _info: a queue to send events to the task. A message of ``None``
-          signals that the queue was overflowing and no further messages will
-          be delivered.
+        _self: the `CallEnv` object, which the task can use to actually do things.
+        _client: the DistKV client connection.
+        _info: a queue which the task can use to receive events. A message of
+            ``None`` signals that the queue was overflowing and no further
+            messages will be delivered. Your task should use that as its
+            mainloop.
 
-    Messages are defined in :mod:`distkv.actor`.
+    Some possible messages are defined in :mod:`distkv.actor`.
     """
 
     ATTRS = "code data delay ok_after repeat backoff target".split()
@@ -67,6 +272,7 @@ class RunnerEntry(AttrClientEntry):
     repeat = 0
     target = 0
     backoff = 1.4
+    ok_after = 0
 
     code = ()  # what to execute
     data = None
@@ -108,9 +314,6 @@ class RunnerEntry(AttrClientEntry):
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
-                    if self.root._active is not None:
-                        await self._q.put(self.root._active)
-                data["_entry"] = self
                 data["_client"] = self.root.client
                 data["_cfg"] = self.root.client._cfg
 
@@ -123,29 +326,20 @@ class RunnerEntry(AttrClientEntry):
                         "Rudely taken away from us.", state.node, state.root.name
                     )
 
-                logger.debug("Start %r with %r", self._path, self.code)
-                async with anyio.create_task_group() as tg:
-                    sc = tg.cancel_scope
-                    self.scope = sc
-                    oka = getattr(self, "ok_after", -1)
-                    if oka > 0:
+                data["_self"] = calls = CallAdmin(self,state,data)
+                res = await calls._run(code, data)
 
-                        async def is_ok(oka):
-                            await anyio.sleep(oka)
-                            state.backoff = 0
-                            await state.save()
-                            await self.root.err.record_working("run", *self._path)
-
-                        await tg.spawn(is_ok, oka)
-                    res = code(**data)
-                    if code.is_async is not None:
-                        res = await res
-                    await sc.cancel()
             finally:
                 logger.debug("End %r", self._path)
+                self._taskgroup = None
                 self.scope = None
                 self._q = None
                 t = time.time()
+
+        except ErrorRecorded:
+            # record_error() has already been called
+            self._comment = None
+            state.backoff += 1
 
         except BaseException as exc:
             c, self._comment = self._comment, None
@@ -184,12 +378,14 @@ class RunnerEntry(AttrClientEntry):
                     await self.root.trigger_rescan()
 
     async def send_event(self, evt):
-        if self._q is not None:
-            if self._q.qsize() < QLEN - 1:
-                await self._q.put(evt)
-            elif self._q.qsize() == QLEN - 1:
-                await self._q.put(None)
-                self._q = None
+        """Send an event to the running process."""
+        if self._q is None:
+            return
+        if self._q.qsize() < QLEN - 1:
+            await self._q.put(evt)
+        elif self._q.qsize() == QLEN - 1:
+            await self._q.put(None)
+            self._q = None
 
     async def seems_down(self):
         state = self.state
@@ -198,12 +394,13 @@ class RunnerEntry(AttrClientEntry):
             await state.save(wait=True)
 
     async def set_value(self, value):
+        """Process incoming value changes"""
         c = self.code
         await super().set_value(value)
 
         # Check whether running code needs to be killed off
         if self.scope is not None:
-            if value is NotGiven or c != self.code:
+            if value is NotGiven or c is not self.code:
                 # The code changed.
                 self._comment = "Cancel: Code changed"
                 await self.scope.cancel()
@@ -239,7 +436,8 @@ class RunnerEntry(AttrClientEntry):
             return False
         if state.node is not None:
             return False
-        assert not state.started or state.stopped
+        if state.started and not state.stopped:
+            raise RuntimeError("Running! should not be called")
 
         if self.target > state.started:
             return self.target
@@ -295,7 +493,7 @@ class RunnerNode:
 class StateEntry(AttrClientEntry):
     """
     This is the actual state associated with a RunnerEntry.
-    It mmust only be managed by the node that actually runs the code.
+    It must only be managed by the node that actually runs the code.
 
     Arguments:
       started (float): timestamp when the job was last started
@@ -419,6 +617,7 @@ class StateRoot(ClientRoot):
     _last_t = 0
 
     async def ping(self):
+
         t = time.time()
         if t - self._last_t >= abs(self._cfg["ping"]):
             self._last_t = t
@@ -435,7 +634,6 @@ class StateRoot(ClientRoot):
 class _BaseRunnerRoot(ClientRoot):
     """common code for AnyRunnerRoot and SingleRunnerRoot"""
 
-    _active: ActorState = None
     _trigger: anyio.abc.Event = None
     _run_now_task: anyio.abc.CancelScope = None
 
@@ -520,10 +718,16 @@ class _BaseRunnerRoot(ClientRoot):
         await super().running()
 
     async def _run_actor(self):
+        """
+        This method is started as a long-lived task of the root as soon as
+        the subtree's data are loaded.
+
+        Its job is to control which tasks are started.
+        """
         raise RuntimeError("You want to override me." "")
 
     async def trigger_rescan(self):
-        """Tell the run_now task to rescan our job list"""
+        """Tell the _run_actor task to rescan our job list prematurely"""
         if self._trigger is not None:
             await self._trigger.set()
 
@@ -552,17 +756,41 @@ class _BaseRunnerRoot(ClientRoot):
                     elif t_next > d:
                         t_next = d
 
+    async def notify_actor_state(self, msg=None):
+        """
+        Notify all running jobs about a possible change in active status.
+        """
+        ac = len(self.node_history)
+        if ac == 0 or msg is None:
+            ac = BrokenState
+        elif self.name in self.node_history and ac == 1:
+            ac = DetachedState
+        elif ac >= self._act.n_nodes:
+            ac = CompleteState
+        else:
+            ac = PartialState
+
+        logger.debug("State %r",ac,msg)
+
+        ac = ac(msg)
+        for n in self.all_children:
+            await n.send_event(ac)
+
+
 
 class AnyRunnerRoot(_BaseRunnerRoot):
     """
     This class represents the root of a code runner. Its job is to start
     (and periodically restart, if required) the entry points stored under it.
+
+    :class:`AnyRunnerRoot` tries to ensure that the code in question runs
+    on one single cluster member. In case of a network split, the code will
+    run once in each split areas until the split is healed.
     """
 
     SUB = "group"
 
     _stale_times = None
-    _age_q = None
     _act = None
     tg = None
     seen_load = None
@@ -580,16 +808,17 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         return self._act.cycle_time_max * (self._act.history_size + 1.5)
 
     async def _run_actor(self):
+        """
+        Monitor the Actor state, run a :meth:`_run_now` subtask whenever we're 'it'.
+        """
         async with anyio.create_task_group() as tg:
-            self.tg = tg
-
             async with ClientActor(
                 self.client, self.name, topic=self.group, cfg=self._cfg["actor"]
             ) as act:
                 self._act = act
 
-                self._age_q = anyio.create_queue(10)
-                await self.spawn(self._age_killer)
+                age_q = anyio.create_queue(10)
+                await self.spawn(self._age_killer, age_q)
 
                 psutil.cpu_percent(interval=None)
                 await act.set_value(0)
@@ -616,7 +845,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                         self.node_history += self.name
                         evt = anyio.create_event()
                         await self.spawn(self._run_now, evt)
-                        await self._age_q.put(None)
+                        await age_q.put(None)
                         await evt.wait()
 
                         await self.state.ping()
@@ -627,6 +856,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
                         await self._run_now_task.cancel()
                         # TODO if this is a DetagEvent, kill everything?
+
+                    await self.notify_actor_state(msg)
+
                 pass  # end of actor task
 
     async def find_stale_nodes(self, cur):
@@ -653,12 +885,17 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         if names:
             await self.state.kill_stale_nodes(names)
 
-    async def _age_killer(self):
+    async def _age_killer(self, age_q):
+        """
+        Subtask which cleans up stale tasks
+
+        TODO check where to use time.monotonic
+        """
         t1 = time.time()
-        while self._age_q is not None:
+        while age_q is not None:
             await self.find_stale_nodes(t1)
             async with anyio.move_on_after(self.max_age):
-                await self._age_q.get()
+                await age_q.get()
                 t1 = time.time()
                 continue
             t2 = time.time()
@@ -710,7 +947,6 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     err = None
     _act = None
-    _age_q = None
     code = None
     state = None
     tg = None
@@ -732,26 +968,6 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             else:
                 await self._act.disable(len(cores))
 
-    async def notify_active(self):
-        """
-        Notify all running jobs that there's a change in active status
-        """
-        oac = self._active
-        ac = len(self.node_history)
-        if ac == 0:
-            ac = DetachedState
-        elif self.name in self.node_history and ac == 1:
-            ac = DetachedState
-        elif ac >= self._act.n_nodes:
-            ac = CompleteState
-        else:
-            ac = PartialState
-
-        if oac is not ac:
-            self._active = ac
-            for n in self.all_children:
-                await n.send_event(ac)
-
     @property
     def max_age(self):
         """Timeout after which we really should have gotten another ping"""
@@ -759,35 +975,41 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
-            self.tg = tg
-            self._age_q = anyio.create_queue(1)
+            age_q = anyio.create_queue(1)
 
             async with ClientActor(
                 self.client, self.name, topic=self.group, cfg=self._cfg
             ) as act:
                 self._act = act
-                await tg.spawn(self._age_notifier)
+                await tg.spawn(self._age_notifier, age_q)
                 await self.spawn(self._run_now)
                 await act.set_value(0)
 
                 async for msg in act:
                     if isinstance(msg, AuthPingEvent):
+                        # Some node, not necessarily us, is "it".
+                        # We're the SingleNode runner: we manage our jobs
+                        # when triggered by this, no matter whether we're
+                        # "it" or not.
                         self.node_history += msg.node
-                        await self._age_q.put(None)
-                        await self.notify_active()
+                        await age_q.put(None)
+                        await self.notify_actor_state(msg)
 
                         await self.state.ping()
 
                 pass  # end of actor task
 
-    async def _age_notifier(self):
-        while self._age_q is not None:
-            flag = False
-            async with anyio.move_on_after(self.max_age):
-                await self._age_q.get()
-                flag = True
-            if not flag:
-                await self.notify_active()
+    async def _age_notifier(self, age_q):
+        """
+        This background job triggers :meth:`notify_actor_state` when too much
+        time has passed without an AuthPing.
+        """
+        while True:
+            try:
+                async with anyio.fail_after(self.max_age):
+                    await age_q.get()
+            except TimeoutError:
+                await self.notify_actor_state()
 
 
 class AllRunnerRoot(SingleRunnerRoot):
