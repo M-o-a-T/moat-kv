@@ -777,7 +777,7 @@ class _BaseRunnerRoot(ClientRoot):
         else:
             ac = PartialState
 
-        logger.debug("State %r",ac,msg)
+        logger.debug("State %r %r",ac,msg)
 
         ac = ac(msg)
         for n in self.all_children:
