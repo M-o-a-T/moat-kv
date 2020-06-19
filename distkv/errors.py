@@ -129,6 +129,7 @@ class ErrorEntry(AttrClientEntry):
 
     ATTRS = "path subsystem severity resolved created count first_seen last_seen message".split()
     resolved = None  # bool; if None, no details yet
+    created = None
     count = 0
     subsystem = None
     path = ()
@@ -212,7 +213,7 @@ class ErrorEntry(AttrClientEntry):
             logger.warning("Error %r %s: %s", self._path, node, m)
 
         try:
-            await res.save()
+            r = await res.save()
         except TypeError:
             for k in res.ATTRS:
                 v = getattr(res, k, None)
@@ -220,7 +221,8 @@ class ErrorEntry(AttrClientEntry):
                     packer(v)
                 except TypeError:
                     setattr(res, k, repr(v))
-            await res.save()
+            r = await res.save()
+        return r
 
     async def add_comment(self, node, comment, data):
         """
@@ -476,30 +478,27 @@ class ErrorRoot(ClientRoot):
             with the data when printed.
         """
         rec = await self.get_error_record(subsystem, *path)
-        try:
-            if not force and rec.severity < severity:
-                return
-        except AttributeError:
-            pass
+        if not force and hasattr(rec,'severity') and rec.severity < severity:
+            return
 
         rec.severity = severity
         rec.subsystem = subsystem
         rec.path = path
         rec.resolved = False
         rec.count += 1
-        if not hasattr(rec, "first_seen"):
-            rec.first_seen = time()
         rec.last_seen = time()
+        if not hasattr(rec, "first_seen"):
+            rec.first_seen = rec.last_seen
 
         try:
             await rec.save()
         except anyio.exceptions.ClosedResourceError:
             return  # owch, but can't be helped
 
-        await rec.real_entry.add_exc(
+        r = await rec.real_entry.add_exc(
             self.name, exc=exc, data=data, comment=comment, message=message
         )
-        return rec
+        return r
 
     async def _pop(self, entry):
         """Override to deal with entry changes"""

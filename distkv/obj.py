@@ -251,9 +251,11 @@ class ClientEntry:
         self.value = value
 
     async def seen_value(self):
-        """Current value seen.
+        """The current value was seen (again).
 
         Useful for syncing.
+
+        The default action is to do nothing.
         """
         pass
 
