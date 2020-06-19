@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 QLEN = 10
 
-
 class NotSelected(RuntimeError):
     """
     This node has not been selected for a very long time. Something is amiss.
@@ -161,7 +160,8 @@ class CallAdmin:
 
         See `distkv.errors.ErrorRoot.record_error` for keyword details.
         """
-        await self._err.record_error("run", *self._path, **kw)
+        r = await self._err.record_error("run", *self._path, **kw)
+        await self._err.root.wait_chain(r.chain)
         raise ErrorRecorded()
 
     async def open_context(self, ctx):
@@ -351,7 +351,7 @@ class RunnerEntry(AttrClientEntry):
         except BaseException as exc:
             c, self._comment = self._comment, None
             async with anyio.move_on_after(2, shield=True):
-                await self.root.err.record_error(
+                r = await self.root.err.record_error(
                     "run",
                     *self._path,
                     message="Exception",
@@ -359,6 +359,7 @@ class RunnerEntry(AttrClientEntry):
                     data=self.data,
                     comment=c
                 )
+                await self._err.root.wait_chain(r.chain)
             state.backoff += 1
         else:
             state.result = res
