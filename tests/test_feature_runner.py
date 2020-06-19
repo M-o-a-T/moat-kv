@@ -32,11 +32,16 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 "forty",
                 "two",
                 code="""\
-                import trio
                 c=_client
+                s=_self
                 await c._test_evt.set()
-                await trio.sleep(10)
-                return 42
+                await s.setup_done()
+                await s.watch("test",4242)
+                async for msg in _info:
+                    if isinstance(msg, _cls.TimerMsg):
+                        return 42
+                    elif isinstance(msg, _cls.ChangeMsg) and msg.msg.value == 42:
+                        await s.timer(10)
                 """,
                 is_async=True,
             )
@@ -44,8 +49,18 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             ru.code = ("forty", "two")
             await ru.run_at(time.time() + 1)
             logger.info("Start sleep")
+            rs = ru.state
             with trio.fail_after(60):
                 await c._test_evt.wait()
+                await c.set("test",4242, value=13)
+                await trio.sleep(2)
+                assert not rs.stopped
+                await c.set("test",4242, value=42)
+                await trio.sleep(2)
+                assert not rs.stopped
+                await trio.sleep(10)
+                assert rs.stopped
+
             await run(
                 "-vvv",
                 "client",
@@ -62,10 +77,6 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
 
             logger.info("End sleep")
 
-            r = await run("-vvv", "client", "-h", h, "-p", p, "data", "get")
-            assert r.stdout == "123\n"
-
-            rs = ru.state
             assert rs.started > 0
             assert rs.stopped > 0
             assert rs.backoff == 0
