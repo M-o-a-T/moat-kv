@@ -129,6 +129,7 @@ class ErrorEntry(AttrClientEntry):
 
     ATTRS = "path subsystem severity resolved created count first_seen last_seen message".split()
     resolved = None  # bool; if None, no details yet
+    created = None
     count = 0
     subsystem = None
     path = ()
@@ -476,11 +477,8 @@ class ErrorRoot(ClientRoot):
             with the data when printed.
         """
         rec = await self.get_error_record(subsystem, *path)
-        try:
-            if not force and rec.severity < severity:
-                return
-        except AttributeError:
-            pass
+        if not force and hasattr(rec,'severity') and rec.severity < severity:
+            return
 
         rec.severity = severity
         rec.subsystem = subsystem
