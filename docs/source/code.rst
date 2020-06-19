@@ -148,6 +148,12 @@ The runners pass a couple of variables to their code.
 
   The current configuration.
 
+* _cls
+
+  A dict (actually, `distkv.util.attrdict`) with various runner-related
+  message classes. Convenient if you want to avoid a cumbersome ``import``
+  statement, since these are not part of DistKV's public API.
+
 * _info (async only)
 
   A queue for events. Currently, receives subclasses of

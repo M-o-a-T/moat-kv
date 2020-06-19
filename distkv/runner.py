@@ -19,7 +19,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict
+from .util import NotGiven, combine_dict, attrdict
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -73,6 +73,12 @@ class TimerMsg(RunnerMsg):
     disambiguation.
     """
     pass
+
+
+_CLASSES = attrdict()
+for _c in (DetachedState, PartialState, CompleteState, ActorState,
+        BrokenState, NotGiven, TimerMsg,ReadyMsg,ChangeMsg,RunnerMsg,ErrorRecorded):
+    _CLASSES[_c.__name__] = _c
 
 
 class CallAdmin:
@@ -316,6 +322,7 @@ class RunnerEntry(AttrClientEntry):
                     data["_info"] = self._q = anyio.create_queue(QLEN)
                 data["_client"] = self.root.client
                 data["_cfg"] = self.root.client._cfg
+                data["_cls"] = _CLASSES
 
                 state.started = time.time()
                 state.node = state.root.name
