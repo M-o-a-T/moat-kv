@@ -1272,7 +1272,7 @@ class _RecoverControl:
 
 class Server:
     """
-    This is the DistKV server. It manages connections to the Serf server,
+    This is the DistKV server. It manages connections to the Serf/MQTT server,
     the DistKV clients, and (optionally) logs all changes to a file.
 
     Args:
