@@ -215,16 +215,19 @@ class attrdict(dict):
             except KeyError:
                 w = type(v)()
             else:
+                # copy
                 w = type(w)(**w)
-            v = v[p] = w
+            v[p] = w
+            v = w
+        px = path[-1]
         if value is NotGiven:
-            v.pop(path[-1], None)
+            v.pop(px, None)
         elif not isinstance(value, Mapping):
-            v[path[-1]] = value
-        elif path[-1] in v:
-            v[path[-1]] = combine_dict(value, v[path[-1]], cls=type(self))
+            v[px] = value
+        elif px in v:
+            v[px] = combine_dict(value, v[px], cls=type(self))
         else:
-            v[path[-1]] = value
+            v[px] = value
 
         return val
 
