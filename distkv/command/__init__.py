@@ -6,7 +6,8 @@ import asyncclick as click
 import yaml
 from functools import partial
 
-from distkv.util import attrdict, combine_dict, NotGiven
+from distkv.util import attrdict, combine_dict, NotGiven, \
+        res_get, res_update, res_delete
 from distkv.default import CFG
 from distkv.ext import load_one, list_ext, load_ext
 from distkv.exceptions import ClientError, ServerError
@@ -72,6 +73,56 @@ class Loader(click.Group):
                 command = load_ext(name, self.__plugin, "cli", main=self)
         command.__name__ = name
         return command
+
+
+async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None):
+    """
+    Sub-attr setter.
+
+    Args:
+        obj: command object
+        path: address of the node to change
+        attr: path of the element to change
+        value: new value (default NotGiven)
+        eval_: evaluate the new value? (default False)
+        split_: split a string value into words? (bool or separator, default False)
+        res: old node, if it has been read already; .chain must be set
+
+    Special: if eval_ is True, a value of NotGiven deletes, otherwise it
+    prints the record without changing it. A mapping replaces instead of updating.
+
+    Returns the result of setting the attribute, or ``None`` if it printed
+    """
+    if res is None:
+        res = await obj.client.get(*path, nchain=obj.meta or 2)
+    try:
+        val = res.value
+    except AttributeError:
+        res.chain = None
+    if split_ is True:
+        split_ = ""
+    if eval_:
+        if value is NotGiven:
+            value = res_delete(res, *attr)
+        else:
+            value = eval(value)
+            if split_ is not False:
+                value = value.split(split_)
+            value = res_update(res, *attr, value=value)
+    else:
+        if value is NotGiven:
+            if not attr and obj.meta:
+                val = res
+            else:
+                val = res_get(res, *attr)
+            yprint(val, stream=obj.stdout)
+            return
+        if split_ is not False:
+            value = value.split(split_)
+        value = res_update(res, *attr, value=value)
+
+    res = await obj.client.set(*path, value=value, nchain=obj.meta, chain=res.chain)
+    return res
 
 
 def cmd():
