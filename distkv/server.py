@@ -1295,7 +1295,6 @@ class Server:
     cfg: attrdict = None
     force_startup: bool = False
 
-    spawn: anyio.abc.TaskGroup = None
     seen_missing = None
     fetch_running = None
     sending_missing = None
