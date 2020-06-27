@@ -1,10 +1,9 @@
 # command line interface
 
 import asyncclick as click
-import yaml
 import sys
 
-from distkv.util import yprint, NotGiven
+from distkv.util import yprint, NotGiven, yload
 
 import logging
 
@@ -76,7 +75,7 @@ async def set_(obj, path, thread, script, data, vars_, async_, info):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
-        msg = yaml.safe_load(data)
+        msg = yload(data)
     else:
         msg = {}
     chain = NotGiven
@@ -168,7 +167,7 @@ async def set_mod(obj, path, script, data):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
-        msg = yaml.safe_load(data)
+        msg = yload(data)
     else:
         msg = {}
     chain = None

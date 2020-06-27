@@ -61,12 +61,11 @@ The server process is:
 
 import jsonschema
 import io
-import yaml
 from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict, NotGiven
+from ..util import split_one, attrdict, NotGiven, yload
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -111,7 +110,7 @@ def gen_auth(s: str):
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
         with io.open(m[1:], "r") as f:
-            kw = yaml.safe_load(f)
+            kw = yload(f)
             m = kw.pop("type")
     else:
         kw = {}

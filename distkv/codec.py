@@ -6,7 +6,7 @@ plus an unpacker factory for streams.
 import msgpack
 from functools import partial
 
-from .util import attrdict
+from .util import attrdict, Path
 
 __all__ = ["packer", "unpacker", "stream_unpacker"]
 
@@ -14,12 +14,18 @@ __all__ = ["packer", "unpacker", "stream_unpacker"]
 def _encode(data):
     if isinstance(data, int) and data >= 1 << 64:
         return msgpack.ExtType(2, data.to_bytes((data.bit_length() + 7) // 8, "big"))
+    elif isinstance(data, Path):
+        return msgpack.ExtType(3, b''.join(packer(x) for x in data))
     return data
 
 
 def _decode(code, data):
     if code == 2:
         return int.from_bytes(data, "big")
+    elif code == 3:
+        s = stream_unpacker()
+        s.feed(data)
+        return Path(*s)
     return msgpack.ExtType(code, data)
 
 

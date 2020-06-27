@@ -3,11 +3,10 @@
 import os
 import sys
 import asyncclick as click
-import yaml
 from functools import partial
 
 from distkv.util import attrdict, combine_dict, NotGiven, \
-        res_get, res_update, res_delete
+        res_get, res_update, res_delete, yload
 from distkv.default import CFG
 from distkv.ext import load_one, list_ext, load_ext
 from distkv.exceptions import ClientError, ServerError
@@ -93,6 +92,7 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
 
     Returns the result of setting the attribute, or ``None`` if it printed
     """
+    path = tuple(path)
     if res is None:
         res = await obj.client.get(*path, nchain=obj.meta or 2)
     try:
@@ -222,7 +222,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     if cfg:
         logger.debug("Loading %s", cfg)
 
-        cd = yaml.safe_load(cfg)
+        cd = yload(cfg)
         if cd is None:
             ctx.obj.cfg = CFG
         else:

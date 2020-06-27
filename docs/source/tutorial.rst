@@ -81,12 +81,12 @@ have to type so much. In ``bash``::
 
 Then, you can store arbitrary data at random DistKV nodes::
 
-   one $ dkd set -ev 123 one two three
-   one $ dkd set -ev 1234 one two three four
-   one $ dkd set -v Duh one two three four five
-   one $ dkd get one two three
+   one $ dkd set -ev 123 one.two.three
+   one $ dkd set -ev 1234 one.two.three.four
+   one $ dkd set -v Duh one.two.three.four.five
+   one $ dkd get one.two.three
    123
-   one $ dkd get one two three four five
+   one $ dkd get one.two.three.four.five
    "Duh"
    one $
 
@@ -111,6 +111,39 @@ DistKV's internal data are stored under a special ``null`` root key.
 You can use ``distkv client internal dump`` to display them. This command
 behaves like ``distkv client data get -rd_``. It accepts a path prefix.
 
+Path specification
+------------------
+
+You might wonder what to do when a path element should contain a dot. That
+is easy, the dot is escaped. The escape character is a colon (``:``), so a
+path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``. We choose
+a colon because it is easy to type and doesn't occur often.
+
+Of course, we now need to escape colons too: the path 'a' 'b:c' 'd' is
+written as ``a.b::c.d``.
+
+Colons have other uses because ``True``, ``False``, ``None``, arbitrary
+numbers, or lists can also be path elements. There's also the empty
+string, which we code as ``:e`` because otherwise it'd be too easy to leave
+a stray dot at the end of a path and wonder why your data are missing.
+Thus:
+
+==== =======
+Code Meaning
+---- -------
+ :.     .
+ ::     :
+ :t   True
+ :f   False
+ :n   None
+ :e    ''
+==== =======
+
+If anything else follows the colon, it's evaluated as a Python expression
+and added to the path. Only immutable values are allowed because they'll
+be used as dictionary keys.
+
+In order to 
 
 Persistent storage
 ==================

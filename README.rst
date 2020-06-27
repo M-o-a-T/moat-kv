@@ -48,4 +48,11 @@ event logs can be used to quickly restore a system, if necessary.
 Status
 ======
 
-DistKV has rich accessors and can distribute data, but not yet recover.
+DistKV is mostly stable. There are a lot of corner cases that don't
+have tests yet
+
+TODOs:
+* breaking change: use dots for path separation, not spaces
+  * use colons as escape character / eval marker
+* some services (esp. runners) are under-tested
+* there's no good API for errors

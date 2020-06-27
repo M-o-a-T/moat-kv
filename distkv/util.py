@@ -3,13 +3,14 @@ This module contains various helper functions and classes.
 """
 import trio
 import anyio
-import yaml
 import sys
 import os
+import re
 import asyncclick as click
 
 import attr
 import outcome
+import collections.abc
 
 from getpass import getpass
 from collections import deque
@@ -17,7 +18,13 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import Union, Dict, Optional
 from ssl import SSLContext
-from functools import partial
+from functools import partial, total_ordering
+
+import ruamel.yaml as yaml
+
+SafeRepresenter = yaml.representer.SafeRepresenter
+SafeConstructor = yaml.constructor.SafeConstructor
+
 
 from .exceptions import CancelledError
 
@@ -35,6 +42,9 @@ except ImportError:
 def singleton(cls):
     return cls()
 
+def yload(stream):
+    y = yaml.YAML(typ="safe")
+    return y.load(stream)
 
 def yprint(data, stream=sys.stdout, compact=False):
     """
@@ -51,7 +61,9 @@ def yprint(data, stream=sys.stdout, compact=False):
     #   elif isinstance(data, bytes):
     #       os.write(sys.stdout.fileno(), data)
     else:
-        yaml.safe_dump(data, stream=stream, default_flow_style=compact)
+        y = yaml.YAML(typ='safe')
+        y.default_flow_style=compact
+        y.dump(data, stream=stream)
 
 
 def yformat(data, compact=None):
@@ -260,8 +272,6 @@ class attrdict(dict):
         return val
 
 
-from yaml.representer import SafeRepresenter
-
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
@@ -385,7 +395,7 @@ class PathLongener:
             p = tuple(p)
         p = self.path[: self.depth + d] + p
         self.path = p
-        res["path"] = p
+        res["path"] = Path(*p)
 
 
 class _MsgRW:
@@ -1029,3 +1039,185 @@ async def spawn(taskgroup, proc, *args, **kw):
     await taskgroup.spawn(_run, proc, args, kw, evt)
     await evt.wait()
     return scope
+
+_PartRE = re.compile('[^:.]+|:|\\.')
+@total_ordering
+class Path(collections.abc.Sequence):
+    """
+    This object represents the path to a DistKV node.
+
+    It is an immutable list with special representation.
+    """
+    def __init__(self,*a):
+        self._data = a
+
+    def __str__(self):
+        res = []
+        if not self._data:
+            return ":"
+        for x in self._data:
+            if isinstance(x,str) and len(x):
+                if res:
+                    res.append('.')
+                res.append(x.replace(':','::').replace('.',':.'))
+            elif x is True:
+                res.append(':t')
+            elif x is False:
+                res.append(':f')
+            elif x is None:
+                res.append(':n')
+            elif x == "":
+                res.append(':e')
+            else:
+                if isinstance(x,(Path,tuple)):  # no spaces
+                    x = '('+','.join(repr(y) for y in x)+')'
+                else:
+                    x = repr(x)
+                res.append(':'+x.replace(':','::').replace('.',':.'))
+        return ''.join(res)
+
+    def __getitem__(self, x):
+        return self._data[x]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __eq__(self, other):
+        if isinstance(other,Path):
+            other = other._data
+        return self._data == other
+
+    def __lt__(self, other):
+        if isinstance(other,Path):
+            other = other._data
+        return self._data < other
+
+    # TODO add alternate output with hex integers
+
+    def __repr__(self):
+        return "P(%r)" % (str(self),)
+
+    @classmethod
+    def from_str(cls, path):
+        """
+        Constructor to build a Path from its string representation.
+        """
+        res = []
+        part = False
+        # non-empty string: accept colon-eval or dot (inline)
+        # True: require dot or colon-eval (after :t)
+        # False: accept only colon-eval (start)
+        # None: accept neither (after dot)
+        esc = False
+        eval_ = False
+        pos=0
+        if path == ':':
+            return cls()
+
+        def add(x):
+            nonlocal part
+            if not isinstance(part, str):
+                part = ''
+            try:
+                part += x
+            except TypeError:
+                raise SyntaxError("Cannot add %r at %d" % (x, pos))
+        def done(new_part):
+            nonlocal part
+            nonlocal eval_
+            if isinstance(part,str):
+                if eval_:
+                    eval_ = False
+                    try:
+                        part = eval(part)
+                    except Exception:
+                        raise SyntaxError("Cannot eval %r at %d" % (part, pos))
+                    if not isinstance(part,(int,float,type(None),tuple,str)):
+                        raise SyntaxError("Cannot use %r at %d" % (part, pos))
+                res.append(part)
+            part = new_part
+        def new(x, new_part):
+            nonlocal part
+            if part is None:
+                raise SyntaxError("Cannot use %r at %d" % (part, pos))
+            done(new_part)
+            res.append(x)
+
+        if path == '':
+            raise SyntaxError("The empty string is not a path")
+        for e in _PartRE.findall(path):
+            if esc:
+                esc = False
+                if e in ':.':
+                    add(e)
+                elif e == 'e':
+                    new('',True)
+                elif e == 't':
+                    new(True, True)
+                elif e == 'f':
+                    new(False, True)
+                elif e == 'n':
+                    new(None, True)
+                else:
+                    if part is None:
+                        raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                    done('')
+                    add(e)
+                    eval_ = True
+            else:
+                if e == '.':
+                    if not part:
+                        raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                    done(None)
+                    pos += 1
+                    continue
+                elif e == ':':
+                    esc = True
+                    pos += 1
+                    continue
+                elif part is True:
+                    raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                else:
+                    add(e)
+            pos += len(e)
+        if esc or part is None:
+            raise SyntaxError("Cannot parse %r at %d", path, pos)
+        done(None)
+        return cls(*res)
+
+    @classmethod
+    def _make(cls,loader,node):
+        value = loader.construct_scalar(node)
+        return cls.from_str(value)
+
+P = Path.from_str
+
+class PathNode(yaml.nodes.ScalarNode):
+    pass
+
+def _path_repr(dumper, data):
+    return dumper.represent_scalar('!P', str(data))
+    #return ScalarNode(tag, value, style=style)
+    #return yaml.events.ScalarEvent(anchor=None, tag='!P', implicit=(True, True), value=str(data))
+
+SafeRepresenter.add_representer(Path,_path_repr)
+SafeConstructor.add_constructor('!P',Path._make)
+
+
+def _bin_from_ascii(loader,node):
+    value = loader.construct_scalar(node)
+    return value.encode('ascii')
+
+def _bin_to_ascii(dumper, data):
+    try:
+        data = data.decode("ascii")
+    except UnicodeEncodeError:
+        return dumper.represent_binary(data)
+    else:
+        return dumper.represent_scalar('!bin', data)
+
+
+SafeRepresenter.add_representer(bytes, _bin_to_ascii)
+SafeConstructor.add_constructor('!bin',_bin_from_ascii)
+
+

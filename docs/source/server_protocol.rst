@@ -11,9 +11,6 @@ action's type).
 
 All strings are required to be UTF-8 encoded.
 
-TODO: investigate whether replicating the Serf protocol in Python would
-make sense.
-
 ++++++++++
 Data types
 ++++++++++
@@ -418,4 +415,43 @@ Message graphs
 Yes, I need to visualize (and test) all of this.
 
 TODO.
+
+++++++++++++++++
+MsgPack encoding
+++++++++++++++++
+
+DistKV encodes its messages with MsgPack. It's fast, compact,
+self-delimiting, and easily translated from/to human-readable YAML.
+
+DistKV uses the following MsgPack extensions:
+
+2: big unsigned integer
++++++++++++++++++++++++
+
+MsgPack is limited to 64bit integers. We exceed that: IPv6 network
+addresses are longer. Thus, longer unsigned integers are stored in this
+extension. Storage is big-endian and required to be minimal, i.e. the first
+byte must not be zero. The length must be >8 obviously.
+
+3: Path
++++++++
+
+Distinguishing Path from ``list`` / ``tuple`` makes sense, if only to clean
+up YAML output. Thus, paths are stored separately. The extension's content
+is the sequence of encoded path elements.
+
++++++++++++++
+YAML encoding
++++++++++++++
+
+DistKV uses clean, "safe" YAML with no frills, resulting in a simple
+human-readable data format.
+
+DistKV's YAML supports two extensions: ``!P`` and ``!bin``.
+
+``!P`` marks a `Path`, which makes the resulting YAML more compact and
+readable.
+
+``!bin`` encodes binary data as ASCII, i.e. a simple YAML string. YAML's
+default is ``base64`` which cannot be easily edited.
 

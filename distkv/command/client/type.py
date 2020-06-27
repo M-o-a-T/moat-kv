@@ -2,9 +2,8 @@
 
 import asyncclick as click
 import json
-import yaml
 
-from distkv.util import yprint, NotGiven
+from distkv.util import yprint, NotGiven, yload
 
 import logging
 
@@ -72,7 +71,7 @@ async def set_(obj, path, good, bad, script, schema, yaml_, data):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
-        msg = yaml.safe_load(data)
+        msg = yload(data)
     else:
         msg = {}
     chain = NotGiven
@@ -97,7 +96,7 @@ async def set_(obj, path, good, bad, script, schema, yaml_, data):
         raise click.UsageError("Missing schema")
     elif schema:
         if yaml_:
-            msg["schema"] = yaml.safe_load(schema)
+            msg["schema"] = yload(schema)
         else:
             msg["schema"] = json.load(schema)
 

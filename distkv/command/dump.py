@@ -2,10 +2,9 @@
 
 import sys
 import asyncclick as click
-import yaml
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener
+from distkv.util import yprint, PathLongener, yload
 from distkv.codec import unpacker
 
 import logging
@@ -69,7 +68,7 @@ async def file_(obj, file, path):
 async def yaml_(obj, msgpack):
     """Read a YAML file from stdin and dump as msgpack."""
     async with MsgWriter(path=msgpack) as f:
-        for d in yaml.safe_load_all(sys.stdin):
+        for d in yload_all(sys.stdin):
             await f(d)
 
 
