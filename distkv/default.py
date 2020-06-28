@@ -2,7 +2,7 @@
 This module contains the default values for distkv configuration.
 """
 
-from .util import attrdict, combine_dict, NotGiven
+from .util import attrdict, combine_dict, NotGiven, P
 from .ext import list_ext, load_ext
 
 __all__ = ["PORT", "CFG"]
@@ -54,13 +54,13 @@ CFG = attrdict(
         auth=None,  # no auth used by default
         name=None,  # defaults to the server's name
     ),
-    config=attrdict(prefix=(".distkv", "config")),
-    errors=attrdict(prefix=(".distkv", "error")),
-    codes=attrdict(prefix=(".distkv", "code", "proc")),
-    modules=attrdict(prefix=(".distkv", "code", "module")),
+    config=attrdict(prefix=P(":.distkv.config")),
+    errors=attrdict(prefix=P(":.distkv.error")),
+    codes=attrdict(prefix=P(":.distkv.code.proc")),
+    modules=attrdict(prefix=P(":.distkv.code.module")),
     runner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=(".distkv", "run"),  # storage for runnable commands
-        state=(".distkv", "state"),  # storage for runner states
+        prefix=P(":.distkv.run"),  # storage for runnable commands
+        state=P(":.distkv.state"),  # storage for runner states
         name="run",  # Serf event name, suffixed by subpath
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
