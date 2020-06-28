@@ -49,13 +49,20 @@ def test_msgpack():
     d = ("a",1,"b")
     m = packer(d)
     mm = unpacker(m)
-    assert mm == d
     assert type(mm) is tuple
+    assert mm == d
 
     d = Path("a",1,"b")
     m = packer(d)
     mm = unpacker(m)
     assert type(mm) is Path
+    assert mm == d
+
+    d = {"Hello":d}
+    m = packer(d)
+    mm = unpacker(m)
+    assert type(mm['Hello']) is Path
+    assert mm == d
 
 def test_yaml():
     a = Path.from_str("a.b.c")
