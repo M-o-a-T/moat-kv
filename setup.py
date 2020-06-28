@@ -29,6 +29,7 @@ setup(
         "diffiehellman",
         "psutil",
         "systemd-python",  # OWCH NO
+        "simpleeval >= 0.9.10",
     ],
     tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],

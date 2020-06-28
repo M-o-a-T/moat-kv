@@ -11,6 +11,8 @@ import asyncclick as click
 import attr
 import outcome
 import collections.abc
+import simpleeval
+import ast as _ast
 
 from getpass import getpass
 from collections import deque
@@ -1146,7 +1148,7 @@ class Path(collections.abc.Sequence):
                 if eval_:
                     eval_ = False
                     try:
-                        part = eval(part)
+                        part = path_eval(part)
                     except Exception:
                         raise SyntaxError("Cannot eval %r at %d" % (part, pos))
                     if not isinstance(part,(int,float,type(None),tuple,str)):
@@ -1238,3 +1240,6 @@ SafeRepresenter.add_representer(bytes, _bin_to_ascii)
 SafeConstructor.add_constructor('!bin',_bin_from_ascii)
 
 
+_eval = simpleeval.SimpleEval()
+_eval.nodes[_ast.Tuple] = lambda node: tuple(_eval._eval(x) for x in node.elts)
+path_eval = _eval.eval
