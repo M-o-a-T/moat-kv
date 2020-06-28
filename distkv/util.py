@@ -1082,6 +1082,9 @@ class Path(collections.abc.Sequence):
     def __len__(self):
         return len(self._data)
 
+    def __bool__(self):
+        return True
+
     def __eq__(self, other):
         if isinstance(other,Path):
             other = other._data
@@ -1091,6 +1094,20 @@ class Path(collections.abc.Sequence):
         if isinstance(other,Path):
             other = other._data
         return self._data < other
+
+    def __hash__(self):
+        return hash(self._data)
+
+    def __iter__(self):
+        return self._data.__iter__()
+
+    def __contains__(self, x):
+        return x in self._data
+
+    def __add__(self, other):
+        if isinstance(other, Path):
+            other = other._data
+        return Path(*self._data, *other)
 
     # TODO add alternate output with hex integers
 
