@@ -927,7 +927,7 @@ async def spawn(taskgroup, proc, *args, **kw):
     await evt.wait()
     return scope
 
-_PartRE = re.compile('[^:.]+|:|\\.')
+_PartRE = re.compile('[^:._]+|_|:|\\.')
 @total_ordering
 class Path(collections.abc.Sequence):
     """
@@ -950,6 +950,12 @@ class Path(collections.abc.Sequence):
         return p
 
     def __str__(self):
+        def _escol(x, spaces=True):  # XXX make the default adjustable?
+            x = x.replace(':','::').replace('.',':.')
+            if spaces:
+                x = x.replace(' ',':_')
+            return x
+
         res = []
         if not self._data:
             return ":"
@@ -957,10 +963,10 @@ class Path(collections.abc.Sequence):
             if isinstance(x,str) and len(x):
                 if res:
                     res.append('.')
-                res.append(x.replace(':','::').replace('.',':.'))
+                res.append(_escol(x))
             elif isinstance(x, (Path,tuple)) and len(x):
                 x = ','.join(repr(y) for y in x)
-                res.append(':'+x.replace(':','::').replace('.',':.'))
+                res.append(':'+_escol(x))
             elif x is True:
                 res.append(':t')
             elif x is False:
@@ -975,7 +981,7 @@ class Path(collections.abc.Sequence):
                     x = '()'
                 else:
                     x = repr(x)
-                res.append(':'+x.replace(':','::').replace('.',':.'))
+                res.append(':'+_escol(x))
         return ''.join(res)
 
     def __getitem__(self, x):
@@ -1092,6 +1098,8 @@ class Path(collections.abc.Sequence):
                     new(False, True)
                 elif e == 'n':
                     new(None, True)
+                elif e == '_':
+                    add(' ')
                 elif e[0] == 'x':
                     done(None)
                     part = e[1:]

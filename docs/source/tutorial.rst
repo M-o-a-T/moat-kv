@@ -129,12 +129,16 @@ written as ``a.b::c.d``.
 
 Colons have other uses because ``True``, ``False``, ``None``, arbitrary
 numbers, or even lists can also be path elements. Also, DistKV codes the empty
-string as ``:e`` – otherwise it'd be too easy to leave a stray dot at the
-end of a path and then wonder why your data are missing.
+string as ``:e`` – otherwise it'd be too easy to leave a stray or duplicate
+dot at the end of a path and then wonder why your data are missing.
+
+A space is encoded as ``:_``. While a literal space is not a problem, it
+needs to be escaped on the command line. Experience shows that people tend
+to skip that.
 
 There's also the empty path (i.e. the top of DistKV's entry hierarchy,
 not the same as a path that consists of an empty string!), which is
-coded as a single colon.
+coded as a single colon for much the same reason.
 
 Thus:
 
@@ -143,6 +147,7 @@ Code   Meaning
 ---- ----------
  :.      .
  ::      :
+ :_    space
  :t    True
  :f    False
  :n    None
@@ -158,6 +163,17 @@ printed in decimal form. While you also could use ``:0x…`` in place of
 ``:x–``, the latter reduces visual clutter and ensures that the input is in
 fact a hex number and not something else.
 
+.. warning::
+
+   Yes, DistKV supports tuples as part of paths. You probably should not use
+   this feature without a very good reason. "My key consists of three
+   random integers and I want to avoid the overhead of storing a lot of
+   intermediate entries" would be one example.
+   
+   DistKV also allows you to use both ``False``, an integer zero, and a
+   floating-point zero as path elements. This is dangerous because Python's
+   comparison and hashing operators treat them as equal. (Same for ``True``
+   and 1; same for all floating point numbers without fractions.)
 
 Persistent storage
 ==================
