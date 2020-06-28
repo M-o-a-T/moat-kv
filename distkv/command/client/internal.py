@@ -3,7 +3,7 @@
 import asyncclick as click
 
 from range_set import RangeSet
-from distkv.util import yprint, PathLongener
+from distkv.util import yprint, PathLongener, P
 from collections.abc import Mapping
 
 import logging
@@ -162,7 +162,7 @@ async def deleter(obj, delete, nodes):
 
 
 @cli.command()
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def dump(obj, path):
     """
@@ -171,6 +171,7 @@ async def dump(obj, path):
     This displays DistKV's internal state.
     """
 
+    path=P(path)
     y = {}
     pl = PathLongener()
     async for r in await obj.client._request(

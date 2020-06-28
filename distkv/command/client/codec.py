@@ -2,7 +2,7 @@
 
 import asyncclick as click
 
-from distkv.util import yprint, NotGiven, PathLongener, yload, P
+from distkv.util import yprint, NotGiven, PathLongener, yload, P, Path
 
 import logging
 
@@ -25,14 +25,15 @@ async def cli():
 @click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script, encode, decode):
     """Read type information"""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_internal", path=("codec",) + path, iter=False, nchain=obj.meta
+        action="get_internal", path=Path("codec") + path, iter=False, nchain=obj.meta
     )
     if encode and res.get("encode", None) is not None:
         encode.write(res.pop("encode"))
@@ -46,11 +47,11 @@ async def get(obj, path, script, encode, decode):
 
 @cli.command(name="list")
 @click.pass_obj
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 async def list_(obj, path):
     """List type information entries"""
     res = await obj.client._request(
-        action="get_tree_internal", path=("codec",) + path, iter=True, nchain=obj.meta
+        action="get_tree_internal", path=Path("codec") + path, iter=True, nchain=obj.meta
     )
     pl = PathLongener(())
     async for r in res:
@@ -64,11 +65,12 @@ async def list_(obj, path):
 @click.option("-D", "--data", type=click.File(mode="r"), help="File with the rest")
 @click.option("-i", "--in", "in_", nargs=2, multiple=True, help="Decoding sample")
 @click.option("-o", "--out", nargs=2, multiple=True, help="Encoding sample")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, encode, decode, data, in_, out):
     """Save codec information"""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
@@ -107,7 +109,7 @@ async def set_(obj, path, encode, decode, data, in_, out):
     res = await obj.client._request(
         action="set_internal",
         value=msg,
-        path=("codec",) + path,
+        path=Path("codec") + path,
         iter=False,
         nchain=obj.meta,
         **({} if chain is NotGiven else {"chain": chain}),
@@ -146,7 +148,7 @@ async def convert(obj, path, codec, name, delete, list_this):
             if path:
                 raise click.UsageError("You can't use a path here.")
             res = await obj.client._request(
-                action="enum_internal", path=("conv",), iter=False, nchain=0, empty=True
+                action="enum_internal", path=Path("conv"), iter=False, nchain=0, empty=True
             )
             for r in res.result:
                 print(r, file=obj.stdout)
@@ -154,7 +156,7 @@ async def convert(obj, path, codec, name, delete, list_this):
         else:
             res = await obj.client._request(
                 action="get_tree_internal",
-                path=("conv", name) + path,
+                path=Path("conv", name) + path,
                 iter=True,
                 nchain=obj.meta,
             )
@@ -174,14 +176,14 @@ async def convert(obj, path, codec, name, delete, list_this):
         return
     if delete:
         res = await obj.client._request(
-            action="delete_internal", path=("conv", name) + path
+            action="delete_internal", path=Path("conv", name) + path
         )
     else:
         msg = {"codec": P(codec)}
         res = await obj.client._request(
             action="set_internal",
             value=msg,
-            path=("conv", name) + path,
+            path=Path("conv", name) + path,
             iter=False,
             nchain=obj.meta,
         )

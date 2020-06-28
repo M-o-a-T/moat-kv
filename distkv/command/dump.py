@@ -4,7 +4,7 @@ import sys
 import asyncclick as click
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener, yload
+from distkv.util import yprint, PathLongener, yload, P
 from distkv.codec import unpacker
 
 import logging
@@ -21,18 +21,18 @@ async def cli():
 
 
 @cli.command("cfg")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def cfg_dump(obj, path):
     """Emit the current configuration as a YAML file.
 
     You can limit the output by path elements.
-    E.g., "cfg connect host" will print "localhost".
+    E.g., "cfg connect.host" will print "localhost".
 
     Single values are printed with a trailing line feed.
     """
     cfg = obj.cfg
-    for p in path:
+    for p in P(path):
         try:
             cfg = cfg[p]
         except KeyError:

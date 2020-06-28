@@ -4,7 +4,7 @@ import asyncclick as click
 import datetime
 
 from distkv.errors import ErrorRoot
-from distkv.util import yprint
+from distkv.util import yprint, P
 
 import logging
 
@@ -29,11 +29,12 @@ async def cli(obj):
 @click.option(
     "-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error."
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
     """Dump error entries.
     """
+    path=P(path)
     path_ = obj.cfg["errors"].prefix
     d = 1
     if node is not None:
@@ -119,11 +120,13 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
 
     if node is not None and len(path) == 1:  # single error?
         try:
-            tock = int(path[0])
+            if len(path) != 2:
+                raise ValueError
+            tock = int(path[1])
         except ValueError:
             pass
         else:
-            r = await obj.client.get(*path_, tock, nchain=3 if obj.meta else 0)
+            r = await obj.client.get(path_, tock, nchain=3 if obj.meta else 0)
             # Mangle a few variables so that the output is still OK
             path = ()
             path_ = path_[:-1]
@@ -137,7 +140,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
 
     if res is None:
         res = obj.client.get_tree(
-            *path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0
+            path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0
         )
     async for r in res:
         await one(r)

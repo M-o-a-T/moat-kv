@@ -8,7 +8,7 @@ import anyio
 from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener
+from distkv.util import yprint, PathLongener, P
 
 import logging
 
@@ -77,6 +77,7 @@ async def all_(obj):
 async def list_(obj, state, as_dict, path):
     """List run entries.
     """
+    path=P(path)
     if obj.subpath[-1] == "-":
         if path:
             raise click.UsageError("Group '-' can only be used without a path.")
@@ -96,8 +97,10 @@ async def list_(obj, state, as_dict, path):
             print(r.path[-1], file=obj.stdout)
         return
 
-    if not path:
-        path = ()
+    elif len(path) > 1:
+        raise click.UsageError("Spurious parameter.")
+    else:
+        path = P(path)
     path = obj.path + path
     if state:
         state = obj.statepath + path
@@ -138,7 +141,7 @@ async def list_(obj, state, as_dict, path):
 
 @cli.command("state")
 @click.option("-r", "--result", is_flag=True, help="Just print the actual result.")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def state_(obj, path, result):
     """Get the status of a runner entry.
@@ -147,9 +150,9 @@ async def state_(obj, path, result):
         raise click.UsageError("Group '-' can only be used for listing.")
     if result and obj.meta:
         raise click.UsageError("You can't use '-v' and '-r' at the same time.")
-    if not path:
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
-    path = obj.statepath + path
+    path = obj.statepath + P(path)
 
     res = await obj.client._request(
         action="get_value", path=path, iter=False, nchain=obj.meta
@@ -165,10 +168,11 @@ async def state_(obj, path, result):
 
 
 @cli.command()
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path):
     """Read a runner entry"""
+    path=P(path)
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
@@ -199,7 +203,7 @@ async def get(obj, path):
 @click.option(
     "-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     """Save / modify a run entry."""
@@ -214,7 +218,7 @@ async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     elif code is not None:
         code = code.split(" ")
 
-    path = obj.path + path
+    path = obj.path + P(path)
 
     try:
         res = await obj.client._request(

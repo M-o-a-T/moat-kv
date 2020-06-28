@@ -3,7 +3,7 @@
 import asyncclick as click
 import sys
 
-from distkv.util import yprint, NotGiven, yload
+from distkv.util import yprint, NotGiven, yload, P
 
 import logging
 
@@ -20,11 +20,12 @@ async def cli():
 @click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script):
     """Read a code entry"""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_value",
@@ -58,7 +59,7 @@ async def get(obj, path, script):
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, thread, script, data, vars_, async_, info):
     """Save Python code."""
@@ -71,7 +72,8 @@ async def set_(obj, path, thread, script, data, vars_, async_, info):
         else:
             async_ = None
 
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
@@ -126,11 +128,12 @@ async def mod():
 @click.option(
     "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj  # pylint: disable=function-redefined
 async def get_mod(obj, path, script):
     """Read a module entry"""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_value",
@@ -159,11 +162,12 @@ async def get_mod(obj, path, script):
 @click.option(
     "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
 )
-@click.argument("path", nargs=-1)  # pylint: disable=function-redefined
+@click.argument("path", nargs=1)  # pylint: disable=function-redefined
 @click.pass_obj
 async def set_mod(obj, path, script, data):
     """Save a Python module to DistKV."""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
 
     if data:
@@ -219,7 +223,7 @@ async def set_mod(obj, path, script, data):
 )
 @click.option("-f", "--full", is_flag=True, help="print complete entries.")
 @click.option("-s", "--short", is_flag=True, help="print shortened entries.")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     """
@@ -230,6 +234,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     for incremental output.
     """
 
+    path = P(path)
     if (full or as_dict) and short:
         raise click.UsageError("'-f'/'-d' and '-s' are incompatible.")
     kw = {}

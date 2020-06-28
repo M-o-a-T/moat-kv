@@ -3,7 +3,7 @@
 import sys
 import asyncclick as click
 
-from distkv.util import yprint, data_get
+from distkv.util import yprint, data_get, P
 
 import logging
 
@@ -39,23 +39,25 @@ async def list_(obj):
     "for values. Default: return as list",
 )
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
-    await data_get(obj, "acl", name, *path, internal=True, as_dict=as_dict)
+    path = P(path)
+    await data_get(obj, "acl", name, path, internal=True, as_dict=as_dict)
 
 
 @cli.command()
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, name, path):
     """Read an ACL.
 
     This command does not test a path. Use "… acl test …" for that.
     """
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_internal", path=("acl", name) + path, iter=False, nchain=obj.meta
@@ -79,12 +81,13 @@ async def get(obj, name, path):
     help="The value to set. Start with '+' to add, '-' to remove rights.",
 )
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, acl, name, path):
     """Set or change an ACL."""
 
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     if len(acl) > 1 and acl[0] in "+-":
         mode = acl[0]
@@ -150,11 +153,12 @@ async def set_(obj, acl, name, path):
 @cli.command()
 @click.option("-m", "--mode", default=None, help="Mode letter to test.")
 @click.option("-a", "--acl", default=None, help="ACL to test. Default: current")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def test(obj, path, acl, mode):
     """Test which ACL entry matches a path"""
-    if not path:
+    path = P(path)
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
 
     if mode is not None and len(mode) != 1:
