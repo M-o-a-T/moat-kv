@@ -1146,13 +1146,14 @@ class Path(collections.abc.Sequence):
             nonlocal eval_
             if isinstance(part,str):
                 if eval_:
-                    eval_ = False
                     try:
-                        part = path_eval(part)
+                        if eval_ == 2:
+                            part = int(part, 16)
+                        else:
+                            part = path_eval(part)
                     except Exception:
                         raise SyntaxError("Cannot eval %r at %d" % (part, pos))
-                    if not isinstance(part,(int,float,type(None),tuple,str)):
-                        raise SyntaxError("Cannot use %r at %d" % (part, pos))
+                    eval_ = False
                 res.append(part)
             part = new_part
         def new(x, new_part):
@@ -1177,6 +1178,10 @@ class Path(collections.abc.Sequence):
                     new(False, True)
                 elif e == 'n':
                     new(None, True)
+                elif e[0] == 'x':
+                    done(None)
+                    part = e[1:]
+                    eval_ = 2
                 else:
                     if part is None:
                         raise SyntaxError("Cannot parse %r at %d" % (path, pos))
@@ -1240,6 +1245,8 @@ SafeRepresenter.add_representer(bytes, _bin_to_ascii)
 SafeConstructor.add_constructor('!bin',_bin_from_ascii)
 
 
-_eval = simpleeval.SimpleEval()
+# path_eval is a simple "eval" replacement to implement resolving
+# expressions in paths. While it can be used for math its primary function 
+_eval = simpleeval.SimpleEval(functions={})
 _eval.nodes[_ast.Tuple] = lambda node: tuple(_eval._eval(x) for x in node.elts)
 path_eval = _eval.eval

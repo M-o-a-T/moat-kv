@@ -114,36 +114,48 @@ behaves like ``distkv client data get -rd_``. It accepts a path prefix.
 Path specification
 ------------------
 
-You might wonder what to do when a path element should contain a dot. That
-is easy, the dot is escaped. The escape character is a colon (``:``), so a
-path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``. We choose
-a colon because it is easy to type and doesn't occur often.
+You might wonder what to do when a path element contains a dot. Our
+solution is to prefix it with an escape character: a colon (``:``).
+Thus, a path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``.
+We choose a colon because it is easy to type and doesn't occur often.
 
-Of course, we now need to escape colons too: the path 'a' 'b:c' 'd' is
+The traditional Unix escape character (backslash ``\\``) is not easy to
+type and must be duplicated almost everywhere you want to actually type it,
+thus we don't use that. You may need it to shell-escape spaces or quotes in
+paths, however.
+
+Of course, you now need to escape colons too: the path 'a' 'b:c' 'd' is
 written as ``a.b::c.d``.
 
 Colons have other uses because ``True``, ``False``, ``None``, arbitrary
-numbers, or lists can also be path elements. There's also the empty
-string, which we code as ``:e`` because otherwise it'd be too easy to leave
-a stray dot at the end of a path and wonder why your data are missing.
+numbers, or even lists can also be path elements. Also, DistKV codes the empty
+string as ``:e`` – otherwise it'd be too easy to leave a stray dot at the
+end of a path and then wonder why your data are missing.
+
+There's also the empty path (i.e. the top of DistKV's entry hierarchy,
+not the same as a path that consists of an empty string!), which is
+coded as a single colon.
+
 Thus:
 
-==== =======
-Code Meaning
----- -------
- :.     .
- ::     :
- :t   True
- :f   False
- :n   None
- :e    ''
-==== =======
+==== ==========
+Code   Meaning
+---- ----------
+ :.      .
+ ::      :
+ :t    True
+ :f    False
+ :n    None
+ :e    empty
+ :x  hex number
+==== ==========
 
-If anything else follows the colon, it's evaluated as a Python expression
-and added to the path. Only immutable values are allowed because they'll
-be used as dictionary keys.
+If anything else follows your colon, it's evaluated as a Python expression
+and added to the path.
 
-In order to 
+Hex number input is purely a convenience; integers in paths are always
+printed in decimal form.
+
 
 Persistent storage
 ==================

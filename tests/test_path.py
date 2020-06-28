@@ -14,6 +14,9 @@ _valid = (
         (("a",'',"b"),"a:e.b"),
         (("a",True),"a:t"),
         (("x",None),"x:n"),
+        ((31,),(":x1f",":31")),
+        ((31,"q"),(":x1f.q",":31.q")),
+        (("b",31,5),("b:x1f:5","b:31:5")),
         (((1,2),1.23),":(1,2):1:.23"),
         (((1,2),'',1.23),":(1,2):e:1:.23"),
         (((1,2),"c"),":(1,2).c"),
@@ -28,6 +31,8 @@ _invalid = (
         "a..b",
         "a.:1",
         "a.:t",
+        ":x1g",
+        ":x",
         ".a.b",
         "a.b.",
         "",
@@ -37,7 +42,11 @@ _invalid = (
 
 @pytest.mark.parametrize("a,b",_valid)
 def test_valid_paths(a,b):
-    assert str(Path(*a)) == b
+    if isinstance(b,tuple):
+        b,xb = b
+    else:
+        xb = b
+    assert str(Path(*a)) == xb
     assert a == tuple(Path.from_str(b))
 
 @pytest.mark.parametrize("a",_invalid)
