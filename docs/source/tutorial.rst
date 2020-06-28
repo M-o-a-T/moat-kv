@@ -154,7 +154,9 @@ If anything else follows your colon, it's evaluated as a Python expression
 and added to the path.
 
 Hex number input is purely a convenience; integers in paths are always
-printed in decimal form.
+printed in decimal form. While you also could use ``:0x…`` in place of
+``:x–``, the latter reduces visual clutter and ensures that the input is in
+fact a hex number and not something else.
 
 
 Persistent storage

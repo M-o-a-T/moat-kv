@@ -1062,6 +1062,9 @@ class Path(collections.abc.Sequence):
                 if res:
                     res.append('.')
                 res.append(x.replace(':','::').replace('.',':.'))
+            elif isinstance(x, (Path,tuple)) and len(x):
+                x = ','.join(repr(y) for y in x)
+                res.append(':'+x.replace(':','::').replace('.',':.'))
             elif x is True:
                 res.append(':t')
             elif x is False:
@@ -1072,7 +1075,8 @@ class Path(collections.abc.Sequence):
                 res.append(':e')
             else:
                 if isinstance(x,(Path,tuple)):  # no spaces
-                    x = '('+','.join(repr(y) for y in x)+')'
+                    assert not len(x)
+                    x = '()'
                 else:
                     x = repr(x)
                 res.append(':'+x.replace(':','::').replace('.',':.'))
@@ -1122,13 +1126,19 @@ class Path(collections.abc.Sequence):
         Constructor to build a Path from its string representation.
         """
         res = []
-        part = False
+        part: Union[NoneType,bool,str] = False
         # non-empty string: accept colon-eval or dot (inline)
         # True: require dot or colon-eval (after :t)
         # False: accept only colon-eval (start)
         # None: accept neither (after dot)
-        esc = False
-        eval_ = False
+
+        esc: bool = False
+        # marks that an escape char has been seen
+
+        eval_: Union[bool,int] = False
+        # marks whether the current input shall be evaluated;
+        # 2=it's a hex number
+
         pos=0
         if path == ':':
             return cls()
