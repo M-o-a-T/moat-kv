@@ -1113,6 +1113,8 @@ class Path(collections.abc.Sequence):
     def __add__(self, other):
         if isinstance(other, Path):
             other = other._data
+        if not len(other):
+            return self
         return Path(*self._data, *other)
 
     # TODO add alternate output with hex integers
