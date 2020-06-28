@@ -1110,6 +1110,9 @@ class Path(collections.abc.Sequence):
     def __contains__(self, x):
         return x in self._data
 
+    def __or__(self, other):
+        return Path(*self._data, other)
+
     def __add__(self, other):
         if isinstance(other, Path):
             other = other._data

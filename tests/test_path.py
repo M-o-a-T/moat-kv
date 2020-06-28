@@ -1,5 +1,5 @@
 import pytest
-from distkv.util import Path, yformat, yload
+from distkv.util import Path, yformat, yload, P
 from distkv.codec import packer,unpacker
 
 _valid = (
@@ -53,6 +53,18 @@ def test_valid_paths(a,b):
 def test_invalid_paths(a):
     with pytest.raises(SyntaxError):
         Path.from_str(a)
+
+def test_paths():
+    p=P("a.b")
+    assert str(p) == "a.b"
+    q = p|"c"
+    assert str(p) == "a.b"
+    assert str(q) == "a.b.c"
+    r = p+()
+    assert p is r
+    r = p+("c","d")
+    assert str(p) == "a.b"
+    assert str(r) == "a.b.c.d"
 
 def test_msgpack():
     d = ("a",1,"b")
