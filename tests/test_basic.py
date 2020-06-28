@@ -5,7 +5,7 @@ from time import time
 from .mock_mqtt import stdtest
 from .run import run
 from distkv.client import ServerError
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 
 import logging
 
@@ -52,32 +52,32 @@ async def collect(i, path=()):
 async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
-            assert (await c.get()).value == 123
+            assert (await c.get(P(":"))).value == 123
 
-            r = await c.set("foo", value="hello", nchain=3)
-            r = await c.set("foo", "bar", value="baz", nchain=3)
+            r = await c.set(P("foo"), value="hello", nchain=3)
+            r = await c.set(P("foo.bar"), value="baz", nchain=3)
             bart = r.tock
-            r = await c.set("foo", "baz", value="quux", nchain=3)
-            r = await c.get()
+            r = await c.set(P("foo.baz"), "quux", nchain=3)
+            r = await c.get(P(":"))
             assert r.value == 123
             assert r.tock < await c.get_tock()
 
-            r = await c.get("foo")
+            r = await c.get(P("foo"))
             assert r.value == "hello"
 
             exp = [
                 {"path": (), "value": 123},
-                {"path": ("foo",), "value": "hello"},
-                {"path": ("foo", "bar"), "value": "baz"},
-                {"path": ("foo", "baz"), "value": "quux"},
+                {"path": P("foo"), "value": "hello"},
+                {"path": P("foo.bar"), "value": "baz"},
+                {"path": P("foo.baz"), "value": "quux"},
             ]
-            r = await c.list()
+            r = await c.list(P(":"))
             assert r == (None, ".distkv", "foo")
-            r = await c.list("foo")
+            r = await c.list(P("foo"))
             assert r == ("bar", "baz")
-            r = await c.list("foo", with_data=True)
+            r = await c.list(P("foo"), with_data=True)
             assert r == dict(bar="baz", baz="quux")
-            r = await c.list("foo", "bar")
+            r = await c.list(P("foo.bar"))
             assert r == ()
 
             async with c._stream("get_tree", path=(), max_depth=2) as rr:
@@ -99,7 +99,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
                 r = await collect(rr)
             assert r == exp
 
-            r = await c.get("foo", "bar")
+            r = await c.get(P("foo.bar"))
             assert r.value == "baz"
             assert r.tock == bart
 
@@ -128,7 +128,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c.set(value=1234, nchain=3)
+            r = await c.set(P(":"), value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 5
 
@@ -141,7 +141,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
             # works
             assert (await c._request("get_value", node="test_0", tick=5)).value == 1234
 
-            r = await c.set("foo", "bar", value="bazz")
+            r = await c.set(P("foo.bar"), value="bazz")
             assert r.tock > bart
             bart = r.tock
 
@@ -164,10 +164,10 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
                 "remote_missing": {},
             }
 
-            r = await c.delete("foo")
+            r = await c.delete(P("foo"))
             assert r.tock > bart
 
-            r = await c.get("foo", "bar")
+            r = await c.get(P("foo.bar"))
             assert r.value == "bazz"
             assert r.tock == bart
 
@@ -179,7 +179,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
 async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
-            assert (await c.get()).value == 123
+            assert (await c.get(P(":"))).value == 123
             s, = st.s
             h = p = None  # pylint
             for h, p, *_ in s.ports:
@@ -190,16 +190,16 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
                 "client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo"
             )
             r = await run(
-                "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo", "bar"
+                "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo.bar"
             )
 
-            r = await run("client", "-h", h, "-p", p, "data", "get")
+            r = await run("client", "-h", h, "-p", p, "data", "get", ":")
             assert r.stdout == "123\n"
 
             r = await run("client", "-h", h, "-p", p, "data", "get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run("client", "-h", h, "-p", p, "data", "get", "foo", "bar")
+            r = await run("client", "-h", h, "-p", p, "data", "get", "foo.bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
@@ -227,7 +227,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c.set(value=1234, nchain=3)
+            r = await c.set(P(":"), value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 
@@ -360,7 +360,7 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
 
                 assert (await c._request("get_value", path=())).value == 125
 
-                r = await c.set(value=126, nchain=3)
+                r = await c.set(P(":"), value=126, nchain=3)
                 assert r.prev == 125
                 assert r.chain.tick == 1
                 assert r.chain.node == "test_0"
@@ -372,7 +372,7 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
                 await trio.sleep(1)
-                r = await ci.set(value=127, nchain=3)
+                r = await ci.set(P(":"), value=127, nchain=3)
                 assert r.prev == 126
                 assert r.chain.tick == 2
                 assert r.chain.node == "test_1"

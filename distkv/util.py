@@ -300,106 +300,6 @@ async def acount(it):
     return n
 
 
-class PathShortener:
-    """This class shortens path entries so that the initial components that
-    are equal to the last-used path (or the original base) are skipped.
-
-    It is illegal to path-shorten messages whose path does not start with
-    the initial prefix.
-
-    Example: The sequence
-
-        a b
-        a b c d
-        a b c e f
-        a b c e g h
-        a b c i
-        a b j
-
-    is shortened to
-
-        0
-        0 c d
-        1 e f
-        2 g h
-        1 i
-        0 j
-
-    where the initial number is the passed-in ``depth``, assuming the
-    PathShortener is initialized with ``('a','b')``.
-
-    Usage::
-
-        >>> d = _PathShortener(['a','b'])
-        >>> d({'path': 'a b c d'.split})
-        {'depth':0, 'path':['c','d']}
-        >>> d({'path': 'a b c e f'.split})
-        {'depth':1, 'path':['e','f']}
-
-    etc.
-
-    Note that the input dict is modified in-place.
-
-    """
-
-    def __init__(self, prefix):
-        self.prefix = prefix
-        self.depth = len(prefix)
-        self.path = []
-
-    def __call__(self, res):
-        try:
-            p = res["path"]
-        except KeyError:
-            return
-        if list(p[: self.depth]) != list(self.prefix):
-            raise RuntimeError(
-                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
-            )
-
-        p = p[self.depth :]  # noqa: E203
-        cdepth = min(len(p), len(self.path))
-        for i in range(cdepth):
-            if p[i] != self.path[i]:
-                cdepth = i
-                break
-        self.path = p
-        p = p[cdepth:]
-        res["path"] = p
-        res["depth"] = cdepth
-
-
-class PathLongener:
-    """
-    This reverts the operation of a PathShortener. You need to pass the
-    same prefix in.
-
-    Calling a PathLongener with a dict without ``depth`` or ``path``
-    attributes is a no-op.
-    """
-
-    def __init__(self, prefix: tuple = ()):
-        self.depth = len(prefix)
-        if not isinstance(prefix, tuple):
-            # may be a list, dammit
-            prefix = tuple(prefix)
-        self.path = prefix
-
-    def __call__(self, res):
-        p = res.get("path", None)
-        if p is None:
-            return
-        d = res.pop("depth", None)
-        if d is None:
-            return
-        if not isinstance(p, tuple):
-            # may be a list, dammit
-            p = tuple(p)
-        p = self.path[: self.depth + d] + p
-        self.path = p
-        res["path"] = Path(*p)
-
-
 class _MsgRW:
     """
     Common base class for :class:`MsgReader` and :class:`MsgWriter`.
@@ -771,23 +671,10 @@ class NoLock:
         return
 
 
-def path_eval(path, evals):
-    if not evals:
-        yield from iter(path)
-        return
-    evals = set(evals)
-    i = 0
-    for p in path:
-        i += 1
-        if i in evals:
-            p = eval(p)  # pylint: disable=eval-used
-        yield p
-
-
 async def data_get(
     obj,
-    *path,
-    eval_path=(),
+    path,
+    *,
     recursive=True,
     as_dict="_",
     maxdepth=-1,
@@ -810,9 +697,7 @@ async def data_get(
                 action="get_tree_internal", path=path, iter=True, **kw
             )
         else:
-            res = obj.client.get_tree(
-                *path_eval(path, eval_path), nchain=obj.meta, **kw
-            )
+            res = obj.client.get_tree(path, nchain=obj.meta, **kw)
         async for r in res:
             r.pop("seq", None)
             path = r.pop("path")
@@ -863,13 +748,13 @@ async def data_get(
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path_eval(path, eval_path), nchain=obj.meta)
+    res = await obj.client.get(path, nchain=obj.meta)
     if not obj.meta:
         try:
             res = res.value
         except AttributeError:
             if obj.debug:
-                print("No data at", list(repr(path_eval(path, eval_path))), file=sys.stderr)
+                print("No data at", path, file=sys.stderr)
             sys.exit(1)
 
     if not raw:
@@ -1053,6 +938,17 @@ class Path(collections.abc.Sequence):
     def __init__(self,*a):
         self._data = a
 
+    @classmethod
+    def build(cls, data):
+        """Optimized shortcut to generate a path from an existing tuple"""
+        if isinstance(data,Path):
+            return data
+        if not isinstance(data, tuple):
+            return cls(*data)
+        p = object.__new__(cls)
+        p._data = data
+        return p
+
     def __str__(self):
         res = []
         if not self._data:
@@ -1083,7 +979,10 @@ class Path(collections.abc.Sequence):
         return ''.join(res)
 
     def __getitem__(self, x):
-        return self._data[x]
+        if isinstance(x,slice) and x.start==0 and x.step==1:
+            return type(self)(*self._data[x])
+        else:
+            return self._data[x]
 
     def __len__(self):
         return len(self._data)
@@ -1265,3 +1164,103 @@ SafeConstructor.add_constructor('!bin',_bin_from_ascii)
 _eval = simpleeval.SimpleEval(functions={})
 _eval.nodes[_ast.Tuple] = lambda node: tuple(_eval._eval(x) for x in node.elts)
 path_eval = _eval.eval
+
+
+
+class PathShortener:
+    """This class shortens path entries so that the initial components that
+    are equal to the last-used path (or the original base) are skipped.
+
+    It is illegal to path-shorten messages whose path does not start with
+    the initial prefix.
+
+    Example: The sequence
+
+        a b
+        a b c d
+        a b c e f
+        a b c e g h
+        a b c i
+        a b j
+
+    is shortened to
+
+        0
+        0 c d
+        1 e f
+        2 g h
+        1 i
+        0 j
+
+    where the initial number is the passed-in ``depth``, assuming the
+    PathShortener is initialized with ``('a','b')``.
+
+    Usage::
+
+        >>> d = _PathShortener(['a','b'])
+        >>> d({'path': 'a b c d'.split})
+        {'depth':0, 'path':['c','d']}
+        >>> d({'path': 'a b c e f'.split})
+        {'depth':1, 'path':['e','f']}
+
+    etc.
+
+    Note that the input dict is modified in-place.
+
+    """
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+        self.depth = len(prefix)
+        self.path = []
+
+    def __call__(self, res):
+        try:
+            p = res["path"]
+        except KeyError:
+            return
+        if list(p[: self.depth]) != list(self.prefix):
+            raise RuntimeError(
+                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
+            )
+
+        p = p[self.depth :]  # noqa: E203
+        cdepth = min(len(p), len(self.path))
+        for i in range(cdepth):
+            if p[i] != self.path[i]:
+                cdepth = i
+                break
+        self.path = p
+        p = p[cdepth:]
+        res["path"] = p
+        res["depth"] = cdepth
+
+
+class PathLongener:
+    """
+    This reverts the operation of a PathShortener. You need to pass the
+    same prefix in.
+
+    Calling a PathLongener with a dict without ``depth`` or ``path``
+    attributes is a no-op.
+    """
+
+    def __init__(self, prefix: Union[Path,tuple] = ()):
+        self.depth = len(prefix)
+        self.path = Path.build(prefix)
+
+    def __call__(self, res):
+        p = res.get("path", None)
+        if p is None:
+            return
+        d = res.pop("depth", None)
+        if d is None:
+            return
+        if not isinstance(p, tuple):
+            # may be a list, dammit
+            p = tuple(p)
+        p = self.path[: self.depth + d] + p
+        self.path = p
+        res["path"] = p
+
+

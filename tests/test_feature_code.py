@@ -4,6 +4,7 @@ from .mock_mqtt import stdtest
 
 from distkv.code import CodeRoot, ModuleRoot
 from distkv.errors import ErrorRoot
+from distkv.util import P
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
-            await cr.add("forty", "two", code="return 42")
+            await cr.add(P("forty.two"), code="return 42")
             assert cr("forty.two") == 42
 
 
@@ -26,8 +27,7 @@ async def test_82_module(autojump_clock):  # pylint: disable=unused-argument
             await ErrorRoot.as_handler(c)
             m = await ModuleRoot.as_handler(c)
             await m.add(
-                "bar",
-                "baz",
+                P("bar.baz"),
                 code="""
 def quux():
     return 42
@@ -35,8 +35,7 @@ def quux():
             )
             cr = await CodeRoot.as_handler(c)
             await cr.add(
-                "forty",
-                "two",
+                P("forty.two"),
                 code="""
 from bar.baz import quux
 return quux()

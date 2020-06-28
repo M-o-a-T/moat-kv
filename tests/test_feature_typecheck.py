@@ -5,7 +5,7 @@ from functools import partial
 from .mock_mqtt import stdtest
 from .run import run
 from distkv.client import ServerError
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 
 import logging
 
@@ -30,7 +30,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int"),
+                    path=P("type.int"),
                     value={
                         "bad": ["foo", None],
                         "good": [0, 1, 2],
@@ -41,7 +41,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int"),
+                    path=P("type.int"),
                     value={
                         "bad": ["foo", None],
                         "good": [0, 1, "dud"],
@@ -51,7 +51,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int"),
+                    path=P("type.int"),
                     value={
                         "bad": ["foo", 4],
                         "good": [0, 1, 2],
@@ -61,7 +61,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int"),
+                    path=P("type.int"),
                     value={
                         "bad": [],
                         "good": [0, 1, 2],
@@ -71,7 +71,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int"),
+                    path=P("type.int"),
                     value={
                         "bad": ["foo", None],
                         "good": [1],
@@ -80,7 +80,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
                 )
             await c._request(
                 "set_internal",
-                path=("type", "int"),
+                path=P("type.int"),
                 value={
                     "bad": ["foo", None],
                     "good": [0, 1, 2],
@@ -90,7 +90,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int", "percent"),
+                    path=P("type.int.percent"),
                     value={
                         "bad": ["fuf", 101],
                         "good": [0, 55, 100],
@@ -100,7 +100,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("type", "int", "percent"),
+                    path=P("type.int.percent"),
                     value={
                         "bad": ["fuf", 101],
                         "good": [0, 5.5, 100],
@@ -109,7 +109,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
                 )
             await c._request(
                 "set_internal",
-                path=("type", "int", "percent"),
+                path=P("type.int.percent"),
                 value={
                     "bad": [-1, 101],
                     "good": [0, 55, 100],
@@ -119,21 +119,21 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             with pytest.raises(ServerError):
                 await c._request(
                     "set_internal",
-                    path=("match", "one", "+", "two"),
-                    value={"tope": ("int", "percent")},
+                    path=P("match.one.+.two"),
+                    value={"tope": P("int.percent")},
                 )
             await c._request(
                 "set_internal",
-                path=("match", "one", "+", "two"),
-                value={"type": ("int", "percent")},
+                path=P("match.one.+.two"),
+                value={"type": P("int.percent")},
             )
 
-            await c.set("one", "x", "two", value=99)
+            await c.set(P("one.x.two"), value=99)
             with pytest.raises(ServerError):
-                await c.set("one", "y", "two", value=9.9)
+                await c.set(P("one.y.two"), value=9.9)
             with pytest.raises(ServerError):
-                await c.set("one", "y", "two", value="zoz")
-            await c.set("one", "y", value="zoz")
+                await c.set(P("one.y.two"), value="zoz")
+            await c.set(P("one.y"), value="zoz")
 
             pass  # client end
         pass  # server end
@@ -183,8 +183,7 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
                     "-1",
                     "-b",
                     "5.5",
-                    "int",
-                    "percent",
+                    "int.percent",
                 )
             await rr(
                 "type",
@@ -201,21 +200,20 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
                 "-1",
                 "-b",
                 "555",
-                "int",
-                "percent",
+                "int.percent",
             )
 
-            await rr("type", "match", "-t", "int", "-t", "percent", "foo", "+", "bar")
+            await rr("type", "match", "-t", "int.percent", "foo.+.bar")
 
             with pytest.raises(ServerError):
-                await rr("data", "set", "-v", "123", "foo", "dud", "bar")
+                await rr("data", "set", "-v", "123", "foo.dud.bar")
             with pytest.raises(ServerError):
-                await rr("data", "set", "-ev", "123", "foo", "dud", "bar")
+                await rr("data", "set", "-ev", "123", "foo.dud.bar")
             with pytest.raises(ServerError):
-                await rr("data", "set", "-ev", "5.5", "foo", "dud", "bar")
-            await rr("data", "set", "-ev", "55", "foo", "dud", "bar")
+                await rr("data", "set", "-ev", "5.5", "foo.dud.bar")
+            await rr("data", "set", "-ev", "55", "foo.dud.bar")
 
-            assert (await c.get("foo", "dud", "bar")).value == 55
+            assert (await c.get(P("foo.dud.bar"))).value == 55
 
             pass  # client end
         pass  # server end

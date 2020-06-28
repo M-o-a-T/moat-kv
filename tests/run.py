@@ -11,6 +11,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
     try:
+        print("*****", args)
         res = await main.main(args)
         return res
     except SystemExit as exc:

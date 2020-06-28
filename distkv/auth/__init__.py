@@ -65,7 +65,7 @@ from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict, NotGiven, yload
+from ..util import split_one, attrdict, NotGiven, yload, Path
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -341,7 +341,7 @@ class BaseServerAuth(_AuthLoaded):
 
         try:
             data = data["conv"].data["key"]
-            res, _ = root.follow_acl(None, "conv", data, create=False, nulls_ok=True)
+            res, _ = root.follow_acl(Path(None, "conv", data), create=False, nulls_ok=True)
             return res
         except (KeyError, AttributeError):
             return ConvNull
@@ -351,7 +351,7 @@ class BaseServerAuth(_AuthLoaded):
             data = data["acl"].data["key"]
             if data == "*":
                 return NullACL
-            acl, _ = root.follow_acl(None, "acl", data, create=False, nulls_ok=True)
+            acl, _ = root.follow_acl(Path(None, "acl", data), create=False, nulls_ok=True)
             return ACLFinder(acl)
         except (KeyError, AttributeError):
             return NullACL

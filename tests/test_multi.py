@@ -6,7 +6,7 @@ import mock
 from .mock_serf import stdtest
 import asyncserf
 import msgpack
-from distkv.util import attrdict
+from distkv.util import attrdict, P, Path
 
 import logging
 
@@ -41,13 +41,13 @@ async def test_10_many(autojump_clock):  # pylint: disable=unused-argument
 
         s = st.s[1]
         async with st.client(1) as ci:
-            assert (await ci.get()).value == 420
-            await ci.set("ping", value="pong")
-            await ci.set("delete", "me", value="later")
+            assert (await ci.get(P(":"))).value == 420
+            await ci.set(P("ping"), value="pong")
+            await ci.set(P("delete.me"), value="later")
 
             await ci._request(
                 "set_internal",
-                path=("actor", "del"),
+                path=P("actor.del"),
                 value={"nodes": "test_2 test_3 test_4".split()},
             )
 
@@ -56,33 +56,33 @@ async def test_10_many(autojump_clock):  # pylint: disable=unused-argument
         async def s1(i, *, task_status=trio.TASK_STATUS_IGNORED):
             async with st.client(i) as c:
                 task_status.started()
-                assert (await c.get()).value == 420
-                assert (await c.get("ping")).value == "pong"
-                await c.set("foo", i, value=420 + i)
+                assert (await c.get(P(":"))).value == 420
+                assert (await c.get(P("ping"))).value == "pong"
+                await c.set(Path("foo", i), value=420 + i)
 
         async with trio.open_nursery() as tg:
             for i in range(1, N):
                 await tg.start(s1, i)
 
         async with st.client(2) as ci:
-            assert (await ci.get("delete", "me")).value == "later"
-            await ci.delete("delete", "me")
+            assert (await ci.get(P("delete.me"))).value == "later"
+            await ci.delete(P("delete.me"))
 
         await trio.sleep(1)
         NN = min(N - 1, 3)
         for j in [0] + s._actor._rand.sample(range(1, N), NN):
             async with st.client(j) as c:
                 for i in s._actor._rand.sample(range(1, N), NN):
-                    assert (await c.get("foo", i)).value == 420 + i
+                    assert (await c.get(Path("foo", i))).value == 420 + i
 
         async with st.client(N - 1) as ci:
-            r = await ci.get("delete", "me", nchain=2)
+            r = await ci.get(P("delete.me"), nchain=2)
             assert "value" not in r
             assert r.chain is not None
 
             with trio.fail_after(9999):
                 while True:
-                    r = await ci.get("delete", "me", nchain=2)
+                    r = await ci.get(P("delete.me"), nchain=2)
                     if "value" not in r and r.chain is None:
                         break
                     await trio.sleep(10)
@@ -119,20 +119,20 @@ async def test_11_split1(autojump_clock, tocky):  # pylint: disable=unused-argum
 
         await st.tg.spawn(watch)
         async with st.client(1) as ci:
-            assert (await ci.get()).value == 420
-            r = await ci.set("ping", value="pong")
+            assert (await ci.get(P(":"))).value == 420
+            r = await ci.set(P("ping"), value="pong")
             pongtock = r.tock
-            await ci.set("drop", "me", value="here")
+            await ci.set(P("drop.me"), value="here")
 
         async def s1(i, *, task_status=trio.TASK_STATUS_IGNORED):
             async with st.client(i) as c:
                 task_status.started()
-                assert (await c.get()).value == 420
+                assert (await c.get(P(":"))).value == 420
                 await trio.sleep(5)
-                r = await c.get("ping")
+                r = await c.get(P("ping"))
                 assert r.value == "pong"
                 assert r.tock == pongtock
-                await c.set("foo", i, value=420 + i)
+                await c.set(Path("foo", i), value=420 + i)
                 pass  # client end
 
         async with trio.open_nursery() as tg:
@@ -144,43 +144,43 @@ async def test_11_split1(autojump_clock, tocky):  # pylint: disable=unused-argum
         if tocky:
             async with st.client(2 if tocky < 0 else N - 2) as ci:
                 for i in range(abs(tocky)):
-                    await ci.set("one", i, value="two")
+                    await ci.set(Path("one", i), value="two")
         await trio.sleep(30)
         async with st.client(1) as ci:
-            await ci.delete("drop", "me")
+            await ci.delete(P("drop.me"))
 
         async with st.client(N - 1) as c:
-            r = await c.set("ping", value="pongpang")
+            r = await c.set(P("ping"), value="pongpang")
             pangtock = r.tock
 
         await trio.sleep(1)
         async with st.client(0) as c:
             # assert that this value is gone
-            r = await c.get("drop", "me", nchain=3)
+            r = await c.get(P("drop.me"), nchain=3)
             # assert r.chain is None -- not yet
             assert "value" not in r
         await trio.sleep(1)
         async with st.client(N - 1) as c:
             # assert that this value is still here
-            r = await c.get("drop", "me", nchain=3)
+            r = await c.get(P("drop.me"), nchain=3)
             assert r.chain is not None
             assert r.value == "here"
         await trio.sleep(1)
         async with st.client(0) as c:
-            r = await c.get("ping")
+            r = await c.get(P("ping"))
             assert r.value == "pong"
             assert r.tock == pongtock
 
         st.join(N // 2)
         await trio.sleep(200)
         async with st.client(0) as c:
-            r = await c.get("ping")
+            r = await c.get(P("ping"))
             assert r.value == "pongpang"
             assert r.tock == pangtock
 
         async with st.client(N - 1) as c:
             # assert that this value is now gone
-            r = await c.get("drop", "me", nchain=3)
+            r = await c.get(P("drop.me"), nchain=3)
             # assert r.chain is None -- not yet
             assert "value" not in r
         pass  # server end

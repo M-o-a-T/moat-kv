@@ -5,7 +5,7 @@ import anyio
 from .mock_mqtt import stdtest
 from .run import run
 from distkv.client import ServerError
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 from functools import partial
 
 import logging
@@ -23,7 +23,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 
     async def watch_changes(c, evt):
         lg = PathLongener(())
-        async with c.watch(nchain=3, fetch=True) as res:
+        async with c.watch(P(":"), nchain=3, fetch=True) as res:
             await evt.set()
             async for m in res:
                 logger.info(m)
@@ -34,14 +34,14 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
     async with stdtest(args={"init": 234}, tocks=30) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c.get()).value == 234
+            assert (await c.get(P(":"))).value == 234
             evt = anyio.create_event()
             await c.tg.spawn(watch_changes, c, evt)
             await evt.wait()
 
-            await c.set("foo", value="hello", nchain=3)
-            await c.set("foo", "bar", value="baz", nchain=3)
-            await c.set(value=2345, nchain=3)
+            await c.set(P("foo"), value="hello", nchain=3)
+            await c.set(P("foo.bar"), value="baz", nchain=3)
+            await c.set(P(":"), value=2345, nchain=3)
             await trio.sleep(1)  # allow the writer to write
             pass  # client end
 
@@ -57,22 +57,22 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
     assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
         {
             "chain": {"node": "test_0", "prev": None, "tick": 1},
-            "path": (),
+            "path": P(":"),
             "value": 234,
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 2},
-            "path": ("foo",),
+            "path": P("foo"),
             "value": "hello",
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 3},
-            "path": ("foo", "bar"),
+            "path": P("foo.bar"),
             "value": "baz",
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 4},
-            "path": (),
+            "path": P(":"),
             "value": 2345,
         },
     ]
@@ -95,10 +95,10 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
             await c.tg.spawn(watch_changes, c, evt)
             await evt.wait()
 
-            await c.set("foof", value="again")
-            assert (await c.get("foo")).value == "hello"
-            assert (await c.get("foo", "bar")).value == "baz"
-            assert (await c.get()).value == 2345
+            await c.set(P("foof"), value="again")
+            assert (await c.get(P("foo"))).value == "hello"
+            assert (await c.get(P("foo.bar"))).value == "baz"
+            assert (await c.get(P(":"))).value == 2345
             await trio.sleep(1)  # allow the writer to write
 
     for m in msgs:
@@ -107,22 +107,22 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
     assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
         {
             "chain": {"node": "test_0", "prev": None, "tick": 2},
-            "path": ("foo",),
+            "path": P("foo"),
             "value": "hello",
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 3},
-            "path": ("foo", "bar"),
+            "path": P("foo.bar"),
             "value": "baz",
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 4},
-            "path": (),
+            "path": P(":"),
             "value": 2345,
         },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 5},
-            "path": ("foof",),
+            "path": P("foof"),
             "value": "again",
         },
     ]
@@ -134,7 +134,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
         s, = st.s
         async with st.client() as c:
-            assert (await c.get()).value == 123
+            assert (await c.get(P(":"))).value == 123
             h = p = None  # pylint
             for h, p, *_ in s.ports:
                 if h[0] != ":":
@@ -144,16 +144,16 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
                 "client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo"
             )
             r = await run(
-                "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo", "bar"
+                "client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo.bar"
             )
 
-            r = await run("client", "-h", h, "-p", p, "data", "get")
+            r = await run("client", "-h", h, "-p", p, "data", "get", ":")
             assert r.stdout == "123\n"
 
             r = await run("client", "-h", h, "-p", p, "data", "get", "foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run("client", "-h", h, "-p", p, "data", "get", "foo", "bar")
+            r = await run("client", "-h", h, "-p", p, "data", "get", "foo.bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
@@ -181,7 +181,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
-            r = await c.set(value=1234, nchain=3)
+            r = await c.set(P(":"), value=1234, nchain=3)
             assert r.prev == 123
             assert r.chain.tick == 4
 
@@ -220,7 +220,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
 async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
         async with st.client(1) as ci:
-            assert (await ci.get()).value == 125
+            assert (await ci.get(P(":"))).value == 125
 
             r = await ci._request(
                 "get_state",
@@ -312,9 +312,9 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                     "remote_missing": {},
                 }
 
-                assert (await c.get()).value == 125
+                assert (await c.get(P(":"))).value == 125
 
-                r = await c.set(value=126, nchain=3)
+                r = await c.set(P(":"), value=126, nchain=3)
                 assert r.prev == 125
                 assert r.chain.tick == 1
                 assert r.chain.node == "test_0"
@@ -326,7 +326,7 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
                 await trio.sleep(1)
-                r = await ci.set(value=127, nchain=3)
+                r = await ci.set(P(":"), value=127, nchain=3)
                 assert r.prev == 126
                 assert r.chain.tick == 2
                 assert r.chain.node == "test_1"

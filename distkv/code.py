@@ -48,24 +48,24 @@ class ModuleRoot(ClientRoot):
         self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
-    async def add(self, *path, code=None):
+    async def add(self, path, code=None):
         """
         Add or replace this code at this location.
         """
         # test-compile the code for validity
         if code is None:
-            return await self.remove(*path)
+            return await self.remove(path)
 
         make_module(code, *path)
 
-        r = await self.client.set(*self._path, *path, value=dict(code=code), nchain=2)
+        r = await self.client.set(self._path + path, value=dict(code=code), nchain=2)
         await self.wait_chain(r.chain)
 
-    async def remove(self, *path):
+    async def remove(self, path):
         """
         Remove code at this location.
         """
-        entry = self.follow(*path, create=False)
+        entry = self.follow(self._path + path, create=False)
         return await entry.delete()
 
 
@@ -152,24 +152,24 @@ class CodeRoot(ClientRoot):
         self.err = await ErrorRoot.as_handler(self.client)
         await super().run_starting()
 
-    async def add(self, *path, code=None, is_async=None, variables=()):
+    async def add(self, path, code=None, *, is_async=None, variables=()):
         """
         Add or replace this code at this location.
         """
         if code is NotGiven:
-            return await self.remove(*path)
+            return await self.remove(path)
 
         # test-compile the code for validity
         make_proc(code, variables, *path, use_async=is_async)
 
         r = await self.client.set(
-            *(self._path + path),
+            self._path + path,
             value=dict(code=code, is_async=is_async, vars=variables),
             nchain=2
         )
         await self.wait_chain(r.chain)
 
-    async def remove(self, *path):
+    async def remove(self, path):
         """Drop this code"""
         r = await self.client.set(*self._path, *path, value=None, nchain=2)
         await self.wait_chain(r.chain)
@@ -191,7 +191,7 @@ class CodeEntry(ClientEntry):
 
     @property
     def name(self):
-        return ".".join(self.subpath)
+        return P(self.subpath)
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -203,19 +203,19 @@ class CodeEntry(ClientEntry):
             v = self.value
             c = v["code"]
             a = v.get("is_async", None)
-            p = make_proc(c, v.get("vars", ()), *self.subpath, use_async=a)
+            p = make_proc(c, v.get("vars", ()), self.subpath, use_async=a)
         except Exception as exc:
-            logger.warning("Could not compile @%r", self.subpath)
+            logger.warning("Could not compile @%s", self.subpath)
             await self.root.err.record_error(
                 "compile",
-                *self.subpath,
+                self.subpath,
                 exc=exc,
                 reason="compilation",
                 message="compiler error"
             )
             self._code = None
         else:
-            await self.root.err.record_working("compile", *self.subpath)
+            await self.root.err.record_working("compile", self.subpath)
             self._code = p
             self.is_async = a
 

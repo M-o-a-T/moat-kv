@@ -28,8 +28,8 @@ async def test_41_ssl_basic(autojump_clock):  # pylint: disable=unused-argument
         async with st.client() as c:
             assert (await c.get()).value == 123
 
-            r = await c.set("foo", value="hello", nchain=3)
-            r = await c.set("foo", "bar", value="baz", nchain=3)
+            r = await c.set(P("foo"), value="hello", nchain=3)
+            r = await c.set(P("foo.bar"), value="baz", nchain=3)
             r = await c.get()
             assert r.value == 123
 
@@ -37,25 +37,25 @@ async def test_41_ssl_basic(autojump_clock):  # pylint: disable=unused-argument
             assert r.value == "hello"
 
             exp = [
-                {"path": (), "value": 123},
-                {"path": ("foo",), "value": "hello"},
-                {"path": ("foo", "bar"), "value": "baz"},
+                {"path": P(":"), "value": 123},
+                {"path": P("foo"), "value": "hello"},
+                {"path": P("foo.bar"), "value": "baz"},
             ]
-            async with c._stream("get_tree", path=(), max_depth=2) as rr:
+            async with c._stream("get_tree", path=P(":"), max_depth=2) as rr:
                 r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            async with c._stream("get_tree", path=(), iter=True, max_depth=1) as rr:
+            async with c._stream("get_tree", path=P(":"), iter=True, max_depth=1) as rr:
                 r = await collect(rr)
             assert r == exp
 
             exp.pop()
-            async with c._stream("get_tree", path=(), iter=True, max_depth=0) as rr:
+            async with c._stream("get_tree", path=P(":"), iter=True, max_depth=0) as rr:
                 r = await collect(rr)
             assert r == exp
 
-            r = await c.get("foo", "bar")
+            r = await c.get(P("foo.bar"))
             assert r.value == "baz"
 
             r = await c._request(

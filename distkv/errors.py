@@ -86,7 +86,7 @@ from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
 from .obj import AttrClientEntry, ClientEntry, ClientRoot
-from .util import Cache, NotGiven
+from .util import Cache, NotGiven, Path
 from .codec import packer
 from .exceptions import ServerError
 
@@ -399,7 +399,7 @@ class ErrorRoot(ClientRoot):
         if not create:
             return None
         tock = await self.client.get_tock()
-        return self.follow(self.name, tock, create=True)
+        return self.follow(Path(self.name, tock), create=True)
 
     async def _unique(self, entry):
         """

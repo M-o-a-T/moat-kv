@@ -7,7 +7,7 @@ from .run import run
 # from .run import run
 # from functools import partial
 
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 
 from distkv.errors import ErrorRoot
 import logging
@@ -36,7 +36,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
                 try:
                     1 / 0
                 except Exception as exc:
-                    await ex.record_error("tester", "here", "or", "there", exc=exc)
+                    await ex.record_error("tester", P("here.or.there"), exc=exc)
                 await trio.sleep(1)
                 n = 0
                 for err in e.all_errors("tester"):
@@ -59,8 +59,7 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
             async def err(e):
                 with trio.CancelScope(shield=True):
                     await e.record_error(
-                        "tester",
-                        "dup",
+                        P("tester.dup"),
                         message="Owchie at {node}",
                         data={"node": e.name},
                     )

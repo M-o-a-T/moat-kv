@@ -560,7 +560,7 @@ class UpdateEvent:
             if ConvNull is None:
                 from .types import ConvNull
             conv = ConvNull
-        entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
+        entry = root.follow(msg.path, create=True, nulls_ok=nulls_ok)
         event = NodeEvent.deserialize(msg, cache=cache)
         old_value = NotGiven
         if "value" in msg:
@@ -645,7 +645,7 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow_acl(self, *path, create=True, nulls_ok=False, acl=None, acl_key=None):
+    def follow_acl(self, path, *, create=True, nulls_ok=False, acl=None, acl_key=None):
         """Follow this path.
 
         If ``create`` is True (default), unknown nodes are silently created.
@@ -704,7 +704,7 @@ class Entry:
         acl.check(acl_key)
         return (self, acl)
 
-    def follow(self, *path, create=True, nulls_ok=False):
+    def follow(self, path, *, create=True, nulls_ok=False):
         """
         As :meth:`follow_acl`, but isn't interested in ACLs and only returns the node.
         """

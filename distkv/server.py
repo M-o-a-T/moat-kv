@@ -49,6 +49,7 @@ from .util import (
     byte2num,
     NotGiven,
     ValueEvent,
+    Path,
 )
 from .exceptions import (
     ClientError,
@@ -249,14 +250,14 @@ class SCmd_auth(StreamCommand):
             await client._user.auth_sub(msg)
             return
 
-        root = msg.get("root", ())
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
+        root = msg.get("root", Path())
+        auth = client.root.follow(root + (None, "auth"), nulls_ok=2, create=False)
         if client.user is None:
             a = auth.data["current"]
             if msg.typ != a and client.user is None:
                 raise RuntimeError("Wrong auth type", a)
 
-        data = auth.follow(msg.typ, "user", msg.ident, create=False)
+        data = auth.follow(Path(msg.typ, "user", msg.ident), create=False)
 
         cls = loader(msg.typ, "user", server=True)
         user = cls.load(data)
@@ -313,13 +314,13 @@ class SCmd_auth_list(StreamCommand):
             raise RuntimeError("Cannot read tenant users")
         kind = msg.get("kind", "user")
 
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
+        auth = client.root.follow(root+(None, "auth"), nulls_ok=2, create=False)
         if "ident" in msg:
-            data = auth.follow(msg.typ, kind, msg.ident, create=False)
+            data = auth.follow(Path(msg.typ, kind, msg.ident), create=False)
             await self.send_one(data, nchain=nchain)
 
         else:
-            d = auth.follow(msg.typ, kind, create=False)
+            d = auth.follow(Path(msg.typ, kind), create=False)
             for data in d.values():
                 await self.send_one(data, nchain=nchain)
 
@@ -358,8 +359,8 @@ class SCmd_auth_get(StreamCommand):
             raise RuntimeError("Cannot read tenant users")
         kind = msg.get("kind", "user")
 
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=False)
-        data = auth.follow(msg.typ, kind, msg.ident, create=False)
+        auth = client.root.follow(root + (None, "auth"), nulls_ok=2, create=False)
+        data = auth.follow(Path(msg.typ, kind, msg.ident), create=False)
         cls = loader(msg.typ, kind, server=True, make=False)
         user = cls.load(data)
 
@@ -399,9 +400,9 @@ class SCmd_auth_set(StreamCommand):
         kind = msg.get("kind", "user")
 
         cls = loader(msg.typ, kind, server=True, make=True)
-        auth = client.root.follow(*root, None, "auth", nulls_ok=2, create=True)
+        auth = client.root.follow(root + (None, "auth"), nulls_ok=2, create=True)
 
-        data = auth.follow(msg.typ, kind, msg.ident, create=True)
+        data = auth.follow(Path(msg.typ, kind, msg.ident), create=True)
         user = cls.load(data)
         val = user.save()
         val = drop_dict(val, msg.pop("drop", ()))
@@ -434,7 +435,7 @@ class SCmd_get_tree(StreamCommand):
         if root is None:
             root = client.root
             entry, acl = root.follow_acl(
-                *msg.path,
+                msg.path,
                 create=False,
                 nulls_ok=client.nulls_ok,
                 acl=client.acl,
@@ -442,7 +443,7 @@ class SCmd_get_tree(StreamCommand):
             )
         else:
             entry, _ = root.follow_acl(
-                *msg.path, create=False, nulls_ok=client.nulls_ok
+                msg.path, create=False, nulls_ok=client.nulls_ok
             )
             acl = NullACL
 
@@ -504,7 +505,7 @@ class SCmd_watch(StreamCommand):
         client = self.client
         conv = client.conv
         entry, acl = client.root.follow_acl(
-            *msg.path,
+            msg.path,
             acl=client.acl,
             acl_key="x",
             create=True,
@@ -624,7 +625,7 @@ class ServerClient:
     def __init__(self, server: "Server", stream: anyio.abc.Stream):
         self.server = server
         self.root = server.root
-        self.metaroot = self.root.follow(None, create=True, nulls_ok=True)
+        self.metaroot = self.root.follow(Path(None), create=True, nulls_ok=True)
         self.stream = stream
         self.seq = 0
         self.tasks = {}
@@ -701,7 +702,7 @@ class ServerClient:
     def _chroot(self, root):
         if not root:
             return
-        entry, _acl = self.root.follow_acl(*root, acl=self.acl, nulls_ok=False)
+        entry, _acl = self.root.follow_acl(root, acl=self.acl, nulls_ok=False)
 
         self.root = entry
         self.is_chroot = True
@@ -763,6 +764,10 @@ class ServerClient:
 
         return await AuthList(self, msg)()
 
+    async def cmd_auth_info(self, msg):
+        msg['path'] = Path(None,"auth")
+        return await self.cmd_get_internal(msg)
+
     async def cmd_root(self, msg):
         """Change to a sub-tree.
         """
@@ -770,13 +775,13 @@ class ServerClient:
         return self.root.serialize(chop_path=self._chop_path, conv=self.conv)
 
     async def cmd_get_internal(self, msg):
-        return await self.cmd_get_value(msg, root=self.metaroot)
+        return await self.cmd_get_value(msg, root=self.metaroot, _nulls_ok=True)
 
     async def cmd_set_internal(self, msg):
-        return await self.cmd_set_value(msg, root=self.metaroot)
+        return await self.cmd_set_value(msg, root=self.metaroot, _nulls_ok=True)
 
     async def cmd_enum_internal(self, msg):
-        return await self.cmd_enum(msg, root=self.metaroot)
+        return await self.cmd_enum(msg, root=self.metaroot, _nulls_ok=True)
 
     async def cmd_delete_internal(self, msg):
         return await self.cmd_delete_value(msg, root=self.metaroot)
@@ -792,7 +797,7 @@ class ServerClient:
         acl2 = msg.get("acl", None)
         try:
             _entry, _acl = root.follow_acl(
-                *msg.path,
+                msg.path,
                 acl=self.acl,
                 acl_key="a" if acl2 is None else mode,
                 nulls_ok=False,
@@ -803,10 +808,10 @@ class ServerClient:
                 ok = acl.allows(  # pylint: disable=no-value-for-parameter # pylint is confused
                     "a"
                 )
-                acl2 = root.follow(None, "acl", acl2, create=False, nulls_ok=True)
+                acl2 = root.follow(Path(None, "acl", acl2), create=False, nulls_ok=True)
                 acl2 = ACLFinder(acl2)
                 _entry, acl = root.follow_acl(
-                    *msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None
+                    msg.path, acl=acl2, acl_key=mode, nulls_ok=False, create=None
                 )
                 if not ok:
                     acl.block("a")
@@ -824,7 +829,7 @@ class ServerClient:
         if with_data is None:
             with_data = msg.get("with_data", False)
         entry, acl = root.follow_acl(
-            *msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
+            msg.path, acl=self.acl, acl_key="e", create=False, nulls_ok=_nulls_ok
         )
         empty = msg.get("empty", False)
         if with_data:
@@ -862,7 +867,7 @@ class ServerClient:
             root = self.root
         try:
             entry, _ = root.follow_acl(
-                *msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok
+                msg.path, create=False, acl=self.acl, acl_key="r", nulls_ok=_nulls_ok
             )
         except KeyError:
             entry = {}
@@ -900,7 +905,7 @@ class ServerClient:
         else:
             acl = NullACL
         entry, acl = root.follow_acl(
-            *msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok
+            msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok
         )
         if root is self.root and "match" in self.metaroot:
             try:
@@ -1018,7 +1023,7 @@ class ServerClient:
 
         try:
             entry, acl = self.root.follow_acl(
-                *msg.path, acl=self.acl, acl_key="d", nulls_ok=self.nulls_ok
+                msg.path, acl=self.acl, acl_key="d", nulls_ok=self.nulls_ok
             )
         except KeyError:
             return False
@@ -1076,7 +1081,7 @@ class ServerClient:
     async def cmd_set_auth_typ(self, msg):
         if not self.user.is_super_root:
             raise RuntimeError("You're not allowed to do that")
-        a = self.root.follow(None, "auth", nulls_ok=True)
+        a = self.root.follow(Path(None, "auth"), nulls_ok=True)
         if a.data is NotGiven:
             val = {}
         else:
@@ -1134,7 +1139,7 @@ class ServerClient:
                 "tock": self.server.tock,
             }
             try:
-                auth = self.root.follow(None, "auth", nulls_ok=True, create=False)
+                auth = self.root.follow(Path(None, "auth"), nulls_ok=True, create=False)
             except KeyError:
                 a = None
             else:
@@ -1306,8 +1311,9 @@ class Server:
 
         self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
         if isinstance(self.cfg.server.root, str):
-            self.cfg.server.root = self.cfg.server.root.split(".")
-        self.cfg.server.root = tuple(self.cfg.server.root)  # idempotent
+            self.cfg.server.root = P(self.cfg.server.root)
+        else:
+            self.cfg.server.root = Path.build(self.cfg.server.root)
 
         self.paranoid_root = self.root if self.cfg.server.paranoia else None
         self._nodes = {}
@@ -1867,7 +1873,7 @@ class Server:
         try:
             # First try to read the host name from the meta-root's
             # "hostmap" entry, if any.
-            hme = self.root.follow(None, "hostmap", host, create=False, nulls_ok=True)
+            hme = self.root.follow(Path(None, "hostmap", host), create=False, nulls_ok=True)
             if hme.data is NotGiven:
                 raise KeyError(host)
         except KeyError:

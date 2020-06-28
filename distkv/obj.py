@@ -152,24 +152,22 @@ class ClientEntry:
         self._children[name] = c = c(self, name)
         return c
 
-    def follow(self, *path, create=None, unsafe=False):
+    def follow(self, path, *, create=None, empty_ok=False):
         """Look up a sub-entry.
 
         Arguments:
-          *path (str): the path elements to follow.
+          path (Path): the path elements to follow.
           create (bool): Create the entries. Default ``False``.
             Otherwise return ``None`` if not found.
-          unsafe (bool): Allow a single path element that's a tuple.
-            This usually indicates a mistake by the caller. Defaults to
-            ``False``. Please try not to need this.
 
-        The path may not be empty. It also must not be a one-element list,
-        because that indicates that you called ``.follow(path)`` instead of
-        ``.follow(*path)``. To allow that, set ``unsafe``, though a better
-        idea is to structure your data that this is not necessary.
+        The path may not be empty. It also must not be a string,
+        because that indicates that you called ``.follow(*path)`` instead of
+        ``.follow(path)``.
         """
-        if not unsafe and len(path) == 1 and isinstance(path[0], (list, tuple)):
-            raise RuntimeError("You seem to have used 'path' instead of '*path'.")
+        if isinstance(path, str):
+            raise RuntimeError("You seem to have used '*path' instead of 'path'.")
+        if not empty_ok and not len(path):
+            raise RuntimeError("Empty path")
 
         node = self
         for n, elem in enumerate(path, start=1):
@@ -183,8 +181,6 @@ class ClientEntry:
 
             node = next_node
 
-        if not unsafe and node is self:
-            raise RuntimeError("Empty path")
         return node
 
     def __getitem__(self, name):
@@ -218,7 +214,7 @@ class ClientEntry:
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.set(
-                *self._path, chain=self.chain, value=value, nchain=3
+                self._path, chain=self.chain, value=value, nchain=3
             )
             if wait:
                 await self.root.wait_chain(r.chain)
@@ -233,7 +229,7 @@ class ClientEntry:
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.delete(
-                *self._path, nchain=nchain, **({"chain": self.chain} if chain else {})
+                self._path, nchain=nchain, **({"chain": self.chain} if chain else {})
             )
             if wait:
                 await self.root.wait_chain(r.chain)
@@ -361,7 +357,7 @@ class ClientRoot(ClientEntry):
 
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
-    def __init__(self, client, *path, need_wait=False, cfg=None):
+    def __init__(self, client, path, *, need_wait=False, cfg=None):
         # pylint: disable=super-init-not-called
         self._init()
         self.client = client
@@ -401,7 +397,7 @@ class ClientRoot(ClientEntry):
 
         def make():
             return client.mirror(
-                *cfg[key], *subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
+                cfg[key]+subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
             )
 
         return await client.unique_helper(cfg[key]+subpath, factory=make)
@@ -472,7 +468,7 @@ class ClientRoot(ClientEntry):
                             continue
                         pl(r)
                         val = r.get("value", NotGiven)
-                        entry = self.follow(*r.path, create=None, unsafe=True)
+                        entry = self.follow(r.path, create=None, empty_ok=True)
                         if entry is not None:
                             # Test for consistency
                             try:

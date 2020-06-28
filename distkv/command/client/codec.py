@@ -2,7 +2,7 @@
 
 import asyncclick as click
 
-from distkv.util import yprint, NotGiven, PathLongener, yload
+from distkv.util import yprint, NotGiven, PathLongener, yload, P
 
 import logging
 
@@ -118,7 +118,7 @@ async def set_(obj, path, encode, decode, data, in_, out):
 
 @cli.command()
 @click.option(
-    "-c", "--codec", multiple=True, help="Codec to link to. Multiple for hierarchical."
+    "-c", "--codec", help="Codec to link to. Multiple for hierarchical."
 )
 @click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
 @click.option(
@@ -129,13 +129,14 @@ async def set_(obj, path, encode, decode, data, in_, out):
     help="Use to list this converter; '-' to list all.",
 )
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def convert(obj, path, codec, name, delete, list_this):
     """Match a codec to a path (read, if no codec given)"""
+    path = P(path)
     if delete and list_this:
         raise click.UsageError("You can't both list and delete a path.")
-    if not path and not list_this:
+    if not len(path) and not list_this:
         raise click.UsageError("You need a non-empty path.")
     if codec and delete:
         raise click.UsageError("You can't both set and delete a path.")
@@ -176,7 +177,7 @@ async def convert(obj, path, codec, name, delete, list_this):
             action="delete_internal", path=("conv", name) + path
         )
     else:
-        msg = {"codec": codec}
+        msg = {"codec": P(codec)}
         res = await obj.client._request(
             action="set_internal",
             value=msg,

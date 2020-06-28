@@ -1,5 +1,5 @@
 import pytest
-from distkv.util import Path, yformat, yload, P
+from distkv.util import Path, yformat, yload, P, Path
 from distkv.codec import packer,unpacker
 
 _valid = (
@@ -65,6 +65,8 @@ def test_paths():
     r = p+("c","d")
     assert str(p) == "a.b"
     assert str(r) == "a.b.c.d"
+    pp = Path.build(("a","b"))
+    assert str(p) == str(pp)
 
 def test_msgpack():
     d = ("a",1,"b")

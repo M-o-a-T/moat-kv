@@ -10,6 +10,8 @@ from .run import run
 from distkv.code import CodeRoot
 from distkv.runner import SingleRunnerRoot
 from distkv.errors import ErrorRoot
+from distkv.util import P
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,8 +31,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             r = await SingleRunnerRoot.as_handler(c, subpath=(), code=cr)
             c._test_evt = anyio.create_event()
             await cr.add(
-                "forty",
-                "two",
+                P("forty.two"),
                 code="""\
                 import trio
                 c=_client
@@ -40,8 +41,8 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 """,
                 is_async=True,
             )
-            ru = r.follow("testnode", "foo", "test", create=True)
-            ru.code = ("forty", "two")
+            ru = r.follow(P("testnode.foo.test"), create=True)
+            ru.code = P("forty.two")
             await ru.run_at(time.time())
             logger.info("Start sleep")
             with trio.fail_after(60):
@@ -56,13 +57,14 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 "data",
                 "get",
                 "-rd_",
+                ":",
                 do_stdout=False,
             )
             await trio.sleep(11)
 
             logger.info("End sleep")
 
-            r = await run("-vvv", "client", "-h", h, "-p", p, "data", "get")
+            r = await run("-vvv", "client", "-h", h, "-p", p, "data", "get", ":")
             assert r.stdout == "123\n"
 
             rs = ru.state

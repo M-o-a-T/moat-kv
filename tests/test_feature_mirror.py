@@ -2,6 +2,8 @@ import pytest
 
 from .mock_mqtt import stdtest
 
+from distkv.util import P
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,11 +13,11 @@ logger = logging.getLogger(__name__)
 async def test_61_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=30) as st:
         async with st.client() as c:
-            async with c.mirror("foo", need_wait=True) as m:
-                assert (await c.get()).value == 123
+            async with c.mirror(P("foo"), need_wait=True) as m:
+                assert (await c.get(P(":"))).value == 123
 
-                r = await c.set("foo", value="hello", nchain=3)
-                r = await c.set("foo", "bar", value="baz", nchain=3)
+                r = await c.set(P("foo"), value="hello", nchain=3)
+                r = await c.set(P("foo.bar"), value="baz", nchain=3)
                 await m.wait_chain(r.chain)
                 assert m.value == "hello"
                 assert m["bar"].value == "baz"

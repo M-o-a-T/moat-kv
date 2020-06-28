@@ -19,7 +19,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict
+from .util import NotGiven, combine_dict, attrdict, P, Path
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -167,7 +167,7 @@ class CallAdmin:
     async def open_context(self, ctx):
         return await self._stack.enter_async_context(ctx)
 
-    async def watch(self, *path, cls=ChangeMsg, **kw):
+    async def watch(self, path, cls=ChangeMsg, **kw):
         """
         Create a watcher. This path is monitored as per `distkv.client.Client.watch`;
         messages are encapsulated in `ChangeMsg` objects.
@@ -190,7 +190,7 @@ class CallAdmin:
             async def run(self):
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
-                    async with self.client.watch(*path,**kw) as watcher:
+                    async with self.client.watch(path,**kw) as watcher:
                         async for msg in watcher:
                             if 'path' in msg:
                                 await self.runner.send_event(cls(msg))
@@ -268,6 +268,8 @@ class RunnerEntry(AttrClientEntry):
             ``None`` signals that the queue was overflowing and no further
             messages will be delivered. Your task should use that as its
             mainloop.
+        _P: build a path from a string
+        _Path: build a path from its arguments
 
     Some possible messages are defined in :mod:`distkv.actor`.
     """
@@ -299,7 +301,7 @@ class RunnerEntry(AttrClientEntry):
 
     @property
     def state(self):
-        return self.root.state.follow(*self.subpath, create=None)
+        return self.root.state.follow(self.subpath, create=None)
 
     async def run(self):
         if self.code is None:
@@ -311,7 +313,7 @@ class RunnerEntry(AttrClientEntry):
             try:
                 if state.node is not None:
                     raise RuntimeError("already running on %s" % (state.node,))
-                code = self.root.code.follow(*self.code, create=False)
+                code = self.root.code.follow(self.code, create=False)
                 data = self.data
                 if data is None:
                     data = {}
@@ -323,6 +325,8 @@ class RunnerEntry(AttrClientEntry):
                 data["_client"] = self.root.client
                 data["_cfg"] = self.root.client._cfg
                 data["_cls"] = _CLASSES
+                data["_P"] = P
+                data["_Path"] = Path
 
                 state.started = time.time()
                 state.node = state.root.name
@@ -359,7 +363,7 @@ class RunnerEntry(AttrClientEntry):
                     data=self.data,
                     comment=c
                 )
-                await self._err.root.wait_chain(r.chain)
+                await self.root.err.wait_chain(r.chain)
             state.backoff += 1
         else:
             state.result = res
@@ -521,7 +525,7 @@ class StateEntry(AttrClientEntry):
 
     @property
     def runner(self):
-        return self.root.runner.follow(*self.subpath, create=False)
+        return self.root.runner.follow(self.subpath, create=False)
 
     async def startup(self):
         try:

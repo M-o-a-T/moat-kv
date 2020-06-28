@@ -5,7 +5,7 @@ import os
 
 from .mock_mqtt import stdtest
 import msgpack
-from distkv.util import attrdict
+from distkv.util import attrdict, P, Path
 from distkv.server import Server
 from asyncactor.actor import Actor
 
@@ -77,7 +77,7 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
             for i in range(N):
                 async with st.client((i+x)%N) as ci:
                     for j in range(NN):
-                        await ci.set("test",i,j, value=(i,j,x))
+                        await ci.set(Path("test",i,j), value=(i,j,x))
 
         await trio.sleep(1)
 
@@ -87,7 +87,7 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
             for s in range(N):
                 async with st.client(s) as ci:
                     c = 0
-                    async for r in ci.get_tree("test", min_depth=2,nchain=5):
+                    async for r in ci.get_tree(P("test"), min_depth=2,nchain=5):
                         if r.value == (r.path[-2],r.path[-1],NX-1):
                             c += 1
                         else:
