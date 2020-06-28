@@ -13,14 +13,14 @@ from typing import Tuple
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
     import random
-else:
+else:  # pragma: no cover
     import trio._core._run as tcr
 
     random = tcr._r
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
-except ImportError:
+except ImportError:  # pragma: no cover
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
 
@@ -84,7 +84,7 @@ class StreamedRequest:
             Set to None if you already sent a single-message request.
     report_start: True if the initial state=start message of a multi-reply
                   should be included in the iterator.
-                  If False, only available as ``.start_msg``.
+                  If False, the message is available as ``.start_msg``.
     TODO: add rate limit.
 
     Call ``.send(**params)`` to send something; call ``.recv()``
@@ -119,7 +119,7 @@ class StreamedRequest:
 
         if state == "start":
             if self._reply_stream is not None:
-                raise RuntimeError("Recv state 2", self._reply_stream, msg)
+                raise RuntimeError("Recv state 2", self._reply_stream, msg)  # pragma: no cover
             self._reply_stream = True
             self.start_msg = msg
             await self._started.set()
@@ -128,7 +128,7 @@ class StreamedRequest:
 
         elif state == "end":
             if self._reply_stream is not True:
-                raise RuntimeError("Recv state 3", self._reply_stream, msg)
+                raise RuntimeError("Recv state 3", self._reply_stream, msg)  # pragma: no cover
             self._reply_stream = None
             self.end_msg = msg
             if self.q is not None:
@@ -137,10 +137,10 @@ class StreamedRequest:
 
         else:
             if state not in ("", "uptodate"):
-                logger.warning("Unknown state: %s", msg)
+                logger.warning("Unknown state: %s", msg)  # pragma: no cover
 
             if self._reply_stream is False:
-                raise RuntimeError("Recv state 1", self._reply_stream, msg)
+                raise RuntimeError("Recv state 1", self._reply_stream, msg)  # pragma: no cover
             elif self._reply_stream is None:
                 self._reply_stream = False
             if self.q is not None:

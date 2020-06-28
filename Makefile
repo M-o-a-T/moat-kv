@@ -52,11 +52,13 @@ livehtml: docs
 update:
 	pip install -r ci/test-requirements.txt
 
+cov:
+	$(PYTEST) tests --cov=distkv --cov-report=term-missing
 test:
 	black distkv tests setup.py
 	flake8 distkv tests setup.py
 	pylint distkv tests setup.py
-	env MSGPACK_PUREPYTHON=1 $(PYTEST) $(TEST_OPTIONS) tests
+	$(PYTEST) $(TEST_OPTIONS) tests
 
 tagged:
 	git describe --tags --exact-match

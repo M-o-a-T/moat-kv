@@ -101,5 +101,5 @@ CFG = attrdict(
     },
 )
 
-for n, f in list_ext("config"):
+for n, _ in list_ext("config"):  # pragma: no cover
     CFG[n] = combine_dict(load_ext(n, "config", "CFG"), CFG.get(n, {}), cls=attrdict)

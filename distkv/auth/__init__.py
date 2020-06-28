@@ -138,7 +138,7 @@ def load(typ: str, *, make: bool = False, server: bool):
         stream: the filter used for authorizing the user.
         user: represents a user record.
     """
-    raise NotImplementedError("You need to implement me")
+    raise NotImplementedError("You need to implement me")  # pragma: no cover
 
 
 async def null_server_login(stream):
@@ -151,8 +151,9 @@ async def null_client_login(
     return stream
 
 
-def _load_example(typ: str, make: bool, server: bool):
-    """example for :proc:`load`"""
+def _load_example(typ: str, make: bool, server: bool):  # pragma: no cover
+    """example code for :proc:`load`
+    """
     if typ == "client":
         if server:
             return null_server_login
@@ -261,7 +262,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {}
+        return {}  # pragma: no cover
 
     @property
     def ident(self):
@@ -269,7 +270,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
         Required so that the server can actually find the record.
         """
-        return "*"
+        return "*"  # pragma: no cover
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user", _initial=True):
@@ -277,6 +278,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
         Sample code …
         """
+        # pragma: no cover
         res = await client._request(
             "auth_get",
             typ=cls._auth_method,

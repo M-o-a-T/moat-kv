@@ -966,7 +966,7 @@ class Entry:
                     bad.add(q)
             for q in bad:
                 try:
-                    if q._distkv__free is None or q._distkv__free > 0:
+                    if q._distkv__free > 0:
                         await q.put(None)
                     node.monitors.remove(q)
                 except KeyError:
@@ -1030,10 +1030,10 @@ class Watcher:
             raise RuntimeError("Aborted. Queue filled?")
         while True:
             res = await self.q.get()
+            if self.q._distkv__free is not None:
+                self.q._distkv__free += 1
             if res is None:
                 raise RuntimeError("Aborted. Queue filled?")
             if res.entry.path and res.entry.path[0] is None and not self.full:
                 continue
-            if self.q._distkv__free is not None:
-                self.q._distkv__free += 1
             return res
