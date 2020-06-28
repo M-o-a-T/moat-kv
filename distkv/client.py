@@ -340,7 +340,7 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, *path, factory=None):
+    async def unique_helper(self, path, factory=None):
         """
         Run a (single) async context manager on that path.
 

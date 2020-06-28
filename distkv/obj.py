@@ -404,7 +404,7 @@ class ClientRoot(ClientEntry):
                 *cfg[key], *subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
             )
 
-        return await client.unique_helper(*cfg[key], *subpath, factory=make)
+        return await client.unique_helper(cfg[key]+subpath, factory=make)
 
     @classmethod
     def child_type(cls, name):
