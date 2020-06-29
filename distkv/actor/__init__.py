@@ -3,7 +3,6 @@ This module implements a :class:`asyncactor.Actor` which works on top of
 a DistKV client.
 """
 
-from ..util import singleton
 from asyncactor.abc import Transport, MonitorStream
 from asyncactor import Actor  # noqa
 
@@ -66,8 +65,10 @@ class ClientMonitor(MonitorStream):
 #
 class ActorState:
     """base class for states"""
+
     def __init__(self, msg=None):
         self.msg = msg
+
     pass
 
 

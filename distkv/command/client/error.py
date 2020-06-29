@@ -20,21 +20,17 @@ async def cli(obj):
 
 @cli.command()
 @click.option("-n", "--node", help="add details from this node")
-@click.option(
-    "-s", "--subsystem", "subsys", help="only show errors from this subsystem"
-)
+@click.option("-s", "--subsystem", "subsys", help="only show errors from this subsystem")
 @click.option("-r", "--resolved", is_flag=True, help="only resolved errors")
 @click.option("-t", "--trace", is_flag=True, help="add traces, if present")
 @click.option("-a", "--all-nodes", is_flag=True, help="add details from all nodes")
-@click.option(
-    "-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error."
-)
+@click.option("-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error.")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
     """Dump error entries.
     """
-    path=P(path)
+    path = P(path)
     path_ = obj.cfg["errors"].prefix
     d = 1
     if node is not None:
@@ -49,15 +45,15 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             return
         if resolved == (not val.get("resolved", False)):
             return
-        fs = val.get('first_seen')
+        fs = val.get("first_seen")
         if fs:
             val.first_seen_date = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
-        ls = val.get('last_seen')
+        ls = val.get("last_seen")
         if ls:
             val.last_seen_date = datetime.datetime.fromtimestamp(ls).strftime("%Y-%m-%d %H:%M:%S")
-        fs = val.get('seen')
+        fs = val.get("seen")
         if fs:
-            val['seen_date'] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
+            val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
         try:
             rp = val.path
             if as_dict:
@@ -86,9 +82,11 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             )
             async for rr in rs:
                 val = rr.value
-                fs = val.get('seen')
+                fs = val.get("seen")
                 if fs:
-                    val['seen_date'] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
+                    val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                 if not all_nodes:
                     try:
                         rn[rr.path[-1]] = rr.value.trace
@@ -139,9 +137,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             res = ait(r)
 
     if res is None:
-        res = obj.client.get_tree(
-            path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0
-        )
+        res = obj.client.get_tree(path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0)
     async for r in res:
         await one(r)
 

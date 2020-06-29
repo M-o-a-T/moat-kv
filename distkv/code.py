@@ -10,7 +10,7 @@ import sys
 import anyio
 from functools import partial
 
-from .util import make_module, make_proc, NotGiven
+from .util import make_module, make_proc, NotGiven, P
 from .obj import ClientRoot, ClientEntry
 
 import logging
@@ -95,11 +95,7 @@ class ModuleEntry(ClientEntry):
             self._module = None
             logger.warning("Could not compile @%r", self.subpath)
             await self.root.err.record_error(
-                "compile",
-                *self.subpath,
-                exc=exc,
-                reason="compilation",
-                message="compiler error"
+                "compile", *self.subpath, exc=exc, reason="compilation", message="compiler error"
             )
         else:
             await self.root.err.record_working("compile", *self.subpath)
@@ -163,9 +159,7 @@ class CodeRoot(ClientRoot):
         make_proc(code, variables, *path, use_async=is_async)
 
         r = await self.client.set(
-            self._path + path,
-            value=dict(code=code, is_async=is_async, vars=variables),
-            nchain=2
+            self._path + path, value=dict(code=code, is_async=is_async, vars=variables), nchain=2
         )
         await self.wait_chain(r.chain)
 
@@ -207,11 +201,7 @@ class CodeEntry(ClientEntry):
         except Exception as exc:
             logger.warning("Could not compile @%s", self.subpath)
             await self.root.err.record_error(
-                "compile",
-                self.subpath,
-                exc=exc,
-                reason="compilation",
-                message="compiler error"
+                "compile", self.subpath, exc=exc, reason="compilation", message="compiler error"
             )
             self._code = None
         else:

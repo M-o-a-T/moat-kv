@@ -17,15 +17,9 @@ async def cli():
 
 
 @cli.command()
-@click.option(
-    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the script here"
-)
-@click.option(
-    "-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here"
-)
-@click.option(
-    "-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON."
-)
+@click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the script here")
+@click.option("-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here")
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON.")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script, schema, yaml_):
@@ -52,18 +46,10 @@ async def get(obj, path, script, schema, yaml_):
 @cli.command("set")
 @click.option("-g", "--good", multiple=True, help="Example for passing values")
 @click.option("-b", "--bad", multiple=True, help="Example for failing values")
-@click.option(
-    "-d", "--data", type=click.File(mode="r"), help="Load metadata from this YAML file."
-)
-@click.option(
-    "-s", "--script", type=click.File(mode="r"), help="File with the checking script"
-)
-@click.option(
-    "-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema"
-)
-@click.option(
-    "-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON"
-)
+@click.option("-d", "--data", type=click.File(mode="r"), help="Load metadata from this YAML file.")
+@click.option("-s", "--script", type=click.File(mode="r"), help="File with the checking script")
+@click.option("-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema")
+@click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, good, bad, script, schema, yaml_, data):
@@ -124,9 +110,7 @@ async def set_(obj, path, good, bad, script, schema, yaml_, data):
 
 @cli.command()
 @click.option("-R", "--raw", is_flag=True, help="Print just the path.")
-@click.option(
-    "-t", "--type", "type_", help="Type path to link to."
-)
+@click.option("-t", "--type", "type_", help="Type path to link to.")
 @click.option("-d", "--delete", help="Use to delete this mapping.")
 @click.argument("path", nargs=1)
 @click.pass_obj

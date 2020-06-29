@@ -5,8 +5,16 @@ import sys
 import asyncclick as click
 from functools import partial
 
-from distkv.util import attrdict, combine_dict, NotGiven, \
-        res_get, res_update, res_delete, yload
+from distkv.util import (
+    attrdict,
+    combine_dict,
+    NotGiven,
+    res_get,
+    res_update,
+    res_delete,
+    yload,
+    yprint,
+)
 from distkv.default import CFG
 from distkv.ext import load_one, list_ext, load_ext
 from distkv.exceptions import ClientError, ServerError
@@ -53,9 +61,7 @@ class Loader(click.Group):
                 continue
             if filename.endswith(".py"):
                 rv.append(filename[:-3])
-            elif os.path.isfile(
-                os.path.join(self.__plugin_folder, filename, "__init__.py")
-            ):
+            elif os.path.isfile(os.path.join(self.__plugin_folder, filename, "__init__.py")):
                 rv.append(filename)
 
         for n, _ in list_ext(self.__plugin):
@@ -105,7 +111,7 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
         if value is NotGiven:
             value = res_delete(res, attr)
         else:
-            value = eval(value)
+            value = eval(value)  # pylint: disable=eval-used
             if split_ is not False:
                 value = value.split(split_)
             value = res_update(res, attr, value=value)
@@ -134,8 +140,7 @@ def cmd():
         main(standalone_mode=False)
     except click.exceptions.MissingParameter as exc:
         print(
-            "You need to provide an argument '%s'.\n" % (exc.param.name.upper()),
-            file=sys.stderr,
+            "You need to provide an argument '%s'.\n" % (exc.param.name.upper()), file=sys.stderr
         )
         print(exc.cmd.get_help(exc.ctx), file=sys.stderr)
         sys.exit(2)
@@ -164,26 +169,14 @@ def cmd():
 
 @click.command(cls=partial(Loader, __file__, "command"))
 @click.option(
-    "-v",
-    "--verbose",
-    count=True,
-    help="Enable debugging. Use twice for more verbosity.",
+    "-v", "--verbose", count=True, help="Enable debugging. Use twice for more verbosity."
 )
 @click.option(
-    "-l",
-    "--log",
-    multiple=True,
-    help="Adjust log level. Example: '--log asyncactor=DEBUG'.",
+    "-l", "--log", multiple=True, help="Adjust log level. Example: '--log asyncactor=DEBUG'."
 )
-@click.option(
-    "-q", "--quiet", count=True, help="Disable debugging. Opposite of '--verbose'."
-)
-@click.option(
-    "-D", "--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc)."
-)
-@click.option(
-    "-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML)."
-)
+@click.option("-q", "--quiet", count=True, help="Disable debugging. Opposite of '--verbose'.")
+@click.option("-D", "--debug", is_flag=True, help="Enable debug speed-ups (smaller keys etc).")
+@click.option("-c", "--cfg", type=click.File("r"), default=None, help="Configuration file (YAML).")
 @click.option(
     "-C",
     "--conf",
@@ -258,13 +251,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
     # Configure logging. This is a somewhat arcane art.
     lcfg = ctx.obj.cfg.logging
     lcfg["root"]["level"] = (
-        "DEBUG"
-        if verbose > 2
-        else "INFO"
-        if verbose > 1
-        else "WARNING"
-        if verbose
-        else "ERROR"
+        "DEBUG" if verbose > 2 else "INFO" if verbose > 1 else "WARNING" if verbose else "ERROR"
     )
     for k in log:
         k, v = k.split("=")
@@ -274,8 +261,7 @@ async def main(ctx, verbose, quiet, debug, log, cfg, conf):
 
 
 @main.command(
-    short_help="Import the debugger",
-    help="Imports PDB and then continues to process arguments.",
+    short_help="Import the debugger", help="Imports PDB and then continues to process arguments."
 )
 @click.argument("args", nargs=-1)
 async def pdb(args):  # safe

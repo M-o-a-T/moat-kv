@@ -17,7 +17,7 @@ def _encode(data):
     elif isinstance(data, Path):
         # Need a two-step upgrade
         return tuple(data)
-        #return msgpack.ExtType(3, b''.join(packer(x) for x in data))
+        # return msgpack.ExtType(3, b''.join(packer(x) for x in data))
     return data
 
 
@@ -33,6 +33,8 @@ def _decode(code, data):
 
 # single message packer
 _packers = []
+
+
 def packer(data):
     if _packers:
         pack = _packers.pop()
@@ -43,20 +45,13 @@ def packer(data):
     finally:
         _packers.append(pack)
 
+
 # single message unpacker
 unpacker = partial(
-    msgpack.unpackb,
-    object_pairs_hook=attrdict,
-    raw=False,
-    use_list=False,
-    ext_hook=_decode,
+    msgpack.unpackb, object_pairs_hook=attrdict, raw=False, use_list=False, ext_hook=_decode
 )
 
 # stream unpacker factory
 stream_unpacker = partial(
-    msgpack.Unpacker,
-    object_pairs_hook=attrdict,
-    raw=False,
-    use_list=False,
-    ext_hook=_decode,
+    msgpack.Unpacker, object_pairs_hook=attrdict, raw=False, use_list=False, ext_hook=_decode
 )

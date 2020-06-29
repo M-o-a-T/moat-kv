@@ -35,18 +35,10 @@ class NullObj:
         raise self._exc
 
 
-@main.group(  # pylint: disable=undefined-variable
-    cls=partial(Loader, __file__, "client")
-)
+@main.group(cls=partial(Loader, __file__, "client"))  # pylint: disable=undefined-variable
+@click.option("-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,))
 @click.option(
-    "-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,)
-)
-@click.option(
-    "-p",
-    "--port",
-    type=int,
-    default=None,
-    help="Port to use. Default: %d" % (CFG.connect.port,),
+    "-p", "--port", type=int, default=None, help="Port to use. Default: %d" % (CFG.connect.port,)
 )
 @click.option(
     "-a",

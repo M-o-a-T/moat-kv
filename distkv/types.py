@@ -112,7 +112,9 @@ class MatchEntry(MetaEntry):
         try:
             self.metaroot["type"].follow(value.type, create=False)
         except KeyError:
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
             raise ClientError("This type does not exist")
         # crashes if nonexistent
         await super().set(value)

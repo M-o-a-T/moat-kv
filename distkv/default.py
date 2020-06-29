@@ -17,10 +17,7 @@ PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 CFG = attrdict(
     logging={  # a magic incantation
         "version": 1,
-        "loggers": {
-            "asyncserf": {"level": "INFO"},
-            "xknx.raw_socket": {"level": "INFO"},
-        },
+        "loggers": {"asyncserf": {"level": "INFO"}, "xknx.raw_socket": {"level": "INFO"}},
         "root": {"handlers": ["stderr"], "level": "INFO"},
         "handlers": {
             #           "logfile": {
@@ -65,12 +62,8 @@ CFG = attrdict(
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
         # positive: set in distkv, negative: broadcast to :distkv:run tag
-        actor=attrdict(  # Actor config
-            cycle=10, nodes=-1, splits=5  # required for Runner
-        ),
-        sub=attrdict(  # tags for various runner modes
-            group="any", single="at", all="all"
-        ),
+        actor=attrdict(cycle=10, nodes=-1, splits=5),  # Actor config  # required for Runner
+        sub=attrdict(group="any", single="at", all="all"),  # tags for various runner modes
     ),
     server=attrdict(
         # server-side configuration

@@ -3,7 +3,7 @@
 import sys
 import asyncclick as click
 
-from distkv.util import yprint, data_get, P
+from distkv.util import yprint, data_get, P, Path
 
 import logging
 
@@ -44,7 +44,7 @@ async def list_(obj):
 async def dump(obj, name, path, as_dict):
     """Dump a complete (or partial) ACL."""
     path = P(path)
-    await data_get(obj, "acl", name, path, internal=True, as_dict=as_dict)
+    await data_get(obj, Path("acl", name, path), internal=True, as_dict=as_dict)
 
 
 @cli.command()
@@ -97,28 +97,18 @@ async def set_(obj, acl, name, path):
     acl = set(acl)
 
     if acl - ACL:
-        raise click.UsageError(
-            "You're trying to set an unknown ACL flag: %r" % (acl - ACL,)
-        )
+        raise click.UsageError("You're trying to set an unknown ACL flag: %r" % (acl - ACL,))
 
     res = await obj.client._request(
-        action="get_internal",
-        path=("acl", name) + path,
-        iter=False,
-        nchain=3 if obj.meta else 1,
+        action="get_internal", path=("acl", name) + path, iter=False, nchain=3 if obj.meta else 1
     )
     ov = set(res.get("value", ""))
     if ov - ACL:
-        print(
-            "Warning: original ACL contains unknown: %r" % (ov - acl,), file=sys.stderr
-        )
+        print("Warning: original ACL contains unknown: %r" % (ov - acl,), file=sys.stderr)
 
     if mode == "-" and not acl:
         res = await obj.client._request(
-            action="delete_internal",
-            path=("acl", name) + path,
-            iter=False,
-            chain=res.chain,
+            action="delete_internal", path=("acl", name) + path, iter=False, chain=res.chain
         )
         v = "-"
 
@@ -138,12 +128,7 @@ async def set_(obj, acl, name, path):
         )
 
     if obj.meta:
-        res = {
-            "old": "".join(ov),
-            "new": "".join(v),
-            "chain": res.chain,
-            "tock": res.tock,
-        }
+        res = {"old": "".join(ov), "new": "".join(v), "chain": res.chain, "tock": res.tock}
         yprint(res, stream=obj.stdout)
     else:
         res = {"old": "".join(ov), "new": "".join(v)}

@@ -27,6 +27,7 @@ import ruamel.yaml as yaml
 SafeRepresenter = yaml.representer.SafeRepresenter
 SafeConstructor = yaml.constructor.SafeConstructor
 
+NoneType = type(None)
 
 from .exceptions import CancelledError
 
@@ -44,9 +45,14 @@ except ImportError:
 def singleton(cls):
     return cls()
 
-def yload(stream):
+
+def yload(stream, multi=False):
     y = yaml.YAML(typ="safe")
-    return y.load(stream)
+    if multi:
+        return y.load_all(stream)
+    else:
+        return y.load(stream)
+
 
 def yprint(data, stream=sys.stdout, compact=False):
     """
@@ -63,8 +69,8 @@ def yprint(data, stream=sys.stdout, compact=False):
     #   elif isinstance(data, bytes):
     #       os.write(sys.stdout.fileno(), data)
     else:
-        y = yaml.YAML(typ='safe')
-        y.default_flow_style=compact
+        y = yaml.YAML(typ="safe")
+        y.default_flow_style = compact
         y.dump(data, stream=stream)
 
 
@@ -559,9 +565,7 @@ def _call_proc(code, *a, **kw):
     return code(*a)
 
 
-def make_proc(
-    code, variables, *path, use_async=False
-):  # pylint: disable=redefined-builtin
+def make_proc(code, variables, *path, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
@@ -693,9 +697,7 @@ async def data_get(
             kw["add_empty"] = True
         y = {}
         if internal:
-            res = await obj.client._request(
-                action="get_tree_internal", path=path, iter=True, **kw
-            )
+            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
         else:
             res = obj.client.get_tree(path, nchain=obj.meta, **kw)
         async for r in res:
@@ -909,6 +911,7 @@ async def spawn(taskgroup, proc, *args, **kw):
     """
 
     scope = None
+
     async def _run(proc, args, kw, evt):
         """
         Helper for starting a task.
@@ -927,7 +930,10 @@ async def spawn(taskgroup, proc, *args, **kw):
     await evt.wait()
     return scope
 
-_PartRE = re.compile('[^:._]+|_|:|\\.')
+
+_PartRE = re.compile("[^:._]+|_|:|\\.")
+
+
 @total_ordering
 class Path(collections.abc.Sequence):
     """
@@ -935,13 +941,14 @@ class Path(collections.abc.Sequence):
 
     It is an immutable list with special representation.
     """
-    def __init__(self,*a):
+
+    def __init__(self, *a):
         self._data = a
 
     @classmethod
     def build(cls, data):
         """Optimized shortcut to generate a path from an existing tuple"""
-        if isinstance(data,Path):
+        if isinstance(data, Path):
             return data
         if not isinstance(data, tuple):
             return cls(*data)
@@ -951,41 +958,41 @@ class Path(collections.abc.Sequence):
 
     def __str__(self):
         def _escol(x, spaces=True):  # XXX make the default adjustable?
-            x = x.replace(':','::').replace('.',':.')
+            x = x.replace(":", "::").replace(".", ":.")
             if spaces:
-                x = x.replace(' ',':_')
+                x = x.replace(" ", ":_")
             return x
 
         res = []
         if not self._data:
             return ":"
         for x in self._data:
-            if isinstance(x,str) and len(x):
+            if isinstance(x, str) and len(x):
                 if res:
-                    res.append('.')
+                    res.append(".")
                 res.append(_escol(x))
-            elif isinstance(x, (Path,tuple)) and len(x):
-                x = ','.join(repr(y) for y in x)
-                res.append(':'+_escol(x))
+            elif isinstance(x, (Path, tuple)) and len(x):
+                x = ",".join(repr(y) for y in x)
+                res.append(":" + _escol(x))
             elif x is True:
-                res.append(':t')
+                res.append(":t")
             elif x is False:
-                res.append(':f')
+                res.append(":f")
             elif x is None:
-                res.append(':n')
+                res.append(":n")
             elif x == "":
-                res.append(':e')
+                res.append(":e")
             else:
-                if isinstance(x,(Path,tuple)):  # no spaces
+                if isinstance(x, (Path, tuple)):  # no spaces
                     assert not len(x)
-                    x = '()'
+                    x = "()"
                 else:
                     x = repr(x)
-                res.append(':'+_escol(x))
-        return ''.join(res)
+                res.append(":" + _escol(x))
+        return "".join(res)
 
     def __getitem__(self, x):
-        if isinstance(x,slice) and x.start==0 and x.step==1:
+        if isinstance(x, slice) and x.start == 0 and x.step == 1:
             return type(self)(*self._data[x])
         else:
             return self._data[x]
@@ -997,12 +1004,12 @@ class Path(collections.abc.Sequence):
         return True
 
     def __eq__(self, other):
-        if isinstance(other,Path):
+        if isinstance(other, Path):
             other = other._data
         return self._data == other
 
     def __lt__(self, other):
-        if isinstance(other,Path):
+        if isinstance(other, Path):
             other = other._data
         return self._data < other
 
@@ -1036,7 +1043,7 @@ class Path(collections.abc.Sequence):
         Constructor to build a Path from its string representation.
         """
         res = []
-        part: Union[NoneType,bool,str] = False
+        part: Union[NoneType, bool, str] = False
         # non-empty string: accept colon-eval or dot (inline)
         # True: require dot or colon-eval (after :t)
         # False: accept only colon-eval (start)
@@ -1045,26 +1052,27 @@ class Path(collections.abc.Sequence):
         esc: bool = False
         # marks that an escape char has been seen
 
-        eval_: Union[bool,int] = False
+        eval_: Union[bool, int] = False
         # marks whether the current input shall be evaluated;
         # 2=it's a hex number
 
-        pos=0
-        if path == ':':
+        pos = 0
+        if path == ":":
             return cls()
 
         def add(x):
             nonlocal part
             if not isinstance(part, str):
-                part = ''
+                part = ""
             try:
                 part += x
             except TypeError:
                 raise SyntaxError("Cannot add %r at %d" % (x, pos))
+
         def done(new_part):
             nonlocal part
             nonlocal eval_
-            if isinstance(part,str):
+            if isinstance(part, str):
                 if eval_:
                     try:
                         if eval_ == 2:
@@ -1076,6 +1084,7 @@ class Path(collections.abc.Sequence):
                     eval_ = False
                 res.append(part)
             part = new_part
+
         def new(x, new_part):
             nonlocal part
             if part is None:
@@ -1083,41 +1092,41 @@ class Path(collections.abc.Sequence):
             done(new_part)
             res.append(x)
 
-        if path == '':
+        if path == "":
             raise SyntaxError("The empty string is not a path")
         for e in _PartRE.findall(path):
             if esc:
                 esc = False
-                if e in ':.':
+                if e in ":.":
                     add(e)
-                elif e == 'e':
-                    new('',True)
-                elif e == 't':
+                elif e == "e":
+                    new("", True)
+                elif e == "t":
                     new(True, True)
-                elif e == 'f':
+                elif e == "f":
                     new(False, True)
-                elif e == 'n':
+                elif e == "n":
                     new(None, True)
-                elif e == '_':
-                    add(' ')
-                elif e[0] == 'x':
+                elif e == "_":
+                    add(" ")
+                elif e[0] == "x":
                     done(None)
                     part = e[1:]
                     eval_ = 2
                 else:
                     if part is None:
                         raise SyntaxError("Cannot parse %r at %d" % (path, pos))
-                    done('')
+                    done("")
                     add(e)
                     eval_ = True
             else:
-                if e == '.':
+                if e == ".":
                     if not part:
                         raise SyntaxError("Cannot parse %r at %d" % (path, pos))
                     done(None)
                     pos += 1
                     continue
-                elif e == ':':
+                elif e == ":":
                     esc = True
                     pos += 1
                     continue
@@ -1127,32 +1136,37 @@ class Path(collections.abc.Sequence):
                     add(e)
             pos += len(e)
         if esc or part is None:
-            raise SyntaxError("Cannot parse %r at %d", path, pos)
+            raise SyntaxError("Cannot parse %r at %d" % (path, pos))
         done(None)
         return cls(*res)
 
     @classmethod
-    def _make(cls,loader,node):
+    def _make(cls, loader, node):
         value = loader.construct_scalar(node)
         return cls.from_str(value)
 
+
 P = Path.from_str
+
 
 class PathNode(yaml.nodes.ScalarNode):
     pass
 
+
 def _path_repr(dumper, data):
-    return dumper.represent_scalar('!P', str(data))
-    #return ScalarNode(tag, value, style=style)
-    #return yaml.events.ScalarEvent(anchor=None, tag='!P', implicit=(True, True), value=str(data))
-
-SafeRepresenter.add_representer(Path,_path_repr)
-SafeConstructor.add_constructor('!P',Path._make)
+    return dumper.represent_scalar("!P", str(data))
+    # return ScalarNode(tag, value, style=style)
+    # return yaml.events.ScalarEvent(anchor=None, tag='!P', implicit=(True, True), value=str(data))
 
 
-def _bin_from_ascii(loader,node):
+SafeRepresenter.add_representer(Path, _path_repr)
+SafeConstructor.add_constructor("!P", Path._make)
+
+
+def _bin_from_ascii(loader, node):
     value = loader.construct_scalar(node)
-    return value.encode('ascii')
+    return value.encode("ascii")
+
 
 def _bin_to_ascii(dumper, data):
     try:
@@ -1160,19 +1174,18 @@ def _bin_to_ascii(dumper, data):
     except UnicodeEncodeError:
         return dumper.represent_binary(data)
     else:
-        return dumper.represent_scalar('!bin', data)
+        return dumper.represent_scalar("!bin", data)
 
 
 SafeRepresenter.add_representer(bytes, _bin_to_ascii)
-SafeConstructor.add_constructor('!bin',_bin_from_ascii)
+SafeConstructor.add_constructor("!bin", _bin_from_ascii)
 
 
 # path_eval is a simple "eval" replacement to implement resolving
-# expressions in paths. While it can be used for math its primary function 
+# expressions in paths. While it can be used for math its primary function
 _eval = simpleeval.SimpleEval(functions={})
 _eval.nodes[_ast.Tuple] = lambda node: tuple(_eval._eval(x) for x in node.elts)
 path_eval = _eval.eval
-
 
 
 class PathShortener:
@@ -1228,9 +1241,7 @@ class PathShortener:
         except KeyError:
             return
         if list(p[: self.depth]) != list(self.prefix):
-            raise RuntimeError(
-                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
-            )
+            raise RuntimeError("Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix)))
 
         p = p[self.depth :]  # noqa: E203
         cdepth = min(len(p), len(self.path))
@@ -1253,7 +1264,7 @@ class PathLongener:
     attributes is a no-op.
     """
 
-    def __init__(self, prefix: Union[Path,tuple] = ()):
+    def __init__(self, prefix: Union[Path, tuple] = ()):
         self.depth = len(prefix)
         self.path = Path.build(prefix)
 
@@ -1270,5 +1281,3 @@ class PathLongener:
         p = self.path[: self.depth + d] + p
         self.path = p
         res["path"] = p
-
-

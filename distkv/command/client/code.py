@@ -17,9 +17,7 @@ async def cli():
 
 
 @cli.command()
-@click.option(
-    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
-)
+@click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script):
@@ -28,10 +26,7 @@ async def get(obj, path, script):
     if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_value",
-        path=obj.cfg["codes"]["prefix"] + path,
-        iter=False,
-        nchain=obj.meta,
+        action="get_value", path=obj.cfg["codes"]["prefix"] + path, iter=False, nchain=obj.meta
     )
     if "value" not in res:
         if obj.debug:
@@ -48,17 +43,11 @@ async def get(obj, path, script):
 
 @cli.command("set")
 @click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
-@click.option(
-    "-t", "--thread", is_flag=True, help="The code should run in a worker thread"
-)
+@click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
-@click.option(
-    "-v", "--vars", "vars_", multiple=True, type=str, help="Required variables"
-)
+@click.option("-v", "--vars", "vars_", multiple=True, type=str, help="Required variables")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
-@click.option(
-    "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
-)
+@click.option("-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, thread, script, data, vars_, async_, info):
@@ -125,9 +114,7 @@ async def mod():
 
 
 @mod.command("get")
-@click.option(
-    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here"
-)
+@click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here")
 @click.argument("path", nargs=1)
 @click.pass_obj  # pylint: disable=function-redefined
 async def get_mod(obj, path, script):
@@ -136,10 +123,7 @@ async def get_mod(obj, path, script):
     if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_value",
-        path=obj.cfg["modules"]["prefix"] + path,
-        iter=False,
-        nchain=obj.meta,
+        action="get_value", path=obj.cfg["modules"]["prefix"] + path, iter=False, nchain=obj.meta
     )
     if not obj.meta:
         res = res.value
@@ -156,12 +140,8 @@ async def get_mod(obj, path, script):
 
 
 @mod.command("set")
-@click.option(
-    "-s", "--script", type=click.File(mode="r"), help="File with the module's code"
-)
-@click.option(
-    "-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)"
-)
+@click.option("-s", "--script", type=click.File(mode="r"), help="File with the module's code")
+@click.option("-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)")
 @click.argument("path", nargs=1)  # pylint: disable=function-redefined
 @click.pass_obj
 async def set_mod(obj, path, script, data):
@@ -188,12 +168,7 @@ async def set_mod(obj, path, script, data):
         msg["code"] = script.read()
 
     res = await obj.client.set(
-        *obj.cfg["modules"]["prefix"],
-        *path,
-        value=msg,
-        iter=False,
-        nchain=obj.meta,
-        chain=chain,
+        *obj.cfg["modules"]["prefix"], *path, value=msg, iter=False, nchain=obj.meta, chain=chain
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -208,18 +183,10 @@ async def set_mod(obj, path, script, data):
     "for values. Default: return as list",
 )
 @click.option(
-    "-m",
-    "--maxdepth",
-    type=int,
-    default=None,
-    help="Limit recursion depth. Default: whole tree",
+    "-m", "--maxdepth", type=int, default=None, help="Limit recursion depth. Default: whole tree"
 )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=None,
-    help="Starting depth. Default: whole tree",
+    "-M", "--mindepth", type=int, default=None, help="Starting depth. Default: whole tree"
 )
 @click.option("-f", "--full", is_flag=True, help="print complete entries.")
 @click.option("-s", "--short", is_flag=True, help="print shortened entries.")
@@ -243,9 +210,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     if mindepth is not None:
         kw["min_depth"] = mindepth
     y = {}
-    async for r in obj.client.get_tree(
-        *obj.cfg["codes"].prefix, *path, nchain=obj.meta, **kw
-    ):
+    async for r in obj.client.get_tree(*obj.cfg["codes"].prefix, *path, nchain=obj.meta, **kw):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:

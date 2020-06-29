@@ -32,9 +32,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
             # TODO control what happens when stepping to where's no ACL
             # await c._request("set_internal", path=("acl", "foo"), value="x")
             await c._request("set_internal", path=("acl", "foo", "one"), value="rxnc")
-            await c._request(
-                "set_internal", path=P("acl.foo.one.two"), value="rc"
-            )
+            await c._request("set_internal", path=P("acl.foo.one.two"), value="rc")
 
             um = loader("_test", "user", make=True, server=False)
             u = um.build({"name": "std"})

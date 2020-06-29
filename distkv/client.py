@@ -118,8 +118,8 @@ class StreamedRequest:
         state = msg.get("state", "")
 
         if state == "start":
-            if self._reply_stream is not None:
-                raise RuntimeError("Recv state 2", self._reply_stream, msg)  # pragma: no cover
+            if self._reply_stream is not None:  # pragma: no cover
+                raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
             self.start_msg = msg
             await self._started.set()
@@ -127,8 +127,8 @@ class StreamedRequest:
                 await self.q.put(outcome.Value(msg))
 
         elif state == "end":
-            if self._reply_stream is not True:
-                raise RuntimeError("Recv state 3", self._reply_stream, msg)  # pragma: no cover
+            if self._reply_stream is not True:  # pragma: no cover
+                raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
             self.end_msg = msg
             if self.q is not None:
@@ -136,11 +136,11 @@ class StreamedRequest:
             return False
 
         else:
-            if state not in ("", "uptodate"):
-                logger.warning("Unknown state: %s", msg)  # pragma: no cover
+            if state not in ("", "uptodate"):  # pragma: no cover
+                logger.warning("Unknown state: %s", msg)
 
-            if self._reply_stream is False:
-                raise RuntimeError("Recv state 1", self._reply_stream, msg)  # pragma: no cover
+            if self._reply_stream is False:  # pragma: no cover
+                raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
             if self.q is not None:
@@ -583,16 +583,12 @@ class Client:
         if not sa or not sa[0]:
             # no auth required
             if auth:
-                logger.info(
-                    "Tried to use auth=%s, but not required.", auth._auth_method
-                )
+                logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
             return
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError(
-                "You cannot use '%s' auth" % (auth._auth_method), sa
-            )
+            raise ClientAuthMethodError("You cannot use '%s' auth" % (auth._auth_method), sa)
         if getattr(auth, "_DEBUG", False):
             auth._length = 16
         await auth.auth(self)
@@ -621,9 +617,7 @@ class Client:
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
             try:
-                ctx = await anyio.connect_tcp(
-                    host, port, ssl_context=ssl, autostart_tls=False
-                )
+                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
             except socket.gaierror:
                 raise ServerConnectionError(host, port)
             stream = await ex.enter_async_context(ctx)
@@ -684,7 +678,7 @@ class Client:
 
         For lower overhead and set-directly-after-get change, nchain may be 1 or 2.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
@@ -701,7 +695,7 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain tag, for further updates.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         if value is NotGiven:
             raise RuntimeError("You need to supply a value, or call 'delete'")
@@ -728,7 +722,7 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain, for setting a new value.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         kw = {}
         if prev is not NotGiven:
@@ -736,9 +730,7 @@ class Client:
         if chain is not NotGiven:
             kw["chain"] = chain
 
-        return self._request(
-            action="delete_value", path=path, iter=False, nchain=nchain, **kw
-        )
+        return self._request(action="delete_value", path=path, iter=False, nchain=nchain, **kw)
 
     async def list(self, path, *, with_data=False, empty=None, **kw):
         """
@@ -749,13 +741,11 @@ class Client:
           empty (bool): Return [names of] empty nodes. Default True if
             with_data is not set.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         if empty is None:
             empty = not with_data
-        res = await self._request(
-            action="enum", path=path, with_data=with_data, empty=empty, **kw
-        )
+        res = await self._request(action="enum", path=path, with_data=with_data, empty=empty, **kw)
         return res.result
 
     async def get_tree(self, path, *, long_path=True, **kw):
@@ -776,7 +766,7 @@ class Client:
           long_path (bool): if set (the default), pass the result through PathLongener
 
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         if long_path:
             lp = PathLongener()
@@ -795,7 +785,7 @@ class Client:
         the deleted nodes; if not, the single return value only contains the
         number of deleted nodes.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         return self._request(action="delete_tree", path=path, nchain=nchain)
 
@@ -831,11 +821,9 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
-        return self._stream(
-            action="watch", path=path, iter=True, long_path=long_path, **kw
-        )
+        return self._stream(action="watch", path=path, iter=True, long_path=long_path, **kw)
 
     def mirror(self, path, *, root_type=None, **kw):
         """An async context manager that affords an update-able mirror
@@ -858,7 +846,7 @@ class Client:
                 # via ``foobar``, but they will no longer be kept up-to-date.
 
         """
-        if isinstance(path,str):
+        if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         if root_type is None:
             from .obj import ClientRoot

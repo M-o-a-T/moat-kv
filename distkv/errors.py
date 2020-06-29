@@ -107,11 +107,7 @@ class ErrorSubEntry(AttrClientEntry):
         return ClientEntry
 
     def __repr__(self):
-        return "‹%s %s %d›" % (
-            self.__class__.__name__,
-            self._path[-3:],
-            getattr(self, "tock", -1),
-        )
+        return "‹%s %s %d›" % (self.__class__.__name__, self._path[-3:], getattr(self, "tock", -1))
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -229,12 +225,7 @@ class ErrorEntry(AttrClientEntry):
         Store this comment, typically used when something resumes working.
         One per node, so we don't need to avoid collisions.
         """
-        res = dict(
-            seen=time(),
-            tock=await self.root.client.get_tock(),
-            comment=comment,
-            data=data,
-        )
+        res = dict(seen=time(), tock=await self.root.client.get_tock(), comment=comment, data=data)
         logger.info("Comment %s: %s", node, comment)
         await self.root.client.set(*self._path, chain=self.chain, value=res)
 
@@ -290,9 +281,7 @@ class ErrorEntry(AttrClientEntry):
         if value is NotGiven:
             if self.value is NotGiven:
                 return
-            keep = await self.root.get_error_record(
-                self.subsystem, *self.path, create=False
-            )
+            keep = await self.root.get_error_record(self.subsystem, *self.path, create=False)
             if keep is not None:
                 self._real_entry = keep.real_entry
                 await self.move_to_real()
@@ -478,7 +467,7 @@ class ErrorRoot(ClientRoot):
             with the data when printed.
         """
         rec = await self.get_error_record(subsystem, *path)
-        if not force and hasattr(rec,'severity') and rec.severity < severity:
+        if not force and hasattr(rec, "severity") and rec.severity < severity:
             return
 
         rec.severity = severity
@@ -509,9 +498,7 @@ class ErrorRoot(ClientRoot):
             return
 
         try:
-            del (self._done if entry.resolved else self._active)[entry.subsystem][
-                entry.path
-            ]
+            del (self._done if entry.resolved else self._active)[entry.subsystem][entry.path]
         except KeyError:
             pass
 

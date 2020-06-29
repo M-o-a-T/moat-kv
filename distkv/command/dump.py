@@ -4,7 +4,7 @@ import sys
 import asyncclick as click
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener, yload, P
+from distkv.util import yprint, PathLongener, P, yload
 from distkv.codec import unpacker
 
 import logging
@@ -64,11 +64,10 @@ async def file_(obj, file, path):
 
 @cli.command("yaml")
 @click.argument("msgpack", nargs=1)
-@click.pass_obj
-async def yaml_(obj, msgpack):
+async def yaml_(msgpack):
     """Read a YAML file from stdin and dump as msgpack."""
     async with MsgWriter(path=msgpack) as f:
-        for d in yload_all(sys.stdin):
+        for d in yload(sys.stdin, multi=True):
             await f(d)
 
 
@@ -118,7 +117,9 @@ async def msg_(obj, path):
     class _Unpack:
         def __init__(self):
             self._part_cache = dict()
+
     import distkv.server
+
     _Unpack._unpack_multiple = distkv.server.Server._unpack_multiple
     _unpacker = _Unpack()._unpack_multiple
 

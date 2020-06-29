@@ -55,10 +55,13 @@ update:
 cov:
 	$(PYTEST) tests --cov=distkv --cov-report=term-missing
 test:
-	black distkv tests setup.py
+	black -l 99 --check distkv tests setup.py
 	flake8 distkv tests setup.py
 	pylint distkv tests setup.py
 	$(PYTEST) $(TEST_OPTIONS) tests
+
+format:
+	black -l 99 distkv tests setup.py
 
 tagged:
 	git describe --tags --exact-match

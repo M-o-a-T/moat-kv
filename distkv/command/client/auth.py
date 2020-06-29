@@ -67,12 +67,7 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
     async for auth in enum_auth(obj):
         if ident is not None:
             res = await obj.client._request(
-                action="auth_list",
-                typ=auth,
-                kind=kind,
-                ident=ident,
-                iter=False,
-                nchain=nchain,
+                action="auth_list", typ=auth, kind=kind, ident=ident, iter=False, nchain=nchain
             )
             yield res
         else:
@@ -115,10 +110,7 @@ async def user():
 
 @user.command("list")
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print complete results. Default: just the names",
+    "-v", "--verbose", is_flag=True, help="Print complete results. Default: just the names"
 )
 @click.pass_obj  # pylint: disable=function-redefined
 async def list_user(obj, verbose):
@@ -169,10 +161,7 @@ async def param(obj, new, ident, type, key, args):  # pylint: disable=redefined-
         u._length = 16
     # ou = await u.recv(obj.client, ident, _initial=False)  # unused
     res = await obj.client._request(
-        action="get_internal",
-        path=("auth", auth, "user", ident, type),
-        iter=False,
-        nchain=3,
+        action="get_internal", path=("auth", auth, "user", ident, type), iter=False, nchain=3
     )
 
     kw = res.get("value", NotGiven)

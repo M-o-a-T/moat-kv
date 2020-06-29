@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @main.group()  # pylint: disable=undefined-variable
-@click.option(
-    "-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes"
-)
+@click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")
 @click.option("-g", "--group", help="group to run this code on. Empty: any one node")
 @click.pass_obj
 async def cli(obj, node, group):
@@ -77,19 +75,14 @@ async def all_(obj):
 async def list_(obj, state, as_dict, path):
     """List run entries.
     """
-    path=P(path)
+    path = P(path)
     if obj.subpath[-1] == "-":
         if path:
             raise click.UsageError("Group '-' can only be used without a path.")
 
         path = obj.path[:-1]
         res = await obj.client._request(
-            action="get_tree",
-            path=path,
-            iter=True,
-            max_depth=2,
-            nchain=obj.meta,
-            empty=True,
+            action="get_tree", path=path, iter=True, max_depth=2, nchain=obj.meta, empty=True
         )
         pl = PathLongener(())
         async for r in res:
@@ -104,9 +97,7 @@ async def list_(obj, state, as_dict, path):
     path = obj.path + path
     if state:
         state = obj.statepath + path
-    res = await obj.client._request(
-        action="get_tree", path=path, iter=True, nchain=obj.meta
-    )
+    res = await obj.client._request(action="get_tree", path=path, iter=True, nchain=obj.meta)
 
     y = {}
     async for r in res:
@@ -154,9 +145,7 @@ async def state_(obj, path, result):
         raise click.UsageError("You need a non-empty path.")
     path = obj.statepath + P(path)
 
-    res = await obj.client._request(
-        action="get_value", path=path, iter=False, nchain=obj.meta
-    )
+    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
     if "value" not in res:
         if obj.debug:
             print("Not found (yet?)", file=sys.stderr)
@@ -172,16 +161,14 @@ async def state_(obj, path, result):
 @click.pass_obj
 async def get(obj, path):
     """Read a runner entry"""
-    path=P(path)
+    path = P(path)
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
     path = obj.path + path
 
-    res = await obj.client._request(
-        action="get_value", path=path, iter=False, nchain=obj.meta
-    )
+    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
     if not obj.meta:
         res = res.value
 
@@ -189,20 +176,14 @@ async def get(obj, path):
 
 
 @cli.command("set")
-@click.option(
-    "-c", "--code", help="Path to the code that should run. Space separated path."
-)
+@click.option("-c", "--code", help="Path to the code that should run. Space separated path.")
 @click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
-@click.option(
-    "-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)"
-)
+@click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
-@click.option(
-    "-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)"
-)
+@click.option("-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
@@ -221,9 +202,7 @@ async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     path = obj.path + P(path)
 
     try:
-        res = await obj.client._request(
-            action="get_value", path=path, iter=False, nchain=3
-        )
+        res = await obj.client._request(action="get_value", path=path, iter=False, nchain=3)
         if "value" not in res:
             raise ServerError
     except ServerError:

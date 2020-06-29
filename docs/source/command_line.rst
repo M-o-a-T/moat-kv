@@ -205,11 +205,6 @@ for incremental output.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
-
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -254,11 +249,6 @@ default to 1.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
-
 .. option:: path…
 
    Access the entry at this location. The default is the root node,
@@ -302,11 +292,6 @@ accidentally overwrite something.
 
    This value is also affected by ``--eval``.
 
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
-
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -340,11 +325,6 @@ Recursive changes only check the entry you mention on the command line.
 
    This value is also affected by ``--eval``.
 
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
-
 .. option:: path…
 
    Write to the entry at this location. The default is the root node, which
@@ -372,11 +352,6 @@ Monitor changes to the state of an entry, or rather its subtree.
 
    The default is to use YAML.
 
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
-
 .. option:: path…
 
    Monitor the subtree at this location. The default is the root node.
@@ -391,11 +366,6 @@ Stream a list of changes from standard input to DistKV.
    Interpret the input as ``MsgPack`` data. XXX TODO
 
    The default is to use YAML. XXX TODO
-
-.. option:: -V, --eval-path <N>
-
-   Evaluate the ``N``th path element (counting from 1) as a Python
-   expression.
 
 .. option:: path…
 

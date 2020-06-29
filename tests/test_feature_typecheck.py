@@ -118,14 +118,10 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             )
             with pytest.raises(ServerError):
                 await c._request(
-                    "set_internal",
-                    path=P("match.one.+.two"),
-                    value={"tope": P("int.percent")},
+                    "set_internal", path=P("match.one.+.two"), value={"tope": P("int.percent")}
                 )
             await c._request(
-                "set_internal",
-                path=P("match.one.+.two"),
-                value={"type": P("int.percent")},
+                "set_internal", path=P("match.one.+.two"), value={"type": P("int.percent")}
             )
 
             await c.set(P("one.x.two"), value=99)

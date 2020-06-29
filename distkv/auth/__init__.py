@@ -145,9 +145,7 @@ async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(
-    stream, user: "BaseClientAuth"
-):  # pylint: disable=unused-argument
+async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=unused-argument
     return stream
 
 
@@ -280,11 +278,7 @@ class BaseClientAuthMaker(_AuthLoaded):
         """
         # pragma: no cover
         res = await client._request(
-            "auth_get",
-            typ=cls._auth_method,
-            kind=_kind,
-            ident=ident,
-            nchain=0 if _initial else 2,
+            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident, nchain=0 if _initial else 2
         )
         self = cls(_initial=_initial)
         self._chain = res.chain

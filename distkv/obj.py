@@ -99,7 +99,7 @@ class ClientEntry:
                 try:
                     val = val[kk]
                 except TypeError:
-                    raise TypeError(self.value,k,val,kk)
+                    raise TypeError(self.value, k, val, kk)
             return val
         except KeyError:
             return self.parent.find_cfg(*k, default=default)
@@ -213,9 +213,7 @@ class ClientEntry:
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
-            r = await self.root.client.set(
-                self._path, chain=self.chain, value=value, nchain=3
-            )
+            r = await self.root.client.set(self._path, chain=self.chain, value=value, nchain=3)
             if wait:
                 await self.root.wait_chain(r.chain)
             self.value = value
@@ -396,11 +394,9 @@ class ClientRoot(ClientEntry):
             cfg = defcfg
 
         def make():
-            return client.mirror(
-                cfg[key]+subpath, root_type=cls, need_wait=True, cfg=cfg, **kw
-            )
+            return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)
 
-        return await client.unique_helper(cfg[key]+subpath, factory=make)
+        return await client.unique_helper(cfg[key] + subpath, factory=make)
 
     @classmethod
     def child_type(cls, name):
@@ -485,9 +481,7 @@ class ClientRoot(ClientEntry):
                                 pass
 
                             # update entry
-                            entry.chain = (
-                                None if val is NotGiven else r.get("chain", None)
-                            )
+                            entry.chain = None if val is NotGiven else r.get("chain", None)
                             await entry.set_value(val)
 
                             if val is NotGiven and not entry:

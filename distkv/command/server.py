@@ -41,12 +41,7 @@ logger = logging.getLogger(__name__)
     hidden=True,
 )
 @click.option(
-    "-e",
-    "--eval",
-    "eval_",
-    is_flag=True,
-    help="The 'init' value shall be evaluated.",
-    hidden=True,
+    "-e", "--eval", "eval_", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True
 )
 @click.option(
     "-a",
@@ -56,10 +51,7 @@ logger = logging.getLogger(__name__)
     help="Data in this file is complete: mark anything missing as known even if not.",
 )
 @click.option(
-    "-f",
-    "--force",
-    is_flag=True,
-    help="Force 'successful' startup even if data are missing.",
+    "-f", "--force", is_flag=True, help="Force 'successful' startup even if data are missing."
 )
 @click.argument("name", nargs=1)
 @click.argument("nodes", nargs=-1)

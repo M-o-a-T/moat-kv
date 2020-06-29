@@ -4,16 +4,7 @@ import time
 import asyncclick as click
 import datetime
 
-from distkv.util import (
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    NotGiven,
-    yprint,
-    data_get,
-    path_eval,
-    P,
-)
+from distkv.util import PathLongener, MsgReader, NotGiven, yprint, data_get, P
 from distkv.client import StreamedRequest
 
 import logging
@@ -38,24 +29,14 @@ async def cli():
     "for values. Default: return as list",
 )
 @click.option(
-    "-m",
-    "--maxdepth",
-    type=int,
-    default=None,
-    help="Limit recursion depth. Default: whole tree",
+    "-m", "--maxdepth", type=int, default=None, help="Limit recursion depth. Default: whole tree"
 )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=None,
-    help="Starting depth. Default: whole tree",
+    "-M", "--mindepth", type=int, default=None, help="Starting depth. Default: whole tree"
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
-@click.option(
-    "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
-)
+@click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, **k):
@@ -87,11 +68,7 @@ async def get(obj, path, **k):
     help="Limit recursion depth. Default: 1 (single layer).",
 )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=1,
-    help="Starting depth. Default: 1 (single layer).",
+    "-M", "--mindepth", type=int, default=1, help="Starting depth. Default: 1 (single layer)."
 )
 @click.argument("path", nargs=1)
 @click.pass_obj
@@ -115,12 +92,8 @@ async def list_(obj, path, **k):
 
 @cli.command("set", short_help="Add or update an entry")
 @click.option("-v", "--value", help="The value to store. Mandatory.")
-@click.option(
-    "-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated."
-)
-@click.option(
-    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
-)
+@click.option("-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated.")
+@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
 @click.argument("path", nargs=1)
@@ -151,24 +124,18 @@ async def set_(obj, path, value, eval_, prev, last, new):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(
-        path, value=value, nchain=obj.meta, **args
-    )
+    res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
 @cli.command(short_help="Delete an entry / subtree")
 @click.argument("path", nargs=1)
-@click.option(
-    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
-)
+@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
-@click.option(
-    "-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated."
-)
+@click.option("-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated.")
 @click.pass_obj
 async def delete(obj, path, prev, last, recursive, eval_, internal):
     """
@@ -201,11 +168,7 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client._request(
-        action="delete_tree"
-        if recursive
-        else "delete_internal"
-        if internal
-        else "delete_value",
+        action="delete_tree" if recursive else "delete_internal" if internal else "delete_value",
         path=path,
         nchain=obj.meta,
         **args

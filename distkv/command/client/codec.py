@@ -16,15 +16,9 @@ async def cli():
 
 
 @cli.command()
-@click.option(
-    "-e", "--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here"
-)
-@click.option(
-    "-d", "--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here"
-)
-@click.option(
-    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here"
-)
+@click.option("-e", "--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here")
+@click.option("-d", "--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here")
+@click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script, encode, decode):
@@ -119,16 +113,10 @@ async def set_(obj, path, encode, decode, data, in_, out):
 
 
 @cli.command()
-@click.option(
-    "-c", "--codec", help="Codec to link to. Multiple for hierarchical."
-)
+@click.option("-c", "--codec", help="Codec to link to. Multiple for hierarchical.")
 @click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
 @click.option(
-    "-l",
-    "--list",
-    "list_this",
-    is_flag=True,
-    help="Use to list this converter; '-' to list all.",
+    "-l", "--list", "list_this", is_flag=True, help="Use to list this converter; '-' to list all."
 )
 @click.argument("name", nargs=1)
 @click.argument("path", nargs=1)
@@ -175,9 +163,7 @@ async def convert(obj, path, codec, name, delete, list_this):
 
         return
     if delete:
-        res = await obj.client._request(
-            action="delete_internal", path=Path("conv", name) + path
-        )
+        res = await obj.client._request(action="delete_internal", path=Path("conv", name) + path)
     else:
         msg = {"codec": P(codec)}
         res = await obj.client._request(

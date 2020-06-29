@@ -50,6 +50,7 @@ from .util import (
     NotGiven,
     ValueEvent,
     Path,
+    P,
 )
 from .exceptions import (
     ClientError,
@@ -186,9 +187,7 @@ class StreamCommand:
                     await self.send(**res)
             except Exception as exc:
                 if not isinstance(exc, CancelledError):
-                    self.client.logger.exception(
-                        "ERS%d %r", self.client._client_nr, self.msg
-                    )
+                    self.client.logger.exception("ERS%d %r", self.client._client_nr, self.msg)
                 await self.send(error=repr(exc))
             finally:
                 async with anyio.move_on_after(2, shield=True):
@@ -314,7 +313,7 @@ class SCmd_auth_list(StreamCommand):
             raise RuntimeError("Cannot read tenant users")
         kind = msg.get("kind", "user")
 
-        auth = client.root.follow(root+(None, "auth"), nulls_ok=2, create=False)
+        auth = client.root.follow(root + (None, "auth"), nulls_ok=2, create=False)
         if "ident" in msg:
             data = auth.follow(Path(msg.typ, kind, msg.ident), create=False)
             await self.send_one(data, nchain=nchain)
@@ -435,16 +434,10 @@ class SCmd_get_tree(StreamCommand):
         if root is None:
             root = client.root
             entry, acl = root.follow_acl(
-                msg.path,
-                create=False,
-                nulls_ok=client.nulls_ok,
-                acl=client.acl,
-                acl_key="e",
+                msg.path, create=False, nulls_ok=client.nulls_ok, acl=client.acl, acl_key="e"
             )
         else:
-            entry, _ = root.follow_acl(
-                msg.path, create=False, nulls_ok=client.nulls_ok
-            )
+            entry, _ = root.follow_acl(msg.path, create=False, nulls_ok=client.nulls_ok)
             acl = NullACL
 
         kw = {}
@@ -505,11 +498,7 @@ class SCmd_watch(StreamCommand):
         client = self.client
         conv = client.conv
         entry, acl = client.root.follow_acl(
-            msg.path,
-            acl=client.acl,
-            acl_key="x",
-            create=True,
-            nulls_ok=client.nulls_ok,
+            msg.path, acl=client.acl, acl_key="x", create=True, nulls_ok=client.nulls_ok
         )
         nchain = msg.get("nchain", 0)
         max_depth = msg.get("max_depth", -1)
@@ -530,9 +519,7 @@ class SCmd_watch(StreamCommand):
                                 return
                             if entry.tock < tock:
                                 res = entry.serialize(
-                                    chop_path=client._chop_path,
-                                    nchain=nchain,
-                                    conv=conv,
+                                    chop_path=client._chop_path, nchain=nchain, conv=conv
                                 )
                                 shorter(res)
                                 if not acl.allows("r"):
@@ -765,7 +752,7 @@ class ServerClient:
         return await AuthList(self, msg)()
 
     async def cmd_auth_info(self, msg):
-        msg['path'] = Path(None,"auth")
+        msg["path"] = Path(None, "auth")
         return await self.cmd_get_internal(msg)
 
     async def cmd_root(self, msg):
@@ -805,9 +792,7 @@ class ServerClient:
             )
 
             if acl2 is not None:
-                ok = acl.allows(  # pylint: disable=no-value-for-parameter # pylint is confused
-                    "a"
-                )
+                ok = acl.allows("a")  # pylint: disable=no-value-for-parameter # pylint is confused
                 acl2 = root.follow(Path(None, "acl", acl2), create=False, nulls_ok=True)
                 acl2 = ACLFinder(acl2)
                 _entry, acl = root.follow_acl(
@@ -874,9 +859,7 @@ class ServerClient:
             if msg.get("nchain", 0):
                 entry["chain"] = None
         else:
-            entry = entry.serialize(
-                chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv
-            )
+            entry = entry.serialize(chop_path=-1, nchain=msg.get("nchain", 0), conv=self.conv)
         return entry
 
     async def cmd_set_value(self, msg, **kw):
@@ -904,14 +887,10 @@ class ServerClient:
             acl = self.acl
         else:
             acl = NullACL
-        entry, acl = root.follow_acl(
-            msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok
-        )
+        entry, acl = root.follow_acl(msg.path, acl=acl, acl_key="W", nulls_ok=_nulls_ok)
         if root is self.root and "match" in self.metaroot:
             try:
-                self.metaroot["match"].check_value(
-                    None if value is NotGiven else value, entry
-                )
+                self.metaroot["match"].check_value(None if value is NotGiven else value, entry)
             except ClientError:
                 raise
             except Exception as exc:
@@ -947,9 +926,7 @@ class ServerClient:
         async with self.server.next_event() as event:
             await entry.set_data(
                 event,
-                NotGiven
-                if value is NotGiven
-                else self.conv.dec_value(value, entry=entry),
+                NotGiven if value is NotGiven else self.conv.dec_value(value, entry=entry),
                 server=self.server,
                 tock=self.server.tock,
             )
@@ -966,11 +943,7 @@ class ServerClient:
         You usually do this via a stream command.
         """
         msg = UpdateEvent.deserialize(
-            self.root,
-            msg,
-            nulls_ok=self.nulls_ok,
-            conv=self.conv,
-            cache=self.server._nodes,
+            self.root, msg, nulls_ok=self.nulls_ok, conv=self.conv, cache=self.server._nodes
         )
         res = await msg.entry.apply(msg, server=self, root=self.root)
         if res is None:
@@ -1032,15 +1005,10 @@ class ServerClient:
             res = 0
             if entry.data is not None and acl.allows("d"):
                 async with self.server.next_event() as event:
-                    evt = await entry.set_data(
-                        event, NotGiven, server=self, tock=self.server.tock
-                    )
+                    evt = await entry.set_data(event, NotGiven, server=self, tock=self.server.tock)
                     if nchain:
                         r = evt.serialize(
-                            chop_path=self._chop_path,
-                            nchain=nchain,
-                            with_old=True,
-                            conv=self.conv,
+                            chop_path=self._chop_path, nchain=nchain, with_old=True, conv=self.conv
                         )
                         r["seq"] = seq
                         r.pop("new_value", None)  # always None
@@ -1090,9 +1058,7 @@ class ServerClient:
         if msg.typ is None:
             val.pop("current", None)
         elif msg.typ not in a or not len(a[msg.typ]["user"].keys()):
-            raise RuntimeError(
-                "You didn't configure this method yet:" + repr((msg.typ, vars(a)))
-            )
+            raise RuntimeError("You didn't configure this method yet:" + repr((msg.typ, vars(a))))
         else:
             val["current"] = msg.typ
         msg.value = val
@@ -1172,8 +1138,7 @@ class ServerClient:
                         else:
                             if self.seq >= seq:
                                 raise ClientError(
-                                    "Channel closed? Sequence error: %d < %d"
-                                    % (self.seq, msg.seq)
+                                    "Channel closed? Sequence error: %d < %d" % (self.seq, msg.seq)
                                 )
                             self.seq = seq
                             evt = anyio.create_event()
@@ -1351,14 +1316,11 @@ class Server:
                 yield n
             except BaseException as exc:
                 if n is not None:
-                    self.logger.warning(
-                        "Deletion %s %d due to %r", self.node, n.tick, exc
-                    )
+                    self.logger.warning("Deletion %s %d due to %r", self.node, n.tick, exc)
                     self.node.report_deleted(RangeSet((nt,)), self)
                     async with anyio.move_on_after(2, shield=True):
                         await self._send_event(
-                            "info",
-                            dict(node="", tick=0, deleted={self.node.name: (nt,)}),
+                            "info", dict(node="", tick=0, deleted={self.node.name: (nt,)})
                         )
                 raise
             finally:
@@ -1489,10 +1451,7 @@ class Server:
                     async def send_nodes():
                         nonlocal nodes, n_nodes
                         await client._request(  # pylint: disable=cell-var-from-loop
-                            "check_deleted",
-                            iter=False,
-                            nchain=-1,
-                            nodes=nodes.serialize(),
+                            "check_deleted", iter=False, nchain=-1, nodes=nodes.serialize()
                         )
                         nodes.clear()
                         n_nodes = 0
@@ -1600,7 +1559,7 @@ class Server:
             except ImportError:
                 res["debugger"] = "Import error"
             else:
-                pdb().set_trace_remote(host=b'127.0.0.1', port=57935)
+                pdb().set_trace_remote(host=b"127.0.0.1", port=57935)
 
         res["node"] = self.node.name
         res["tock"] = self.tock
@@ -1752,7 +1711,7 @@ class Server:
                 p = b"".join(s)
                 del self._part_cache[(nn, seq)]
                 msg = unpacker(p)
-                msg["_p0"] = ''
+                msg["_p0"] = ""
 
             i = 0
             while ("_p%d" % (i + 1)) in msg:
@@ -1787,13 +1746,13 @@ class Server:
                         await self.tock_seen(msg.get("tock", 0))
                         await cmd(msg)
         except CancelledError:
-            self.logger.warning("Cancelled %s",action)
+            self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:
-            self.logger.exception("Died %s: %r",action,exc)
+            self.logger.exception("Died %s: %r", action, exc)
             raise
         else:
-            self.logger.error("Stream ended %s",action)
+            self.logger.error("Stream ended %s", action)
 
     async def _run_del(self, evt):
         try:
@@ -1969,17 +1928,11 @@ class Server:
 
                     pl = PathLongener(())
                     res = await client._request(
-                        "get_tree",
-                        iter=True,
-                        from_server=self.node.name,
-                        nchain=-1,
-                        path=(),
+                        "get_tree", iter=True, from_server=self.node.name, nchain=-1, path=()
                     )
                     async for r in res:
                         pl(r)
-                        r = UpdateEvent.deserialize(
-                            self.root, r, cache=self._nodes, nulls_ok=True
-                        )
+                        r = UpdateEvent.deserialize(self.root, r, cache=self._nodes, nulls_ok=True)
                         await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
@@ -1993,9 +1946,7 @@ class Server:
                     )
                     async for r in res:
                         pl(r)
-                        r = UpdateEvent.deserialize(
-                            self.root, r, cache=self._nodes, nulls_ok=True
-                        )
+                        r = UpdateEvent.deserialize(self.root, r, cache=self._nodes, nulls_ok=True)
                         await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
@@ -2183,9 +2134,7 @@ class Server:
         if prio is None:
             await anyio.sleep(clock * (1 + self._actor.random / 3))
         else:
-            await anyio.sleep(
-                clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5)
-            )
+            await anyio.sleep(clock * (1 - (1 / (1 << prio)) / 2 - self._actor.random / 5))
 
         self.logger.debug("SendMissingGo %s %s", prio, self.sending_missing)
         while self.sending_missing:
@@ -2196,10 +2145,7 @@ class Server:
             deleted = {}
             for n in nodes:
                 self.logger.debug(
-                    "SendMissingGo %s %r %r",
-                    n.name,
-                    n.remote_missing,
-                    n.local_superseded,
+                    "SendMissingGo %s %r %r", n.name, n.remote_missing, n.local_superseded
                 )
                 k = n.remote_missing & n.local_superseded
                 for r in n.remote_missing & n.local_present:
@@ -2225,7 +2171,11 @@ class Server:
         self.sending_missing = None
 
     async def load(
-            self, path: str = None, stream: io.IOBase = None, local: bool = False, authoritative: bool = False
+        self,
+        path: str = None,
+        stream: io.IOBase = None,
+        local: bool = False,
+        authoritative: bool = False,
     ):
         """Load data from this stream
 
@@ -2249,9 +2199,7 @@ class Server:
                         await self.tock_seen(m.tock)
                     else:
                         m.tock = self.tock
-                    m = UpdateEvent.deserialize(
-                        self.root, m, cache=self._nodes, nulls_ok=True
-                    )
+                    m = UpdateEvent.deserialize(self.root, m, cache=self._nodes, nulls_ok=True)
                     await self.tock_seen(m.tock)
                     await m.entry.apply(m, server=self, root=self.paranoid_root, loading=True)
                 elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
@@ -2377,11 +2325,7 @@ class Server:
             self._savers.append(state)
             try:
                 await self.save_stream(
-                    path=path,
-                    stream=stream,
-                    done=done,
-                    done_val=s,
-                    save_state=save_state,
+                    path=path, stream=stream, done=done, done_val=s, save_state=save_state
                 )
             except EnvironmentError as err:
                 if done is None:
@@ -2391,9 +2335,7 @@ class Server:
                 async with anyio.open_cancel_scope(shield=True):
                     await sd.set()
 
-    async def run_saver(
-        self, path: str = None, stream=None, save_state=False, wait: bool = True
-    ):
+    async def run_saver(self, path: str = None, stream=None, save_state=False, wait: bool = True):
         """
         Start a task that continually saves to disk.
 
@@ -2414,13 +2356,7 @@ class Server:
         res = None
         if path is not None:
             await self.spawn(
-                partial(
-                    self._saver,
-                    path=path,
-                    stream=stream,
-                    save_state=save_state,
-                    done=done,
-                )
+                partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
             )
             if wait:
                 res = await done.get()
@@ -2529,9 +2465,7 @@ class Server:
                 assert self.node.tick is None
                 self.node.tick = 0
                 async with self.next_event() as event:
-                    await self.root.set_data(
-                        event, self._init, tock=self.tock, server=self
-                    )
+                    await self.root.set_data(event, self._init, tock=self.tock, server=self)
 
             await self.spawn(self._sigterm)
 

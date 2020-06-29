@@ -504,9 +504,7 @@ class UpdateEvent:
     """Represents an event which updates something.
     """
 
-    def __init__(
-        self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None
-    ):
+    def __init__(self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None):
         self.event = event
         self.entry = entry
         self.new_value = new_value
@@ -829,8 +827,7 @@ class Entry:
         await self.apply(evt, server=server)
         return evt
 
-    async def apply(self, evt: UpdateEvent, server=None, root=None,
-            loading=False):
+    async def apply(self, evt: UpdateEvent, server=None, root=None, loading=False):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers.
@@ -896,9 +893,7 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(
-        self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False
-    ):
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False):
         """
         Call coroutine ``proc`` on this node and all its children).
 
@@ -922,9 +917,7 @@ class Entry:
             if k is None and not full:
                 continue
             a = acl.step(k) if acl is not None else None
-            await v.walk(
-                proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth
-            )
+            await v.walk(proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
     def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.

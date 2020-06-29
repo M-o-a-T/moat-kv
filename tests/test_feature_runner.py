@@ -63,17 +63,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 assert rs.stopped
 
             await run(
-                "-vvv",
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "data",
-                "get",
-                "-rd_",
-                ":",
-                do_stdout=False,
+                "-vvv", "client", "-h", h, "-p", p, "data", "get", "-rd_", ":", do_stdout=False
             )
             await trio.sleep(11)
 
