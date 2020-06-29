@@ -1,6 +1,6 @@
 import pytest
 
-from .mock_mqtt import stdtest
+from distkv.mock.mqtt import stdtest
 
 from distkv.code import CodeRoot, ModuleRoot
 from distkv.errors import ErrorRoot

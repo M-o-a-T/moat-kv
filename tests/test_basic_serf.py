@@ -2,8 +2,9 @@ import pytest
 import trio
 from time import time
 
-from .mock_serf import stdtest
-from .run import run
+from distkv.mock import run
+from distkv.mock.serf import stdtest
+
 from distkv.client import ServerError
 from distkv.util import PathLongener, P
 

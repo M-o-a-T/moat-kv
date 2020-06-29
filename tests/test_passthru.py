@@ -1,7 +1,7 @@
 import pytest
 import trio
 
-from .mock_serf import stdtest
+from distkv.mock.serf import stdtest
 from distkv.exceptions import CancelledError
 from distkv.util import P
 

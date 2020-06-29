@@ -3,7 +3,7 @@ import trio
 import mock
 import os
 
-from .mock_mqtt import stdtest
+from distkv.mock.mqtt import stdtest
 from distkv.util import P, Path
 from distkv.server import Server
 from asyncactor.actor import Actor

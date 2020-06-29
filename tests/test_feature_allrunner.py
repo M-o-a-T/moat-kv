@@ -3,9 +3,8 @@ import trio
 import anyio
 import time
 
-from .mock_mqtt import stdtest
-
-from .run import run
+from distkv.mock import run
+from distkv.mock.mqtt import stdtest
 
 from distkv.code import CodeRoot
 from distkv.runner import AllRunnerRoot
