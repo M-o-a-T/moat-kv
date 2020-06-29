@@ -23,7 +23,7 @@ setup(
         "asyncserf >= 0.16",
         "asyncactor >= 0.20.5",
         "jsonschema >= 2.5",
-        "ruamel-yaml >= 0.16",
+        "ruamel.yaml >= 0.16",
         # "argon2 >= 18.3",
         "PyNaCl >= 1.3",
         "diffiehellman",
