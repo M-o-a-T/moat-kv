@@ -176,7 +176,7 @@ class CallAdmin:
         """
         self._state.backoff = 0
         await self._state.save()
-        await self._err.record_working("run", *self._runner._path, **kw)
+        await self._err.record_working("run", self._runner._path, **kw)
 
     async def error(self, **kw):
         """
@@ -186,7 +186,7 @@ class CallAdmin:
 
         See `distkv.errors.ErrorRoot.record_error` for keyword details.
         """
-        r = await self._err.record_error("run", *self._path, **kw)
+        r = await self._err.record_error("run", self._path, **kw)
         await self._err.root.wait_chain(r.chain)
         raise ErrorRecorded()
 
@@ -381,14 +381,14 @@ class RunnerEntry(AttrClientEntry):
             c, self._comment = self._comment, None
             async with anyio.move_on_after(2, shield=True):
                 r = await self.root.err.record_error(
-                    "run", *self._path, message="Exception", exc=exc, data=self.data, comment=c
+                    "run", self._path, message="Exception", exc=exc, data=self.data, comment=c
                 )
                 await self.root.err.wait_chain(r.chain)
             state.backoff += 1
         else:
             state.result = res
             state.backoff = 0
-            await self.root.err.record_working("run", *self._path)
+            await self.root.err.record_working("run", self._path)
         finally:
             async with anyio.fail_after(2, shield=True):
                 if state.node == state.root.name:
@@ -562,7 +562,7 @@ class StateEntry(AttrClientEntry):
         self.node = None
         self.backoff += 1
         await self.root.runner.err.record_error(
-            "run", *self.runner._path, message="Runner restarted"
+            "run", self.runner._path, message="Runner restarted"
         )
         await self.save()
 
@@ -572,10 +572,10 @@ class StateEntry(AttrClientEntry):
         self.backoff += 2
         await self.root.runner.err.record_error(
             "run",
-            *self.runner._path,
+            self.runner._path,
             client_name=self.node,
             message="Runner {node} {state}",
-            data={"node": self.node, "state": "offline" if self.stopped else "stale"}
+            data={"node": self.node, "state": "offline" if self.stopped else "stale"},
         )
         await self.save()
 
