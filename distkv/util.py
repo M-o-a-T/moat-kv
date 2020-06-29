@@ -577,12 +577,9 @@ def make_proc(code, variables, path, *, use_async=False):  # pylint: disable=red
         the procedure to call. All keyval arguments will be in the local
         dict.
     """
-    vars = ",".join(variables)
-    hdr = """\
-def _proc(%s):
-    """ % (
-        vars,
-    )
+    hdr = f"""\
+def _proc({ ",".join(variables) }):
+    """
 
     if use_async:
         hdr = "async " + hdr
@@ -685,7 +682,7 @@ async def data_get(
     mindepth=0,
     empty=False,
     raw=False,
-    internal=False
+    internal=False,
 ):
     if recursive:
         kw = {}
@@ -814,7 +811,7 @@ async def as_service(obj=None):
     from systemd.daemon import notify  # pylint: disable=no-name-in-module
 
     async def run_keepalive(usec):
-        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        usec /= 1_500_000  # 2/3rd of usec ⇒ sec
         pid = os.getpid()
         while os.getpid() == pid:
             notify("WATCHDOG=1")
