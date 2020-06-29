@@ -97,14 +97,14 @@ async def set_(obj, acl, name, path):
     acl = set(acl)
 
     if acl - ACL:
-        raise click.UsageError("You're trying to set an unknown ACL flag: %r" % (acl - ACL,))
+        raise click.UsageError(f"You're trying to set an unknown ACL flag: {acl - ACL !r}")
 
     res = await obj.client._request(
         action="get_internal", path=("acl", name) + path, iter=False, nchain=3 if obj.meta else 1
     )
     ov = set(res.get("value", ""))
     if ov - ACL:
-        print("Warning: original ACL contains unknown: %r" % (ov - acl,), file=sys.stderr)
+        print(f"Warning: original ACL contains unknown: {ov - acl !r}", file=sys.stderr)
 
     if mode == "-" and not acl:
         res = await obj.client._request(

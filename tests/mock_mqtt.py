@@ -28,12 +28,12 @@ otm = time.time
 PORT = 40000 + (os.getpid() + 10) % 10000
 
 broker_cfg = {
-    "listeners": {"default": {"type": "tcp", "bind": "127.0.0.1:%d" % PORT}},
+    "listeners": {"default": {"type": "tcp", "bind": f"127.0.0.1:{PORT}"}},
     "timeout-disconnect-delay": 2,
     "auth": {"allow-anonymous": True, "password-file": None},
 }
 
-URI = "mqtt://127.0.0.1:%d/" % PORT
+URI = f"mqtt://127.0.0.1:{PORT}/"
 
 
 @asynccontextmanager
@@ -53,7 +53,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         import trustme
 
         ca = trustme.CA()
-        cert = ca.issue_server_cert(u"127.0.0.1")
+        cert = ca.issue_server_cert("127.0.0.1")
         server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         ca.configure_trust(client_ctx)

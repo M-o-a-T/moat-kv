@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_51_dh(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as c:
             assert len(s._clients) == 1
             sc = list(s._clients)[0]

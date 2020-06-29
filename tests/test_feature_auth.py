@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
@@ -67,7 +67,7 @@ typ: root
 @pytest.mark.trio
 async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
@@ -109,7 +109,7 @@ typ: _test
 @pytest.mark.trio
 async def test_24_auth_password(autojump_clock):
     async with stdtest(args={"init": 123}, tocks=99) as st:
-        s, = st.s
+        (s,) = st.s
         autojump_clock.autojump_threshold = 1
         h = p = None
         for h, p, *_ in s.ports:

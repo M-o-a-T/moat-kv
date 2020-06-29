@@ -685,7 +685,7 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name, self))
+                        raise ValueError(f"Cannot add {name} to {self}")
                     child = child(name, self, tock=self.tock)
             else:
                 acl.check("x")
@@ -720,7 +720,7 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name, self))
+                        raise ValueError(f"Cannot add {name} to {self}")
                     child = child(name, self, tock=self.tock)
             self = child  # pylint: disable=self-cls-assignment
         return self

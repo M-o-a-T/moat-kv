@@ -57,7 +57,7 @@ class TypeEntry(Entry):
                     if code is not None:
                         code(v, entry=None)
                 except Exception:
-                    raise ValueError("failed on good value %r" % (v,))
+                    raise ValueError(f"failed on good value {v!r}")
             for v in value["bad"]:
                 self.parent.check_value(v)
                 try:
@@ -68,7 +68,7 @@ class TypeEntry(Entry):
                 except Exception:
                     pass
                 else:
-                    raise ValueError("did not fail on %r" % (v,))
+                    raise ValueError(f"did not fail on {v!r}")
 
         await super().set(value)
         self._code = code
@@ -304,10 +304,10 @@ class CodecEntry(Entry):
                 try:
                     r = dec(v)
                 except Exception as exc:
-                    raise ValueError("failed decoder on %r with %r" % (v, exc))
+                    raise ValueError(f"failed decoder on {v!r} with {exc!r}")
                 else:
                     if r != w:
-                        raise ValueError("Decoding %r got %r, not %r" % (v, r, w))
+                        raise ValueError(f"Decoding {v!r} got {r!r}, not {w!r}")
 
         if value is not None and value.encode is not None:
             if not value["out"]:
@@ -317,10 +317,10 @@ class CodecEntry(Entry):
                 try:
                     r = enc(v)
                 except Exception as exc:
-                    raise ValueError("failed encoder on %r with %r" % (v, exc))
+                    raise ValueError(f"failed encoder on {v!r} with {exc!r}")
                 else:
                     if r != w:
-                        raise ValueError("Encoding %r got %r, not %r" % (v, r, w))
+                        raise ValueError(f"encoding {v!r} got {r!r}, not {w!r}")
 
         await super().set(value)
         self._enc = enc

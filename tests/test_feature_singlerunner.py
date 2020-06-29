@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=100) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None  # pylint
         for h, p, *_ in s.ports:
             if h[0] != ":":

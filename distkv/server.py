@@ -901,7 +901,7 @@ class ServerClient:
         send_prev = True
         if "prev" in msg:
             if entry.data != msg.prev:
-                raise ClientError("Data is %s" % (repr(entry.data),))
+                raise ClientError(f"Data is {entry.data !r}")
             send_prev = False
         if "chain" in msg:
             if msg.chain is None:
@@ -910,7 +910,7 @@ class ServerClient:
             elif entry.data is NotGiven:
                 raise ClientError("This entry is new")
             elif entry.chain != msg.chain:
-                raise ClientError("Chain is %s" % (repr(entry.chain),))
+                raise ClientError(f"Chain is {entry.chain !r}")
             send_prev = False
 
         res = attrdict()
@@ -1138,7 +1138,7 @@ class ServerClient:
                         else:
                             if self.seq >= seq:
                                 raise ClientError(
-                                    "Channel closed? Sequence error: %d < %d" % (self.seq, msg.seq)
+                                    f"Channel closed? Sequence error: {self.seq} < {msg.seq}"
                                 )
                             self.seq = seq
                             evt = anyio.create_event()
@@ -1663,12 +1663,12 @@ class Server:
         # TODO use a msgpack extension instead
         if isinstance(msg, Mapping):
             i = 0
-            while ("_p%d" % i) in msg:
+            while (f"_p{i}") in msg:
                 i += 1
             j = i
             while i:
                 i -= 1
-                msg["_p%d" % (i + 1)] = msg["_p%d" % i]
+                msg[f"_p{i+1}"] = msg[f"_p{i}"]
             if j:
                 msg["_p0"] = ""
 
@@ -1714,10 +1714,10 @@ class Server:
                 msg["_p0"] = ""
 
             i = 0
-            while ("_p%d" % (i + 1)) in msg:
-                msg["_p%d" % i] = msg["_p%d" % (i + 1)]
+            while f"_p{i+1}" in msg:
+                msg[f"_p{i}"] = msg[f"_p{i+1}"]
                 i += 1
-            del msg["_p%d" % i]
+            del msg[f"_p{i}"]
         return msg
 
     async def monitor(self, action: str, delay: anyio.abc.Event = None):

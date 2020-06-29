@@ -420,7 +420,7 @@ class Client:
             try:
                 p = packer(params)
             except TypeError as e:
-                raise ValueError("Unable to pack: %r" % repr(params)) from e
+                raise ValueError(f"Unable to pack: {params!r}") from e
             await sock.send_all(p)
 
     async def _reader(self, *, evt=None):
@@ -588,7 +588,7 @@ class Client:
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError("You cannot use '%s' auth" % (auth._auth_method), sa)
+            raise ClientAuthMethodError(f"You cannot use {auth._auth_method!r} auth", sa)
         if getattr(auth, "_DEBUG", False):
             auth._length = 16
         await auth.auth(self)

@@ -125,7 +125,7 @@ class ClientEntry:
         """
         for k in self:
             if k.value is not NotGiven:
-                res = (yield k)
+                res = yield k
                 if res is True:
                     continue
             yield from k.all_children

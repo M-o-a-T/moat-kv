@@ -139,9 +139,7 @@ def cmd():
         # pylint: disable=no-value-for-parameter,unexpected-keyword-arg
         main(standalone_mode=False)
     except click.exceptions.MissingParameter as exc:
-        print(
-            "You need to provide an argument '%s'.\n" % (exc.param.name.upper()), file=sys.stderr
-        )
+        print(f"You need to provide an argument { exc.param.name.upper() !r}.\n", file=sys.stderr)
         print(exc.cmd.get_help(exc.ctx), file=sys.stderr)
         sys.exit(2)
     except click.exceptions.UsageError as exc:

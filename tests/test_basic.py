@@ -178,7 +178,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
-            s, = st.s
+            (s,) = st.s
             h = p = None  # pylint
             for h, p, *_ in s.ports:
                 if h[0] != ":":

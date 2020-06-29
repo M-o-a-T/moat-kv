@@ -14,7 +14,7 @@ def load_cfg(cfg):  # pylint: disable=redefined-outer-name
     elif os.path.exists(os.path.join(os.pardir, cfg)):  # pragma: no cover
         cfg = os.path.join(os.pardir, cfg)
     else:  # pragma: no cover
-        raise RuntimeError("Config file '%s' not found" % (cfg,))
+        raise RuntimeError(f"Config file {cfg!r} not found")
 
     with open(cfg) as f:
         cfg = safe_load(f)

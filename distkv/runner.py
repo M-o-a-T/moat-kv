@@ -340,7 +340,7 @@ class RunnerEntry(AttrClientEntry):
             self._running = True
             try:
                 if state.node is not None:
-                    raise RuntimeError("already running on %s" % (state.node,))
+                    raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
                 data = self.data
                 if data is None:
@@ -598,7 +598,7 @@ class StateEntry(AttrClientEntry):
             return
         elif self.node is None or n == self.root.runner.name:
             # Owch. Our job got taken away from us.
-            run._comment = "Cancel: Node set to %r" % (self.node,)
+            run._comment = f"Cancel: Node set to {self.node !r}"
             await run.scope.cancel()
         elif n is not None:
             logger.warning(

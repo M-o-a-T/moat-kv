@@ -215,7 +215,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
         path = r.pop("path")
         if not full:
             if "info" not in r.value:
-                r.value.info = "<%d lines>" % (len(r.value.code.splitlines()),)
+                r.value.info = f"<{len(r.value.code.splitlines())} lines>"
             del r.value["code"]
 
         if short:

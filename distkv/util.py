@@ -1064,7 +1064,7 @@ class Path(collections.abc.Sequence):
             try:
                 part += x
             except TypeError:
-                raise SyntaxError("Cannot add %r at %d" % (x, pos))
+                raise SyntaxError(f"Cannot add {x!r} at {pos}")
 
         def done(new_part):
             nonlocal part
@@ -1077,7 +1077,7 @@ class Path(collections.abc.Sequence):
                         else:
                             part = path_eval(part)
                     except Exception:
-                        raise SyntaxError("Cannot eval %r at %d" % (part, pos))
+                        raise SyntaxError(f"Cannot eval {part!r} at {pos}")
                     eval_ = False
                 res.append(part)
             part = new_part
@@ -1085,7 +1085,7 @@ class Path(collections.abc.Sequence):
         def new(x, new_part):
             nonlocal part
             if part is None:
-                raise SyntaxError("Cannot use %r at %d" % (part, pos))
+                raise SyntaxError(f"Cannot use {part!r} at {pos}")
             done(new_part)
             res.append(x)
 
@@ -1112,14 +1112,14 @@ class Path(collections.abc.Sequence):
                     eval_ = 2
                 else:
                     if part is None:
-                        raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                        raise SyntaxError(f"Cannot parse {path!r} at {pos}")
                     done("")
                     add(e)
                     eval_ = True
             else:
                 if e == ".":
                     if not part:
-                        raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                        raise SyntaxError(f"Cannot parse {path!r} at {pos}")
                     done(None)
                     pos += 1
                     continue
@@ -1128,12 +1128,12 @@ class Path(collections.abc.Sequence):
                     pos += 1
                     continue
                 elif part is True:
-                    raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+                    raise SyntaxError(f"Cannot parse {path!r} at {pos}")
                 else:
                     add(e)
             pos += len(e)
         if esc or part is None:
-            raise SyntaxError("Cannot parse %r at %d" % (path, pos))
+            raise SyntaxError(f"Cannot parse {path!r} at {pos}")
         done(None)
         return cls(*res)
 
@@ -1238,7 +1238,7 @@ class PathShortener:
         except KeyError:
             return
         if list(p[: self.depth]) != list(self.prefix):
-            raise RuntimeError("Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix)))
+            raise RuntimeError(f"Wrong prefix: has {p!r}, want {self.prefix!r}")
 
         p = p[self.depth :]  # noqa: E203
         cdepth = min(len(p), len(self.path))

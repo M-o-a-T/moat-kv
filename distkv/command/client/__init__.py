@@ -36,9 +36,9 @@ class NullObj:
 
 
 @main.group(cls=partial(Loader, __file__, "client"))  # pylint: disable=undefined-variable
-@click.option("-h", "--host", default=None, help="Host to use. Default: %s" % (CFG.connect.host,))
+@click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
 @click.option(
-    "-p", "--port", type=int, default=None, help="Port to use. Default: %d" % (CFG.connect.port,)
+    "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.connect.port}"
 )
 @click.option(
     "-a",

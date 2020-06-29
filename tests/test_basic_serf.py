@@ -176,7 +176,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
             h = p = None  # pylint

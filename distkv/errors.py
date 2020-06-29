@@ -418,7 +418,7 @@ class ErrorRoot(ClientRoot):
         elif other.node < entry.node:
             return entry, other
 
-        raise RuntimeError("This cannot happen: %s %s" % (entry.node, entry.tock))
+        raise RuntimeError(f"This cannot happen: {entry.node} {entry.tock}")
 
     async def record_working(  # pylint: disable=dangerous-default-value
         self, subsystem, path, *, comment=None, data={}, force=False
@@ -452,7 +452,7 @@ class ErrorRoot(ClientRoot):
         severity=0,
         message=None,
         force: bool = False,
-        comment: str = None
+        comment: str = None,
     ):
         """An exception has occurred for this subtype and path.
 

@@ -50,7 +50,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.xfail
 async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as cx, st.client() as cy, st.client() as cz:
             ex = await ErrorRoot.as_handler(cx, name="a1")
             ey = await ErrorRoot.as_handler(cy, name="a2")
