@@ -189,7 +189,7 @@ class attrdict(dict):
         except KeyError:
             raise AttributeError(a) from None
 
-    def _get(self, *path, skip_empty=True, default=NotGiven):
+    def _get(self, path, skip_empty=True, default=NotGiven):
         """
         Get a node's value and access the dict items beneath it.
         """
@@ -206,7 +206,7 @@ class attrdict(dict):
                 return default
         return val
 
-    def _update(self, *path, value=None, skip_empty=True):
+    def _update(self, path, value=None, skip_empty=True):
         """
         Set some sub-item's value, possibly merging dicts.
         Items set to 'NotGiven' are deleted.
@@ -245,7 +245,7 @@ class attrdict(dict):
 
         return val
 
-    def _delete(self, *path, skip_empty=True):
+    def _delete(self, path, skip_empty=True):
         """
         Remove some sub-item's value, possibly removing now-empty intermediate
         dicts.
@@ -765,17 +765,17 @@ async def data_get(
         obj.stdout.write(str(res))
 
 
-def res_get(res, *path, **kw):
+def res_get(res, path, **kw):
     """
     Get a node's value and access the dict items beneath it.
     """
     val = res.get("value", None)
     if val is None:
         return None
-    return val._get(*path, **kw)
+    return val._get(path, **kw)
 
 
-def res_update(res, *path, value=None, **kw):
+def res_update(res, path, value=None, **kw):
     """
     Set some sub-item's value, possibly merging dicts.
     Items set to 'NotGiven' are deleted.
@@ -783,10 +783,10 @@ def res_update(res, *path, value=None, **kw):
     Returns the new value.
     """
     val = res.get("value", attrdict())
-    return val._update(*path, value=value, **kw)
+    return val._update(path, value=value, **kw)
 
 
-def res_delete(res, *path, **kw):
+def res_delete(res, path, **kw):
     """
     Remove some sub-item's value, possibly removing now-empty intermediate
     dicts.
@@ -794,7 +794,7 @@ def res_delete(res, *path, **kw):
     Returns the new value.
     """
     val = res.get("value", attrdict())
-    return val._delete(*path, **kw)
+    return val._delete(path, **kw)
 
 
 @asynccontextmanager

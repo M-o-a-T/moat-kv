@@ -94,7 +94,7 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
     """
     path = tuple(path)
     if res is None:
-        res = await obj.client.get(*path, nchain=obj.meta or 2)
+        res = await obj.client.get(path, nchain=obj.meta or 2)
     try:
         val = res.value
     except AttributeError:
@@ -103,25 +103,25 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
         split_ = ""
     if eval_:
         if value is NotGiven:
-            value = res_delete(res, *attr)
+            value = res_delete(res, attr)
         else:
             value = eval(value)
             if split_ is not False:
                 value = value.split(split_)
-            value = res_update(res, *attr, value=value)
+            value = res_update(res, attr, value=value)
     else:
         if value is NotGiven:
             if not attr and obj.meta:
                 val = res
             else:
-                val = res_get(res, *attr)
+                val = res_get(res, attr)
             yprint(val, stream=obj.stdout)
             return
         if split_ is not False:
             value = value.split(split_)
-        value = res_update(res, *attr, value=value)
+        value = res_update(res, attr, value=value)
 
-    res = await obj.client.set(*path, value=value, nchain=obj.meta, chain=res.chain)
+    res = await obj.client.set(path, value=value, nchain=obj.meta, chain=res.chain)
     return res
 
 

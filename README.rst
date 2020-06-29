@@ -32,9 +32,9 @@ change internal settings. Most configuration is stored inside DistKV
 itself.
 
 Stored data are **not** forced to be strings or binary sequences, but can
-be anything that `MsgPack` supports. Keys to storage are multi-level.
+be anything that `MsgPack` supports. Keys to storage are multi-level and
+support string, integer/float, and list keys.
 
-For compatibility, a front-end that mimics etcd2 is available (TODO).
 
 Non-Features
 ============
@@ -52,7 +52,11 @@ DistKV is mostly stable. There are a lot of corner cases that don't
 have tests yet
 
 TODOs:
-* breaking change: use dots for path separation, not spaces
-  * use colons as escape character / eval marker
-* some services (esp. runners) are under-tested
+* some services (esp. command line tools and runners) are under-tested
 * there's no good API for errors
+
+Changelog
+=========
+
+0.30: major API refactoring: paths are now separate objects
+
