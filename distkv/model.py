@@ -12,7 +12,7 @@ from collections import defaultdict
 
 from typing import List, Any
 
-from .util import attrdict, NotGiven
+from .util import attrdict, NotGiven, Path
 from .exceptions import ACLError
 from anyio import create_queue
 
@@ -638,7 +638,7 @@ class Entry:
         if self._path is None:
             parent = self.parent
             if parent is None:
-                self._path = []
+                self._path = Path()
             else:
                 self._path = parent.path + [self.name]
         return self._path
@@ -1027,6 +1027,6 @@ class Watcher:
                 self.q._distkv__free += 1
             if res is None:
                 raise RuntimeError("Aborted. Queue filled?")
-            if res.entry.path and res.entry.path[0] is None and not self.full:
+            if len(res.entry.path) and res.entry.path[0] is None and not self.full:
                 continue
             return res
