@@ -15,7 +15,9 @@ def _encode(data):
     if isinstance(data, int) and data >= 1 << 64:
         return msgpack.ExtType(2, data.to_bytes((data.bit_length() + 7) // 8, "big"))
     elif isinstance(data, Path):
-        return msgpack.ExtType(3, b''.join(packer(x) for x in data))
+        # Need a two-step upgrade
+        return tuple(data)
+        #return msgpack.ExtType(3, b''.join(packer(x) for x in data))
     return data
 
 
