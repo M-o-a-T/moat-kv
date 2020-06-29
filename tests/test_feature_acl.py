@@ -7,7 +7,7 @@ from .mock_mqtt import stdtest
 
 from distkv.auth import loader
 from distkv.client import ServerError
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 
 import logging
 
@@ -32,9 +32,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
             # TODO control what happens when stepping to where's no ACL
             # await c._request("set_internal", path=("acl", "foo"), value="x")
             await c._request("set_internal", path=("acl", "foo", "one"), value="rxnc")
-            await c._request(
-                "set_internal", path=("acl", "foo", "one", "two"), value="rc"
-            )
+            await c._request("set_internal", path=P("acl.foo.one.two"), value="rc")
 
             um = loader("_test", "user", make=True, server=False)
             u = um.build({"name": "std"})
@@ -43,7 +41,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
             await u.send(c)
             await c._request(
                 "set_internal",
-                path=("auth", "_test", "user", "aclix", "acl"),
+                path=P("auth._test.user.aclix.acl"),
                 value=dict(key="foo"),
                 iter=False,
             )
@@ -53,12 +51,12 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
         um = loader("_test", "user", make=False, server=False)
 
         async with st.client(auth=um.build({"name": "aclix"})) as c:
-            await c.set("one", value=10)
-            await c.set("one", "two", value=11)
+            await c.set(P("one"), value=10)
+            await c.set(P("one.two"), value=11)
             with pytest.raises(ServerError):
-                await c.set("one", "two", "three", value=12)
+                await c.set(P("one.two.three"), value=12)
             with pytest.raises(ServerError):
-                await c.set("one", "two", value=22)
+                await c.set(P("one.two"), value=22)
 
 
 #           with pytest.raises(ServerError):

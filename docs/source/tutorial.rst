@@ -81,12 +81,12 @@ have to type so much. In ``bash``::
 
 Then, you can store arbitrary data at random DistKV nodes::
 
-   one $ dkd set -ev 123 one two three
-   one $ dkd set -ev 1234 one two three four
-   one $ dkd set -v Duh one two three four five
-   one $ dkd get one two three
+   one $ dkd set -ev 123 one.two.three
+   one $ dkd set -ev 1234 one.two.three.four
+   one $ dkd set -v Duh one.two.three.four.five
+   one $ dkd get one.two.three
    123
-   one $ dkd get one two three four five
+   one $ dkd get one.two.three.four.five
    "Duh"
    one $
 
@@ -111,6 +111,69 @@ DistKV's internal data are stored under a special ``null`` root key.
 You can use ``distkv client internal dump`` to display them. This command
 behaves like ``distkv client data get -rd_``. It accepts a path prefix.
 
+Path specification
+------------------
+
+You might wonder what to do when a path element contains a dot. Our
+solution is to prefix it with an escape character: a colon (``:``).
+Thus, a path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``.
+We choose a colon because it is easy to type and doesn't occur often.
+
+The traditional Unix escape character (backslash ``\\``) is not easy to
+type and must be duplicated almost everywhere you want to actually type it,
+thus we don't use that. You may need it to shell-escape spaces or quotes in
+paths, however.
+
+Of course, you now need to escape colons too: the path 'a' 'b:c' 'd' is
+written as ``a.b::c.d``.
+
+Colons have other uses because ``True``, ``False``, ``None``, arbitrary
+numbers, or even lists can also be path elements. Also, DistKV codes the empty
+string as ``:e`` – otherwise it'd be too easy to leave a stray or duplicate
+dot at the end of a path and then wonder why your data are missing.
+
+A space is encoded as ``:_``. While a literal space is not a problem, it
+needs to be escaped on the command line. Experience shows that people tend
+to skip that.
+
+There's also the empty path (i.e. the top of DistKV's entry hierarchy,
+not the same as a path that consists of an empty string!), which is
+coded as a single colon for much the same reason.
+
+Thus:
+
+==== ==========
+Code   Meaning
+---- ----------
+ :.      .
+ ::      :
+ :_    space
+ :t    True
+ :f    False
+ :n    None
+ :e    empty
+ :x  hex number
+==== ==========
+
+If anything else follows your colon, it's evaluated as a Python expression
+and added to the path.
+
+Hex number input is purely a convenience; integers in paths are always
+printed in decimal form. While you also could use ``:0x…`` in place of
+``:x–``, the latter reduces visual clutter and ensures that the input is in
+fact a hex number and not something else.
+
+.. warning::
+
+   Yes, DistKV supports tuples as part of paths. You probably should not use
+   this feature without a very good reason. "My key consists of three
+   random integers and I want to avoid the overhead of storing a lot of
+   intermediate entries" would be one example.
+   
+   DistKV also allows you to use both ``False``, an integer zero, and a
+   floating-point zero as path elements. This is dangerous because Python's
+   comparison and hashing operators treat them as equal. (Same for ``True``
+   and 1; same for all floating point numbers without fractions.)
 
 Persistent storage
 ==================

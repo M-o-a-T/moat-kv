@@ -7,7 +7,7 @@ from .run import run
 # from .run import run
 # from functools import partial
 
-from distkv.util import PathLongener
+from distkv.util import PathLongener, P
 
 from distkv.errors import ErrorRoot
 import logging
@@ -36,7 +36,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
                 try:
                     1 / 0
                 except Exception as exc:
-                    await ex.record_error("tester", "here", "or", "there", exc=exc)
+                    await ex.record_error("tester", P("here.or.there"), exc=exc)
                 await trio.sleep(1)
                 n = 0
                 for err in e.all_errors("tester"):
@@ -50,7 +50,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.xfail
 async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as cx, st.client() as cy, st.client() as cz:
             ex = await ErrorRoot.as_handler(cx, name="a1")
             ey = await ErrorRoot.as_handler(cy, name="a2")
@@ -59,10 +59,7 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
             async def err(e):
                 with trio.CancelScope(shield=True):
                     await e.record_error(
-                        "tester",
-                        "dup",
-                        message="Owchie at {node}",
-                        data={"node": e.name},
+                        "tester", P("dup"), message="Owchie at {node}", data={"node": e.name}
                     )
 
             async with trio.open_nursery() as tg:
@@ -75,9 +72,7 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
             for h, p, *_ in s.ports:
                 if h[0] != ":":
                     break
-            await run(
-                "client", "-m", "-h", h, "-p", p, "data", "get", "-rd_", do_stdout=False
-            )
+            await run("client", "-m", "-h", h, "-p", p, "data", "get", "-rd_", do_stdout=False)
             await trio.sleep(2)
 
             n = 0

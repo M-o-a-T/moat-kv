@@ -52,11 +52,18 @@ livehtml: docs
 update:
 	pip install -r ci/test-requirements.txt
 
+cov:
+	$(PYTEST) tests --cov=distkv --cov-report=term-missing
 test:
-	black distkv tests setup.py
+	black -l 99 --check distkv tests setup.py
 	flake8 distkv tests setup.py
 	pylint distkv tests setup.py
-	env MSGPACK_PUREPYTHON=1 $(PYTEST) $(TEST_OPTIONS) tests
+	$(PYTEST) $(TEST_OPTIONS) tests
+
+format:
+	black -l 99 distkv tests setup.py
+
+precommit: format test
 
 tagged:
 	git describe --tags --exact-match
@@ -69,4 +76,4 @@ pypi:	tagged
 upload: pypi
 	git push --tags
 
-.PHONY: all tagged pypi upload
+.PHONY: all tagged pypi upload precommit format test cov

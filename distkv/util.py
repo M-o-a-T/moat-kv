@@ -3,13 +3,16 @@ This module contains various helper functions and classes.
 """
 import trio
 import anyio
-import yaml
 import sys
 import os
+import re
 import asyncclick as click
 
 import attr
 import outcome
+import collections.abc
+import simpleeval
+import ast as _ast
 
 from getpass import getpass
 from collections import deque
@@ -17,7 +20,14 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import Union, Dict, Optional
 from ssl import SSLContext
-from functools import partial
+from functools import partial, total_ordering
+
+import ruamel.yaml as yaml
+
+SafeRepresenter = yaml.representer.SafeRepresenter
+SafeConstructor = yaml.constructor.SafeConstructor
+
+NoneType = type(None)
 
 from .exceptions import CancelledError
 
@@ -36,6 +46,14 @@ def singleton(cls):
     return cls()
 
 
+def yload(stream, multi=False):
+    y = yaml.YAML(typ="safe")
+    if multi:
+        return y.load_all(stream)
+    else:
+        return y.load(stream)
+
+
 def yprint(data, stream=sys.stdout, compact=False):
     """
     Standard code to write a YAML record.
@@ -51,7 +69,9 @@ def yprint(data, stream=sys.stdout, compact=False):
     #   elif isinstance(data, bytes):
     #       os.write(sys.stdout.fileno(), data)
     else:
-        yaml.safe_dump(data, stream=stream, default_flow_style=compact)
+        y = yaml.YAML(typ="safe")
+        y.default_flow_style = compact
+        y.dump(data, stream=stream)
 
 
 def yformat(data, compact=None):
@@ -175,7 +195,7 @@ class attrdict(dict):
         except KeyError:
             raise AttributeError(a) from None
 
-    def _get(self, *path, skip_empty=True, default=NotGiven):
+    def _get(self, path, skip_empty=True, default=NotGiven):
         """
         Get a node's value and access the dict items beneath it.
         """
@@ -192,7 +212,7 @@ class attrdict(dict):
                 return default
         return val
 
-    def _update(self, *path, value=None, skip_empty=True):
+    def _update(self, path, value=None, skip_empty=True):
         """
         Set some sub-item's value, possibly merging dicts.
         Items set to 'NotGiven' are deleted.
@@ -215,20 +235,23 @@ class attrdict(dict):
             except KeyError:
                 w = type(v)()
             else:
+                # copy
                 w = type(w)(**w)
-            v = v[p] = w
+            v[p] = w
+            v = w
+        px = path[-1]
         if value is NotGiven:
-            v.pop(path[-1], None)
+            v.pop(px, None)
         elif not isinstance(value, Mapping):
-            v[path[-1]] = value
-        elif path[-1] in v:
-            v[path[-1]] = combine_dict(value, v[path[-1]], cls=type(self))
+            v[px] = value
+        elif px in v:
+            v[px] = combine_dict(value, v[px], cls=type(self))
         else:
-            v[path[-1]] = value
+            v[px] = value
 
         return val
 
-    def _delete(self, *path, skip_empty=True):
+    def _delete(self, path, skip_empty=True):
         """
         Remove some sub-item's value, possibly removing now-empty intermediate
         dicts.
@@ -257,8 +280,6 @@ class attrdict(dict):
         return val
 
 
-from yaml.representer import SafeRepresenter
-
 SafeRepresenter.add_representer(attrdict, SafeRepresenter.represent_dict)
 
 
@@ -283,106 +304,6 @@ async def acount(it):
     async for _ in it:  # noqa: F841
         n += 1
     return n
-
-
-class PathShortener:
-    """This class shortens path entries so that the initial components that
-    are equal to the last-used path (or the original base) are skipped.
-
-    It is illegal to path-shorten messages whose path does not start with
-    the initial prefix.
-
-    Example: The sequence
-
-        a b
-        a b c d
-        a b c e f
-        a b c e g h
-        a b c i
-        a b j
-
-    is shortened to
-
-        0
-        0 c d
-        1 e f
-        2 g h
-        1 i
-        0 j
-
-    where the initial number is the passed-in ``depth``, assuming the
-    PathShortener is initialized with ``('a','b')``.
-
-    Usage::
-
-        >>> d = _PathShortener(['a','b'])
-        >>> d({'path': 'a b c d'.split})
-        {'depth':0, 'path':['c','d']}
-        >>> d({'path': 'a b c e f'.split})
-        {'depth':1, 'path':['e','f']}
-
-    etc.
-
-    Note that the input dict is modified in-place.
-
-    """
-
-    def __init__(self, prefix):
-        self.prefix = prefix
-        self.depth = len(prefix)
-        self.path = []
-
-    def __call__(self, res):
-        try:
-            p = res["path"]
-        except KeyError:
-            return
-        if list(p[: self.depth]) != list(self.prefix):
-            raise RuntimeError(
-                "Wrong prefix: has %s, want %s" % (repr(p), repr(self.prefix))
-            )
-
-        p = p[self.depth :]  # noqa: E203
-        cdepth = min(len(p), len(self.path))
-        for i in range(cdepth):
-            if p[i] != self.path[i]:
-                cdepth = i
-                break
-        self.path = p
-        p = p[cdepth:]
-        res["path"] = p
-        res["depth"] = cdepth
-
-
-class PathLongener:
-    """
-    This reverts the operation of a PathShortener. You need to pass the
-    same prefix in.
-
-    Calling a PathLongener with a dict without ``depth`` or ``path``
-    attributes is a no-op.
-    """
-
-    def __init__(self, prefix: tuple = ()):
-        self.depth = len(prefix)
-        if not isinstance(prefix, tuple):
-            # may be a list, dammit
-            prefix = tuple(prefix)
-        self.path = prefix
-
-    def __call__(self, res):
-        p = res.get("path", None)
-        if p is None:
-            return
-        d = res.pop("depth", None)
-        if d is None:
-            return
-        if not isinstance(p, tuple):
-            # may be a list, dammit
-            p = tuple(p)
-        p = self.path[: self.depth + d] + p
-        self.path = p
-        res["path"] = p
 
 
 class _MsgRW:
@@ -644,9 +565,7 @@ def _call_proc(code, *a, **kw):
     return code(*a)
 
 
-def make_proc(
-    code, variables, *path, use_async=False
-):  # pylint: disable=redefined-builtin
+def make_proc(code, variables, path, *, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
@@ -658,17 +577,14 @@ def make_proc(
         the procedure to call. All keyval arguments will be in the local
         dict.
     """
-    vars = ",".join(variables)
-    hdr = """\
-def _proc(%s):
-    """ % (
-        vars,
-    )
+    hdr = f"""\
+def _proc({ ",".join(variables) }):
+    """
 
     if use_async:
         hdr = "async " + hdr
     code = hdr + code.replace("\n", "\n    ")
-    code = compile(code, ".".join(str(x) for x in path), "exec")
+    code = compile(code, str(path), "exec")
 
     return partial(_call_proc, code)
 
@@ -678,7 +594,7 @@ class Module(ModuleType):
         return "<Module %s>" % (self.__class__.__name__,)
 
 
-def make_module(code, *path):
+def make_module(code, path):
     """Compile this code block to something module-ish.
 
     Args:
@@ -756,30 +672,17 @@ class NoLock:
         return
 
 
-def path_eval(path, evals):
-    if not evals:
-        yield from iter(path)
-        return
-    evals = set(evals)
-    i = 0
-    for p in path:
-        i += 1
-        if i in evals:
-            p = eval(p)  # pylint: disable=eval-used
-        yield p
-
-
 async def data_get(
     obj,
-    *path,
-    eval_path=(),
+    path,
+    *,
     recursive=True,
     as_dict="_",
     maxdepth=-1,
     mindepth=0,
     empty=False,
     raw=False,
-    internal=False
+    internal=False,
 ):
     if recursive:
         kw = {}
@@ -791,13 +694,9 @@ async def data_get(
             kw["add_empty"] = True
         y = {}
         if internal:
-            res = await obj.client._request(
-                action="get_tree_internal", path=path, iter=True, **kw
-            )
+            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
         else:
-            res = obj.client.get_tree(
-                *path_eval(path, eval_path), nchain=obj.meta, **kw
-            )
+            res = obj.client.get_tree(path, nchain=obj.meta, **kw)
         async for r in res:
             r.pop("seq", None)
             path = r.pop("path")
@@ -848,13 +747,13 @@ async def data_get(
         raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
     if as_dict is not None:
         raise click.UsageError("'as-dict' only works with 'recursive'")
-    res = await obj.client.get(*path_eval(path, eval_path), nchain=obj.meta)
+    res = await obj.client.get(path, nchain=obj.meta)
     if not obj.meta:
         try:
             res = res.value
         except AttributeError:
             if obj.debug:
-                print("No data at", list(repr(path_eval(path, eval_path))), file=sys.stderr)
+                print("No data at", path, file=sys.stderr)
             sys.exit(1)
 
     if not raw:
@@ -865,17 +764,17 @@ async def data_get(
         obj.stdout.write(str(res))
 
 
-def res_get(res, *path, **kw):
+def res_get(res, path, **kw):
     """
     Get a node's value and access the dict items beneath it.
     """
     val = res.get("value", None)
     if val is None:
         return None
-    return val._get(*path, **kw)
+    return val._get(path, **kw)
 
 
-def res_update(res, *path, value=None, **kw):
+def res_update(res, path, value=None, **kw):
     """
     Set some sub-item's value, possibly merging dicts.
     Items set to 'NotGiven' are deleted.
@@ -883,10 +782,10 @@ def res_update(res, *path, value=None, **kw):
     Returns the new value.
     """
     val = res.get("value", attrdict())
-    return val._update(*path, value=value, **kw)
+    return val._update(path, value=value, **kw)
 
 
-def res_delete(res, *path, **kw):
+def res_delete(res, path, **kw):
     """
     Remove some sub-item's value, possibly removing now-empty intermediate
     dicts.
@@ -894,7 +793,7 @@ def res_delete(res, *path, **kw):
     Returns the new value.
     """
     val = res.get("value", attrdict())
-    return val._delete(*path, **kw)
+    return val._delete(path, **kw)
 
 
 @asynccontextmanager
@@ -912,7 +811,7 @@ async def as_service(obj=None):
     from systemd.daemon import notify  # pylint: disable=no-name-in-module
 
     async def run_keepalive(usec):
-        usec /= 1500000  # 2/3rd of usec ⇒ sec
+        usec /= 1_500_000  # 2/3rd of usec ⇒ sec
         pid = os.getpid()
         while os.getpid() == pid:
             notify("WATCHDOG=1")
@@ -998,3 +897,384 @@ class ValueEvent:
         """
         await self.event.wait()
         return self.value.unwrap()
+
+
+async def spawn(taskgroup, proc, *args, **kw):
+    """
+    Run a task within this object's task group.
+
+    Returns:
+        a cancel scope you can use to stop the task.
+    """
+
+    scope = None
+
+    async def _run(proc, args, kw, evt):
+        """
+        Helper for starting a task.
+
+        This accepts a :class:`ValueEvent`, to pass the task's cancel scope
+        back to the caller.
+        """
+        nonlocal scope
+        async with anyio.open_cancel_scope() as sc:
+            scope = sc
+            await evt.set()
+            await proc(*args, **kw)
+
+    evt = anyio.create_event()
+    await taskgroup.spawn(_run, proc, args, kw, evt)
+    await evt.wait()
+    return scope
+
+
+_PartRE = re.compile("[^:._]+|_|:|\\.")
+
+
+@total_ordering
+class Path(collections.abc.Sequence):
+    """
+    This object represents the path to a DistKV node.
+
+    It is an immutable list with special representation.
+    """
+
+    def __init__(self, *a):
+        self._data = a
+
+    @classmethod
+    def build(cls, data):
+        """Optimized shortcut to generate a path from an existing tuple"""
+        if isinstance(data, Path):
+            return data
+        if not isinstance(data, tuple):
+            return cls(*data)
+        p = object.__new__(cls)
+        p._data = data
+        return p
+
+    def __str__(self):
+        def _escol(x, spaces=True):  # XXX make the default adjustable?
+            x = x.replace(":", "::").replace(".", ":.")
+            if spaces:
+                x = x.replace(" ", ":_")
+            return x
+
+        res = []
+        if not self._data:
+            return ":"
+        for x in self._data:
+            if isinstance(x, str) and len(x):
+                if res:
+                    res.append(".")
+                res.append(_escol(x))
+            elif isinstance(x, (Path, tuple)) and len(x):
+                x = ",".join(repr(y) for y in x)
+                res.append(":" + _escol(x))
+            elif x is True:
+                res.append(":t")
+            elif x is False:
+                res.append(":f")
+            elif x is None:
+                res.append(":n")
+            elif x == "":
+                res.append(":e")
+            else:
+                if isinstance(x, (Path, tuple)):  # no spaces
+                    assert not len(x)
+                    x = "()"
+                else:
+                    x = repr(x)
+                res.append(":" + _escol(x))
+        return "".join(res)
+
+    def __getitem__(self, x):
+        if isinstance(x, slice) and x.start == 0 and x.step == 1:
+            return type(self)(*self._data[x])
+        else:
+            return self._data[x]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __bool__(self):
+        return True
+
+    def __eq__(self, other):
+        if isinstance(other, Path):
+            other = other._data
+        return self._data == other
+
+    def __lt__(self, other):
+        if isinstance(other, Path):
+            other = other._data
+        return self._data < other
+
+    def __hash__(self):
+        return hash(self._data)
+
+    def __iter__(self):
+        return self._data.__iter__()
+
+    def __contains__(self, x):
+        return x in self._data
+
+    def __or__(self, other):
+        return Path(*self._data, other)
+
+    def __add__(self, other):
+        if isinstance(other, Path):
+            other = other._data
+        if not len(other):
+            return self
+        return Path(*self._data, *other)
+
+    # TODO add alternate output with hex integers
+
+    def __repr__(self):
+        return "P(%r)" % (str(self),)
+
+    @classmethod
+    def from_str(cls, path):
+        """
+        Constructor to build a Path from its string representation.
+        """
+        res = []
+        part: Union[NoneType, bool, str] = False
+        # non-empty string: accept colon-eval or dot (inline)
+        # True: require dot or colon-eval (after :t)
+        # False: accept only colon-eval (start)
+        # None: accept neither (after dot)
+
+        esc: bool = False
+        # marks that an escape char has been seen
+
+        eval_: Union[bool, int] = False
+        # marks whether the current input shall be evaluated;
+        # 2=it's a hex number
+
+        pos = 0
+        if path == ":":
+            return cls()
+
+        def add(x):
+            nonlocal part
+            if not isinstance(part, str):
+                part = ""
+            try:
+                part += x
+            except TypeError:
+                raise SyntaxError(f"Cannot add {x!r} at {pos}")
+
+        def done(new_part):
+            nonlocal part
+            nonlocal eval_
+            if isinstance(part, str):
+                if eval_:
+                    try:
+                        if eval_ == 2:
+                            part = int(part, 16)
+                        else:
+                            part = path_eval(part)
+                    except Exception:
+                        raise SyntaxError(f"Cannot eval {part!r} at {pos}")
+                    eval_ = False
+                res.append(part)
+            part = new_part
+
+        def new(x, new_part):
+            nonlocal part
+            if part is None:
+                raise SyntaxError(f"Cannot use {part!r} at {pos}")
+            done(new_part)
+            res.append(x)
+
+        if path == "":
+            raise SyntaxError("The empty string is not a path")
+        for e in _PartRE.findall(path):
+            if esc:
+                esc = False
+                if e in ":.":
+                    add(e)
+                elif e == "e":
+                    new("", True)
+                elif e == "t":
+                    new(True, True)
+                elif e == "f":
+                    new(False, True)
+                elif e == "n":
+                    new(None, True)
+                elif e == "_":
+                    add(" ")
+                elif e[0] == "x":
+                    done(None)
+                    part = e[1:]
+                    eval_ = 2
+                else:
+                    if part is None:
+                        raise SyntaxError(f"Cannot parse {path!r} at {pos}")
+                    done("")
+                    add(e)
+                    eval_ = True
+            else:
+                if e == ".":
+                    if not part:
+                        raise SyntaxError(f"Cannot parse {path!r} at {pos}")
+                    done(None)
+                    pos += 1
+                    continue
+                elif e == ":":
+                    esc = True
+                    pos += 1
+                    continue
+                elif part is True:
+                    raise SyntaxError(f"Cannot parse {path!r} at {pos}")
+                else:
+                    add(e)
+            pos += len(e)
+        if esc or part is None:
+            raise SyntaxError(f"Cannot parse {path!r} at {pos}")
+        done(None)
+        return cls(*res)
+
+    @classmethod
+    def _make(cls, loader, node):
+        value = loader.construct_scalar(node)
+        return cls.from_str(value)
+
+
+P = Path.from_str
+
+
+class PathNode(yaml.nodes.ScalarNode):
+    pass
+
+
+def _path_repr(dumper, data):
+    return dumper.represent_scalar("!P", str(data))
+    # return ScalarNode(tag, value, style=style)
+    # return yaml.events.ScalarEvent(anchor=None, tag='!P', implicit=(True, True), value=str(data))
+
+
+SafeRepresenter.add_representer(Path, _path_repr)
+SafeConstructor.add_constructor("!P", Path._make)
+
+
+def _bin_from_ascii(loader, node):
+    value = loader.construct_scalar(node)
+    return value.encode("ascii")
+
+
+def _bin_to_ascii(dumper, data):
+    try:
+        data = data.decode("ascii")
+    except UnicodeEncodeError:
+        return dumper.represent_binary(data)
+    else:
+        return dumper.represent_scalar("!bin", data)
+
+
+SafeRepresenter.add_representer(bytes, _bin_to_ascii)
+SafeConstructor.add_constructor("!bin", _bin_from_ascii)
+
+
+# path_eval is a simple "eval" replacement to implement resolving
+# expressions in paths. While it can be used for math its primary function
+_eval = simpleeval.SimpleEval(functions={})
+_eval.nodes[_ast.Tuple] = lambda node: tuple(_eval._eval(x) for x in node.elts)
+path_eval = _eval.eval
+
+
+class PathShortener:
+    """This class shortens path entries so that the initial components that
+    are equal to the last-used path (or the original base) are skipped.
+
+    It is illegal to path-shorten messages whose path does not start with
+    the initial prefix.
+
+    Example: The sequence
+
+        a b
+        a b c d
+        a b c e f
+        a b c e g h
+        a b c i
+        a b j
+
+    is shortened to
+
+        0
+        0 c d
+        1 e f
+        2 g h
+        1 i
+        0 j
+
+    where the initial number is the passed-in ``depth``, assuming the
+    PathShortener is initialized with ``('a','b')``.
+
+    Usage::
+
+        >>> d = _PathShortener(['a','b'])
+        >>> d({'path': 'a b c d'.split})
+        {'depth':0, 'path':['c','d']}
+        >>> d({'path': 'a b c e f'.split})
+        {'depth':1, 'path':['e','f']}
+
+    etc.
+
+    Note that the input dict is modified in-place.
+
+    """
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+        self.depth = len(prefix)
+        self.path = []
+
+    def __call__(self, res):
+        try:
+            p = res["path"]
+        except KeyError:
+            return
+        if list(p[: self.depth]) != list(self.prefix):
+            raise RuntimeError(f"Wrong prefix: has {p!r}, want {self.prefix!r}")
+
+        p = p[self.depth :]  # noqa: E203
+        cdepth = min(len(p), len(self.path))
+        for i in range(cdepth):
+            if p[i] != self.path[i]:
+                cdepth = i
+                break
+        self.path = p
+        p = p[cdepth:]
+        res["path"] = p
+        res["depth"] = cdepth
+
+
+class PathLongener:
+    """
+    This reverts the operation of a PathShortener. You need to pass the
+    same prefix in.
+
+    Calling a PathLongener with a dict without ``depth`` or ``path``
+    attributes is a no-op.
+    """
+
+    def __init__(self, prefix: Union[Path, tuple] = ()):
+        self.depth = len(prefix)
+        self.path = Path.build(prefix)
+
+    def __call__(self, res):
+        p = res.get("path", None)
+        if p is None:
+            return
+        d = res.pop("depth", None)
+        if d is None:
+            return
+        if not isinstance(p, tuple):
+            # may be a list, dammit
+            p = tuple(p)
+        p = self.path[: self.depth + d] + p
+        self.path = p
+        res["path"] = p

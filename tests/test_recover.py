@@ -4,8 +4,7 @@ import mock
 import os
 
 from .mock_mqtt import stdtest
-import msgpack
-from distkv.util import attrdict
+from distkv.util import P, Path
 from distkv.server import Server
 from asyncactor.actor import Actor
 
@@ -22,44 +21,57 @@ if rs is None:
     import random
 else:
     import trio._core._run as tcr
+
     random = tcr._r
 
-F1=0.05
-F2=0.05
-F3=0.05
-F4=0.2
+F1 = 0.05
+F2 = 0.05
+F3 = 0.05
+F4 = 0.2
 
 _asm = Actor._send_msg
-async def send_msg(self,msg):
+
+
+async def send_msg(self, msg):
     if random.random() < F1:
-        logger.info("NoMSG %s %r",self._name, msg)
+        logger.info("NoMSG %s %r", self._name, msg)
         return
-    logger.debug("MSG %s %r",self._name, msg)
-    await _asm(self,msg)
+    logger.debug("MSG %s %r", self._name, msg)
+    await _asm(self, msg)
+
 
 _aqm = Actor.queue_msg
-async def queue_msg(self,msg):
+
+
+async def queue_msg(self, msg):
     if random.random() < F2:
-        logger.info("NoQUM %s %r",self._name, msg)
+        logger.info("NoQUM %s %r", self._name, msg)
         return
     # logger.debug("QUM %s %r",self._name, msg)
-    await _aqm(self,msg)
+    await _aqm(self, msg)
+
 
 _old_send = Server._send_event
+
+
 async def send_evt(self, action: str, msg: dict):
     if random.random() < F3:
         logger.info("NoOUT %s %s %r", self.node.name, action, msg)
         return
     logger.debug("OUT %s %s %r", self.node.name, action, msg)
-    return await _old_send(self,action, msg)
+    return await _old_send(self, action, msg)
+
 
 _old_upm = Server._unpack_multiple
+
+
 def unpack_multiple(self, msg: dict):
     if random.random() < F4:
         logger.info("NoIN  %s %r", self.node.name, msg)
         return
     logger.debug("IN  %s %r", self.node.name, msg)
     return _old_upm(self, msg)
+
 
 @pytest.mark.trio
 async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
@@ -71,13 +83,15 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg))
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg))
         st.ex.enter_context(mock.patch("distkv.server.Server._send_event", new=send_evt))
-        st.ex.enter_context(mock.patch("distkv.server.Server._unpack_multiple", new=unpack_multiple))
+        st.ex.enter_context(
+            mock.patch("distkv.server.Server._unpack_multiple", new=unpack_multiple)
+        )
 
         for x in range(NX):
             for i in range(N):
-                async with st.client((i+x)%N) as ci:
+                async with st.client((i + x) % N) as ci:
                     for j in range(NN):
-                        await ci.set("test",i,j, value=(i,j,x))
+                        await ci.set(Path("test", i, j), value=(i, j, x))
 
         await trio.sleep(1)
 
@@ -87,14 +101,14 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
             for s in range(N):
                 async with st.client(s) as ci:
                     c = 0
-                    async for r in ci.get_tree("test", min_depth=2,nchain=5):
-                        if r.value == (r.path[-2],r.path[-1],NX-1):
+                    async for r in ci.get_tree(P("test"), min_depth=2, nchain=5):
+                        if r.value == (r.path[-2], r.path[-1], NX - 1):
                             c += 1
                         else:
                             logger.info("%d: old %r", s, r)
-                    if c != N*NN:
+                    if c != N * NN:
                         res = await ci._request("get_state", iter=False, missing=True)
-                        logger.info("%d: missing %d %r", s,N*NN-c, res.missing)
+                        logger.info("%d: missing %d %r", s, N * NN - c, res.missing)
                         missed = True
             if missed:
                 await trio.sleep(100)

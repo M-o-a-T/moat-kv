@@ -3,6 +3,7 @@ import trio
 
 from .mock_serf import stdtest
 from distkv.exceptions import CancelledError
+from distkv.util import P
 
 import logging
 
@@ -12,13 +13,13 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as c:
             recv = []
 
             async def mon():
                 try:
-                    async with c._stream("msg_monitor", topic=("foo",)) as q:
+                    async with c._stream("msg_monitor", topic=P("foo")) as q:
                         async for m in q:
                             assert "data" in m
                             assert m.topic[0] == "foo"
@@ -29,7 +30,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
 
             await s.spawn(mon)
             await trio.sleep(0.2)
-            await c._request("msg_send", topic=("foo", "bar"), data=["Hello", 42])
+            await c._request("msg_send", topic=P("foo.bar"), data=["Hello", 42])
             await c._request("msg_send", topic=("foo", "baz"), data=b"duh")
             await trio.sleep(0.5)
         assert recv == [("Hello", 42), b"duh"]
@@ -40,7 +41,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
-        s, = st.s
+        (s,) = st.s
         async with st.client() as c:
             recv = []
 
@@ -56,7 +57,7 @@ async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argume
             await s.spawn(mon)
             await trio.sleep(0.2)
             await c._request("msg_send", topic=("foo",), data=["Hello", 42])
-            await c._request("msg_send", topic=("foo",), raw=b"duh")
+            await c._request("msg_send", topic=P("foo"), raw=b"duh")
             await trio.sleep(0.5)
         assert recv == [b"\x92\xa5Hello*", b"duh"]
         pass  # closing client

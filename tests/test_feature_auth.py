@@ -7,6 +7,7 @@ from .run import run
 from distkv.client import ServerError
 from distkv.exceptions import ClientAuthRequiredError, ClientAuthMethodError
 from distkv.auth import gen_auth
+from distkv.util import P
 
 import logging
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
@@ -24,30 +25,30 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
 
         async with st.client() as c:
-            assert (await c.get()).value == 123
+            assert (await c.get(P(":"))).value == 123
 
-        r = await run_c("data", "get")
+        r = await run_c("data", "get", ":")
         assert r.stdout == "123\n"
 
         r = await run_c("auth", "-m", "root", "user", "add")
 
-        r = await run_c("data", "get")
+        r = await run_c("data", "get", ":")
         assert r.stdout == "123\n"
 
         r = await run_c("auth", "-m", "root", "init")
 
         with pytest.raises(ClientAuthRequiredError):
-            await run_c("data", "get")
+            await run_c("data", "get", ":")
         with pytest.raises(ClientAuthRequiredError):
             async with st.client() as c:
-                assert (await c.get()).value == 123
+                assert (await c.get(P(":"))).value == 123
 
-        r = await run_c("-a", "root", "data", "get")
+        r = await run_c("-a", "root", "data", "get", ":")
         assert r.stdout == "123\n"
 
         anull = gen_auth("root")
         async with st.client(auth=anull) as c:
-            assert (await c.get()).value == 123
+            assert (await c.get(())).value == 123
 
         r = await run_c("-a", "root", "auth", "user", "list")
         assert r.stdout == "*\n"
@@ -66,7 +67,7 @@ typ: root
 @pytest.mark.trio
 async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
@@ -108,14 +109,14 @@ typ: _test
 @pytest.mark.trio
 async def test_24_auth_password(autojump_clock):
     async with stdtest(args={"init": 123}, tocks=99) as st:
-        s, = st.s
+        (s,) = st.s
         autojump_clock.autojump_threshold = 1
         h = p = None
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        await run_c("data", "set", "-v", "42", "answers", "life etc.")
+        await run_c("data", "set", "-v", "42", "answers.life etc:.")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
@@ -134,14 +135,14 @@ typ: password
 """
         )
         run_u = partial(run_c, "-a", "password name=joe password=test123")
-        await run_c("-a", "root", "data", "set", "-v", 42, "answers", "life etc")
+        await run_c("-a", "root", "data", "set", "-v", 42, "answers.life etc:.")
         with pytest.raises(ClientAuthMethodError):
-            res = await run_u("data", "get", "answers", "life etc")
+            res = await run_u("data", "get", "answers.life etc:.")
         await run_c("-a", "root", "auth", "-m", "password", "init", "-s")
-        res = await run_u("data", "get", "answers", "life etc")
+        res = await run_u("data", "get", "answers.life etc:.")
         assert res.stdout == "42\n"
         run_u = partial(run_c, "-a", "password name=joe password=test1234")
         with pytest.raises(ServerError) as se:
-            res = await run_u("data", "get", "answers", "life etc")
+            res = await run_u("data", "get", "answers.life etc:.")
         assert str(se.value).startswith("AuthFailedError(")
         assert "hashes do not match" in str(se.value)

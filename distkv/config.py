@@ -5,7 +5,7 @@ An online-updated config store
 
 try:
     from contextlib import asynccontextmanager
-except ImportError:
+except ImportError:  # pragma: no cover
     from async_generator import asynccontextmanager
 
 from .errors import ServerError
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigEntry(ClientEntry):
     @classmethod
-    def child_type(cls, name):
+    def child_type(cls, name):  # pragma: no cover
         """Given a node, return the type which the child with that name should have.
         The default is "same as this class".
         """
@@ -44,5 +44,5 @@ class ConfigRoot(ClientRoot):
         try:
             async with super().run() as x:
                 yield x
-        except ServerError:
+        except ServerError:  # pragma: no cover
             logger.exception("No config data")

@@ -2,9 +2,8 @@
 
 import asyncclick as click
 
-from distkv.util import split_one, NotGiven
+from distkv.util import split_one, NotGiven, yprint, Path
 from distkv.auth import loader, gen_auth
-from distkv.util import yprint
 
 import logging
 
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 @click.pass_obj
 async def cli(obj, method):
     """Manage authorization. Usage: … auth METHOD command…. Use '.' for 'all methods'."""
-    a = await obj.client.get(None, "auth")
+    a = await obj.client._request(action="auth_info")
     a = a.get("value", None)
     if a is not None:
         a = a["current"]
@@ -36,15 +35,17 @@ async def enum_auth(obj):
         return
     # TODO create a method for this
     res = await obj.client._request(
-        action="get_tree",
-        path=(None, "auth"),
-        iter=True,
+        action="enum_internal",
+        path=Path("auth"),
+        iter=False,
+        with_data=False,
+        empty=True,
         nchain=0,
-        min_depth=1,
-        max_depth=1,
     )
-    async for r in res:
-        yield r.path[-1]
+    for r in res.result:
+        print(r)
+        yield r
+    pass
 
 
 async def one_auth(obj):
@@ -66,12 +67,7 @@ async def enum_typ(obj, kind="user", ident=None, nchain=0):
     async for auth in enum_auth(obj):
         if ident is not None:
             res = await obj.client._request(
-                action="auth_list",
-                typ=auth,
-                kind=kind,
-                ident=ident,
-                iter=False,
-                nchain=nchain,
+                action="auth_list", typ=auth, kind=kind, ident=ident, iter=False, nchain=nchain
             )
             yield res
         else:
@@ -114,10 +110,7 @@ async def user():
 
 @user.command("list")
 @click.option(
-    "-v",
-    "--verbose",
-    is_flag=True,
-    help="Print complete results. Default: just the names",
+    "-v", "--verbose", is_flag=True, help="Print complete results. Default: just the names"
 )
 @click.pass_obj  # pylint: disable=function-redefined
 async def list_user(obj, verbose):
@@ -168,10 +161,7 @@ async def param(obj, new, ident, type, key, args):  # pylint: disable=redefined-
         u._length = 16
     # ou = await u.recv(obj.client, ident, _initial=False)  # unused
     res = await obj.client._request(
-        action="get_internal",
-        path=("auth", auth, "user", ident, type),
-        iter=False,
-        nchain=3,
+        action="get_internal", path=("auth", auth, "user", ident, type), iter=False, nchain=3
     )
 
     kw = res.get("value", NotGiven)

@@ -504,9 +504,7 @@ class UpdateEvent:
     """Represents an event which updates something.
     """
 
-    def __init__(
-        self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None
-    ):
+    def __init__(self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None):
         self.event = event
         self.entry = entry
         self.new_value = new_value
@@ -560,7 +558,7 @@ class UpdateEvent:
             if ConvNull is None:
                 from .types import ConvNull
             conv = ConvNull
-        entry = root.follow(*msg.path, create=True, nulls_ok=nulls_ok)
+        entry = root.follow(msg.path, create=True, nulls_ok=nulls_ok)
         event = NodeEvent.deserialize(msg, cache=cache)
         old_value = NotGiven
         if "value" in msg:
@@ -645,7 +643,7 @@ class Entry:
                 self._path = parent.path + [self.name]
         return self._path
 
-    def follow_acl(self, *path, create=True, nulls_ok=False, acl=None, acl_key=None):
+    def follow_acl(self, path, *, create=True, nulls_ok=False, acl=None, acl_key=None):
         """Follow this path.
 
         If ``create`` is True (default), unknown nodes are silently created.
@@ -687,7 +685,7 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name, self))
+                        raise ValueError(f"Cannot add {name} to {self}")
                     child = child(name, self, tock=self.tock)
             else:
                 acl.check("x")
@@ -704,7 +702,7 @@ class Entry:
         acl.check(acl_key)
         return (self, acl)
 
-    def follow(self, *path, create=True, nulls_ok=False):
+    def follow(self, path, *, create=True, nulls_ok=False):
         """
         As :meth:`follow_acl`, but isn't interested in ACLs and only returns the node.
         """
@@ -722,7 +720,7 @@ class Entry:
                 if create is not None:
                     child = self.SUBTYPES.get(name, self.SUBTYPE)
                     if child is None:
-                        raise ValueError("Cannot add %s to %s" % (name, self))
+                        raise ValueError(f"Cannot add {name} to {self}")
                     child = child(name, self, tock=self.tock)
             self = child  # pylint: disable=self-cls-assignment
         return self
@@ -829,8 +827,7 @@ class Entry:
         await self.apply(evt, server=server)
         return evt
 
-    async def apply(self, evt: UpdateEvent, server=None, root=None,
-            loading=False):
+    async def apply(self, evt: UpdateEvent, server=None, root=None, loading=False):
         """Apply this :cls`UpdateEvent` to me.
 
         Also, forward to watchers.
@@ -896,9 +893,7 @@ class Entry:
             n.seen(t, self)
         await self.updated(evt)
 
-    async def walk(
-        self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False
-    ):
+    async def walk(self, proc, acl=None, max_depth=-1, min_depth=0, _depth=0, full=False):
         """
         Call coroutine ``proc`` on this node and all its children).
 
@@ -922,9 +917,7 @@ class Entry:
             if k is None and not full:
                 continue
             a = acl.step(k) if acl is not None else None
-            await v.walk(
-                proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth
-            )
+            await v.walk(proc, acl=a, max_depth=max_depth, min_depth=min_depth, _depth=_depth)
 
     def serialize(self, chop_path=0, nchain=2, conv=None):
         """Serialize this entry for msgpack.
@@ -966,7 +959,7 @@ class Entry:
                     bad.add(q)
             for q in bad:
                 try:
-                    if q._distkv__free is None or q._distkv__free > 0:
+                    if q._distkv__free > 0:
                         await q.put(None)
                     node.monitors.remove(q)
                 except KeyError:
@@ -1030,10 +1023,10 @@ class Watcher:
             raise RuntimeError("Aborted. Queue filled?")
         while True:
             res = await self.q.get()
+            if self.q._distkv__free is not None:
+                self.q._distkv__free += 1
             if res is None:
                 raise RuntimeError("Aborted. Queue filled?")
             if res.entry.path and res.entry.path[0] is None and not self.full:
                 continue
-            if self.q._distkv__free is not None:
-                self.q._distkv__free += 1
             return res

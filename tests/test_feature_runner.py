@@ -10,6 +10,8 @@ from .run import run
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot
 from distkv.errors import ErrorRoot
+from distkv.util import P
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=100) as st:
-        s, = st.s
+        (s,) = st.s
         h = p = None  # pylint
         for h, p, *_ in s.ports:
             if h[0] != ":":
@@ -29,14 +31,13 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             r = await AnyRunnerRoot.as_handler(c, subpath=(), code=cr)
             c._test_evt = anyio.create_event()
             await cr.add(
-                "forty",
-                "two",
+                P("forty.two"),
                 code="""\
                 c=_client
                 s=_self
                 await c._test_evt.set()
                 await s.setup_done()
-                await s.watch("test",4242)
+                await s.watch(_P("test:4242"))
                 async for msg in _info:
                     if isinstance(msg, _cls.TimerMsg):
                         return 42
@@ -45,33 +46,24 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 """,
                 is_async=True,
             )
-            ru = r.follow("foo", "test", create=True)
-            ru.code = ("forty", "two")
+            ru = r.follow(P("foo.test"), create=True)
+            ru.code = P("forty.two")
             await ru.run_at(time.time() + 1)
             logger.info("Start sleep")
             rs = ru.state
             with trio.fail_after(60):
                 await c._test_evt.wait()
-                await c.set("test",4242, value=13)
+                await c.set(P("test:4242"), value=13)
                 await trio.sleep(2)
                 assert not rs.stopped
-                await c.set("test",4242, value=42)
+                await c.set(P("test:4242"), value=42)
                 await trio.sleep(2)
                 assert not rs.stopped
                 await trio.sleep(10)
                 assert rs.stopped
 
             await run(
-                "-vvv",
-                "client",
-                "-h",
-                h,
-                "-p",
-                p,
-                "data",
-                "get",
-                "-rd_",
-                do_stdout=False,
+                "-vvv", "client", "-h", h, "-p", p, "data", "get", "-rd_", ":", do_stdout=False
             )
             await trio.sleep(11)
 

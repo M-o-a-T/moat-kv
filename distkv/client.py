@@ -13,14 +13,14 @@ from typing import Tuple
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
     import random
-else:
+else:  # pragma: no cover
     import trio._core._run as tcr
 
     random = tcr._r
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
-except ImportError:
+except ImportError:  # pragma: no cover
     from async_generator import asynccontextmanager
     from async_exit_stack import AsyncExitStack
 
@@ -84,7 +84,7 @@ class StreamedRequest:
             Set to None if you already sent a single-message request.
     report_start: True if the initial state=start message of a multi-reply
                   should be included in the iterator.
-                  If False, only available as ``.start_msg``.
+                  If False, the message is available as ``.start_msg``.
     TODO: add rate limit.
 
     Call ``.send(**params)`` to send something; call ``.recv()``
@@ -118,7 +118,7 @@ class StreamedRequest:
         state = msg.get("state", "")
 
         if state == "start":
-            if self._reply_stream is not None:
+            if self._reply_stream is not None:  # pragma: no cover
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
             self.start_msg = msg
@@ -127,7 +127,7 @@ class StreamedRequest:
                 await self.q.put(outcome.Value(msg))
 
         elif state == "end":
-            if self._reply_stream is not True:
+            if self._reply_stream is not True:  # pragma: no cover
                 raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
             self.end_msg = msg
@@ -136,10 +136,10 @@ class StreamedRequest:
             return False
 
         else:
-            if state not in ("", "uptodate"):
+            if state not in ("", "uptodate"):  # pragma: no cover
                 logger.warning("Unknown state: %s", msg)
 
-            if self._reply_stream is False:
+            if self._reply_stream is False:  # pragma: no cover
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
@@ -340,7 +340,7 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, *path, factory=None):
+    async def unique_helper(self, path, factory=None):
         """
         Run a (single) async context manager on that path.
 
@@ -420,7 +420,7 @@ class Client:
             try:
                 p = packer(params)
             except TypeError as e:
-                raise ValueError("Unable to pack: %r" % repr(params)) from e
+                raise ValueError(f"Unable to pack: {params!r}") from e
             await sock.send_all(p)
 
     async def _reader(self, *, evt=None):
@@ -534,17 +534,17 @@ class Client:
 
         This is a context manager. Use it like this::
 
-            async with client._stream("update", path="private storage".split(),
+            async with client._stream("update", path=P("private.storage"),
                     stream=True) as req:
                 with MsgReader("/tmp/msgs.pack") as f:
                     for msg in f:
                         await req.send(msg)
             # … or …
-            async with client._stream("get_tree", path="private storage".split()) as req:
+            async with client._stream("get_tree", path=P("private.storage)) as req:
                 for msg in req:
                     await process_entry(msg)
             # … or maybe … (auth does this)
-            async with client._stream("interactive_thing", path=(None,"foo")) as req:
+            async with client._stream("interactive_thing", path=P(':n.foo)) as req:
                 msg = await req.recv()
                 while msg.get(s,"")=="more":
                     await foo.send(s="more",value="some data")
@@ -583,16 +583,12 @@ class Client:
         if not sa or not sa[0]:
             # no auth required
             if auth:
-                logger.info(
-                    "Tried to use auth=%s, but not required.", auth._auth_method
-                )
+                logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
             return
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError(
-                "You cannot use '%s' auth" % (auth._auth_method), sa
-            )
+            raise ClientAuthMethodError(f"You cannot use {auth._auth_method!r} auth", sa)
         if getattr(auth, "_DEBUG", False):
             auth._length = 16
         await auth.auth(self)
@@ -621,9 +617,7 @@ class Client:
         async with AsyncExitStack() as ex:
             self.exit_stack = ex
             try:
-                ctx = await anyio.connect_tcp(
-                    host, port, ssl_context=ssl, autostart_tls=False
-                )
+                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
             except socket.gaierror:
                 raise ServerConnectionError(host, port)
             stream = await ex.enter_async_context(ctx)
@@ -669,7 +663,7 @@ class Client:
 
     # externally visible interface ##########################
 
-    def get(self, *path, nchain=0):
+    def get(self, path, *, nchain=0):
         """
         Retrieve the data at a particular subtree position.
 
@@ -684,9 +678,11 @@ class Client:
 
         For lower overhead and set-directly-after-get change, nchain may be 1 or 2.
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
-    def set(self, *path, value=NotGiven, chain=NotGiven, prev=NotGiven, nchain=0):
+    def set(self, path, value=NotGiven, *, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Set or update a value.
 
@@ -699,6 +695,8 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain tag, for further updates.
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         if value is NotGiven:
             raise RuntimeError("You need to supply a value, or call 'delete'")
 
@@ -712,7 +710,7 @@ class Client:
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, *path, chain=NotGiven, prev=NotGiven, nchain=0):
+    def delete(self, path, *, chain=NotGiven, prev=NotGiven, nchain=0):
         """
         Delete a node.
 
@@ -724,17 +722,17 @@ class Client:
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain, for setting a new value.
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         kw = {}
         if prev is not NotGiven:
             kw["prev"] = prev
         if chain is not NotGiven:
             kw["chain"] = chain
 
-        return self._request(
-            action="delete_value", path=path, iter=False, nchain=nchain, **kw
-        )
+        return self._request(action="delete_value", path=path, iter=False, nchain=nchain, **kw)
 
-    async def list(self, *path, with_data=False, empty=None, **kw):
+    async def list(self, path, *, with_data=False, empty=None, **kw):
         """
         Retrieve the next data level.
 
@@ -743,14 +741,14 @@ class Client:
           empty (bool): Return [names of] empty nodes. Default True if
             with_data is not set.
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         if empty is None:
             empty = not with_data
-        res = await self._request(
-            action="enum", path=path, with_data=with_data, empty=empty, **kw
-        )
+        res = await self._request(action="enum", path=path, with_data=with_data, empty=empty, **kw)
         return res.result
 
-    async def get_tree(self, *path, long_path=True, **kw):
+    async def get_tree(self, path, *, long_path=True, **kw):
         """
         Retrieve a complete DistKV subtree.
 
@@ -768,6 +766,8 @@ class Client:
           long_path (bool): if set (the default), pass the result through PathLongener
 
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         if long_path:
             lp = PathLongener()
         async for r in await self._request(
@@ -777,7 +777,7 @@ class Client:
                 lp(r)
             yield r
 
-    def delete_tree(self, *path, nchain=0):
+    def delete_tree(self, path, *, nchain=0):
         """
         Delete a whole subtree.
 
@@ -785,6 +785,8 @@ class Client:
         the deleted nodes; if not, the single return value only contains the
         number of deleted nodes.
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         return self._request(action="delete_tree", path=path, nchain=nchain)
 
     def stop(self, seq: int):
@@ -799,7 +801,7 @@ class Client:
         """
         return self._request(action="stop", task=seq)
 
-    def watch(self, *path, long_path=True, **kw):
+    def watch(self, path, *, long_path=True, **kw):
         """
         Return an async iterator of changes to a subtree.
 
@@ -819,11 +821,11 @@ class Client:
         DistKV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
-        return self._stream(
-            action="watch", path=path, iter=True, long_path=long_path, **kw
-        )
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
+        return self._stream(action="watch", path=path, iter=True, long_path=long_path, **kw)
 
-    def mirror(self, *path, root_type=None, **kw):
+    def mirror(self, path, *, root_type=None, **kw):
         """An async context manager that affords an update-able mirror
         of part of a DistKV store.
 
@@ -844,11 +846,13 @@ class Client:
                 # via ``foobar``, but they will no longer be kept up-to-date.
 
         """
+        if isinstance(path, str):
+            raise RuntimeError("You need a path, not a string")
         if root_type is None:
             from .obj import ClientRoot
 
             root_type = ClientRoot
-        root = root_type(self, *path, **kw)
+        root = root_type(self, path, **kw)
         return root.run()
 
     def msg_monitor(self, topic: Tuple[str], raw: bool = False):

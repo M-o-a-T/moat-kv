@@ -2,7 +2,7 @@
 This module contains the default values for distkv configuration.
 """
 
-from .util import attrdict, combine_dict, NotGiven
+from .util import attrdict, combine_dict, NotGiven, P
 from .ext import list_ext, load_ext
 
 __all__ = ["PORT", "CFG"]
@@ -17,10 +17,7 @@ PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 CFG = attrdict(
     logging={  # a magic incantation
         "version": 1,
-        "loggers": {
-            "asyncserf": {"level": "INFO"},
-            "xknx.raw_socket": {"level": "INFO"},
-        },
+        "loggers": {"asyncserf": {"level": "INFO"}, "xknx.raw_socket": {"level": "INFO"}},
         "root": {"handlers": ["stderr"], "level": "INFO"},
         "handlers": {
             #           "logfile": {
@@ -54,23 +51,19 @@ CFG = attrdict(
         auth=None,  # no auth used by default
         name=None,  # defaults to the server's name
     ),
-    config=attrdict(prefix=(".distkv", "config")),
-    errors=attrdict(prefix=(".distkv", "error")),
-    codes=attrdict(prefix=(".distkv", "code", "proc")),
-    modules=attrdict(prefix=(".distkv", "code", "module")),
+    config=attrdict(prefix=P(":.distkv.config")),
+    errors=attrdict(prefix=P(":.distkv.error")),
+    codes=attrdict(prefix=P(":.distkv.code.proc")),
+    modules=attrdict(prefix=P(":.distkv.code.module")),
     runner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=(".distkv", "run"),  # storage for runnable commands
-        state=(".distkv", "state"),  # storage for runner states
+        prefix=P(":.distkv.run"),  # storage for runnable commands
+        state=P(":.distkv.state"),  # storage for runner states
         name="run",  # Serf event name, suffixed by subpath
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
         # positive: set in distkv, negative: broadcast to :distkv:run tag
-        actor=attrdict(  # Actor config
-            cycle=10, nodes=-1, splits=5  # required for Runner
-        ),
-        sub=attrdict(  # tags for various runner modes
-            group="any", single="at", all="all"
-        ),
+        actor=attrdict(cycle=10, nodes=-1, splits=5),  # Actor config  # required for Runner
+        sub=attrdict(group="any", single="at", all="all"),  # tags for various runner modes
     ),
     server=attrdict(
         # server-side configuration
@@ -101,5 +94,5 @@ CFG = attrdict(
     },
 )
 
-for n, f in list_ext("config"):
+for n, _ in list_ext("config"):  # pragma: no cover
     CFG[n] = combine_dict(load_ext(n, "config", "CFG"), CFG.get(n, {}), cls=attrdict)

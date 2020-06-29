@@ -2,7 +2,7 @@ import weakref
 import jsonschema
 
 from .model import Entry
-from .util import make_proc, NotGiven, singleton
+from .util import make_proc, NotGiven, singleton, Path
 from .exceptions import ClientError, ACLError
 
 
@@ -44,7 +44,7 @@ class TypeEntry(Entry):
             if value.get("code", None) is None:
                 code = None
             else:
-                code = make_proc(value.code, ("value",), *self.path)
+                code = make_proc(value.code, ("value",), self.path)
             if len(value.good) < 2:
                 raise RuntimeError("Must have check-good values")
             if not value.bad:
@@ -57,7 +57,7 @@ class TypeEntry(Entry):
                     if code is not None:
                         code(v, entry=None)
                 except Exception:
-                    raise ValueError("failed on good value %r" % (v,))
+                    raise ValueError(f"failed on good value {v!r}")
             for v in value["bad"]:
                 self.parent.check_value(v)
                 try:
@@ -68,7 +68,7 @@ class TypeEntry(Entry):
                 except Exception:
                     pass
                 else:
-                    raise ValueError("did not fail on %r" % (v,))
+                    raise ValueError(f"did not fail on {v!r}")
 
         await super().set(value)
         self._code = code
@@ -107,11 +107,14 @@ class MatchEntry(MetaEntry):
             pass
         elif isinstance(value.type, str):
             value.type = (value.type,)
-        elif not isinstance(value.type, (list, tuple)):
+        elif not isinstance(value.type, (Path, list, tuple)):
             raise ValueError("Type is not a list")
         try:
-            self.metaroot["type"].follow(*value.type, create=False)
+            self.metaroot["type"].follow(value.type, create=False)
         except KeyError:
+            import pdb
+
+            pdb.set_trace()
             raise ClientError("This type does not exist")
         # crashes if nonexistent
         await super().set(value)
@@ -261,7 +264,7 @@ class MatchRoot(MetaPathEntry):
         match = self._find_node(entry)
         if match is None:
             return
-        typ = self.parent["type"].follow(*match._data["type"])
+        typ = self.parent["type"].follow(match._data["type"])
         return typ.check_value(value, entry=entry, match=match, **kv)
 
 
@@ -296,28 +299,28 @@ class CodecEntry(Entry):
         if value is not None and value.decode is not None:
             if not value["in"]:
                 raise RuntimeError("Must have tests for decoding")
-            dec = make_proc(value.decode, ("value",), *self.path)
+            dec = make_proc(value.decode, ("value",), self.path)
             for v, w in value["in"]:
                 try:
                     r = dec(v)
                 except Exception as exc:
-                    raise ValueError("failed decoder on %r with %r" % (v, exc))
+                    raise ValueError(f"failed decoder on {v!r} with {exc!r}")
                 else:
                     if r != w:
-                        raise ValueError("Decoding %r got %r, not %r" % (v, r, w))
+                        raise ValueError(f"Decoding {v!r} got {r!r}, not {w!r}")
 
         if value is not None and value.encode is not None:
             if not value["out"]:
                 raise RuntimeError("Must have tests for encoding")
-            enc = make_proc(value.encode, ("value",), *self.path)
+            enc = make_proc(value.encode, ("value",), self.path)
             for v, w in value["out"]:
                 try:
                     r = enc(v)
                 except Exception as exc:
-                    raise ValueError("failed encoder on %r with %r" % (v, exc))
+                    raise ValueError(f"failed encoder on {v!r} with {exc!r}")
                 else:
                     if r != w:
-                        raise ValueError("Encoding %r got %r, not %r" % (v, r, w))
+                        raise ValueError(f"encoding {v!r} got {r!r}, not {w!r}")
 
         await super().set(value)
         self._enc = enc
@@ -362,7 +365,7 @@ class ConvEntry(MetaEntry):
             elif not isinstance(value.codec, (list, tuple)):
                 raise ValueError("Codec is not a string or list")
             try:
-                self.metaroot["codec"].follow(*value.codec, create=False)
+                self.metaroot["codec"].follow(value.codec, create=False)
             except KeyError:
                 raise ClientError("This codec does not exist")
         await super().set(value)
@@ -401,7 +404,7 @@ class ConvName(MetaPathEntry):
         conv = self._find_node(entry)
         if conv is None:
             return value
-        codec = self.metaroot["codec"].follow(*conv._data["codec"])
+        codec = self.metaroot["codec"].follow(conv._data["codec"])
         return codec.enc_value(value, entry=entry, conv=conv, **kv)
 
     def dec_value(self, value, entry, **kv):
@@ -409,7 +412,7 @@ class ConvName(MetaPathEntry):
         conv = self._find_node(entry)
         if conv is None:
             return value
-        codec = self.metaroot["codec"].follow(*conv._data["codec"])
+        codec = self.metaroot["codec"].follow(conv._data["codec"])
         return codec.dec_value(value, entry=entry, conv=conv, **kv)
 
 

@@ -32,9 +32,9 @@ change internal settings. Most configuration is stored inside DistKV
 itself.
 
 Stored data are **not** forced to be strings or binary sequences, but can
-be anything that `MsgPack` supports. Keys to storage are multi-level.
+be anything that `MsgPack` supports. Keys to storage are multi-level and
+support string, integer/float, and list keys.
 
-For compatibility, a front-end that mimics etcd2 is available (TODO).
 
 Non-Features
 ============
@@ -48,4 +48,15 @@ event logs can be used to quickly restore a system, if necessary.
 Status
 ======
 
-DistKV has rich accessors and can distribute data, but not yet recover.
+DistKV is mostly stable. There are a lot of corner cases that don't
+have tests yet
+
+TODOs:
+* some services (esp. command line tools and runners) are under-tested
+* there's no good API for errors
+
+Changelog
+=========
+
+0.30: major API refactoring: paths are now separate objects
+

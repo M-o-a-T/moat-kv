@@ -86,4 +86,4 @@ def load_ext(name, func, endpoint=None, **kw):
     try:
         return load_one(func, _ext_cache[name], endpoint, **kw)
     except KeyError:
-        raise click.UsageError("I do not know %r" % (name,))
+        raise click.UsageError(f"I do not know {name !r}")

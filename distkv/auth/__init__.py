@@ -61,12 +61,11 @@ The server process is:
 
 import jsonschema
 import io
-import yaml
 from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict, NotGiven
+from ..util import split_one, attrdict, NotGiven, yload, Path
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -111,7 +110,7 @@ def gen_auth(s: str):
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
         with io.open(m[1:], "r") as f:
-            kw = yaml.safe_load(f)
+            kw = yload(f)
             m = kw.pop("type")
     else:
         kw = {}
@@ -139,21 +138,20 @@ def load(typ: str, *, make: bool = False, server: bool):
         stream: the filter used for authorizing the user.
         user: represents a user record.
     """
-    raise NotImplementedError("You need to implement me")
+    raise NotImplementedError("You need to implement me")  # pragma: no cover
 
 
 async def null_server_login(stream):
     return stream
 
 
-async def null_client_login(
-    stream, user: "BaseClientAuth"
-):  # pylint: disable=unused-argument
+async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=unused-argument
     return stream
 
 
-def _load_example(typ: str, make: bool, server: bool):
-    """example for :proc:`load`"""
+def _load_example(typ: str, make: bool, server: bool):  # pragma: no cover
+    """example code for :proc:`load`
+    """
     if typ == "client":
         if server:
             return null_server_login
@@ -262,7 +260,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
     def export(self):
         """Return the data required to re-create the user via :meth:`build`."""
-        return {}
+        return {}  # pragma: no cover
 
     @property
     def ident(self):
@@ -270,7 +268,7 @@ class BaseClientAuthMaker(_AuthLoaded):
 
         Required so that the server can actually find the record.
         """
-        return "*"
+        return "*"  # pragma: no cover
 
     @classmethod
     async def recv(cls, client: Client, ident: str, _kind="user", _initial=True):
@@ -278,12 +276,9 @@ class BaseClientAuthMaker(_AuthLoaded):
 
         Sample code …
         """
+        # pragma: no cover
         res = await client._request(
-            "auth_get",
-            typ=cls._auth_method,
-            kind=_kind,
-            ident=ident,
-            nchain=0 if _initial else 2,
+            "auth_get", typ=cls._auth_method, kind=_kind, ident=ident, nchain=0 if _initial else 2
         )
         self = cls(_initial=_initial)
         self._chain = res.chain
@@ -342,7 +337,7 @@ class BaseServerAuth(_AuthLoaded):
 
         try:
             data = data["conv"].data["key"]
-            res, _ = root.follow_acl(None, "conv", data, create=False, nulls_ok=True)
+            res, _ = root.follow_acl(Path(None, "conv", data), create=False, nulls_ok=True)
             return res
         except (KeyError, AttributeError):
             return ConvNull
@@ -352,7 +347,7 @@ class BaseServerAuth(_AuthLoaded):
             data = data["acl"].data["key"]
             if data == "*":
                 return NullACL
-            acl, _ = root.follow_acl(None, "acl", data, create=False, nulls_ok=True)
+            acl, _ = root.follow_acl(Path(None, "acl", data), create=False, nulls_ok=True)
             return ACLFinder(acl)
         except (KeyError, AttributeError):
             return NullACL

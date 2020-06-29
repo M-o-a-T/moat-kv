@@ -3,7 +3,7 @@
 import asyncclick as click
 
 from range_set import RangeSet
-from distkv.util import yprint, PathLongener
+from distkv.util import yprint, PathLongener, P
 from collections.abc import Mapping
 
 import logging
@@ -34,9 +34,7 @@ async def cli():
 @click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
 @click.option("-d", "--debug", is_flag=True, help="Get internal verbosity.")
 @click.option("-D", "--debugger", is_flag=True, help="Start a remote debugger. DO NOT USE.")
-@click.option(
-    "-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status."
-)
+@click.option("-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status.")
 @click.option("-a", "--all", is_flag=True, help="All available data.")
 @click.pass_obj
 async def state(obj, **flags):
@@ -60,15 +58,9 @@ async def state(obj, **flags):
 
 
 @cli.command()
+@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded")
 @click.option(
-    "-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded"
-)
-@click.option(
-    "-n",
-    "--node",
-    "source",
-    default="?",
-    help="The node this message is faked as being from.",
+    "-n", "--node", "source", default="?", help="The node this message is faked as being from."
 )
 @click.option("-b", "--broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
@@ -151,18 +143,14 @@ async def deleter(obj, delete, nodes):
 
     val = {"nodes": list(val)}
     res = await obj.client._request(
-        action="set_internal",
-        path=("actor", "del"),
-        iter=False,
-        chain=res.chain,
-        value=val,
+        action="set_internal", path=("actor", "del"), iter=False, chain=res.chain, value=val
     )
     res.value = val
     yprint(res, stream=obj.stdout)
 
 
 @cli.command()
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def dump(obj, path):
     """
@@ -171,11 +159,10 @@ async def dump(obj, path):
     This displays DistKV's internal state.
     """
 
+    path = P(path)
     y = {}
     pl = PathLongener()
-    async for r in await obj.client._request(
-        "get_tree_internal", path=path, iter=True, nchain=0
-    ):
+    async for r in await obj.client._request("get_tree_internal", path=path, iter=True, nchain=0):
         pl(r)
         path = r["path"]
         yy = y

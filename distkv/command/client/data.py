@@ -4,15 +4,7 @@ import time
 import asyncclick as click
 import datetime
 
-from distkv.util import (
-    PathLongener,
-    MsgReader,
-    PathShortener,
-    NotGiven,
-    yprint,
-    data_get,
-    path_eval,
-)
+from distkv.util import PathLongener, MsgReader, NotGiven, yprint, data_get, P
 from distkv.client import StreamedRequest
 
 import logging
@@ -37,28 +29,15 @@ async def cli():
     "for values. Default: return as list",
 )
 @click.option(
-    "-m",
-    "--maxdepth",
-    type=int,
-    default=None,
-    help="Limit recursion depth. Default: whole tree",
+    "-m", "--maxdepth", type=int, default=None, help="Limit recursion depth. Default: whole tree"
 )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=None,
-    help="Starting depth. Default: whole tree",
+    "-M", "--mindepth", type=int, default=None, help="Starting depth. Default: whole tree"
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
-@click.option(
-    "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
-)
-@click.option(
-    "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
-)
-@click.argument("path", nargs=-1)
+@click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, **k):
     """
@@ -69,7 +48,8 @@ async def get(obj, path, **k):
     for incremental output.
     """
 
-    await data_get(obj, *path, **k)
+    path = P(path)
+    await data_get(obj, path, **k)
 
 
 @cli.command("list")
@@ -88,13 +68,9 @@ async def get(obj, path, **k):
     help="Limit recursion depth. Default: 1 (single layer).",
 )
 @click.option(
-    "-M",
-    "--mindepth",
-    type=int,
-    default=1,
-    help="Starting depth. Default: 1 (single layer).",
+    "-M", "--mindepth", type=int, default=1, help="Starting depth. Default: 1 (single layer)."
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def list_(obj, path, **k):
     """
@@ -107,28 +83,22 @@ async def list_(obj, path, **k):
     for incremental output.
     """
 
+    path = P(path)
     k["recursive"] = True
     k["raw"] = True
     k["empty"] = True
-    await data_get(obj, *path, **k)
+    await data_get(obj, path, **k)
 
 
 @cli.command("set", short_help="Add or update an entry")
 @click.option("-v", "--value", help="The value to store. Mandatory.")
-@click.option(
-    "-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated."
-)
-@click.option(
-    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
-)
+@click.option("-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated.")
+@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
-@click.option(
-    "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
-)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, eval_path, value, eval_, prev, last, new):
+async def set_(obj, path, value, eval_, prev, last, new):
     """
     Store a value at some DistKV position.
 
@@ -138,6 +108,7 @@ async def set_(obj, path, eval_path, value, eval_, prev, last, new):
     When adding a new entry, use "--new" to ensure that you don't
     accidentally overwrite something.
     """
+    path = P(path)
     if eval_:
         value = eval(value)  # pylint: disable=eval-used
     args = {}
@@ -153,29 +124,20 @@ async def set_(obj, path, eval_path, value, eval_, prev, last, new):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(
-        *path_eval(path, eval_path), value=value, nchain=obj.meta, **args
-    )
+    res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
 @cli.command(short_help="Delete an entry / subtree")
-@click.argument("path", nargs=-1)
-@click.option(
-    "-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'"
-)
+@click.argument("path", nargs=1)
+@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
-@click.option(
-    "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
-)
-@click.option(
-    "-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated."
-)
+@click.option("-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated.")
 @click.pass_obj
-async def delete(obj, path, eval_path, prev, last, recursive, eval_, internal):
+async def delete(obj, path, prev, last, recursive, eval_, internal):
     """
     Delete an entry, or a whole subtree.
 
@@ -188,6 +150,7 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval_, internal):
 
     The root entry cannot be deleted.
     """
+    path = P(path)
     args = {}
     if eval_ and prev is NotGiven:
         raise click.UsageError("You need to add a value that can be evaluated")
@@ -205,12 +168,8 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval_, internal):
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
     res = await obj.client._request(
-        action="delete_tree"
-        if recursive
-        else "delete_internal"
-        if internal
-        else "delete_value",
-        path=tuple(path_eval(path, eval_path)),
+        action="delete_tree" if recursive else "delete_internal" if internal else "delete_value",
+        path=path,
         nchain=obj.meta,
         **args
     )
@@ -227,15 +186,13 @@ async def delete(obj, path, eval_path, prev, last, recursive, eval_, internal):
 
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
-@click.option(
-    "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
-)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
-async def watch(obj, path, eval_path, state):
+async def watch(obj, path, state):
     """Watch a DistKV subtree"""
+
     flushing = not state
-    path = tuple(path_eval(path, eval_path))
+    path = P(path)
 
     async with obj.client.watch(*path, nchain=obj.meta, fetch=state) as res:
         pl = PathLongener(path)
@@ -254,14 +211,11 @@ async def watch(obj, path, eval_path, state):
 
 @cli.command()
 @click.option("-i", "--infile", type=click.Path(), help="File to read (msgpack).")
-@click.option(
-    "-V", "--eval-path", type=int, multiple=True, help="Eval this path element"
-)
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
-async def update(obj, path, eval_path, infile):
+async def update(obj, path, infile):
     """Send a list of updates to a DistKV subtree"""
-    path = tuple(path_eval(path, eval_path))
+    path = P(path)
     async with MsgReader(path=infile) as reader:
         async for msg in reader:
             await obj.client.set(*path, *msg.path, value=msg.value)

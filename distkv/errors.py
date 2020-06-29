@@ -86,7 +86,7 @@ from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
 
 from .obj import AttrClientEntry, ClientEntry, ClientRoot
-from .util import Cache, NotGiven
+from .util import Cache, NotGiven, Path
 from .codec import packer
 from .exceptions import ServerError
 
@@ -107,11 +107,7 @@ class ErrorSubEntry(AttrClientEntry):
         return ClientEntry
 
     def __repr__(self):
-        return "‹%s %s %d›" % (
-            self.__class__.__name__,
-            self._path[-3:],
-            getattr(self, "tock", -1),
-        )
+        return "‹%s %s %d›" % (self.__class__.__name__, self._path[-3:], getattr(self, "tock", -1))
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -229,12 +225,7 @@ class ErrorEntry(AttrClientEntry):
         Store this comment, typically used when something resumes working.
         One per node, so we don't need to avoid collisions.
         """
-        res = dict(
-            seen=time(),
-            tock=await self.root.client.get_tock(),
-            comment=comment,
-            data=data,
-        )
+        res = dict(seen=time(), tock=await self.root.client.get_tock(), comment=comment, data=data)
         logger.info("Comment %s: %s", node, comment)
         await self.root.client.set(*self._path, chain=self.chain, value=res)
 
@@ -290,9 +281,7 @@ class ErrorEntry(AttrClientEntry):
         if value is NotGiven:
             if self.value is NotGiven:
                 return
-            keep = await self.root.get_error_record(
-                self.subsystem, *self.path, create=False
-            )
+            keep = await self.root.get_error_record(self.subsystem, self.path, create=False)
             if keep is not None:
                 self._real_entry = keep.real_entry
                 await self.move_to_real()
@@ -382,7 +371,7 @@ class ErrorRoot(ClientRoot):
         else:
             yield from iter(self._active[subsystem].values())
 
-    async def get_error_record(self, subsystem, *path, create=True):
+    async def get_error_record(self, subsystem, path, *, create=True):
         """Retrieve or generate an error record for a particular subsystem
         and path.
 
@@ -399,7 +388,7 @@ class ErrorRoot(ClientRoot):
         if not create:
             return None
         tock = await self.client.get_tock()
-        return self.follow(self.name, tock, create=True)
+        return self.follow(Path(self.name, tock), create=True)
 
     async def _unique(self, entry):
         """
@@ -415,7 +404,7 @@ class ErrorRoot(ClientRoot):
         not depend on which node it is running on or which entry arrives
         first.
         """
-        other = await self.get_error_record(entry.subsystem, *entry.path, create=False)
+        other = await self.get_error_record(entry.subsystem, entry.path, create=False)
         if other is None or other is entry:
             return None, None
 
@@ -429,10 +418,10 @@ class ErrorRoot(ClientRoot):
         elif other.node < entry.node:
             return entry, other
 
-        raise RuntimeError("This cannot happen: %s %s" % (entry.node, entry.tock))
+        raise RuntimeError(f"This cannot happen: {entry.node} {entry.tock}")
 
     async def record_working(  # pylint: disable=dangerous-default-value
-        self, subsystem, *path, comment=None, data={}, force=False
+        self, subsystem, path, *, comment=None, data={}, force=False
     ):
         """This exception has been fixed.
 
@@ -443,7 +432,7 @@ class ErrorRoot(ClientRoot):
           data (dict): any relevant data
           force (bool): create an entry even if no error is open.
         """
-        rec = await self.get_error_record(subsystem, *path, create=force)
+        rec = await self.get_error_record(subsystem, path, create=force)
         if rec is None:
             return
         if not rec.resolved:
@@ -456,13 +445,14 @@ class ErrorRoot(ClientRoot):
     async def record_error(  # pylint: disable=dangerous-default-value
         self,
         subsystem,
-        *path,
+        path,
+        *,
         exc=None,
         data={},
         severity=0,
         message=None,
         force: bool = False,
-        comment: str = None
+        comment: str = None,
     ):
         """An exception has occurred for this subtype and path.
 
@@ -477,8 +467,8 @@ class ErrorRoot(ClientRoot):
           message (str): some text to add to the error. It is formatted
             with the data when printed.
         """
-        rec = await self.get_error_record(subsystem, *path)
-        if not force and hasattr(rec,'severity') and rec.severity < severity:
+        rec = await self.get_error_record(subsystem, path)
+        if not force and hasattr(rec, "severity") and rec.severity < severity:
             return
 
         rec.severity = severity
@@ -504,14 +494,12 @@ class ErrorRoot(ClientRoot):
         """Override to deal with entry changes"""
         if entry.subsystem is None or entry.path is None:
             return
-        rec = await self.get_error_record(entry.subsystem, *entry.path, create=False)
+        rec = await self.get_error_record(entry.subsystem, entry.path, create=False)
         if rec is not entry:
             return
 
         try:
-            del (self._done if entry.resolved else self._active)[entry.subsystem][
-                entry.path
-            ]
+            del (self._done if entry.resolved else self._active)[entry.subsystem][entry.path]
         except KeyError:
             pass
 
