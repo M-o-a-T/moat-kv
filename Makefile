@@ -63,6 +63,8 @@ test:
 format:
 	black -l 99 distkv tests setup.py
 
+precommit: format test
+
 tagged:
 	git describe --tags --exact-match
 	test $$(git ls-files -m | wc -l) = 0
@@ -74,4 +76,4 @@ pypi:	tagged
 upload: pypi
 	git push --tags
 
-.PHONY: all tagged pypi upload
+.PHONY: all tagged pypi upload precommit format test cov
