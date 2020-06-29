@@ -9,10 +9,8 @@ import mock
 import attr
 import copy
 import time
-import socket
 from functools import partial
 
-from distkv.client import open_client
 from distkv.default import CFG
 from distkv.server import Server
 from distkv.codec import unpacker

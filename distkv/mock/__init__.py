@@ -37,6 +37,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
             res.stdout = out.getvalue()
             CFG["_stdout"] = sys.stdout
 
+
 @attr.s
 class S:
     tg = attr.ib()
