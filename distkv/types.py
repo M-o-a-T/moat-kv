@@ -44,7 +44,7 @@ class TypeEntry(Entry):
             if value.get("code", None) is None:
                 code = None
             else:
-                code = make_proc(value.code, ("value",), *self.path)
+                code = make_proc(value.code, ("value",), self.path)
             if len(value.good) < 2:
                 raise RuntimeError("Must have check-good values")
             if not value.bad:
@@ -299,7 +299,7 @@ class CodecEntry(Entry):
         if value is not None and value.decode is not None:
             if not value["in"]:
                 raise RuntimeError("Must have tests for decoding")
-            dec = make_proc(value.decode, ("value",), *self.path)
+            dec = make_proc(value.decode, ("value",), self.path)
             for v, w in value["in"]:
                 try:
                     r = dec(v)
@@ -312,7 +312,7 @@ class CodecEntry(Entry):
         if value is not None and value.encode is not None:
             if not value["out"]:
                 raise RuntimeError("Must have tests for encoding")
-            enc = make_proc(value.encode, ("value",), *self.path)
+            enc = make_proc(value.encode, ("value",), self.path)
             for v, w in value["out"]:
                 try:
                     r = enc(v)

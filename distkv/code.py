@@ -56,7 +56,7 @@ class ModuleRoot(ClientRoot):
         if code is None:
             return await self.remove(path)
 
-        make_module(code, *path)
+        make_module(code, path)
 
         r = await self.client.set(self._path + path, value=dict(code=code), nchain=2)
         await self.wait_chain(r.chain)
@@ -90,15 +90,15 @@ class ModuleEntry(ClientEntry):
             c = self.value.code
             if not isinstance(c, str):
                 raise RuntimeError("Not a string, cannot compile")
-            m = make_module(c, *self.subpath)
+            m = make_module(c, self.subpath)
         except Exception as exc:
             self._module = None
             logger.warning("Could not compile @%r", self.subpath)
             await self.root.err.record_error(
-                "compile", *self.subpath, exc=exc, reason="compilation", message="compiler error"
+                "compile", self.subpath, exc=exc, reason="compilation", message="compiler error"
             )
         else:
-            await self.root.err.record_working("compile", *self.subpath)
+            await self.root.err.record_working("compile", self.subpath)
             self._module = m
 
 
@@ -156,7 +156,7 @@ class CodeRoot(ClientRoot):
             return await self.remove(path)
 
         # test-compile the code for validity
-        make_proc(code, variables, *path, use_async=is_async)
+        make_proc(code, variables, path, use_async=is_async)
 
         r = await self.client.set(
             self._path + path, value=dict(code=code, is_async=is_async, vars=variables), nchain=2

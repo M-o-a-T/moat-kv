@@ -565,7 +565,7 @@ def _call_proc(code, *a, **kw):
     return code(*a)
 
 
-def make_proc(code, variables, *path, use_async=False):  # pylint: disable=redefined-builtin
+def make_proc(code, variables, path, *, use_async=False):  # pylint: disable=redefined-builtin
     """Compile this code block to a procedure.
 
     Args:
@@ -587,7 +587,7 @@ def _proc(%s):
     if use_async:
         hdr = "async " + hdr
     code = hdr + code.replace("\n", "\n    ")
-    code = compile(code, ".".join(str(x) for x in path), "exec")
+    code = compile(code, str(path), "exec")
 
     return partial(_call_proc, code)
 
@@ -597,7 +597,7 @@ class Module(ModuleType):
         return "<Module %s>" % (self.__class__.__name__,)
 
 
-def make_module(code, *path):
+def make_module(code, path):
     """Compile this code block to something module-ish.
 
     Args:
