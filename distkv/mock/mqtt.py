@@ -19,6 +19,8 @@ from distkv.server import Server
 from distkv.util import attrdict, combine_dict, NotGiven
 from distmqtt.broker import create_broker
 
+from . import run
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,22 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 except socket.gaierror:
                     pass
             raise RuntimeError("Duh? no connection")
+
+        async def run(self, *args):
+            from . import run as r
+            h = p = None
+            for s in self.s:
+                for h, p, *_ in s.ports:
+                    if h[0] != ":":
+                        break
+                else:
+                    continue
+                break
+            if len(args) == 1:
+                args = args[0]
+                if isinstance(args,str):
+                    args = args.split(" ")
+            return await r("client","-h", h, "-p", p, *args)
 
     async def mock_get_host_port(st, host):
         i = int(host[host.rindex("_") + 1 :])  # noqa: E203
