@@ -76,8 +76,6 @@ class S:
         raise RuntimeError("Duh? no connection")
 
     async def run(self, *args, do_stdout=True):
-        from . import run as r
-
         h = p = None
         for s in self.s:
             for h, p, *_ in s.ports:
@@ -90,4 +88,4 @@ class S:
             args = args[0]
             if isinstance(args, str):
                 args = args.split(" ")
-        return await r("client", "-h", h, "-p", p, *args, do_stdout=do_stdout)
+        return await run("client", "-h", h, "-p", p, *args, do_stdout=do_stdout)
