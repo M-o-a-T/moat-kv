@@ -85,7 +85,7 @@ if [ "$CHECK_DOCS" = "1" ]; then
     # -n (nit-picky): warn on missing references
     # -W: turn warnings into errors
     #sphinx-build -nW  -b html source build
-    sphinx-build -nW  -b html source build
+    sphinx-build -n -b html source build
 else
     # Actual tests
     pip install -Ur ci/test-requirements.txt
