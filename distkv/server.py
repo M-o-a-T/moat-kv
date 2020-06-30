@@ -10,9 +10,13 @@ import anyio
 
 try:
     from trio import BrokenResourceError as trioBrokenResourceError
+    from trio import Cancelled as trioCancelled
 except ImportError:
 
     class trioBrokenResourceError(Exception):
+        pass
+
+    class trioCancelled(BaseException):
         pass
 
 
@@ -1745,7 +1749,7 @@ class Server:
                     async with anyio.fail_after(10):
                         await self.tock_seen(msg.get("tock", 0))
                         await cmd(msg)
-        except CancelledError:
+        except (CancelledError, trioCancelled):
             self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:

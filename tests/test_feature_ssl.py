@@ -1,6 +1,6 @@
 import pytest
 
-from .mock_mqtt import stdtest
+from distkv.mock.mqtt import stdtest
 from distkv.client import ServerError
 from distkv.util import PathLongener, P
 

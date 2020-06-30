@@ -2,8 +2,9 @@ import pytest
 import io
 from functools import partial
 
-from .mock_mqtt import stdtest
-from .run import run
+from distkv.mock import run
+from distkv.mock.mqtt import stdtest
+
 from distkv.client import ServerError
 from distkv.util import PathLongener, P
 

@@ -1,3 +1,9 @@
+distkv (0.30.4-1) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 30 Jun 2020 13:21:13 +0200
+
 distkv (0.30.3-2) unstable; urgency=medium
 
   * Re-enable testing when installing

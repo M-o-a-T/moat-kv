@@ -3,9 +3,7 @@ import trio
 import anyio
 import time
 
-from .mock_mqtt import stdtest
-
-from .run import run
+from distkv.mock.mqtt import stdtest
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot
@@ -20,11 +18,6 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=100) as st:
-        (s,) = st.s
-        h = p = None  # pylint
-        for h, p, *_ in s.ports:
-            if h[0] != ":":
-                break
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
@@ -62,9 +55,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 await trio.sleep(10)
                 assert rs.stopped
 
-            await run(
-                "-vvv", "client", "-h", h, "-p", p, "data", "get", "-rd_", ":", do_stdout=False
-            )
+            await st.run("data get -rd_ :", do_stdout=False)
             await trio.sleep(11)
 
             logger.info("End sleep")

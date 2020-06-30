@@ -1,9 +1,6 @@
 import pytest
 
-from .mock_mqtt import stdtest
-
-# from .run import run
-# from functools import partial
+from distkv.mock.mqtt import stdtest
 
 from distkv.auth import loader
 from distkv.client import ServerError

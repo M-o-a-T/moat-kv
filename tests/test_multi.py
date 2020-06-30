@@ -3,7 +3,7 @@ import trio
 import mock
 
 # doesn't work with MQTT because we can't split
-from .mock_serf import stdtest
+from distkv.mock.serf import stdtest
 import asyncserf
 import msgpack
 from distkv.util import attrdict, P, Path

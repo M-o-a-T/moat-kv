@@ -2,8 +2,9 @@ import pytest
 import trio
 from time import time
 
-from .mock_mqtt import stdtest
-from .run import run
+from distkv.mock import run
+from distkv.mock.mqtt import stdtest
+
 from distkv.client import ServerError
 from distkv.util import PathLongener, P
 
@@ -178,22 +179,17 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
-            (s,) = st.s
-            h = p = None  # pylint
-            for h, p, *_ in s.ports:
-                if h[0] != ":":
-                    break
 
-            r = await run("client", "-h", h, "-p", p, "data", "set", "-v", "hello", "foo")
-            r = await run("client", "-h", h, "-p", p, "data", "set", "-ev", "'baz'", "foo.bar")
+            r = await st.run("data set -v hello foo")
+            r = await st.run("data set -ev 'baz' foo.bar")
 
-            r = await run("client", "-h", h, "-p", p, "data", "get", ":")
+            r = await st.run("data get :")
             assert r.stdout == "123\n"
 
-            r = await run("client", "-h", h, "-p", p, "data", "get", "foo")
+            r = await st.run("data get foo")
             assert r.stdout == "'hello'\n"
 
-            r = await run("client", "-h", h, "-p", p, "data", "get", "foo.bar")
+            r = await st.run("data get foo.bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(

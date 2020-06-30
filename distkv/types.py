@@ -304,7 +304,9 @@ class CodecEntry(Entry):
                 try:
                     r = dec(v)
                 except Exception as exc:
-                    raise ValueError(f"failed decoder at {self.path} on {v!r} with {exc!r}") from exc
+                    raise ValueError(
+                        f"failed decoder at {self.path} on {v!r} with {exc!r}"
+                    ) from exc
                 else:
                     if r != w:
                         raise ValueError(f"Decoding at {self.path}: {v!r} got {r!r}, not {w!r}")
@@ -317,7 +319,9 @@ class CodecEntry(Entry):
                 try:
                     r = enc(v)
                 except Exception as exc:
-                    raise ValueError(f"failed encoder at {self.path} on {v!r} with {exc!r}") from exc
+                    raise ValueError(
+                        f"failed encoder at {self.path} on {v!r} with {exc!r}"
+                    ) from exc
                 else:
                     if r != w:
                         raise ValueError(f"Encoding at {self.path}: {v!r} got {r!r}, not {w!r}")

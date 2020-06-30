@@ -9,14 +9,13 @@ import mock
 import attr
 import copy
 import time
-import socket
 from functools import partial
 
-from distkv.client import open_client
 from distkv.default import CFG
 from distkv.server import Server
 from distkv.codec import unpacker
 from distkv.util import attrdict, combine_dict, NotGiven, ValueEvent
+from distkv.mock import S as _S
 from asyncserf.stream import SerfEvent
 from anyio import create_queue
 
@@ -58,41 +57,8 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     # clock.rate = 5
 
     @attr.s
-    class S:
-        tg = attr.ib()
-        serfs = attr.ib(factory=set)
+    class S(_S):
         splits = attr.ib(factory=set)
-        s = attr.ib(factory=list)  # servers
-        c = attr.ib(factory=list)  # clients
-
-        async def ready(self, i=None):
-            if i is not None:
-                await self.s[i].is_ready
-                return self.s[i]
-            for s in self.s:
-                if s is not None:
-                    await s.is_ready
-            return self.s
-
-        def __iter__(self):
-            return iter(self.s)
-
-        @asynccontextmanager
-        async def client(self, i: int = 0, **kv):
-            """Get a client for the i'th server."""
-            await self.s[i].is_serving
-            for host, port, *_ in st.s[i].ports:
-                if host[0] == ":":
-                    continue
-                try:
-                    async with open_client(
-                        connect=dict(host=host, port=port, ssl=client_ctx, **kv)
-                    ) as c:
-                        yield c
-                        return
-                except socket.gaierror:
-                    pass
-            raise RuntimeError("Duh? no connection")
 
         def split(self, s):
             assert s not in self.splits
@@ -122,7 +88,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         await old()
 
     async with anyio.create_task_group() as tg:
-        st = S(tg)
+        st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:
             st.ex = ex  # pylint: disable=attribute-defined-outside-init
             ex.enter_context(mock.patch("time.time", new=tm))

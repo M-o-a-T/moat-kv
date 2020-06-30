@@ -1,11 +1,7 @@
 import pytest
 import trio
 
-from .mock_mqtt import stdtest
-from .run import run
-
-# from .run import run
-# from functools import partial
+from distkv.mock.mqtt import stdtest
 
 from distkv.util import PathLongener, P
 
@@ -50,7 +46,6 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.xfail
 async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
-        (s,) = st.s
         async with st.client() as cx, st.client() as cy, st.client() as cz:
             ex = await ErrorRoot.as_handler(cx, name="a1")
             ey = await ErrorRoot.as_handler(cy, name="a2")
@@ -68,11 +63,7 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
                 tg.start_soon(err, ez)
                 await trio.sleep(2)
 
-            h = p = None  # pylint
-            for h, p, *_ in s.ports:
-                if h[0] != ":":
-                    break
-            await run("client", "-m", "-h", h, "-p", p, "data", "get", "-rd_", do_stdout=False)
+            await st.run("data get -rd_", do_stdout=False)
             await trio.sleep(2)
 
             n = 0
