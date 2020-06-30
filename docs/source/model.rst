@@ -30,6 +30,9 @@ stable when used with complex ACLs and thus more secure.
 Helper methods and classes
 --------------------------
 
+.. autoclass:: distkv.util.MsgWriter
+   :members:
+
 .. automodule:: distkv.util
    :members:
 

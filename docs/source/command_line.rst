@@ -428,7 +428,7 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
    If you want to do anything with authorization, you'll need to use this
    flag to set up the initial users.
 
-   See `Auth `
+   See `Auth`.
 
 
 .. program:: distkv client auth init
@@ -699,7 +699,7 @@ tempfile, then restore with ``distkv client codec set -d <tempfile> <path>…``.
    A pair of test values for the encoding branch of the codec.
    Both are ``eval``-uated.
 
-.. option:: -d, --data <file>
+.. option:: -D, --data <file>
 
    The YAML file which contains any other data.
    
@@ -854,7 +854,7 @@ List code snippets stored in DistKV.
 
    Print one-line entries.
 
-   Incompatible with ``-f`` and ``-d`
+   Incompatible with ``-f`` and ``-d``.
 
 .. option:: -f, --full
 
