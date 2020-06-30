@@ -3,7 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from yaml import safe_load
+from distkv.util import yload
 
 
 def load_cfg(cfg):  # pylint: disable=redefined-outer-name
@@ -17,7 +17,7 @@ def load_cfg(cfg):  # pylint: disable=redefined-outer-name
         raise RuntimeError(f"Config file {cfg!r} not found")
 
     with open(cfg) as f:
-        cfg = safe_load(f)
+        cfg = yload(f)
 
     from logging.config import dictConfig
 

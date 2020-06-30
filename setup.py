@@ -31,7 +31,7 @@ setup(
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
     ],
-    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
+    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7", "distmqtt >= 0.30"],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[

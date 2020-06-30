@@ -84,6 +84,7 @@ if [ "$CHECK_DOCS" = "1" ]; then
     cd docs
     # -n (nit-picky): warn on missing references
     # -W: turn warnings into errors
+    #sphinx-build -nW  -b html source build
     sphinx-build -nW  -b html source build
 else
     # Actual tests

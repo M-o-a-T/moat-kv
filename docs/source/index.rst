@@ -31,16 +31,14 @@ choices.
 API
 ===
 
-DistKV offers an efficient interface to access and change data. For
-compatibility, a front-end that mostly-mimics the etcd2 protocol is
-planned.
+DistKV offers an efficient interface to access and change data.
 
 
 Status
 ======
 
-Some of the above is still wishful thinking. In particular, we don't have
-an etcd2 compatibility service yet.
+DistKV is in production use as the backbone of the author's home and office
+automation setup.
 
 
 .. toctree::
@@ -57,6 +55,8 @@ an etcd2 compatibility service yet.
    code.rst
    model.rst
    translator.rst
+   debugging.rst
+   extend.rst
 
    TODO.rst
    history.rst

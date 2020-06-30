@@ -95,14 +95,16 @@ DistKV has three built-in types of code runners. All are organized by a "group"
 tag. The "distkv client run all" command starts all jobs of a type, in a
 specific group.
 
+++++++++++++++++++
 Single-node runner
-==================
+++++++++++++++++++
 
 This runner executes code on a specific node. This is useful e.g. if you
 need to access actual hardware.
 
++++++++++++++++
 Any-node runner
-===============
++++++++++++++++
 
 This runner executes code on one of a group of nodes. Which node executes
 the code is largely determined by chance, startup order, or phase of the
@@ -113,8 +115,9 @@ TODO: Load balancing is not yet implemented.
 All nodes in a runner form an Actor group; the node that holds the Tag
 checks whether jobs need to start.
 
++++++++++++++++
 All-node runner
-===============
++++++++++++++++
 
 This runner executes code on all members of a group of nodes.
 
@@ -131,8 +134,9 @@ The actual runtime information is stored in a separate "state" node.
 This avoids race conditions.
 See :class:`distkv.runner.StateEntry` for details.
 
++++++++++
 Variables
-=========
++++++++++
 
 The runners pass a couple of variables to their code.
 
@@ -157,7 +161,7 @@ The runners pass a couple of variables to their code.
 * _info (async only)
 
   A queue for events. Currently, receives subclasses of
-  :cls:`asyncactor.ActorState`, to signal whether the running node is
+  :class:`asyncactor.ActorState`, to signal whether the running node is
   connected to any / all of your DistKV-using infrastructure.
 
 These variables, as well as the contents of the data associated with the
