@@ -11,6 +11,3 @@ export MSGPACK_PUREPYTHON=1
 override_dh_install:
 	dh_install
 	$(MAKE) install PREFIX=debian/distkv
-
-override_dh_auto_test:
-	: none yet
