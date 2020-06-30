@@ -19,7 +19,7 @@ setup(
         "trio >= 0.15",
         "anyio",
         "range_set >= 0.2",
-        "attrs >= 18.2",
+        "attrs >= 19",
         "asyncserf >= 0.16",
         "asyncactor >= 0.20.5",
         "jsonschema >= 2.5",
