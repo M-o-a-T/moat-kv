@@ -26,6 +26,7 @@ import ruamel.yaml as yaml
 
 SafeRepresenter = yaml.representer.SafeRepresenter
 SafeConstructor = yaml.constructor.SafeConstructor
+Emitter = yaml.emitter.Emitter
 
 NoneType = type(None)
 
@@ -88,8 +89,6 @@ def yformat(data, compact=None):
     yprint(data, compact=compact, stream=s)
     return s.getvalue()
 
-
-from yaml.emitter import Emitter
 
 _expect_node = Emitter.expect_node
 
