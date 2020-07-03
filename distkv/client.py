@@ -171,7 +171,10 @@ class StreamedRequest:
         if res is None:
             self.q = None  # prevent deadlock if called again
             raise StopAsyncIteration
-        res = res.unwrap()
+        try:
+            res = res.unwrap()
+        except CancelledError:
+            raise StopAsyncIteration  # just terminate
         self._path_long(res)
         logger.debug("OneResult: %s", res)
         return res
