@@ -13,9 +13,6 @@ install:
 	cp scripts/* $(PREFIX)/usr/lib/distkv/
 	cp bin/* $(PREFIX)/usr/bin/
 
-PATH := /usr/share/sphinx/scripts/python3:${PATH}
-#!/usr/bin/make -f
-
 PACKAGE=distkv
 ifneq ($(wildcard /usr/share/sourcemgr/make/py),)
 include /usr/share/sourcemgr/make/py
