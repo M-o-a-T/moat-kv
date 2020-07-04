@@ -3,6 +3,9 @@ from distmqtt.client import MQTTClient
 from distmqtt.codecs import NoopCodec
 from contextlib import asynccontextmanager
 from . import Backend
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Simply setting connect=asyncserf.serf_client interferes with mocking
 # when testing.
@@ -32,13 +35,21 @@ class MqttBackend(Backend):
     @asynccontextmanager
     async def monitor(self, *topic):
         topic = "/".join(topic)
-        async with self.client.subscription(topic) as sub:
+        logger.error("Monitor %s start", topic)
+        try:
+            async with self.client.subscription(topic) as sub:
 
-            async def sub_get(sub):
-                async for msg in sub:
-                    yield MqttMessage(msg.topic.split("/"), msg.data)
+                async def sub_get(sub):
+                    async for msg in sub:
+                        yield MqttMessage(msg.topic.split("/"), msg.data)
 
-            yield sub_get(sub)
+                yield sub_get(sub)
+        except BaseException as exc:
+            exx = exc
+        else:
+            exx = None
+        finally:
+            logger.error("Monitor %s end: %r", topic, exx)
 
     def send(self, *topic, payload):  # pylint: disable=invalid-overridden-method
         """
