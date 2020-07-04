@@ -194,7 +194,7 @@ async def watch(obj, path, state):
     flushing = not state
     path = P(path)
 
-    async with obj.client.watch(*path, nchain=obj.meta, fetch=state) as res:
+    async with obj.client.watch(path, nchain=obj.meta, fetch=state) as res:
         pl = PathLongener(path)
         async for r in res:
             pl(r)
