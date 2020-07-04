@@ -1168,7 +1168,7 @@ def _bin_from_ascii(loader, node):
 def _bin_to_ascii(dumper, data):
     try:
         data = data.decode("ascii")
-    except UnicodeEncodeError:
+    except UnicodeError:
         return dumper.represent_binary(data)
     else:
         return dumper.represent_scalar("!bin", data)
