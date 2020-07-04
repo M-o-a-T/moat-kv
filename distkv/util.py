@@ -268,8 +268,9 @@ class attrdict(dict):
                 w = v[p]
             except KeyError:
                 return self
-            else:
-                v = v[p] = type(w)(**w)
+            w = type(w)(**w)
+            v[p] = w
+            v = w
         vc.append(v)
         while path:
             v = vc.pop()
