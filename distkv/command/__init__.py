@@ -98,7 +98,6 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
 
     Returns the result of setting the attribute, or ``None`` if it printed
     """
-    path = tuple(path)
     if res is None:
         res = await obj.client.get(path, nchain=obj.meta or 2)
     try:
