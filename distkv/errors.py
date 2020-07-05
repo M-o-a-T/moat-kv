@@ -227,7 +227,7 @@ class ErrorEntry(AttrClientEntry):
         """
         res = dict(seen=time(), tock=await self.root.client.get_tock(), comment=comment, data=data)
         logger.info("Comment %s: %s", node, comment)
-        await self.root.client.set(*self._path, chain=self.chain, value=res)
+        await self.root.client.set(self._path, chain=self.chain, value=res)
 
     async def delete(self):  # pylint: disable=signature-differs,arguments-differ
         """
