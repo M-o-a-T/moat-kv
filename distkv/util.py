@@ -198,6 +198,8 @@ class attrdict(dict):
         """
         Get a node's value and access the dict items beneath it.
         """
+        if isinstance(p, str):
+            raise ValueError(f"Must be a Path/list, not {path!r}")
         val = self
         for p in path:
             if val is None:
@@ -218,6 +220,8 @@ class attrdict(dict):
 
         Returns the new value. Modified (sub)dicts will be copied.
         """
+        if isinstance(p, str):
+            raise ValueError(f"Must be a Path/list, not {path!r}")
         if skip_empty:
             path = [p for p in path if p]
         val = type(self)(**self)
@@ -257,6 +261,8 @@ class attrdict(dict):
 
         Returns the new value. Modified (sub)dicts will be copied.
         """
+        if isinstance(p, str):
+            raise ValueError(f"Must be a Path/list, not {path!r}")
         if skip_empty:
             path = [p for p in path if p]
         val = type(self)(**self)
