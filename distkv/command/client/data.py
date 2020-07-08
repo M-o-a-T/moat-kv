@@ -97,7 +97,7 @@ async def list_(obj, path, **k):
 @click.option("-P", "--path", "path_", is_flag=True, help="The value is a path.")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
-@click.option("-a", "--attr", default=":", help="Modify attribute.")
+@click.option("-a", "--attr", default=None, help="Modify attribute.")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, value, eval_, last, new, path_, attr):
@@ -111,7 +111,8 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
     accidentally overwrite something.
     """
     path = P(path)
-    attr = P(attr)
+    if attr is not None:
+        attr = P(attr)
     if eval_:
         if path_:
             raise click.UsageError("'eval' and 'path' are mutually exclusive")
@@ -131,7 +132,7 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    if len(attr):
+    if attr is not None:
         res = await node_attr(obj, path, attr, value, eval_=eval_, **args)
     else:
         res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
