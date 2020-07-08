@@ -80,7 +80,7 @@ class Loader(click.Group):
         return command
 
 
-async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None):
+async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None, chain=None):
     """
     Sub-attr setter.
 
@@ -91,7 +91,8 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
         value: new value (default NotGiven)
         eval_: evaluate the new value? (default False)
         split_: split a string value into words? (bool or separator, default False)
-        res: old node, if it has been read already; .chain must be set
+        res: old node, if it has been read already
+        chain: change chain of node, copied from res if clear
 
     Special: if eval_ is True, a value of NotGiven deletes, otherwise it
     prints the record without changing it. A mapping replaces instead of updating.
@@ -100,10 +101,13 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
     """
     if res is None:
         res = await obj.client.get(path, nchain=obj.meta or 2)
+    if chain is None:
+        chain = res.chain
+
     try:
         val = res.value
     except AttributeError:
-        res.chain = None
+        chain = None
     if split_ is True:
         split_ = ""
     if eval_:
@@ -126,7 +130,7 @@ async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, 
             value = value.split(split_)
         value = res_update(res, attr, value=value)
 
-    res = await obj.client.set(path, value=value, nchain=obj.meta, chain=res.chain)
+    res = await obj.client.set(path, value=value, nchain=obj.meta, chain=chain)
     return res
 
 
