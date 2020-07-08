@@ -80,7 +80,9 @@ class Loader(click.Group):
         return command
 
 
-async def node_attr(obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None, chain=None):
+async def node_attr(
+    obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None, chain=None
+):
     """
     Sub-attr setter.
 

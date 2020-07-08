@@ -104,7 +104,7 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
     """
     Store a value at some DistKV position.
 
-    If you update a value, you should use "--last" 
+    If you update a value, you should use "--last"
     to ensure that no other change arrived.
 
     When adding a new entry, use "--new" to ensure that you don't
@@ -115,11 +115,11 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
     if eval_:
         if path_:
             raise click.UsageError("'eval' and 'path' are mutually exclusive")
-        if value == '-':
+        if value == "-":
             value = NotGiven
         else:
             value = eval(value)  # pylint: disable=eval-used
-            eval_=False
+            eval_ = False
     elif path_:
         value = P(value)
     args = {}
