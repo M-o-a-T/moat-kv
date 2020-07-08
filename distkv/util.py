@@ -995,7 +995,7 @@ class Path(collections.abc.Sequence):
         return "".join(res)
 
     def __getitem__(self, x):
-        if isinstance(x, slice) and x.start == 0 and x.step == 1:
+        if isinstance(x, slice) and x.start in (0,None) and x.step in (1,None):
             return type(self)(*self._data[x])
         else:
             return self._data[x]
