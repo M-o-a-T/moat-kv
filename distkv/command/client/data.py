@@ -202,9 +202,7 @@ async def watch(obj, path, state):
     path = P(path)
 
     async with obj.client.watch(path, nchain=obj.meta, fetch=state) as res:
-        pl = PathLongener(path)
         async for r in res:
-            pl(r)
             if not flushing and r.get("state", "") == "uptodate":
                 flushing = True
             del r["seq"]
