@@ -131,7 +131,11 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await node_attr(obj, path, attr, value, eval_=eval_, **args)
+    if len(attr):
+        res = await node_attr(obj, path, attr, value, eval_=eval_, **args)
+    else:
+        res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
+
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
