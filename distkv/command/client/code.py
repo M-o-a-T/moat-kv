@@ -196,9 +196,8 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     """
     List code entries.
 
-    If you read a sub-tree recursively, be aware that the whole subtree
-    will be read before anything is printed. Use the "watch --state" subcommand
-    for incremental output.
+    Be aware that the whole subtree will be read before anything is
+    printed if you use the `--as-dict` option.
     """
 
     path = P(path)
