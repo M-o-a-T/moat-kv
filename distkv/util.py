@@ -239,7 +239,7 @@ class attrdict(dict):
                 w = type(v)()
             else:
                 # copy
-                w = type(w)(**w)
+                w = type(w)(w)
             v[p] = w
             v = w
         px = path[-1]
