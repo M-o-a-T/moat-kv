@@ -84,15 +84,13 @@ def test_msgpack():
     d = Path("a", 1, "b")
     m = packer(d)
     mm = unpacker(m)
-    # assert type(mm) is Path
-    assert type(mm) is tuple  # compatibility
+    assert type(mm) is Path
     assert mm == d
 
     d = {"Hello": d}
     m = packer(d)
     mm = unpacker(m)
-    # assert type(mm["Hello"]) is Path
-    assert type(mm["Hello"]) is tuple  # compatibility
+    assert type(mm["Hello"]) is Path
     assert mm == d
 
 
