@@ -108,8 +108,8 @@ hierarchically, (among other reasons) for ease of retrieval::
     one $
 
 DistKV's internal data are stored under a special ``null`` root key.
-You can use ``distkv client internal dump`` to display them. This command
-behaves like ``distkv client data get -rd_``. It accepts a path prefix.
+You can use ``distkv client internal dump :`` to display them. This command
+behaves like ``distkv client data get -rd_``. It too accepts a path prefix.
 
 Path specification
 ------------------
@@ -168,7 +168,7 @@ fact a hex number and not something else.
    Yes, DistKV supports tuples as part of paths. You probably should not use
    this feature without a very good reason. "My key consists of three
    random integers and I want to avoid the overhead of storing a lot of
-   intermediate entries" would be one example.
+   intermediate entries" would be an example of a good reason.
    
    DistKV also allows you to use both ``False``, an integer zero, and a
    floating-point zero as path elements. This is dangerous because Python's
@@ -242,7 +242,7 @@ After this point, you can no longer use DistKV without a password::
 Internal data are stored in a separate DistKV subtree that starts with a ``None`` value.
 You can display it::
 
-    one $ distkv client -a "password name=joe password=test123" data get -rd_
+    one $ distkv client -a "password name=joe password=test123" data internal dump :
     null:
       auth:
         _:
@@ -254,31 +254,22 @@ You can display it::
                 _aux: null
                 password: !!binary |
                   7NcYcNGWMxapfjrDQIyYNa2M8PPBvHA1J8MCZVNPda4=
-    one:
-      two:
-        three:
-          _: 123
-          four:
-            _: 1234
-            five:
-              _: Duh
-    
+
 As you can see, passwords are encrypted -- hashed, actually. The exact
-scheme depends on the auth method. The data below ``None`` (or "null" in
-YAML syntax) are otherwise inaccessible.
+scheme depends on the auth method.
 
 NB: nothing prevents you from using the string ``"null"`` as an ordinary
 key name::
 
-   one $ distkv client -a "password name=joe password=test123" data set -v bar null foo
-   one $ distkv client -a "password name=joe password=test123" data get -rd_
+   one $ distkv client -a "password name=joe password=test123" data set -v bar null.foo
+   one $ distkv client -a "password name=joe password=test123" data get -rd_ :
    …
    'null':
      foo:
        _: bar
 
-For experimentation, there's also a ``_test`` method which only exposes a
-user name::
+For experimentation, there's also a ``_test`` authorization method which
+only exposes a user name::
 
    one $ distkv client auth -m _test user add name=joe
    one $ distkv client auth -m _test user add name=root
@@ -295,12 +286,20 @@ We'll use that user and alias in the following sections.
 ACLs and distributed servers
 ----------------------------
 
-DistKV servers use the client protocol when they sync up. Thus, when you
+DistKV servers actually use the client protocol when they sync up. Thus, when you
 set up authorization, you must teach your servers to authenticate to their
 peer::
 
    one $ distkv -C connect.auth="_test name=joe" server $(hostname)
 
+You typically store that in a configuration file::
+
+    connect:
+        auth: "_test name=joe"
+        host: 127.0.0.1
+
+``distkv`` auto-reads the configuration from a few paths, or you can use
+the ``-c test.cfg`` flag.
 
 Access restrictions
 ===================
@@ -309,16 +308,18 @@ A user can be restricted from accessing or modifying DistKV data.
 
 Let's say that we'd like to create a "write-only" data storage::
 
-   one $ dkv acl set writeonly -a "xc" wom '#'
-   one $ dkv data set -ev 42 wom foo bar
-   one $ dkv data set -ev 43 wom foo bar
+   one $ distkv client -a "_test name=root" acl set writeonly -a xc 'wom.#'
+   one $ distkv client -a "_test name=root" auth user set param joe acl writeonly
+   one $ dkv data set -ev 42 wom.foo.bar
+   one $ dkv data set -ev 43 wom.foo.bar
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'w')
-   one $ dkv data get wom foo
+   one $ dkv data get wom.foo
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'r')
    one $
 
-As you can see, this allows the user to write to arbitrary values, but Joe
-cannot change anything, nor can he read the values which he wrote.
+As you can see, this allows the user to write to arbitrary values to the
+"wom" tree, but Joe cannot change anything – nor can he read the values
+which he wrote.
 
 Note that we also created a "root" user who doesn't have ACL restrictions.
 If we had not, we'd now be locked out of our DistKV storage because "no
@@ -326,7 +327,8 @@ matching ACL" means "no access".
 
 A user who has an ACL set can no longer modify the system, because the
 ``None`` element that separates system data from the rest cannot match a
-wildcard. ACLs for system entries are on the TODO list.
+wildcard. ACLs for system entries are on the TODO list; so are user groups
+or roles or whatever. Code welcome.
 
 
 
@@ -336,16 +338,16 @@ Code execution
 DistKV doesn't just store passive data: you can also use it to distribute
 actual computing. We'll demonstrate that here.
 
-First we feed some interesting code into DtstKV::
+First we feed some interesting code into DistKV::
 
-    one $ dkv code set the answer <<END
+    one $ dkv code set the.answer <<END
     > print("Forty-Two!")
     > return 42
     > END
 
 Then we set up a one-shot run-anywhere instance::
 
-   one $ dkv run set -c "the answer" -t 0 a question
+   one $ dkv run set -c the.answer -t 0 a.question
 
 This doesn't actually execute any code because the executor is not part of
 the DistKV server. (The server may gain an option to do that too, but
@@ -355,8 +357,8 @@ not yet.) So we run it::
    Forty-Two!
 
 (Initially this takes some time, because the ``run`` command needs to
-co-ordinate with other runners. There are none currently, but it can't know
-that.)
+co-ordinate with other runners. There aren't any, others, of course, but
+DistKV can't know that.)
 
 The code will not run again unless we either re-set ``--time``, or set a
 repeat timer with ``--repeat``.
@@ -365,7 +367,7 @@ Start times are mostly-accurate. There are two reasons why they might not
 be:
 
 * the co-ordination system has a periodic window where it waits for the
-  next message. This causes a delay of up to two seconds.
+  next coordinator. This causes a delay of up to two seconds.
 
 * TODO: The current leader might decide that it's too busy and wants to
   delegate starting a particular job to some other node in the cluster.
@@ -374,10 +376,12 @@ be:
 This method will run the code in question on any node. You can also run
 code on one specific node; simply do
 
-   one $ dkv run -n $(hostname) set -c "same answer" -t 0 a question
+   one $ dkv run -n $(hostname) set -c "same answer" -t 0 a.question
    one $ dkv run -n $(hostname) all
 
-The one-node-only runner and the any-node runner are distinct.
+The one-node-only runner and the any-node runner are distinct. There's also
+a way to designate a subgroup of hosts (like "all with a 1wire interface")
+and to run a job on any / all of them. See ``dkv run --help`` for details.
 
 
 Errors
@@ -386,10 +390,10 @@ Errors
 Nobody is perfect, and neither is code. Sometimes things break.
 DistKV remembers errors. To demonstrate, let's first provoke one::
 
-    one $ dkv code set the error <<END
+    one $ dkv code set the.error <<END
     > raise RuntimeError("Owch")
     > END
-    one $ dkv run set -c "the error" -t 0 what me worry
+    one $ dkv run set -c the.error -t 0 what.me.worry
     one $ dkv run all  # if it's not still running
     20:24:13.935 WARNING:distkv.errors:Error ('.distkv', 'error', 'test1', 16373) test1: Exception: Owch
 
@@ -401,7 +405,7 @@ The list of errors is now no longer empty::
 You can limit the error list to specific subtrees. This command has the
 same effect::
 
-   one $ dkv error list -d_ .distkv run any
+   one $ dkv error list -d_ :.distkv.run.any
 
 except that the path is shortened for improved useability.
 
@@ -422,26 +426,27 @@ Let's start by simply setting some value::
 
    async def dkv_example():
       async with open_client() as client:
-         client.set("one","two","three", value=("Test",42,False), chain=None)
+         client.set(("one","two","three"), value=("Test",42,False), chain=None)
 
    anyio.run(dkv_example)
 
 That was easy. Now we'd like to update that entry::
 
+   from distkv.util import P
    async def dkv_example():
       async with open_client() as client:
-         res = client.get("one","two","three")
-         ret = client.set("one","two","three", value=("Test",v[1]+1,False), chain=res.chain)
+         res = client.get(P("one.two.three"))
+         ret = client.set(P("one.two.three"), value=("Test",v[1]+1,False), chain=res.chain)
          assert res.chain != ret.chain
 
 The ``chain`` parameter is important: it tells DistKV which change caused
-the old value. So if somebody else changed your ``one two three`` entry
+the old value. So if somebody else changed your ``one.two.three`` entry
 while your program was running, you'd get a collision and the ``set`` would
 fail.
 
 ``set`` returns a new chain so you can update your value multiple times.
 
-Deleting an entry clears the chain: the source of a non-existing value
+Deleting an entry clears the chain because the source of a non-existing value
 doesn't matter.
 
 Watching for Changes
@@ -452,11 +457,10 @@ subsequently changes it, you wouldn't know. Let's fix that::
 
    async def dkv_example():
       async with open_client() as client:
-         async with client.watch("one", fetch=True) as watcher:
+         async with client.watch(P("one.two"), fetch=True) as watcher:
             async for res in watcher:
                if 'path' not in res:
                   continue
-               path = ' '.join(str(x) for x in res.path)
                if 'value' in res:
                   print(f"{path}= {res.value}")
                else:
@@ -464,13 +468,18 @@ subsequently changes it, you wouldn't know. Let's fix that::
 
 ``fetch=True`` will send the current state in addition to any changes.
 The ``'path' not in res`` test filters the notification that tells you that
-the subtree you requested is complete.
+the subtree you requested is complete. The result's path doesn't contain
+the prefix you used in ``watch`` because you already know it.
+
+if you need two ``watch`` at the same time, create separate tasks. Feed the
+resuts through a common queue if you want to process them in a comon
+function.
 
 Active objects
 --------------
 
 While watching for changes is nice, organizing the resulting objects tends
-to be tedious. DistKV comes with a method that does this for you::
+to be tedious. DistKV comes with a couple of classes that does this for you::
 
    from distkv.obj import ClientRoot, ClientEntry
    from distkv.util import NotGiven
@@ -522,7 +531,7 @@ both "good" and "bad" examples.
 
 You can also declare subtypes::
 
-    one $ dkv type set -g 0 -g 99 -g 100 -b -1 -b 101 int percent <<END
+    one $ dkv type set -g 0 -g 99 -g 100 -b -1 -b 101 int.percent <<END
     > if not (0 <= value <= 100): raise ValueError("not a percentage")
     > END
     one $
@@ -531,18 +540,19 @@ The example values must pass the supertype's checks.
 
 Now we associate the test with our data::
 
-    one $ dkv type match -t int -t percent stats '#' quota
+    one $ dkv type match -t int.percent stats '#' quota
 
 Then we store some value::
 
-    one $ dkv data set -v 123 stats foo bar quota
+    one $ dkv data set -v 123 stats.foo.bar.quota
     ServerError: ValueError("not an integer")
 
-Oops. We forgot that arguments are strings::
+Oops. We forgot that non-string values need to be evaluated. Better::
 
-    one $ dkv data set -ev 123 stats foo bar quota
+    one $ dkv data set -ev 123 stats.foo.bar.quota
     ServerError: ValueError('not a percentage')
     one $ dkv data set -ev 12 stats foo bar quota
+    one $
 
 DistKV does not test that existing values match your restrictions.
 
@@ -558,7 +568,7 @@ a ``turn off after 15 minutes`` rule will actually work.
 
 Let's write a simple number codec::
 
-    one $ dkv codec set -i '"12.5"' 12.5 -o 13.25 '"13.25"' floatstr
+    one $ dkv codec set -i '"12.5"' 12.5 -o 13.25 '"13.25"' float.str
     Enter the Python script to encode 'value'.
     return str(value)
     Enter the Python script to decode 'value'.
@@ -572,7 +582,7 @@ home automation system could accept a wide range of ``true``-ish or
 
 Associating this codec with a path is slightly more involved::
 
-    one $ dkv codec convert -c floatstr floatval monitor '#' value
+    one $ dkv codec convert -c float.str floatval 'monitor.#.value'
 
 This associates
 
@@ -580,8 +590,8 @@ This associates
 
 * all paths that start with ``monitor`` and end with ``value``
 
-with the name ``floatval``. As not every user needs stringified numbers, we now
-need to tell DistKV which users to apply this codec to::
+with the codec list named ``floatval``. As not every user needs stringified
+numbers, we now need to tell DistKV which users to apply this codec to::
 
     one $ dkv auth user modify --aux codec=floatval name=joe
 	
@@ -600,8 +610,8 @@ Thus, Joe will read and write values as strings::
             _:
               '12.3'
 
-This is especially helpful if Joe is an MQTT gateway which only transmits
-(binary) strings.
+This is especially helpful if Joe is in fact an MQTT gateway which only
+receives and transmits (binary) strings.
 
 
 DistKV currently can't translate paths, or merge many values to one entry's attributes.
@@ -611,11 +621,11 @@ methods that translates between one and the other. There are some caveats:
 
 * All such data are stored twice.
 
-* Don't change a value that didn't in fact change; otherwise you'll generate an endless loop.
+* Replacing a value with the same value counts as a change. Don't set up an endless loop.
 
 * You need to verify that the two trees match when you start up, and decide
   which is more correct. (The ``tock`` stamp will help you here.) Don't
-overwrite changes that arrive while you do that.
+  overwrite changes that arrive while you do that.
 
 
 Dynamic configuration

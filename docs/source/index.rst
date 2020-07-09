@@ -40,6 +40,8 @@ Status
 DistKV is in production use as the backbone of the author's home and office
 automation setup.
 
+Note that as of DistKV 0.30, multi-word paths were replaced with dotted
+strings. Some pieces of documentation might still reflect the old style.
 
 .. toctree::
    :maxdepth: 2
