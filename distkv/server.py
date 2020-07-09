@@ -842,6 +842,13 @@ class ServerClient:
 
     cmd_enumerate = cmd_enum  # backwards compat: XXX remove
 
+    async def cmd_enum_node(self, msg):
+        n = msg.get("max", 0)
+        cur = msg.get("current", False)
+        node = Node(msg["node"], None, cache=self.server._nodes, create=False)
+        res = list(node.enumerate(n=n, current=cur))
+        return {"result": res}
+
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
         """

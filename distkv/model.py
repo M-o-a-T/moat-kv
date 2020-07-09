@@ -85,6 +85,21 @@ class Node:
     def get(self, item, default=None):
         return self.entries.get(item, default)
 
+    def enumerate(self, n: int = 0, current: bool = False):
+        """
+        Return a list of valid keys for that node.
+
+        Used to find data from no-longer-used nodes so they can be deleted.
+        """
+        for k, v in self.entries.items():
+            if current and v.node is not self:
+                continue
+            yield k
+            if n:
+                n -= 1
+                if not n:
+                    return
+
     def __contains__(self, item):
         return item in self.entries
 
