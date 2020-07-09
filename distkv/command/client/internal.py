@@ -187,6 +187,8 @@ async def get(obj, node, tick):
     """
 
     res = await obj.client._request("get_value", node=node, tick=tick, nchain=99)
+    if not obj.meta:
+        res = res.value
     yprint(res, stream=obj.stdout)
 
 
@@ -204,7 +206,11 @@ async def enum(obj, node, num, current):
     """
 
     res = await obj.client._request("enum_node", node=node, max=num, current=current)
-    yprint(res, stream=obj.stdout)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+    else:
+        for k in res.result:
+            print(k)
 
 
 @cli.command()
@@ -218,4 +224,5 @@ async def kill(obj, node):
     the system.
     """
     res = await obj.client._request("kill_node", node=node)
-    yprint(res, stream=obj.stdout)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
