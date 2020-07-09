@@ -116,7 +116,7 @@ class StreamedRequest:
             logger.info("ErrorMsg: %s", msg)
             if self.q is not None:
                 try:
-                    cls = error_types[msg['etype']]
+                    cls = error_types[msg["etype"]]
                 except KeyError:
                     cls = ServerError
                 await self.q.put(outcome.Error(cls(msg.error)))
@@ -246,7 +246,7 @@ class _SingleReply:
             await self.q.set(res)
             return res
         elif "error" in msg:
-            msg['request_params'] = self._params
+            msg["request_params"] = self._params
             logger.info("ErrorMsg: %s", msg)
             await self.q.set_error(ServerError(msg.error))
         else:

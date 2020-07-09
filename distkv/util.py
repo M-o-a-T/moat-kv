@@ -1254,7 +1254,7 @@ class PathLongener:
         res["path"] = p
 
 
-def res_get(res, attr: Path, **kw):
+def res_get(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
     """
     Get a node's value and access the dict items beneath it.
 
@@ -1266,7 +1266,7 @@ def res_get(res, attr: Path, **kw):
     return val._get(attr, **kw)
 
 
-def res_update(res, attr: Path, value=None, **kw):
+def res_update(res, attr: Path, value=None, **kw):  # pylint: disable=redefined-outer-name
     """
     Set a node's sub-item's value, possibly merging dicts.
     Entries set to 'NotGiven' are deleted.
@@ -1279,7 +1279,7 @@ def res_update(res, attr: Path, value=None, **kw):
     return val._update(attr, value=value, **kw)
 
 
-def res_delete(res, attr: Path, **kw):
+def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
     """
     Remove a node's sub-item's value, possibly removing now-empty
     intermediate dicts.

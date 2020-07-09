@@ -7,9 +7,11 @@ This module affords all DistKV exceptions.
 
 error_types = {}
 
+
 def _typed(cls):
     error_types[cls.etype] = cls
     return cls
+
 
 class DistKVError(RuntimeError):
     """Superclass of all DistKV errors.
@@ -35,12 +37,15 @@ class ClientError(DistKVError):
     Abstract class.
     """
 
+    etype: str = None
+
     pass
 
 
 @_typed
 class ClientChainError(ClientError):
     """The chain you passed in didn't match the entry"""
+
     etype = "chain"
 
     pass
@@ -49,6 +54,7 @@ class ClientChainError(ClientError):
 @_typed
 class ClientConnectionError(ClientError):
     """Some connection error"""
+
     etype = "conn"
 
     pass

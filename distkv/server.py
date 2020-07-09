@@ -1151,8 +1151,8 @@ class ServerClient:
                             await evt.wait()
                     except Exception as exc:
                         msg = {"error": str(exc)}
-                        if isinstance(exc, ClientError):
-                            msg['etype'] = exc.etype
+                        if isinstance(exc, ClientError):  # pylint doesn't seem to see this
+                            msg["etype"] = exc.etype  # pylint: disable=no-member  ### YES IT HAS
                         else:
                             self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
