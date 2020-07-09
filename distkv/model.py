@@ -819,12 +819,15 @@ class Entry:
         Remove a deleted entry (and possibly its parent).
         """
         logger.debug("CHOP %r", self)
-        this, p = self, self.parent
+        this, p = self, self._parent
         while p is not None:
+            p = p()
+            if p is None:
+                return
             p._sub.pop(this.name, None)
             if p._sub:
                 return
-            this, p = p, p.parent
+            this, p = p, p._parent
 
     async def set_data(self, event: NodeEvent, data: Any, server=None, tock=None):
         """This entry is updated by that event.
