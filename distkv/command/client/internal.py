@@ -205,3 +205,17 @@ async def enum(obj, node, num, current):
 
     res = await obj.client._request("enum_node", node=node, max=num, current=current)
     yprint(res, stream=obj.stdout)
+
+
+@cli.command()
+@click.argument("node", nargs=1)
+@click.pass_obj
+async def kill(obj, node):
+    """
+    Remove a node from the node list.
+
+    This command only works if this node does not have any current data in
+    the system.
+    """
+    res = await obj.client._request("kill_node", node=node)
+    yprint(res, stream=obj.stdout)

@@ -45,6 +45,7 @@ class Node:
     _reported: RangeSet = None  # somebody else reported these missing data for this node
     _superseded: RangeSet = None  # I know these once existed, but no more.
     entries: dict = None
+    tock: int = 0  # tock when node was last observed
 
     def __new__(cls, name, tick=None, cache=None, create=True):
         try:
@@ -92,7 +93,7 @@ class Node:
         Used to find data from no-longer-used nodes so they can be deleted.
         """
         for k, v in self.entries.items():
-            if current and v.node is not self:
+            if current and v.chain is not None and v.chain.node is not self:
                 continue
             yield k
             if n:
@@ -284,6 +285,22 @@ class Node:
     def remote_missing(self):
         """Values from this node which somebody else has not seen"""
         return self._reported
+
+    def kill_this_node(self, cache=None):
+        """
+        Remove this node from the system.
+        No chain's first link may point to this node.
+        """
+        for e in self.entries.values():
+            if e.chain.node is self:
+                raise RuntimeError(f"Still main node at {e!r}")
+            c = e.chain.filter(self)
+            if c is None:
+                raise RuntimeError(f"Empty chain after filter for {self.name} at {e!r}")
+            e.chain = c
+
+        if cache is not None:
+            cache.pop(self.name, None)
 
 
 class NodeSet(defaultdict):
