@@ -58,6 +58,7 @@ from .util import (
 )
 from .exceptions import (
     ClientError,
+    ClientChainError,
     NoAuthError,
     CancelledError,
     ACLError,
@@ -910,11 +911,11 @@ class ServerClient:
         if "chain" in msg:
             if msg.chain is None:
                 if entry.data is not NotGiven:
-                    raise ClientError("This entry already exists")
+                    raise ClientChainError("This entry already exists")
             elif entry.data is NotGiven:
-                raise ClientError("This entry is new")
+                raise ClientChainError("This entry is new")
             elif entry.chain != msg.chain:
-                raise ClientError(f"Chain is {entry.chain !r}")
+                raise ClientChainError(f"Chain is {entry.chain !r}")
             send_prev = False
 
         res = attrdict()
@@ -1149,7 +1150,10 @@ class ServerClient:
                             await self.tg.spawn(self.process, msg, evt)
                             await evt.wait()
                     except Exception as exc:
-                        if not isinstance(exc, ClientError):
+                        msg = {"error": str(exc)}
+                        if isinstance(exc, ClientError):  # pylint doesn't seem to see this
+                            msg["etype"] = exc.etype  # pylint: disable=no-member  ### YES IT HAS
+                        else:
                             self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
                             )

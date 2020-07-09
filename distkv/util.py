@@ -239,7 +239,7 @@ class attrdict(dict):
                 w = type(v)()
             else:
                 # copy
-                w = type(w)(**w)
+                w = type(w)(w)
             v[p] = w
             v = w
         px = path[-1]
@@ -770,38 +770,6 @@ async def data_get(
         obj.stdout.write(str(res))
 
 
-def res_get(res, path, **kw):
-    """
-    Get a node's value and access the dict items beneath it.
-    """
-    val = res.get("value", None)
-    if val is None:
-        return None
-    return val._get(path, **kw)
-
-
-def res_update(res, path, value=None, **kw):
-    """
-    Set some sub-item's value, possibly merging dicts.
-    Items set to 'NotGiven' are deleted.
-
-    Returns the new value.
-    """
-    val = res.get("value", attrdict())
-    return val._update(path, value=value, **kw)
-
-
-def res_delete(res, path, **kw):
-    """
-    Remove some sub-item's value, possibly removing now-empty intermediate
-    dicts.
-
-    Returns the new value.
-    """
-    val = res.get("value", attrdict())
-    return val._delete(path, **kw)
-
-
 @asynccontextmanager
 async def as_service(obj=None):
     """
@@ -995,7 +963,7 @@ class Path(collections.abc.Sequence):
         return "".join(res)
 
     def __getitem__(self, x):
-        if isinstance(x, slice) and x.start == 0 and x.step == 1:
+        if isinstance(x, slice) and x.start in (0, None) and x.step in (1, None):
             return type(self)(*self._data[x])
         else:
             return self._data[x]
@@ -1284,3 +1252,41 @@ class PathLongener:
         p = self.path[: self.depth + d] + p
         self.path = p
         res["path"] = p
+
+
+def res_get(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
+    """
+    Get a node's value and access the dict items beneath it.
+
+    The node value must be an attrdict.
+    """
+    val = res.get("value", None)
+    if val is None:
+        return None
+    return val._get(attr, **kw)
+
+
+def res_update(res, attr: Path, value=None, **kw):  # pylint: disable=redefined-outer-name
+    """
+    Set a node's sub-item's value, possibly merging dicts.
+    Entries set to 'NotGiven' are deleted.
+
+    The node value must be an attrdict.
+
+    Returns the new value.
+    """
+    val = res.get("value", attrdict())
+    return val._update(attr, value=value, **kw)
+
+
+def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
+    """
+    Remove a node's sub-item's value, possibly removing now-empty
+    intermediate dicts.
+
+    The node value must be an attrdict.
+
+    Returns the new value.
+    """
+    val = res.get("value", attrdict())
+    return val._delete(attr, **kw)

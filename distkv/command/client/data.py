@@ -6,6 +6,7 @@ import datetime
 
 from distkv.util import PathLongener, MsgReader, NotGiven, yprint, data_get, P
 from distkv.client import StreamedRequest
+from distkv.command import node_attr
 
 import logging
 
@@ -93,38 +94,49 @@ async def list_(obj, path, **k):
 @cli.command("set", short_help="Add or update an entry")
 @click.option("-v", "--value", help="The value to store. Mandatory.")
 @click.option("-e", "--eval", "eval_", is_flag=True, help="The value shall be evaluated.")
-@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
+@click.option("-P", "--path", "path_", is_flag=True, help="The value is a path.")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-n", "--new", is_flag=True, help="This is a new entry.")
+@click.option("-a", "--attr", default=None, help="Modify attribute.")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, value, eval_, prev, last, new):
+async def set_(obj, path, value, eval_, last, new, path_, attr):
     """
     Store a value at some DistKV position.
 
-    If you update a value, you really should use "--last" (preferred) or
-    "--prev" (if you must) to ensure that no other change arrived.
+    If you update a value, you should use "--last"
+    to ensure that no other change arrived.
 
     When adding a new entry, use "--new" to ensure that you don't
     accidentally overwrite something.
     """
     path = P(path)
+    if attr is not None:
+        attr = P(attr)
     if eval_:
-        value = eval(value)  # pylint: disable=eval-used
+        if path_:
+            raise click.UsageError("'eval' and 'path' are mutually exclusive")
+        if value == "-":
+            value = NotGiven
+        else:
+            value = eval(value)  # pylint: disable=eval-used
+            eval_ = False
+    elif path_:
+        value = P(value)
     args = {}
     if new:
-        if prev is not NotGiven or last:
-            raise click.UsageError("'new' and 'prev'/'last' are mutually exclusive")
+        if last:
+            raise click.UsageError("'new' and 'last' are mutually exclusive")
         args["chain"] = None
     else:
-        if prev is not NotGiven:
-            if eval_:
-                prev = eval(prev)  # pylint: disable=eval-used
-            args["prev"] = prev
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
+    if attr is not None:
+        res = await node_attr(obj, path, attr, value, eval_=eval_, **args)
+    else:
+        res = await obj.client.set(path, value=value, nchain=obj.meta, **args)
+
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
@@ -195,9 +207,7 @@ async def watch(obj, path, state):
     path = P(path)
 
     async with obj.client.watch(path, nchain=obj.meta, fetch=state) as res:
-        pl = PathLongener(path)
         async for r in res:
-            pl(r)
             if not flushing and r.get("state", "") == "uptodate":
                 flushing = True
             del r["seq"]

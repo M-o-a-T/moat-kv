@@ -41,6 +41,7 @@ from .exceptions import (
     ServerClosedError,
     ServerConnectionError,
     ServerError,
+    error_types,
     CancelledError,
 )
 from .codec import packer, stream_unpacker
@@ -112,8 +113,13 @@ class StreamedRequest:
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
         if "error" in msg:
+            logger.info("ErrorMsg: %s", msg)
             if self.q is not None:
-                await self.q.put(outcome.Error(ServerError(msg.error)))
+                try:
+                    cls = error_types[msg["etype"]]
+                except KeyError:
+                    cls = ServerError
+                await self.q.put(outcome.Error(cls(msg.error)))
             return
         state = msg.get("state", "")
 
@@ -226,10 +232,11 @@ class _SingleReply:
     arrives.
     """
 
-    def __init__(self, conn, seq):
+    def __init__(self, conn, seq, params):
         self._conn = conn
         self.seq = seq
         self.q = ValueEvent()
+        self._params = params
 
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
@@ -239,6 +246,8 @@ class _SingleReply:
             await self.q.set(res)
             return res
         elif "error" in msg:
+            msg["request_params"] = self._params
+            logger.info("ErrorMsg: %s", msg)
             await self.q.set_error(ServerError(msg.error))
         else:
             await self.q.set(msg)
@@ -496,7 +505,7 @@ class Client:
         if action is not None:
             params[act] = action
         params["seq"] = seq
-        res = _SingleReply(self, seq)
+        res = _SingleReply(self, seq, params)
         self._handlers[seq] = res
 
         logger.debug("Send %s", params)
