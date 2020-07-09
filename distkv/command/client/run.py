@@ -176,29 +176,24 @@ async def get(obj, path):
 
 
 @cli.command("set")
-@click.option("-c", "--code", help="Path to the code that should run. Space separated path.")
+@click.option("-c", "--code", help="Path to the code that should run.")
 @click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
-@click.option("-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
+async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff):
     """Save / modify a run entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if eval_:
-        code = eval(code)  # pylint: disable=eval-used
-        if not isinstance(code, (list, tuple)):
-            raise click.UsageError("'code' must be a list")
-    elif code is not None:
-        code = code.split(" ")
 
+    if code is not None:
+        code = P(code)
     path = obj.path + P(path)
 
     try:
