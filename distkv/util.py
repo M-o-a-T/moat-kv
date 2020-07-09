@@ -478,7 +478,11 @@ class _Server:
 
     async def __aenter__(self):
         send_q, self.recv_q = trio.open_memory_channel(1)
-        servers = await trio.open_tcp_listeners(self.port, **self._kw)
+        try:
+            servers = await trio.open_tcp_listeners(self.port, **self._kw)
+        except EnvironmentError as exc:
+            raise OSError(f"Port {self.port} in use", errno=exc.errno) from exc
+
         self.ports = []
         for s in servers:
             await self.tg.spawn(self._accept, s, send_q.clone())

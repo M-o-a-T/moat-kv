@@ -90,25 +90,30 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             logging._startTime = tm()
             await ex.enter_async_context(create_broker(config=broker_cfg))
 
+            args_def = kw.get("args", attrdict())
             for i in range(n):
                 name = "test_" + str(i)
-                args = kw.get(name, kw.get("args", attrdict()))
-                args["cfg"] = combine_dict(
-                    args.get("cfg", {}),
+                args = kw.get(name, args_def)
+                args = combine_dict(
+                    args,
+                    args_def,
                     {
-                        "connect": {"ssl": client_ctx},
-                        "server": {
-                            "bind_default": {
-                                "host": "127.0.0.1",
-                                "port": i + PORT + 1,
-                                "ssl": server_ctx,
+                        "cfg": {
+                            "connect": {"ssl": client_ctx},
+                            "server": {
+                                "bind_default": {
+                                    "host": "127.0.0.1",
+                                    "port": i + PORT + 1,
+                                    "ssl": server_ctx,
+                                },
+                                "backend": "mqtt",
+                                "mqtt": {"uri": URI},
                             },
-                            "backend": "mqtt",
-                            "mqtt": {"uri": URI},
-                        },
+                        }
                     },
-                    TESTCFG,
+                    {"cfg": TESTCFG},
                 )
+                args_def.pop("init", None)
                 s = Server(name, **args)
                 ex.enter_context(
                     mock.patch.object(s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock))

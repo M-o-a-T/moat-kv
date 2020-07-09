@@ -32,8 +32,8 @@ async def cli():
 )
 @click.option("-p", "--present", is_flag=True, help="Get known-data status.")
 @click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
-@click.option("-d", "--debug", is_flag=True, help="Get internal verbosity.")
-@click.option("-D", "--debugger", is_flag=True, help="Start a remote debugger. DO NOT USE.")
+@click.option("-D", "--debug", is_flag=True, help="Get internal verbosity.")
+@click.option("--debugger", is_flag=True, help="Start a remote debugger. DO NOT USE.")
 @click.option("-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status.")
 @click.option("-a", "--all", is_flag=True, help="All available data.")
 @click.pass_obj
@@ -187,4 +187,42 @@ async def get(obj, node, tick):
     """
 
     res = await obj.client._request("get_value", node=node, tick=tick, nchain=99)
+    if not obj.meta:
+        res = res.value
     yprint(res, stream=obj.stdout)
+
+
+@cli.command()
+@click.option("-n", "--num", type=int, help="Return at most this many IDs")
+@click.option("-c", "--current", is_flag=True, help="Return only IDs with current data")
+@click.argument("node", nargs=1)
+@click.pass_obj
+async def enum(obj, node, num, current):
+    """
+    List IDs of live data by a specific node.
+
+    Can be used to determine whether a node still has live data,
+    otherwise it can be deleted.
+    """
+
+    res = await obj.client._request("enum_node", node=node, max=num, current=current)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+    else:
+        for k in res.result:
+            print(k)
+
+
+@cli.command()
+@click.argument("node", nargs=1)
+@click.pass_obj
+async def kill(obj, node):
+    """
+    Remove a node from the node list.
+
+    This command only works if this node does not have any current data in
+    the system.
+    """
+    res = await obj.client._request("kill_node", node=node)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)

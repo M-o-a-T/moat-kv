@@ -45,6 +45,7 @@ class Node:
     _reported: RangeSet = None  # somebody else reported these missing data for this node
     _superseded: RangeSet = None  # I know these once existed, but no more.
     entries: dict = None
+    tock: int = 0  # tock when node was last observed
 
     def __new__(cls, name, tick=None, cache=None, create=True):
         try:
@@ -84,6 +85,21 @@ class Node:
 
     def get(self, item, default=None):
         return self.entries.get(item, default)
+
+    def enumerate(self, n: int = 0, current: bool = False):
+        """
+        Return a list of valid keys for that node.
+
+        Used to find data from no-longer-used nodes so they can be deleted.
+        """
+        for k, v in self.entries.items():
+            if current and v.chain is not None and v.chain.node is not self:
+                continue
+            yield k
+            if n:
+                n -= 1
+                if not n:
+                    return
 
     def __contains__(self, item):
         return item in self.entries
@@ -269,6 +285,22 @@ class Node:
     def remote_missing(self):
         """Values from this node which somebody else has not seen"""
         return self._reported
+
+    def kill_this_node(self, cache=None):
+        """
+        Remove this node from the system.
+        No chain's first link may point to this node.
+        """
+        for e in self.entries.values():
+            if e.chain.node is self:
+                raise RuntimeError(f"Still main node at {e!r}")
+            c = e.chain.filter(self)
+            if c is None:
+                raise RuntimeError(f"Empty chain after filter for {self.name} at {e!r}")
+            e.chain = c
+
+        if cache is not None:
+            cache.pop(self.name, None)
 
 
 class NodeSet(defaultdict):
@@ -804,12 +836,15 @@ class Entry:
         Remove a deleted entry (and possibly its parent).
         """
         logger.debug("CHOP %r", self)
-        this, p = self, self.parent
+        this, p = self, self._parent
         while p is not None:
+            p = p()
+            if p is None:
+                return
             p._sub.pop(this.name, None)
             if p._sub:
                 return
-            this, p = p, p.parent
+            this, p = p, p._parent
 
     async def set_data(self, event: NodeEvent, data: Any, server=None, tock=None):
         """This entry is updated by that event.

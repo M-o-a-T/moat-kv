@@ -24,7 +24,7 @@ try:
     from contextlib import asynccontextmanager
 except ImportError:
     from async_generator import asynccontextmanager
-from typing import Any
+from typing import Any, Dict
 from range_set import RangeSet
 from functools import partial
 from asyncactor import Actor, GoodNodeEvent, RecoverEvent, RawMsgEvent
@@ -62,6 +62,7 @@ from .exceptions import (
     NoAuthError,
     CancelledError,
     ACLError,
+    ServerError,
     ServerClosedError,
     ServerConnectionError,
 )
@@ -661,7 +662,7 @@ class ServerClient:
         async with anyio.open_cancel_scope() as s:
             self.tasks[seq] = s
             if "chain" in msg:
-                msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server._nodes)
+                msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server.node_cache)
 
             fn = None
             if msg.get("state", "") != "start":
@@ -842,11 +843,26 @@ class ServerClient:
 
     cmd_enumerate = cmd_enum  # backwards compat: XXX remove
 
+    async def cmd_enum_node(self, msg):
+        n = msg.get("max", 0)
+        cur = msg.get("current", False)
+        node = Node(msg["node"], None, cache=self.server.node_cache, create=False)
+        res = list(node.enumerate(n=n, current=cur))
+        return {"result": res}
+
+    async def cmd_kill_node(self, msg):
+        node = msg["node"]
+        node = Node(msg["node"], None, cache=self.server.node_cache, create=False)
+        for k in node.enumerate(current=True):
+            raise ServerError(f"Node {node.name} has entry {k}")
+
+        await self.server.drop_node(node.name)
+
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
         """Get a node's value.
         """
         if "node" in msg and "path" not in msg:
-            n = Node(msg.node, cache=self.server._nodes, create=False)
+            n = Node(msg.node, cache=self.server.node_cache, create=False)
             return n[msg.tick].serialize(
                 chop_path=self._chop_path, nchain=msg.get("nchain", 0), conv=self.conv
             )
@@ -960,7 +976,7 @@ class ServerClient:
         nodes = msg.nodes
         deleted = NodeSet()
         for n, v in nodes.items():
-            n = Node(n, None, cache=self.server._nodes)
+            n = Node(n, None, cache=self.server.node_cache)
             r = RangeSet()
             r.__setstate__(v)
             for a, b in r:
@@ -1151,7 +1167,7 @@ class ServerClient:
                             await evt.wait()
                     except Exception as exc:
                         msg = {"error": str(exc)}
-                        if isinstance(exc, ClientError):  # pylint doesn't seem to see this
+                        if isinstance(exc, ClientError):  # pylint doesn't seem to see this, so …:
                             msg["etype"] = exc.etype  # pylint: disable=no-member  ### YES IT HAS
                         else:
                             self.logger.exception(
@@ -1277,9 +1293,9 @@ class Server:
     fetch_running = None
     sending_missing = None
     ports = None
+    _tock = 0
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
-        self._tock = 0
         self.root = RootEntry(self, tock=self.tock)
 
         self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
@@ -1289,22 +1305,67 @@ class Server:
             self.cfg.server.root = Path.build(self.cfg.server.root)
 
         self.paranoid_root = self.root if self.cfg.server.paranoia else None
-        self._nodes = {}
-        self.node = Node(name, None, cache=self._nodes)
+
+        self._nodes: Dict[str, Node] = {}
+        self.node_drop = set()
+        self.node = Node(name, None, cache=self.node_cache)
+
         self._init = init
         self.crypto_limiter = anyio.create_semaphore(3)
         self.logger = logging.getLogger("distkv.server." + name)
         self._delete_also_nodes = NodeSet()
 
+        # Lock for generating a new node event
         self._evt_lock = anyio.create_lock()
+
+        # connected clients
         self._clients = set()
+
+        # cache for partial messages
         self._part_len = SERF_MAXLEN - SERF_LEN_DELTA - len(self.node.name)
         self._part_seq = 0
         self._part_cache = dict()
+
         self._savers = []
 
         # This is here, not in _run_del, because _del_actor needs to be accessible early
         self._del_actor = DeleteActor(self)
+
+    @property
+    def node_cache(self):
+        """
+        A node cache helper which also removes new nodes from the node_drop set.
+        """
+
+        class Cache:
+            def __len__(slf):  # pylint: disable=no-self-argument
+                return len(self._nodes)
+
+            def __bool__(slf):  # pylint: disable=no-self-argument
+                return len(self._nodes) > 0
+
+            def __contains__(slf, k):  # pylint: disable=no-self-argument
+                return k in self._nodes
+
+            def __getitem__(slf, k):  # pylint: disable=no-self-argument
+                return self._nodes[k]
+
+            def __setitem__(slf, k, v):  # pylint: disable=no-self-argument
+                self._nodes[k] = v
+                self.node_drop.discard(k)
+
+            def __delitem__(slf, k):  # pylint: disable=no-self-argument
+                del self._nodes[k]
+                self.node_drop.add(k)
+
+            def get(slf, *k):  # pylint: disable=no-self-argument
+                return self._nodes.get(*k)
+
+            def pop(slf, *k):  # pylint: disable=no-self-argument
+                self.node_drop.add(k)
+                return self._nodes.pop(*k)
+
+        return Cache()
 
     @asynccontextmanager
     async def next_event(self):
@@ -1312,6 +1373,10 @@ class Server:
 
         This increments ``tock`` because that increases the chance that the
         node (or split) where something actually happens wins a collision.
+
+        Rationale: if the event is created and leaks to the environment, it
+        needs to be marked as deleted if incomplete. Otherwise the system
+        sees it as "lost" data.
         """
         async with self._evt_lock:
             n = None
@@ -1498,7 +1563,7 @@ class Server:
         self.logger.debug("PurgeDel: %r", deleted)
 
         for n, v in deleted.items():
-            n = Node(n, cache=self._nodes)
+            n = Node(n, cache=self.node_cache)
             n.purge_deleted(v)
 
     async def get_state(
@@ -1509,6 +1574,7 @@ class Server:
         deleted=False,
         missing=False,
         present=False,
+        node_drop=False,
         debug=False,
         debugger=False,
         remote_missing=False,
@@ -1557,6 +1623,8 @@ class Server:
                 lk = n.remote_missing
                 if len(lk):
                     nd[n.name] = lk.__getstate__()
+        if node_drop:
+            res.node_drop = list(self.node_drop)
         if debug:
             nd = res.debug = attrdict()
             # TODO insert some debugging info
@@ -1577,14 +1645,12 @@ class Server:
         """
         Process an update message: deserialize it and apply the result.
         """
-        msg = UpdateEvent.deserialize(self.root, msg, cache=self._nodes, nulls_ok=True)
+        msg = UpdateEvent.deserialize(self.root, msg, cache=self.node_cache, nulls_ok=True)
         await msg.entry.apply(msg, server=self, root=self.paranoid_root)
 
     async def user_info(self, msg):
         """
         Process info broadcasts.
-
-        These messages are mainly used by the split recovery protocol.
         """
 
         if msg.node == self.node.name:
@@ -1594,7 +1660,7 @@ class Server:
         ticks = msg.get("ticks", None)
         if ticks is not None:
             for n, t in ticks.items():
-                n = Node(n, cache=self._nodes)
+                n = Node(n, cache=self.node_cache)
                 n.tick = max_n(n.tick, t)
 
             # did this message pre-empt our own transmission?
@@ -1608,7 +1674,7 @@ class Server:
         if missing is not None:
             nn = 0
             for n, k in missing.items():
-                n = Node(n, cache=self._nodes)
+                n = Node(n, cache=self.node_cache)
                 r = RangeSet()
                 r.__setstate__(k)
                 nn += len(r)
@@ -1639,7 +1705,7 @@ class Server:
             superseded = msg.get("known", None)
         if superseded is not None:
             for n, k in superseded.items():
-                n = Node(n, cache=self._nodes)
+                n = Node(n, cache=self.node_cache)
                 r = RangeSet()
                 r.__setstate__(k)
                 r -= n.local_present
@@ -1649,10 +1715,14 @@ class Server:
         deleted = msg.get("deleted", None)
         if deleted is not None:
             for n, k in deleted.items():
-                n = Node(n, cache=self._nodes)
+                n = Node(n, cache=self.node_cache)
                 r = RangeSet()
                 r.__setstate__(k)
                 n.report_deleted(r, self)
+
+        # Dropped nodes.
+        for nn in msg.get("node_drop", ()):
+            self._dropped_node(nn)
 
     async def _delete_also(self):
         """
@@ -1814,10 +1884,13 @@ class Server:
                         if msg_node is None:
                             continue
                     val = msg.get("value", None)
+                    tock = None
                     if val is not None:
-                        await self.tock_seen(val[0])
-                        val = val[1]
-                    Node(msg_node, val, cache=self._nodes)
+                        tock, val = val
+                        await self.tock_seen(tock)
+                    node = Node(msg_node, val, cache=self.node_cache)
+                    if tock is not None:
+                        node.tock = tock
 
                 elif isinstance(msg, TagEvent):
                     # We're "it"; find missing data
@@ -1940,7 +2013,9 @@ class Server:
                     )
                     async for r in res:
                         pl(r)
-                        r = UpdateEvent.deserialize(self.root, r, cache=self._nodes, nulls_ok=True)
+                        r = UpdateEvent.deserialize(
+                            self.root, r, cache=self.node_cache, nulls_ok=True
+                        )
                         await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
@@ -1954,7 +2029,9 @@ class Server:
                     )
                     async for r in res:
                         pl(r)
-                        r = UpdateEvent.deserialize(self.root, r, cache=self._nodes, nulls_ok=True)
+                        r = UpdateEvent.deserialize(
+                            self.root, r, cache=self.node_cache, nulls_ok=True
+                        )
                         await r.entry.apply(r, server=self, root=self.paranoid_root)
                     await self.tock_seen(res.end_msg.tock)
 
@@ -2003,12 +2080,12 @@ class Server:
 
         # nodes: list of known nodes and their max ticks
         for nn, t in msg.get("nodes", {}).items():
-            nn = Node(nn, cache=self._nodes)
+            nn = Node(nn, cache=self.node_cache)
             nn.tick = max_n(nn.tick, t)
 
         # known: per-node range of ticks that have been resolved
         for nn, k in msg.get("known", {}).items():
-            nn = Node(nn, cache=self._nodes)
+            nn = Node(nn, cache=self.node_cache)
             r = RangeSet()
             r.__setstate__(k)
             nn.report_superseded(r, local=True)
@@ -2016,7 +2093,7 @@ class Server:
         # deleted: per-node range of ticks that have been deleted
         deleted = msg.get("deleted", {})
         for nn, k in deleted.items():
-            nn = Node(nn, cache=self._nodes)
+            nn = Node(nn, cache=self.node_cache)
             r = RangeSet()
             r.__setstate__(k)
             nn.report_deleted(r, self)
@@ -2024,10 +2101,28 @@ class Server:
         # remote_missing: per-node range of ticks that should be re-sent
         # This is used when loading data from a state file
         for nn, k in msg.get("remote_missing", {}).items():
-            nn = Node(nn, cache=self._nodes)
+            nn = Node(nn, cache=self.node_cache)
             r = RangeSet()
             r.__setstate__(k)
             nn.report_missing(r)
+
+        # Dropped nodes.
+        for nn in msg.get("node_drop", ()):
+            self._dropped_node(nn)
+
+    async def drop_node(self, name):
+        self._dropped_node(name)
+        await self._send_event("info", attrdict(node_drop=[name]))
+
+    def _dropped_node(self, name):
+        try:
+            nn = Node(name, cache=self.node_cache, create=False)
+        except KeyError:
+            return
+        for _ in nn.enumerate(current=True):
+            break
+        else:  # no item found
+            nn.kill_this_node(self.node_cache)
 
     async def _check_ticked(self):
         if self._ready is None:
@@ -2071,6 +2166,8 @@ class Server:
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
 
                     msg = attrdict(ticks=msg)
+                    if self.node_drop:
+                        msg.node_drop = list(self.node_drop)
                     await self._send_event("info", msg)
 
                 # Step 2: send an info/missing message
@@ -2119,6 +2216,8 @@ class Server:
 
         if force or msg:
             msg = attrdict(missing=msg)
+            if self.node_drop:
+                msg.node_drop = list(self.node_drop)
             await self._send_event("info", msg)
 
     async def _run_send_missing(self, prio):
@@ -2174,7 +2273,14 @@ class Server:
                 if d:
                     deleted[n.name] = d.__getstate__()
 
-            if known or deleted:
+            msg = attrdict()
+            if known:
+                msg.known = known
+            if deleted:
+                msg.deleted = deleted
+            if self.node_drop:
+                msg.node_drop = list(self.node_drop)
+            if msg:
                 await self._send_event("info", attrdict(known=known, deleted=deleted))
         self.sending_missing = None
 
@@ -2207,10 +2313,12 @@ class Server:
                         await self.tock_seen(m.tock)
                     else:
                         m.tock = self.tock
-                    m = UpdateEvent.deserialize(self.root, m, cache=self._nodes, nulls_ok=True)
+                    m = UpdateEvent.deserialize(self.root, m, cache=self.node_cache, nulls_ok=True)
                     await self.tock_seen(m.tock)
                     await m.entry.apply(m, server=self, root=self.paranoid_root, loading=True)
-                elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:
+                elif "info" in m:
+                    await self._process_info(m["info"])
+                elif "nodes" in m or "known" in m or "deleted" in m or "tock" in m:  # XXX LEGACY
                     await self._process_info(m)
                 else:
                     self.logger.warning("Unknown message in stream: %s", repr(m))
@@ -2241,7 +2349,8 @@ class Server:
             await writer(res)
 
         msg = await self.get_state(nodes=True, known=True, deleted=True)
-        await writer(msg)
+        # await writer({"info": msg})
+        await writer(msg)  # XXX legacy
         await self.root.walk(saver, full=full)
 
     async def save(self, path: str = None, stream=None, full=True):
@@ -2278,7 +2387,8 @@ class Server:
 
         async with MsgWriter(path=path, stream=stream) as mw:
             msg = await self.get_state(nodes=True, known=True, deleted=True)
-            await mw(msg)
+            # await mw({"info": msg})
+            await mw(msg)  # XXX legacy
             last_saved = time.monotonic()
             last_saved_count = 0
 
@@ -2299,7 +2409,8 @@ class Server:
                     td = t - last_saved
                     if td >= 60 or last_saved_count > 1000:
                         msg = await self.get_state(nodes=True, known=True, deleted=True)
-                        await mw(msg)
+                        # await mw({"info": msg})
+                        await mw(msg)  # XXX legacy
                         await mw.flush()
                         last_saved = time.monotonic()
                         last_saved_count = 0
