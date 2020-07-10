@@ -219,6 +219,46 @@ async def get(obj, path, state):
     yprint(res, stream=obj.stdout)
 
 
+@cli.command()
+@click.option("-f", "--force", is_flag=True, help="Force deletion even if messy")
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def delete(obj, path, force):
+    """Remove a runner entry"""
+    path = P(path)
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    res = await obj.client.get(obj.path + path, nchain=3)
+    if "value" not in res:
+        res.info = "Does not exist."
+    else:
+        val = res.value
+        if val.target is not None:
+            val.target = None
+            res = await obj.client.set(obj.path + path, nchain=3, chain=res.chain)
+            if not force:
+                res.info = "'target' was set: cleared but not deleted."
+        if force or val.target is None:
+            sres = await obj.client.get(obj.statepath + path, nchain=obj.meta)
+            if not force and "value" in sres and sres.value.stopped < sres.value.started:
+                res.info = "Still running, not deleted."
+            else:
+                sres = await obj.client.delete(obj.statepath + path, chain=sres.chain)
+                res = await obj.client.delete(obj.path + path, chain=res.chain)
+                if "value" in res and res.value.stopped < res.value.started:
+                    res.info = "Deleted (unclean!)."
+                else:
+                    res.info = "Deleted."
+
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+    else:
+        print(res.info)
+
+
 @cli.command("set")
 @click.option("-c", "--code", help="Path to the code that should run.")
 @click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
