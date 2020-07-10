@@ -58,6 +58,8 @@ class ChangeMsg(RunnerMsg):
 
     Subclass this and use it as `CallAdmin.watch`'s ``cls`` parameter for easier
     disambiguation.
+
+    The runner sets ``path`` and ``value`` attributes.
     """
 
     pass
@@ -212,7 +214,18 @@ class CallAdmin:
                     async with self.client.watch(path, **kw) as watcher:
                         async for msg in watcher:
                             if "path" in msg:
-                                await self.runner.send_event(cls(msg))
+                                chg = cls(msg)
+                                try:
+                                    chg.value = (  # pylint:disable=attribute-defined-outside-init
+                                        msg.value
+                                    )
+                                except AttributeError:
+                                    pass
+                                chg.path = (  # pylint:disable=attribute-defined-outside-init
+                                    msg.path
+                                )
+                                await self.runner.send_event(chg)
+
                             elif msg.get("state", "") == "uptodate":
                                 self.admin._n_watch -= 1
                                 if not self.admin._n_watch:
