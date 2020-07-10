@@ -167,15 +167,18 @@ class CallAdmin:
         await self._state.save()
         await self._err.record_working("run", self._runner._path, **kw)
 
-    async def error(self, **kw):
+    async def error(self, path=None, **kw):
         """
         Record that an error has occurred. This function records specific
         error data, then raises `ErrorRecorded` which the code is not
         supposed to catch.
 
-        See `distkv.errors.ErrorRoot.record_error` for keyword details.
+        See `distkv.errors.ErrorRoot.record_error` for keyword details. The
+        ``path`` argument is auto-filled to point to the current task.
         """
-        r = await self._err.record_error("run", self._path, **kw)
+        if path is None:
+            path = self._path
+        r = await self._err.record_error("run", path, **kw)
         await self._err.root.wait_chain(r.chain)
         raise ErrorRecorded()
 
