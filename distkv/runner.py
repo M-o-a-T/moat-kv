@@ -20,7 +20,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path
+from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -48,6 +48,8 @@ class RunnerMsg(ActorState):
     """Superclass for runner-generated messages.
 
     Not directly instantiated.
+
+    This message and its descendants take one opaque parameter: ``msg``.
     """
 
     pass
@@ -58,6 +60,8 @@ class ChangeMsg(RunnerMsg):
 
     Subclass this and use it as `CallAdmin.watch`'s ``cls`` parameter for easier
     disambiguation.
+
+    The runner sets ``path`` and ``value`` attributes.
     """
 
     pass
@@ -118,6 +122,7 @@ class CallAdmin:
         self._path = runner._path
         self._subpath = runner.subpath
         self._n_watch = 0
+        self._n_watch_seen = 0
 
     async def _run(self, code, data):
         """Called by the runner to actually execute the code."""
@@ -148,6 +153,12 @@ class CallAdmin:
                 await sc.cancel()
                 return res
 
+    async def cancel(self):
+        """
+        Cancel the running task
+        """
+        await self._taskgroup.cancel_scope.cancel()
+
     async def spawn(self, proc, *a, **kw):
         """
         Start a background subtask.
@@ -157,18 +168,7 @@ class CallAdmin:
         Returns: an `anyio.abc.CancelScope` which you can use to cancel the
             subtask.
         """
-
-        async def _spawn(evt, proc, a, kw):
-            nonlocal scope
-            async with anyio.open_cancel_scope() as scope:  # pylint: disable=unused-variable
-                await evt.set()
-                await proc(*a, **kw)
-
-        scope = None
-        evt = anyio.create_event()
-        await self._taskgroup.spawn(_spawn, evt, proc, a, kw)
-        await evt.wait()
-        return scope
+        return await spawn(self._taskgroup, proc, *a, **kw)
 
     async def setup_done(self, **kw):
         """
@@ -178,15 +178,18 @@ class CallAdmin:
         await self._state.save()
         await self._err.record_working("run", self._runner._path, **kw)
 
-    async def error(self, **kw):
+    async def error(self, path=None, **kw):
         """
         Record that an error has occurred. This function records specific
         error data, then raises `ErrorRecorded` which the code is not
         supposed to catch.
 
-        See `distkv.errors.ErrorRoot.record_error` for keyword details.
+        See `distkv.errors.ErrorRoot.record_error` for keyword details. The
+        ``path`` argument is auto-filled to point to the current task.
         """
-        r = await self._err.record_error("run", self._path, **kw)
+        if path is None:
+            path = self._path
+        r = await self._err.record_error("run", path, **kw)
         await self._err.root.wait_chain(r.chain)
         raise ErrorRecorded()
 
@@ -202,10 +205,17 @@ class CallAdmin:
 
         By default a watcher will only monitor a single entry. Set
         ``max_depth`` if you also want child entries.
+
+        By default a watcher will not report existing entries. Set
+        ``fetch=False`` if you want them.
         """
 
         class Watcher:
+            """Helper class for watching an entry"""
+
             def __init__(self, admin, runner, client, cls, path, kw):
+                kw.setdefault("fetch", True)
+
                 self.admin = admin
                 self.runner = runner
                 self.client = client
@@ -220,11 +230,24 @@ class CallAdmin:
                     async with self.client.watch(path, **kw) as watcher:
                         async for msg in watcher:
                             if "path" in msg:
-                                await self.runner.send_event(cls(msg))
+                                chg = cls(msg)
+                                try:
+                                    chg.value = (  # pylint:disable=attribute-defined-outside-init
+                                        msg.value
+                                    )
+                                except AttributeError:
+                                    pass
+                                chg.path = (  # pylint:disable=attribute-defined-outside-init
+                                    msg.path
+                                )
+                                await self.runner.send_event(chg)
+
                             elif msg.get("state", "") == "uptodate":
-                                self.admin._n_watch -= 1
-                                if not self.admin._n_watch:
-                                    await self.runner.send_event(ReadyMsg(msg))
+                                self.admin._n_watch_seen += 1
+                                if self.admin._n_watch_seen == self.admin._n_watch:
+                                    await self.runner.send_event(
+                                        ReadyMsg(self.admin._n_watch_seen)
+                                    )
 
             async def cancel(self):
                 if self.scope is None:
@@ -232,6 +255,7 @@ class CallAdmin:
                 sc, self.scope = self.scope, None
                 await sc.cancel()
 
+        kw.setdefault("max_depth", 0)
         if kw.setdefault("fetch", True):
             self._n_watch += 1
 
@@ -241,18 +265,19 @@ class CallAdmin:
 
     async def timer(self, delay, cls=TimerMsg):
         class Timer:
-            def __init__(self, runner, delay, cls):
+            def __init__(self, runner, delay, cls, tg):
                 self.runner = runner
                 self.delay = delay
                 self.cls = cls
                 self.scope = None
+                self._taskgroup = tg
 
-            async def run(self):
+            async def _run(self):
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
                     await anyio.sleep(delay)
-                    await self.runner.send_event(self.cls())
                     self.scope = None
+                    await self.runner.send_event(self.cls(self))
 
             async def cancel(self):
                 if self.scope is None:
@@ -261,8 +286,13 @@ class CallAdmin:
                 await sc.cancel()
                 return True
 
-        t = Timer(self._runner, delay, cls)
-        await self._taskgroup.spawn(t.run)
+            async def run(self, delay):
+                await self.cancel()
+                self.delay = delay
+                await self._taskgroup.spawn(t._run)
+
+        t = Timer(self._runner, delay, cls, self._taskgroup)
+        await self._taskgroup.spawn(t._run)
         return t
 
 
@@ -324,6 +354,8 @@ class RunnerEntry(AttrClientEntry):
 
         super().__init__(*a, **k)
 
+        self._logger = logger_for(self._path)
+
     def __repr__(self):
         return "<%s %r:%r>" % (self.__class__.__name__, self.subpath, self.code)
 
@@ -339,6 +371,7 @@ class RunnerEntry(AttrClientEntry):
         try:
             self._running = True
             try:
+                self._logger.debug("Start")
                 if state.node is not None:
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
@@ -355,6 +388,7 @@ class RunnerEntry(AttrClientEntry):
                 data["_cls"] = _CLASSES
                 data["_P"] = P
                 data["_Path"] = Path
+                data["_log"] = self._logger
 
                 state.started = time.time()
                 state.node = state.root.name
@@ -366,8 +400,11 @@ class RunnerEntry(AttrClientEntry):
                 data["_self"] = calls = CallAdmin(self, state, data)
                 res = await calls._run(code, data)
 
+            except BaseException as exc:
+                self._logger.info("Error: %r", exc)
+            else:
+                self._logger.debug("End")
             finally:
-                logger.debug("End %r", self._path)
                 self.scope = None
                 self._q = None
                 t = time.time()
@@ -379,9 +416,9 @@ class RunnerEntry(AttrClientEntry):
 
         except BaseException as exc:
             c, self._comment = self._comment, None
-            async with anyio.move_on_after(2, shield=True):
+            async with anyio.move_on_after(5, shield=True):
                 r = await self.root.err.record_error(
-                    "run", self._path, message="Exception", exc=exc, data=self.data, comment=c
+                    "run", self._path, exc=exc, data=self.data, comment=c
                 )
                 await self.root.err.wait_chain(r.chain)
             state.backoff += 1
@@ -471,7 +508,9 @@ class RunnerEntry(AttrClientEntry):
         if state.started and not state.stopped:
             raise RuntimeError("Running! should not be called")
 
-        if self.target > state.started:
+        if self.target is None:
+            return False
+        elif self.target > state.started:
             return self.target
         elif state.backoff:
             return state.stopped + self.delay * (self.backoff ** state.backoff)
@@ -583,7 +622,7 @@ class StateEntry(AttrClientEntry):
         n = self.node
 
         await super().set_value(value)
-        if not self.root.runner.ready:
+        if not self.root.runner_ready:
             return
         try:
             run = self.runner
@@ -629,6 +668,16 @@ class StateRoot(ClientRoot):
     @property
     def runner(self):
         return self._runner()
+
+    @property
+    def runner_ready(self):
+        r = self._runner
+        if r is None:
+            return False
+        r = r()
+        if r is None:
+            return False
+        return r.ready
 
     def set_runner(self, runner):
         self._runner = ref(runner)
@@ -678,11 +727,12 @@ class _BaseRunnerRoot(ClientRoot):
     CFG = "runner"
     SUB = None
 
-    def __init__(self, *a, _subpath, err=None, code=None, **kw):
+    def __init__(self, *a, _subpath, err=None, code=None, nodes=0, **kw):
         super().__init__(*a, **kw)
         self.err = err
         self.code = code
         self._nodes = {}
+        self.n_nodes = nodes
         self._trigger = anyio.create_event()
         self._x_subpath = _subpath
 
@@ -791,7 +841,7 @@ class _BaseRunnerRoot(ClientRoot):
             ac = BrokenState
         elif self.name in self.node_history and ac == 1:
             ac = DetachedState
-        elif self._act is not None and ac >= self._act.n_nodes:
+        elif self._act is not None and ac >= self.n_nodes:  # TODO configureable
             ac = CompleteState
         else:
             ac = PartialState

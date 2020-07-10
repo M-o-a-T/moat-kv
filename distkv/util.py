@@ -569,7 +569,12 @@ def split_one(p, kw):
     kw[k] = v
 
 
-def _call_proc(code, *a, **kw):
+def _call_proc(code, variables, *a, **kw):
+    v = variables[len(a) :]
+    if v:
+        a = list(a)
+        for k in v:
+            a.append(kw.pop(k, None))
     eval(code, kw)  # pylint: disable=eval-used
     code = kw["_proc"]
     return code(*a)
@@ -596,7 +601,7 @@ def _proc({ ",".join(variables) }):
     code = hdr + code.replace("\n", "\n    ")
     code = compile(code, str(path), "exec")
 
-    return partial(_call_proc, code)
+    return partial(_call_proc, code, variables)
 
 
 class Module(ModuleType):
@@ -693,7 +698,22 @@ async def data_get(
     empty=False,
     raw=False,
     internal=False,
+    path_mangle=None,
+    item_mangle=None,
 ):
+    """Generic code to dump a subtree.
+
+    `path_mangle` accepts a path and the as_dict parameter. It should
+    return the new path. This is used for e.g. prefixing the path with a
+    device name. Returning ``None`` causes the entry to be skipped.
+    """
+    if path_mangle is None:
+        path_mangle = lambda x: x
+    if item_mangle is None:
+
+        async def item_mangle(x):  # pylint: disable=function-redefined
+            return x
+
     if recursive:
         kw = {}
         if maxdepth is not None:
@@ -702,14 +722,23 @@ async def data_get(
             kw["min_depth"] = mindepth
         if empty:
             kw["add_empty"] = True
+        if obj.meta:
+            kw.setdefault("nchain", obj.meta)
         y = {}
         if internal:
             res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
         else:
             res = obj.client.get_tree(path, nchain=obj.meta, **kw)
         async for r in res:
+            r = await item_mangle(r)
+            if r is None:
+                continue
             r.pop("seq", None)
             path = r.pop("path")
+            path = path_mangle(path)
+            if path is None:
+                continue
+
             if as_dict is not None:
                 yy = y
                 for p in path:
@@ -719,8 +748,6 @@ async def data_get(
                 except AttributeError:
                     if empty:
                         yy[as_dict] = None
-                    else:
-                        continue
             else:
                 if raw:
                     y = path
@@ -1294,3 +1321,20 @@ def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
     """
     val = res.get("value", attrdict())
     return val._delete(attr, **kw)
+
+
+def logger_for(path: Path):
+    """
+    Create a logger for this path.
+    """
+    if not len(path):
+        p = "distkv.root"
+    elif path[0] is None:
+        p = "distkv.meta"
+    elif path[0] == ".distkv":
+        p = "distkv.sub"
+    else:
+        p = "distkv.at"
+    if len(path) > 1:
+        p += ".".join(path[1:])
+    return logging.getLogger(p)

@@ -58,5 +58,7 @@ TODOs:
 Changelog
 =========
 
+0.35: allow forgetting nodes (if they have no data attached)
+
 0.30: major API refactoring: paths are now separate objects
 

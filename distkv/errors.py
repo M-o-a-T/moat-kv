@@ -195,11 +195,15 @@ class ErrorEntry(AttrClientEntry):
 
         if message:
             if data:
-                m = message.format(**data)
+                try:
+                    m = message.format(exc=exc, **data)
+                except Exception as exc:
+                    m = message + f" (FORMAT {exc!r})"
             else:
                 m = message
-            if exc:
-                m += ": " + str(exc)
+            if m:
+                if exc:
+                    m += f": {exc!r}"
             elif exc:
                 m = repr(exc)
             elif comment:
@@ -469,7 +473,7 @@ class ErrorRoot(ClientRoot):
         """
         rec = await self.get_error_record(subsystem, path)
         if not force and hasattr(rec, "severity") and rec.severity < severity:
-            return
+            return rec
 
         rec.severity = severity
         rec.subsystem = subsystem
@@ -483,6 +487,7 @@ class ErrorRoot(ClientRoot):
         try:
             await rec.save()
         except anyio.exceptions.ClosedResourceError:
+            logger.error("Could not save error %s %s: %s %r", subsystem, path, message, exc)
             return  # owch, but can't be helped
 
         r = await rec.real_entry.add_exc(

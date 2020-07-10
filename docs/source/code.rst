@@ -95,12 +95,25 @@ DistKV has three built-in types of code runners. All are organized by a "group"
 tag. The "distkv client run all" command starts all jobs of a type, in a
 specific group.
 
+``distkv client run`` accepts a ``-g ‹group›`` option that tells the
+system which group to use. If you don't use this option, the default group
+is named ``default``.
+
+All groups and all runners are distinct. Which nodes actually execute the
+code you enter into DistKV is determined solely by running ``distkv client
+run all`` on them, with the appropriate options.
+
 ++++++++++++++++++
 Single-node runner
 ++++++++++++++++++
 
 This runner executes code on a specific node. This is useful e.g. if you
-need to access actual hardware.
+need to access non-redundant hardware, e.g. a 1wire bus connected to a
+specific computer.
+
+On the command line you access this runner with ``distkv client run -n
+NAME``.
+
 
 +++++++++++++++
 Any-node runner
@@ -108,18 +121,20 @@ Any-node runner
 
 This runner executes code on one of a group of nodes. Which node executes
 the code is largely determined by chance, startup order, or phase of the
-moon.
+moon. This is useful when accessing redundant hardware, e.g. a radio
+interface.
 
 TODO: Load balancing is not yet implemented.
 
-All nodes in a runner form an Actor group; the node that holds the Tag
-checks whether jobs need to start.
+On the command line you access this runner with ``distkv client run``, i.e.
+without using the ``-n ‹node›`` option.
 
 +++++++++++++++
 All-node runner
 +++++++++++++++
 
-This runner executes code on all members of a group of nodes.
+This runner executes code on all members of a group of nodes. You access it
+with ``distkv client run -n -``.
 
 ====================
 Runner configuration
@@ -140,13 +155,10 @@ Variables
 
 The runners pass a couple of variables to their code.
 
-* _self
-
-  The controller. It can do a few things. See `distkv.runner.CallAdmin`, below.
-
 * _client
 
-  The DistKV client instance.
+  The DistKV client instance. You can use it to access arbitraty DistKV
+  data.
 
 * _cfg
 
@@ -156,13 +168,27 @@ The runners pass a couple of variables to their code.
 
   A dict (actually, `distkv.util.attrdict`) with various runner-related
   message classes. Convenient if you want to avoid a cumbersome ``import``
-  statement, since these are not part of DistKV's public API.
+  statement in your code, since these are not part of DistKV's public API.
 
 * _info (async only)
 
-  A queue for events. Currently, receives subclasses of
-  :class:`asyncactor.ActorState`, to signal whether the running node is
-  connected to any / all of your DistKV-using infrastructure.
+  A queue for events. This queue receives various messages. See below.
+
+* _log
+
+  A standard ``Logger`` object.
+
+* _P
+
+  `distkv.util.P`, to decode a Path string to a Path object.
+
+* _Path
+
+  `distkv.util.Path`, to convert a list of path elements to a Path object.
+
+* _self (async only)
+
+  The controller. See `distkv.runner.CallAdmin`, below.
 
 These variables, as well as the contents of the data associated with the
 runner, are available as global variables.
@@ -188,37 +214,124 @@ When you get a `ReadyMsg` event, all values have been transmitted; you can
 then set up some timeouts, set other values, access external services, and
 do whatever else your code needs to do.
 
-Traditional DiskKV client code requires an async context manager for most
-scoped operations. Since a `CallAdmin` is scoped by definition, it can
-manage these scopes for you. Thus, instead of writing boilerplate code like
+DistKV client code requires an async context manager for most scoped
+operations. Since a `CallAdmin` is scoped by definition, it can manage
+these scopes for you. Thus, instead of writing boilerplate code like
 this::
 
-   async with _client.watch("some","special","path") as w1:
-      async with _client.watch("some","other","path") as w2:
-         async with anyio.create_task_group() as tg:
-            q = anyio.create_queue()
-            async def _watch(w):
-               async for msg in w:
-                  await q.put(msg)
-            async def _timeout(t):
-               await q.put(distkv.runner.TimerMsg())
-            await tg.spawn(_watch, w1)
-            await tg.spawn(_watch, w2)
-            await tg.spawn(_timeout, 100)
-            async for msg in q:
-               await process(msg)
+   import anyio
+   inport distkv.runner
+   """
+   Assume we want to process changes from these two subtrees
+   for 100 seconds
+   """
+   async with _client.watch(_P("some.special.path")) as w1:
+      async with _client.watch(P("some.other.path")) as w2:
+         q = anyio.create_queue()
+         async def _watch(w):
+            async for msg in w:
+               await q.put(msg)
+         async def _timeout(t):
+            await anyio.sleep(t)
+            await process_timeout()
+         await _self.spawn(_watch, w1)
+         await _self.spawn(_watch, w2)
+         await _self.spawn(_timeout, 100)
+         async for msg in q:
+            await process_data(msg)
 
 you can simplify this to::
 
-   await _self.watch("some","special","path")
-   await _self.watch("some","other","path")
+   await _self.watch(_P("some.special.path"))
+   await _self.watch(_P("some.other.path"))
    await _self.timer(100)
    async for msg in _info:
-      if isinstance(msg, distkv.runner.ChangeMsg):
+      if msg is None:
+         return  # system was stalled
+      elif isinstance(msg, _cls.TimerMsg):
          await process_timeout()
-      elif isinstance(msg, distkv.runner.ChangeMsg):
+      elif isinstance(msg, _cls.ChangeMsg):
          await process_data(msg.msg)
 
-Distinguishing these messages can be further simplified by using distinct
-``cls=`` parameters in your ``watch`` and ``timer`` calls.
+Distinguishing messages from different sources can be further simplified by
+using distinct ``cls=`` parameters (subclasses of ``ChangeMsg`` and
+``TimerMsg``) in your ``watch`` and ``timer`` calls, respectively.
+
+By default, ``watch`` retrieves the current value on startup. Set
+``fetch=False`` if you don't want that.
+
+By default, ``watch`` only retrieves the named entry. Set ``max_depth=-1``
+if you want all sub-entries. There's also ``min_depth`` if you should need
+it.
+
+If you use ``max_depth``, entries are returned in mostly-depth-first order.
+It's "mostly" because updates may arrive at any time. A ``ReadyMsg``
+message is sent when the subtree is complete.
+
+The `CallAdmin.spawn` method starts a subtask.
+
+`watch`, `timer`, and `spawn` each return an object which you can call
+``await res.cancel()`` on, which causes the watcher, timer or task in
+question to be terminated.
+
+++++++++
+Messages
+++++++++
+
+The messages in ``_info`` can be used to implement a state machine. If your
+code is long-running and async, you should iterate them; if the queue is
+full, your code may be halted. Alternately you'll get a `None` message.
+That message indicates that the queue has stalled: you should exit.
+
+The following message types are defined. You're free to ignore any you
+don't recognize.
+
+* CompleteState
+
+  There are at least N runners in the group. (N is specified as an argument
+  to ``run all``; making this configurable via DistKV is TODO.)
+
+* PartialState
+
+  There are some runners available, but more than one and fewer than N.
+
+* DetachedState
+
+  There is no other runner available.
+
+* BrokenState
+
+  Something else is wrong.
+
+* ChangeMsg
+
+  An entry you're watching has changed. The message's ``value`` and
+  ``path`` attributes contain relevant details. ``value`` doesn't exist if
+  the node has been deleted.
+
+  You can use the watcher's ``cls`` argument to subclass this message, to
+  simplify dispatching.
+
+* TimerMsg
+
+  A timer has triggered. The message's ``msg`` attribute is the timer, i.e.
+  the value you got back from ``_self.timer``. You can use `Timer.run(delay)`
+  to restart the timer.
+
+  You can use the timer's ``cls`` argument to subclass this message, to
+  simplify dispatching.
+
+* ReadyMsg
+
+  Startup is complete. This message is generated after all watchers have
+  started and sent their initial data. The ``msg`` attribute contains the
+  number of watchers.
+
+  This message may be generated multiple times because of race conditions;
+  you should check that the count is correct.
+
+
+The ``…State`` messages can be useful to determine what level of redundancy
+you currently have in the system. One application would be to send a
+warning to the operator that some nodes might be down.
 

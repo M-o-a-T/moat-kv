@@ -195,22 +195,37 @@ async def get(obj, node, tick):
 @cli.command()
 @click.option("-n", "--num", type=int, help="Return at most this many IDs")
 @click.option("-c", "--current", is_flag=True, help="Return only IDs with current data")
+@click.option("-C", "--copy", is_flag=True, help="Create an no-op change")
 @click.argument("node", nargs=1)
 @click.pass_obj
-async def enum(obj, node, num, current):
+async def enum(obj, node, num, current, copy):
     """
     List IDs of live data by a specific node.
 
     Can be used to determine whether a node still has live data,
     otherwise it can be deleted.
+
+    If '--current' is set, only the IDs of the entries that have last been
+    updated by that node are shown. '--copy' rewrites these entries.
+
+    Increase verbosity to also show the oject paths.
     """
 
     res = await obj.client._request("enum_node", node=node, max=num, current=current)
-    if obj.meta:
+    if obj.meta and not copy and obj.debug <= 1:
         yprint(res, stream=obj.stdout)
     else:
         for k in res.result:
-            print(k)
+            if copy or obj.debug > 1:
+                res = await obj.client._request("get_value", node=node, tick=k, nchain=3)
+                if obj.debug > 1:
+                    print(k, res.path)
+                else:
+                    print(k)
+                if copy and res.chain.node == node:
+                    res = await obj.client.set(res.path, value=res.value, chain=res.chain)
+            else:
+                print(k)
 
 
 @cli.command()

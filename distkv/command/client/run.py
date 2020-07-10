@@ -4,11 +4,12 @@ import sys
 import asyncclick as click
 import time
 import anyio
+import datetime
+from functools import partial
 
-from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P
+from distkv.util import yprint, PathLongener, P, Path, data_get
 
 import logging
 
@@ -31,16 +32,39 @@ async def cli(obj, node, group):
         subpath = (group,)
     else:
         obj.runner_root = SingleRunnerRoot
+
         subpath = (node, group)
 
-    obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
+    obj.subpath = Path(obj.cfg["runner"]["sub"][obj.runner_root.SUB]) + subpath
     obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
     obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
 
 
-@cli.command("all")
+@cli.command("path")
 @click.pass_obj
-async def all_(obj):
+@click.argument("path", nargs=1)
+async def path__(obj, path):
+    """
+    Emit the full path leading to the specified runner object.
+
+    Useful for copying or for state monitoring.
+
+    NEVER directly write to the state object. It's controlled by the
+    runner. You'll confuse it if you do that.
+
+    Updating the control object will cancel any running code.
+    """
+    path = P(path)
+    res = dict(command=obj.path + path, state=obj.statepath + path)
+    yprint(res, stream=obj.stdout)
+
+
+@cli.command("all")
+@click.option(
+    "-n", "--nodes", type=int, default=0, help="Size of the group (not for single-node runners)"
+)
+@click.pass_obj
+async def all_(obj, nodes):
     """
     Run code that needs to run.
 
@@ -50,15 +74,58 @@ async def all_(obj):
 
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
+    if nodes and obj.runner_root == SingleRunnerRoot:
+        raise click.UsageError("A single-site runner doesn't have a size.")
 
     async with as_service(obj) as evt:
-        _, evt = evt
         c = obj.client
         cr = await CodeRoot.as_handler(c)
-        await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
+        await obj.runner_root.as_handler(
+            c, subpath=obj.subpath, code=cr, **({"nodes": nodes} if nodes else {})
+        )
         await evt.set()
         while True:
             await anyio.sleep(99999)
+
+
+def _state_fix_2(rs):
+    try:
+        if rs.started:
+            rs.started_date = datetime.datetime.fromtimestamp(rs.started).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
+    try:
+        if rs.stopped:
+            rs.stopped_date = datetime.datetime.fromtimestamp(rs.stopped).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
+
+
+async def _state_fix(obj, state, r):
+    try:
+        val = r.value
+    except AttributeError:
+        return
+    if state:
+        rs = await obj.client._request(
+            action="get_value", path=state + r.path, iter=False, nchain=obj.meta
+        )
+        if obj.meta:
+            val["state"] = rs
+        elif "value" in rs:
+            val["state"] = rs.value
+        if "value" in rs:
+            _state_fix_2(rs.value)
+    try:
+        val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
+    except (AttributeError, TypeError):
+        pass
+
+    return r
 
 
 @cli.command("list")
@@ -70,7 +137,7 @@ async def all_(obj):
     help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def list_(obj, state, as_dict, path):
     """List run entries.
@@ -90,44 +157,11 @@ async def list_(obj, state, as_dict, path):
             print(r.path[-1], file=obj.stdout)
         return
 
-    elif len(path) > 1:
-        raise click.UsageError("Spurious parameter.")
-    else:
-        path = P(path)
-    path = obj.path + path
     if state:
         state = obj.statepath + path
-    res = await obj.client._request(action="get_tree", path=path, iter=True, nchain=obj.meta)
+    path = obj.path + path
 
-    y = {}
-    async for r in res:
-        if as_dict is not None:
-            yy = y
-            for p in r.pop("path"):
-                yy = yy.setdefault(p, {})
-            yy[as_dict] = r if obj.meta else r.pop("value")
-        else:
-            yy = {}
-            if obj.meta:
-                yy[r.pop("path")] = r
-            else:
-                yy[r.path] = r.value
-
-        if state:
-            rs = await obj.client._request(
-                action="get_value", path=state, iter=False, nchain=obj.meta
-            )
-            if "value" in rs:
-                if not obj.meta:
-                    rs = rs.value
-                yy["state"] = rs
-            else:
-                yy["state"] = None
-        if as_dict is None:
-            yprint([yy], stream=obj.stdout)
-
-    if as_dict is not None:
-        yprint(y, stream=obj.stdout)
+    await data_get(obj, path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state))
 
 
 @cli.command("state")
@@ -145,11 +179,40 @@ async def state_(obj, path, result):
         raise click.UsageError("You need a non-empty path.")
     path = obj.statepath + P(path)
 
-    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
+    res = await obj.client.get(path, nchain=obj.meta)
     if "value" not in res:
         if obj.debug:
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
+
+    _state_fix_2(res.value)
+    if not obj.meta:
+        res = res.value
+    yprint(res, stream=obj.stdout)
+
+
+@cli.command()
+@click.argument("path", nargs=1)
+@click.option("-s", "--state", is_flag=True, help="Add state data")
+@click.pass_obj
+async def get(obj, path, state):
+    """Read a runner entry"""
+    path = P(path)
+    if obj.subpath[-1] == "-":
+        raise click.UsageError("Group '-' can only be used for listing.")
+    if not path:
+        raise click.UsageError("You need a non-empty path.")
+
+    res = await obj.client._request(
+        action="get_value", path=obj.path + path, iter=False, nchain=obj.meta
+    )
+    if "value" not in res:
+        print("Not found.", file=sys.stderr)
+        return
+    res.path = path
+    if state:
+        state = obj.statepath
+    await _state_fix(obj, state, res)
     if not obj.meta:
         res = res.value
 
@@ -157,63 +220,98 @@ async def state_(obj, path, result):
 
 
 @cli.command()
+@click.option("-f", "--force", is_flag=True, help="Force deletion even if messy")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def get(obj, path):
-    """Read a runner entry"""
+async def delete(obj, path, force):
+    """Remove a runner entry"""
     path = P(path)
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    path = obj.path + path
 
-    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
-    if not obj.meta:
-        res = res.value
+    res = await obj.client.get(obj.path + path, nchain=3)
+    if "value" not in res:
+        res.info = "Does not exist."
+    else:
+        val = res.value
+        if val.target is not None:
+            val.target = None
+            res = await obj.client.set(obj.path + path, nchain=3, chain=res.chain)
+            if not force:
+                res.info = "'target' was set: cleared but not deleted."
+        if force or val.target is None:
+            sres = await obj.client.get(obj.statepath + path, nchain=obj.meta)
+            if not force and "value" in sres and sres.value.stopped < sres.value.started:
+                res.info = "Still running, not deleted."
+            else:
+                sres = await obj.client.delete(obj.statepath + path, chain=sres.chain)
+                res = await obj.client.delete(obj.path + path, chain=res.chain)
+                if "value" in res and res.value.stopped < res.value.started:
+                    res.info = "Deleted (unclean!)."
+                else:
+                    res.info = "Deleted."
 
-    yprint(res, stream=obj.stdout)
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+    else:
+        print(res.info)
 
 
 @cli.command("set")
-@click.option("-c", "--code", help="Path to the code that should run. Space separated path.")
-@click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
+@click.option("-c", "--code", help="Path to the code that should run.")
+@click.option("-C", "--copy", help="Use this entry as a template.")
+@click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
-@click.option("-e", "--eval", "eval_", help="'code' is a Python expression (must eval to a list)")
+@click.option("-v", "--var", nargs=2, help="Value (name val…)")
+@click.option("-e", "--eval", "eval_", is_flag=True, help="Value must be evaluated")
+@click.option("-p", "--path", "path_", is_flag=True, help="Value is a path")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
+async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var, copy):
     """Save / modify a run entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    if eval_:
-        code = eval(code)  # pylint: disable=eval-used
-        if not isinstance(code, (list, tuple)):
-            raise click.UsageError("'code' must be a list")
-    elif code is not None:
-        code = code.split(" ")
+    if path_ and eval_:
+        raise click.UsageError("'--eval' and '--path' are mutually exclusive.")
+    if (path_ or eval_) and not var:
+        raise click.UsageError("'--eval' or '--path' need a variable+value.")
 
+    if code is not None:
+        code = P(code)
+    if copy:
+        copy = P(copy)
     path = obj.path + P(path)
 
-    try:
-        res = await obj.client._request(action="get_value", path=path, iter=False, nchain=3)
-        if "value" not in res:
-            raise ServerError
-    except ServerError:
-        if code is None:
+    res = await obj.client._request(action="get_value", path=copy or path, iter=False, nchain=3)
+    if "value" not in res:
+        if copy:
+            raise click.UsageError("--copy: use the complete path to an existing entry")
+        elif code is None:
             raise click.UsageError("New entry, need code")
         res = {}
         chain = None
     else:
-        chain = res["chain"]
+        chain = None if copy else res["chain"]
         res = res["value"]
+        if copy and "code" not in res:
+            raise click.UsageError("'--copy' needs a runner entry")
 
+    if var:
+        vl = res.setdefault("data", {})
+        k, v = var
+        if eval_:
+            v = eval(v)  # pylint:disable=eval-used
+        elif path_:
+            v = P(v)
+        vl[k] = v
     if code is not None:
         res["code"] = code
     if ok is not None:
@@ -227,11 +325,12 @@ async def set_(obj, path, code, eval_, tm, info, ok, repeat, delay, backoff):
     if repeat is not None:
         res["repeat"] = repeat
     if tm is not None:
-        res["target"] = time.time() + tm
+        if tm == "-":
+            res["target"] = None
+        else:
+            res["target"] = time.time() + float(tm)
 
-    res = await obj.client.set(
-        *path, value=res, nchain=3, **({"chain": chain} if obj.meta else {})
-    )
+    res = await obj.client.set(path, value=res, nchain=3, chain=chain)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
