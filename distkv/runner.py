@@ -266,8 +266,8 @@ class CallAdmin:
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
                     await anyio.sleep(delay)
-                    await self.runner.send_event(self.cls())
                     self.scope = None
+                    await self.runner.send_event(self.cls(self))
 
             async def cancel(self):
                 if self.scope is None:
