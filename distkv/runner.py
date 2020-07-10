@@ -612,7 +612,7 @@ class StateEntry(AttrClientEntry):
         n = self.node
 
         await super().set_value(value)
-        if not self.root.runner.ready:
+        if not self.root.runner_ready:
             return
         try:
             run = self.runner
@@ -658,6 +658,16 @@ class StateRoot(ClientRoot):
     @property
     def runner(self):
         return self._runner()
+
+    @property
+    def runner_ready(self):
+        r = self._runner
+        if r is None:
+            return False
+        r = r()
+        if r is None:
+            return False
+        return r.ready
 
     def set_runner(self, runner):
         self._runner = ref(runner)
