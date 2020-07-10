@@ -261,6 +261,7 @@ async def delete(obj, path, force):
 
 @cli.command("set")
 @click.option("-c", "--code", help="Path to the code that should run.")
+@click.option("-C", "--copy", help="Use this entry as a template.")
 @click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
@@ -272,7 +273,7 @@ async def delete(obj, path, force):
 @click.option("-p", "--path", "path_", is_flag=True, help="Value is a path")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var):
+async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var, copy):
     """Save / modify a run entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
@@ -285,20 +286,23 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
 
     if code is not None:
         code = P(code)
+    if copy:
+        copy = P(copy)
     path = obj.path + P(path)
 
-    try:
-        res = await obj.client._request(action="get_value", path=path, iter=False, nchain=3)
-        if "value" not in res:
-            raise ServerError
-    except ServerError:
-        if code is None:
+    res = await obj.client._request(action="get_value", path=copy or path, iter=False, nchain=3)
+    if "value" not in res:
+        if copy:
+            raise click.UsageError("--copy: use the complete path to an existing entry")
+        elif code is None:
             raise click.UsageError("New entry, need code")
         res = {}
         chain = None
     else:
-        chain = res["chain"]
+        chain = None if copy else res["chain"]
         res = res["value"]
+        if copy and "code" not in res:
+            raise click.UsageError("'--copy' needs a runner entry")
 
     if var:
         vl = res.setdefault("data", {})
@@ -326,7 +330,7 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         else:
             res["target"] = time.time() + float(tm)
 
-    res = await obj.client.set(path, value=res, nchain=3, **({"chain": chain} if obj.meta else {}))
+    res = await obj.client.set(path, value=res, nchain=3, chain=chain)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
