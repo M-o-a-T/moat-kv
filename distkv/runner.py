@@ -406,7 +406,7 @@ class RunnerEntry(AttrClientEntry):
 
         except BaseException as exc:
             c, self._comment = self._comment, None
-            async with anyio.move_on_after(2, shield=True):
+            async with anyio.move_on_after(5, shield=True):
                 r = await self.root.err.record_error(
                     "run", self._path, exc=exc, data=self.data, comment=c
                 )
