@@ -153,6 +153,12 @@ class CallAdmin:
                 await sc.cancel()
                 return res
 
+    async def cancel(self):
+        """
+        Cancel the running task
+        """
+        await self._taskgroup.cancel_scope.cancel()
+
     async def spawn(self, proc, *a, **kw):
         """
         Start a background subtask.
