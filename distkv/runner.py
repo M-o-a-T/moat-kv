@@ -120,6 +120,7 @@ class CallAdmin:
         self._path = runner._path
         self._subpath = runner.subpath
         self._n_watch = 0
+        self._n_watch_seen = 0
 
     async def _run(self, code, data):
         """Called by the runner to actually execute the code."""
@@ -227,9 +228,11 @@ class CallAdmin:
                                 await self.runner.send_event(chg)
 
                             elif msg.get("state", "") == "uptodate":
-                                self.admin._n_watch -= 1
-                                if not self.admin._n_watch:
-                                    await self.runner.send_event(ReadyMsg(msg))
+                                self.admin._n_watch_seen += 1
+                                if self.admin._n_watch_seen == self.admin._n_watch:
+                                    await self.runner.send_event(
+                                        ReadyMsg(self.admin._n_watch_seen)
+                                    )
 
             async def cancel(self):
                 if self.scope is None:
