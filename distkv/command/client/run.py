@@ -9,7 +9,7 @@ import datetime
 from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, data_get
+from distkv.util import yprint, PathLongener, P, Path, data_get
 
 import logging
 
@@ -32,11 +32,31 @@ async def cli(obj, node, group):
         subpath = (group,)
     else:
         obj.runner_root = SingleRunnerRoot
+
         subpath = (node, group)
 
-    obj.subpath = (obj.cfg["runner"]["sub"][obj.runner_root.SUB],) + subpath
+    obj.subpath = Path(obj.cfg["runner"]["sub"][obj.runner_root.SUB]) + subpath
     obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
     obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
+
+
+@cli.command("path")
+@click.pass_obj
+@click.argument("path", nargs=1)
+async def path__(obj, path):
+    """
+    Emit the full path leading to the specified runner object.
+
+    Useful for copying or for state monitoring.
+
+    NEVER directly write to the state object. It's controlled by the
+    runner. You'll confuse it if you do that.
+
+    Updating the control object will cancel any running code.
+    """
+    path = P(path)
+    res = dict(command=obj.subpath + path, path=obj.path, state=obj.statepath)
+    yprint(res, stream=obj.stdout)
 
 
 @cli.command("all")
