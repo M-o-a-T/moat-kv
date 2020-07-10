@@ -255,13 +255,14 @@ class CallAdmin:
 
     async def timer(self, delay, cls=TimerMsg):
         class Timer:
-            def __init__(self, runner, delay, cls):
+            def __init__(self, runner, delay, cls, tg):
                 self.runner = runner
                 self.delay = delay
                 self.cls = cls
                 self.scope = None
+                self._taskgroup = tg
 
-            async def run(self):
+            async def _run(self):
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
                     await anyio.sleep(delay)
@@ -275,8 +276,13 @@ class CallAdmin:
                 await sc.cancel()
                 return True
 
-        t = Timer(self._runner, delay, cls)
-        await self._taskgroup.spawn(t.run)
+            async def run(self, delay):
+                await self.cancel()
+                self.delay = delay
+                await self._taskgroup.spawn(t._run)
+
+        t = Timer(self._runner, delay, cls, self._taskgroup)
+        await self._taskgroup.spawn(t._run)
         return t
 
 
