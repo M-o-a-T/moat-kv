@@ -569,7 +569,12 @@ def split_one(p, kw):
     kw[k] = v
 
 
-def _call_proc(code, *a, **kw):
+def _call_proc(code, variables, *a, **kw):
+    v = variables[len(a) :]
+    if v:
+        a = list(a)
+        for k in v:
+            a.append(kw.pop(k, None))
     eval(code, kw)  # pylint: disable=eval-used
     code = kw["_proc"]
     return code(*a)
@@ -596,7 +601,7 @@ def _proc({ ",".join(variables) }):
     code = hdr + code.replace("\n", "\n    ")
     code = compile(code, str(path), "exec")
 
-    return partial(_call_proc, code)
+    return partial(_call_proc, code, variables)
 
 
 class Module(ModuleType):
