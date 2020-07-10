@@ -48,6 +48,8 @@ class RunnerMsg(ActorState):
     """Superclass for runner-generated messages.
 
     Not directly instantiated.
+
+    This message and its descendants take one opaque parameter: ``msg``.
     """
 
     pass
@@ -203,6 +205,8 @@ class CallAdmin:
         """
 
         class Watcher:
+            """Helper class for watching an entry"""
+
             def __init__(self, admin, runner, client, cls, path, kw):
                 kw.setdefault("fetch", True)
 
