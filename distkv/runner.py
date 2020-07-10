@@ -498,7 +498,9 @@ class RunnerEntry(AttrClientEntry):
         if state.started and not state.stopped:
             raise RuntimeError("Running! should not be called")
 
-        if self.target > state.started:
+        if self.target is None:
+            return False
+        elif self.target > state.started:
             return self.target
         elif state.backoff:
             return state.stopped + self.delay * (self.backoff ** state.backoff)
