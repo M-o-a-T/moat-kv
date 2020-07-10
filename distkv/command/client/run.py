@@ -5,8 +5,8 @@ import asyncclick as click
 import time
 import anyio
 import datetime
+from functools import partial
 
-from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
 from distkv.util import yprint, PathLongener, P, Path, data_get
@@ -55,7 +55,7 @@ async def path__(obj, path):
     Updating the control object will cancel any running code.
     """
     path = P(path)
-    res = dict(command=obj.subpath + path, path=obj.path, state=obj.statepath)
+    res = dict(command=obj.path + path, state=obj.statepath + path)
     yprint(res, stream=obj.stdout)
 
 
@@ -86,6 +86,46 @@ async def all_(obj, nodes):
         await evt.set()
         while True:
             await anyio.sleep(99999)
+
+
+def _state_fix_2(rs):
+    try:
+        if rs.started:
+            rs.started_date = datetime.datetime.fromtimestamp(rs.started).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
+    try:
+        if rs.stopped:
+            rs.stopped_date = datetime.datetime.fromtimestamp(rs.stopped).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
+
+
+async def _state_fix(obj, state, r):
+    try:
+        val = r.value
+    except AttributeError:
+        return
+    if state:
+        rs = await obj.client._request(
+            action="get_value", path=state + r.path, iter=False, nchain=obj.meta
+        )
+        if obj.meta:
+            val["state"] = rs
+        elif "value" in rs:
+            val["state"] = rs.value
+        if "value" in rs:
+            _state_fix_2(rs.value)
+    try:
+        val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
+    except (AttributeError, TypeError):
+        pass
+
+    return r
 
 
 @cli.command("list")
@@ -121,39 +161,7 @@ async def list_(obj, state, as_dict, path):
         state = obj.statepath + path
     path = obj.path + path
 
-    async def state_getter(r):
-        val = r.value
-        if state:
-            rs = await obj.client._request(
-                action="get_value", path=state + r.path, iter=False, nchain=obj.meta
-            )
-            if obj.meta:
-                val["state"] = rs
-            elif "value" in rs:
-                val["state"] = rs.value
-            rs = rs.value
-            try:
-                rs.started_date = datetime.datetime.fromtimestamp(rs.started).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-            except AttributeError:
-                pass
-            try:
-                rs.stopped_date = datetime.datetime.fromtimestamp(rs.stopped).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-            except AttributeError:
-                pass
-        try:
-            val.target_date = datetime.datetime.fromtimestamp(val.target).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-        except AttributeError:
-            pass
-
-        return r
-
-    await data_get(obj, path, as_dict=as_dict, item_mangle=state_getter)
+    await data_get(obj, path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state))
 
 
 @cli.command("state")
@@ -177,6 +185,7 @@ async def state_(obj, path, result):
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
 
+    _state_fix_2(res.value)
     if not obj.meta:
         res = res.value
     yprint(res, stream=obj.stdout)
@@ -184,17 +193,26 @@ async def state_(obj, path, result):
 
 @cli.command()
 @click.argument("path", nargs=1)
+@click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.pass_obj
-async def get(obj, path):
+async def get(obj, path, state):
     """Read a runner entry"""
     path = P(path)
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
-    path = obj.path + path
 
-    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
+    res = await obj.client._request(
+        action="get_value", path=obj.path + path, iter=False, nchain=obj.meta
+    )
+    if "value" not in res:
+        print("Not found.", file=sys.stderr)
+        return
+    res.path = path
+    if state:
+        state = obj.statepath
+    await _state_fix(obj, state, res)
     if not obj.meta:
         res = res.value
 
