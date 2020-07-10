@@ -4,7 +4,7 @@ import asyncclick as click
 import datetime
 
 from distkv.errors import ErrorRoot
-from distkv.util import yprint, P
+from distkv.util import yprint, P, Path
 
 import logging
 
@@ -22,29 +22,29 @@ async def cli(obj):
 @click.option("-n", "--node", help="add details from this node")
 @click.option("-s", "--subsystem", "subsys", help="only show errors from this subsystem")
 @click.option("-r", "--resolved", is_flag=True, help="only resolved errors")
-@click.option("-t", "--trace", is_flag=True, help="add traces, if present")
-@click.option("-a", "--all-nodes", is_flag=True, help="add details from all nodes")
+@click.option("-v", "--verbose", count=True, help="add per-node details (-vv for traces)")
+@click.option("-a", "--all-errors", is_flag=True, help="add details from all nodes")
 @click.option("-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error.")
-@click.argument("path", nargs=1)
+@click.option("-p", "--path", default=":", help="only show errors below this subpath")
 @click.pass_obj
-async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
+async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
     """Dump error entries.
     """
     path = P(path)
     path_ = obj.cfg["errors"].prefix
-    d = 1
-    if node is not None:
-        path_ += (node,)
-    else:
-        d += 1
+    d = 2
 
     async def one(r):
         nonlocal y
         val = r.value
-        if "resolved" not in val and not all_nodes:
+        if subsys and val.get("subsystem", "") != subsys:
             return
-        if resolved == (not val.get("resolved", False)):
+        if path and val.get("path", ())[: len(path)] != path:
             return
+
+        if not all_errors and bool(val.get("resolved", False)) != resolved:
+            return
+
         fs = val.get("first_seen")
         if fs:
             val.first_seen_date = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
@@ -58,8 +58,10 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
             rp = val.path
             if as_dict:
                 del val.path
+            elif not isinstance(rp, Path):
+                rp = Path.build(rp)
         except AttributeError:
-            rp = ("incomplete",) + r.path
+            rp = Path("incomplete") + r.path
             if not as_dict:
                 val.path = rp
         if rp[: len(path)] != path:
@@ -68,10 +70,24 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
         if node is None:
             val.syspath = r.path
         else:
-            val.syspath = (node,) + r.path
+            val.syspath = Path(node) + r.path
 
         rn = {}
-        if all_nodes or trace:
+
+        def disp(rr):
+            if node and rr.path[-1] != node:
+                return
+            val = rr.value
+            fs = val.get("seen")
+            if fs:
+                val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            if verbose < 2:
+                rr.value.pop("trace", None)
+            rn[rr.path[-1]] = rr if obj.meta else rr.value
+
+        if verbose:
             rs = await obj.client._request(
                 action="get_tree",
                 min_depth=1,
@@ -81,24 +97,15 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
                 nchain=3 if obj.meta else 0,
             )
             async for rr in rs:
-                val = rr.value
-                fs = val.get("seen")
-                if fs:
-                    val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                if not all_nodes:
-                    try:
-                        rn[rr.path[-1]] = rr.value.trace
-                    except AttributeError:
-                        continue
-                else:
-                    if not trace:
-                        rr.value.pop("trace", None)
-                    rn[rr.path[-1]] = rr if obj.meta else rr.value
+                disp(rr)
 
-            if rn:
-                val["nodes"] = rn
+        elif node:
+            rs = await obj.client.get(path_ + r.path[-2:] | node)
+            if "value" in rs:
+                disp(rs)
+
+        if rn:
+            val["nodes"] = rn
 
         if as_dict is not None:
             yy = y
@@ -116,7 +123,7 @@ async def dump(obj, as_dict, path, node, all_nodes, trace, resolved, subsys):
     y = {}
     res = None
 
-    if node is not None and len(path) == 1:  # single error?
+    if False and node is not None and len(path) == 1:  # single error?
         try:
             if len(path) != 2:
                 raise ValueError
