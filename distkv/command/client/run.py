@@ -4,11 +4,12 @@ import sys
 import asyncclick as click
 import time
 import anyio
+import datetime
 
 from distkv.exceptions import ServerError
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P
+from distkv.util import yprint, PathLongener, P, data_get
 
 import logging
 
@@ -90,44 +91,43 @@ async def list_(obj, state, as_dict, path):
             print(r.path[-1], file=obj.stdout)
         return
 
-    elif len(path) > 1:
-        raise click.UsageError("Spurious parameter.")
-    else:
-        path = P(path)
-    path = obj.path + path
     if state:
         state = obj.statepath + path
-    res = await obj.client._request(action="get_tree", path=path, iter=True, nchain=obj.meta)
+    path = obj.path + path
 
-    y = {}
-    async for r in res:
-        if as_dict is not None:
-            yy = y
-            for p in r.pop("path"):
-                yy = yy.setdefault(p, {})
-            yy[as_dict] = r if obj.meta else r.pop("value")
-        else:
-            yy = {}
-            if obj.meta:
-                yy[r.pop("path")] = r
-            else:
-                yy[r.path] = r.value
-
+    async def state_getter(r):
+        val = r.value
         if state:
             rs = await obj.client._request(
-                action="get_value", path=state, iter=False, nchain=obj.meta
+                action="get_value", path=state + r.path, iter=False, nchain=obj.meta
             )
-            if "value" in rs:
-                if not obj.meta:
-                    rs = rs.value
-                yy["state"] = rs
-            else:
-                yy["state"] = None
-        if as_dict is None:
-            yprint([yy], stream=obj.stdout)
+            if obj.meta:
+                val["state"] = rs
+            elif "value" in rs:
+                val["state"] = rs.value
+            rs = rs.value
+            try:
+                rs.started_date = datetime.datetime.fromtimestamp(rs.started).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except AttributeError:
+                pass
+            try:
+                rs.stopped_date = datetime.datetime.fromtimestamp(rs.stopped).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except AttributeError:
+                pass
+        try:
+            val.target_date = datetime.datetime.fromtimestamp(val.target).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        except AttributeError:
+            pass
 
-    if as_dict is not None:
-        yprint(y, stream=obj.stdout)
+        return r
+
+    await data_get(obj, path, as_dict=as_dict, item_mangle=state_getter)
 
 
 @cli.command("state")
