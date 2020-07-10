@@ -197,20 +197,27 @@ async def get(obj, path):
 
 @cli.command("set")
 @click.option("-c", "--code", help="Path to the code that should run.")
-@click.option("-t", "--time", "tm", type=float, help="time the code should next run at")
+@click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
 @click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
+@click.option("-v", "--var", nargs=2, help="Value (name val…)")
+@click.option("-e", "--eval", "eval_", is_flag=True, help="Value must be evaluated")
+@click.option("-p", "--path", "path_", is_flag=True, help="Value is a path")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff):
+async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var):
     """Save / modify a run entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
         raise click.UsageError("You need a non-empty path.")
+    if path_ and eval_:
+        raise click.UsageError("'--eval' and '--path' are mutually exclusive.")
+    if (path_ or eval_) and not var:
+        raise click.UsageError("'--eval' or '--path' need a variable+value.")
 
     if code is not None:
         code = P(code)
@@ -229,6 +236,14 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff):
         chain = res["chain"]
         res = res["value"]
 
+    if var:
+        vl = res.setdefault("data", {})
+        k, v = var
+        if eval_:
+            v = eval(v)  # pylint:disable=eval-used
+        elif path_:
+            v = P(v)
+        vl[k] = v
     if code is not None:
         res["code"] = code
     if ok is not None:
@@ -242,11 +257,12 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff):
     if repeat is not None:
         res["repeat"] = repeat
     if tm is not None:
-        res["target"] = time.time() + tm
+        if tm == "-":
+            res["target"] = None
+        else:
+            res["target"] = time.time() + float(tm)
 
-    res = await obj.client.set(
-        *path, value=res, nchain=3, **({"chain": chain} if obj.meta else {})
-    )
+    res = await obj.client.set(path, value=res, nchain=3, **({"chain": chain} if obj.meta else {}))
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
