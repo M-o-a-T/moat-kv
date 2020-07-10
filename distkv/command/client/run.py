@@ -165,14 +165,14 @@ async def state_(obj, path, result):
         raise click.UsageError("You need a non-empty path.")
     path = obj.statepath + P(path)
 
-    res = await obj.client._request(action="get_value", path=path, iter=False, nchain=obj.meta)
+    res = await obj.client.get(path, nchain=obj.meta)
     if "value" not in res:
         if obj.debug:
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
+
     if not obj.meta:
         res = res.value
-
     yprint(res, stream=obj.stdout)
 
 
