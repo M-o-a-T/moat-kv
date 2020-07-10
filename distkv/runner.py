@@ -197,10 +197,15 @@ class CallAdmin:
 
         By default a watcher will only monitor a single entry. Set
         ``max_depth`` if you also want child entries.
+
+        By default a watcher will not report existing entries. Set
+        ``fetch=False`` if you want them.
         """
 
         class Watcher:
             def __init__(self, admin, runner, client, cls, path, kw):
+                kw.setdefault("fetch", True)
+
                 self.admin = admin
                 self.runner = runner
                 self.client = client
@@ -240,6 +245,7 @@ class CallAdmin:
                 sc, self.scope = self.scope, None
                 await sc.cancel()
 
+        kw.setdefault("max_depth", 0)
         if kw.setdefault("fetch", True):
             self._n_watch += 1
 
