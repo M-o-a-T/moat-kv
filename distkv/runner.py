@@ -20,7 +20,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for
+from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -157,18 +157,7 @@ class CallAdmin:
         Returns: an `anyio.abc.CancelScope` which you can use to cancel the
             subtask.
         """
-
-        async def _spawn(evt, proc, a, kw):
-            nonlocal scope
-            async with anyio.open_cancel_scope() as scope:  # pylint: disable=unused-variable
-                await evt.set()
-                await proc(*a, **kw)
-
-        scope = None
-        evt = anyio.create_event()
-        await self._taskgroup.spawn(_spawn, evt, proc, a, kw)
-        await evt.wait()
-        return scope
+        return await spawn(self._taskgroup, proc, *a, **kw)
 
     async def setup_done(self, **kw):
         """
