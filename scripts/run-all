@@ -3,11 +3,6 @@ set -ex
 
 # This script file starts up a DistKV any-node runner.
 
-if test ! -v NAME ; then
-    echo "NAME is not set. Exiting." >&2
-    exit 1
-fi
-
 if test $# = 1 ; then
     exec distkv -c /etc/distkv.cfg client run -n - -g "$1" all
 else
