@@ -96,8 +96,7 @@ async def set_(obj, path, thread, script, data, vars_, async_, info):
             vl.extend(vv.split(","))
 
     res = await obj.client.set(
-        *obj.cfg["codes"]["prefix"],
-        *path,
+        obj.cfg["codes"]["prefix"] + path,
         value=msg,
         nchain=obj.meta,
         **({"chain": chain} if chain is not NotGiven else {}),
@@ -209,7 +208,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     if mindepth is not None:
         kw["min_depth"] = mindepth
     y = {}
-    async for r in obj.client.get_tree(*obj.cfg["codes"].prefix, *path, nchain=obj.meta, **kw):
+    async for r in obj.client.get_tree(obj.cfg["codes"].prefix, *path, nchain=obj.meta, **kw):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:
