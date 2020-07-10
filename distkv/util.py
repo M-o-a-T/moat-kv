@@ -1316,3 +1316,20 @@ def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
     """
     val = res.get("value", attrdict())
     return val._delete(attr, **kw)
+
+
+def logger_for(path: Path):
+    """
+    Create a logger for this path.
+    """
+    if not len(path):
+        p = "distkv.root"
+    elif path[0] is None:
+        p = "distkv.meta"
+    elif path[0] == ".distkv":
+        p = "distkv.sub"
+    else:
+        p = "distkv.at"
+    if len(path) > 1:
+        p += ".".join(path[1:])
+    return logging.getLogger(p)

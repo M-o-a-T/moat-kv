@@ -20,7 +20,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path
+from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -324,6 +324,8 @@ class RunnerEntry(AttrClientEntry):
 
         super().__init__(*a, **k)
 
+        self._logger = logger_for(self._path)
+
     def __repr__(self):
         return "<%s %r:%r>" % (self.__class__.__name__, self.subpath, self.code)
 
@@ -339,6 +341,7 @@ class RunnerEntry(AttrClientEntry):
         try:
             self._running = True
             try:
+                self._logger.debug("Start")
                 if state.node is not None:
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
@@ -355,6 +358,7 @@ class RunnerEntry(AttrClientEntry):
                 data["_cls"] = _CLASSES
                 data["_P"] = P
                 data["_Path"] = Path
+                data["_log"] = self._logger
 
                 state.started = time.time()
                 state.node = state.root.name
@@ -366,8 +370,11 @@ class RunnerEntry(AttrClientEntry):
                 data["_self"] = calls = CallAdmin(self, state, data)
                 res = await calls._run(code, data)
 
+            except BaseException as exc:
+                self._logger.info("Error: %r", exc)
+            else:
+                self._logger.debug("End")
             finally:
-                logger.debug("End %r", self._path)
                 self.scope = None
                 self._q = None
                 t = time.time()
