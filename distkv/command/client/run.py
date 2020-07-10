@@ -91,7 +91,7 @@ async def all_(obj):
     help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def list_(obj, state, as_dict, path):
     """List run entries.
