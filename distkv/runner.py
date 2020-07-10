@@ -717,11 +717,12 @@ class _BaseRunnerRoot(ClientRoot):
     CFG = "runner"
     SUB = None
 
-    def __init__(self, *a, _subpath, err=None, code=None, **kw):
+    def __init__(self, *a, _subpath, err=None, code=None, nodes=0, **kw):
         super().__init__(*a, **kw)
         self.err = err
         self.code = code
         self._nodes = {}
+        self.n_nodes = nodes
         self._trigger = anyio.create_event()
         self._x_subpath = _subpath
 
@@ -830,7 +831,7 @@ class _BaseRunnerRoot(ClientRoot):
             ac = BrokenState
         elif self.name in self.node_history and ac == 1:
             ac = DetachedState
-        elif self._act is not None and ac >= self._act.n_nodes:
+        elif self._act is not None and ac >= self.n_nodes:  # TODO configureable
             ac = CompleteState
         else:
             ac = PartialState

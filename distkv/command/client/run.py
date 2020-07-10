@@ -60,8 +60,11 @@ async def path__(obj, path):
 
 
 @cli.command("all")
+@click.option(
+    "-n", "--nodes", type=int, default=0, help="Size of the group (not for single-node runners)"
+)
 @click.pass_obj
-async def all_(obj):
+async def all_(obj, nodes):
     """
     Run code that needs to run.
 
@@ -71,12 +74,15 @@ async def all_(obj):
 
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
+    if nodes and obj.runner_root == SingleRunnerRoot:
+        raise click.UsageError("A single-site runner doesn't have a size.")
 
     async with as_service(obj) as evt:
-        _, evt = evt
         c = obj.client
         cr = await CodeRoot.as_handler(c)
-        await obj.runner_root.as_handler(c, subpath=obj.subpath, code=cr)
+        await obj.runner_root.as_handler(
+            c, subpath=obj.subpath, code=cr, **({"nodes": nodes} if nodes else {})
+        )
         await evt.set()
         while True:
             await anyio.sleep(99999)
