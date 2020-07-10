@@ -408,7 +408,7 @@ class RunnerEntry(AttrClientEntry):
             c, self._comment = self._comment, None
             async with anyio.move_on_after(2, shield=True):
                 r = await self.root.err.record_error(
-                    "run", self._path, message="Exception", exc=exc, data=self.data, comment=c
+                    "run", self._path, exc=exc, data=self.data, comment=c
                 )
                 await self.root.err.wait_chain(r.chain)
             state.backoff += 1
