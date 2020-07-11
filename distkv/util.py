@@ -1336,5 +1336,5 @@ def logger_for(path: Path):
     else:
         p = "distkv.at"
     if len(path) > 1:
-        p += ".".join(path[1:])
+        p += "." + ".".join(path[1:])
     return logging.getLogger(p)
