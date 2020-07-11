@@ -1325,7 +1325,7 @@ def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
 
 def logger_for(path: Path):
     """
-    Create a logger for this path.
+    Create a logger for this ``path``.
     """
     if not len(path):
         p = "distkv.root"
