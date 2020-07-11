@@ -20,7 +20,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn
+from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn, digits
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -390,6 +390,7 @@ class RunnerEntry(AttrClientEntry):
                 data["_P"] = P
                 data["_Path"] = Path
                 data["_log"] = self._logger
+                data["_digits"] = digits
 
                 state.started = time.time()
                 state.node = state.root.name

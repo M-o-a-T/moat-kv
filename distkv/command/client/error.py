@@ -1,5 +1,6 @@
 # command line interface
 
+import sys
 import asyncclick as click
 import datetime
 
@@ -16,6 +17,26 @@ logger = logging.getLogger(__name__)
 async def cli(obj):
     """Manage error records in DistKV."""
     obj.err = await ErrorRoot.as_handler(obj.client)
+
+
+@cli.command()
+@click.option("-s", "--subsys", help="Subsystem to access")
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def resolve(obj, path, subsys):
+    """
+    Mark an error as resolved.
+    """
+    path = P(path)
+    err = await ErrorRoot.as_handler(obj.client)
+    if subsys:
+        e = err.get_error_record(subsys, path)
+    else:
+        e = err.follow(path)
+    if e.resolved:
+        print("Already resolved.", file=sys.stderr)
+        return
+    await e.resolve()
 
 
 @cli.command()

@@ -198,25 +198,41 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
 
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
+@click.option("-o", "--only", is_flag=True, help="Value only, nothing fancy.")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def watch(obj, path, state):
+async def watch(obj, path, state, only):
     """Watch a DistKV subtree"""
 
     flushing = not state
     path = P(path)
+    seen = False
 
-    async with obj.client.watch(path, nchain=obj.meta, fetch=state) as res:
+    async with obj.client.watch(
+        path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
+    ) as res:
         async for r in res:
-            if not flushing and r.get("state", "") == "uptodate":
+            if r.get("state", "") == "uptodate":
+                if only and not seen:
+                    # value doesn't exist
+                    return
                 flushing = True
+                continue
             del r["seq"]
             r["time"] = time.monotonic()
             r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            yprint(r, stream=obj.stdout)
-            print("---", file=obj.stdout)
+            if only:
+                try:
+                    print(r.value, file=obj.stdout)
+                except AttributeError:
+                    # value has been deleted
+                    return
+            else:
+                yprint(r, stream=obj.stdout)
+                print("---", file=obj.stdout)
             if flushing:
                 obj.stdout.flush()
+            seen = True
 
 
 @cli.command()

@@ -170,6 +170,10 @@ The runners pass a couple of variables to their code.
   message classes. Convenient if you want to avoid a cumbersome ``import``
   statement in your code, since these are not part of DistKV's public API.
 
+* _digits
+
+  A reference to `distkv.util.digits`.
+
 * _info (async only)
 
   A queue for events. This queue receives various messages. See below.

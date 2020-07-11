@@ -21,6 +21,7 @@ from types import ModuleType
 from typing import Union, Dict, Optional
 from ssl import SSLContext
 from functools import partial, total_ordering
+from math import log10
 
 import ruamel.yaml as yaml
 
@@ -1325,7 +1326,7 @@ def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
 
 def logger_for(path: Path):
     """
-    Create a logger for this path.
+    Create a logger for this ``path``.
     """
     if not len(path):
         p = "distkv.root"
@@ -1338,3 +1339,17 @@ def logger_for(path: Path):
     if len(path) > 1:
         p += "." + ".".join(path[1:])
     return logging.getLogger(p)
+
+
+def digits(n, digits=6):
+    """
+    Returns ``n`` rounded to ``digits`` significant digits. Default: 6.
+    Ensures that the number doesn't carry nonsense precision or
+    floating-point artefacts.
+
+    >>> digits(123456789, 4)
+    123400000
+    >>> digits(math.pi, 4)
+    3.142
+    """
+    return round(n, digits - 1 - int(log10(abs(n))))
