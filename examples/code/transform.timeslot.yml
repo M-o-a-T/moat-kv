@@ -1,0 +1,63 @@
+code: |
+  last_val = None
+  this_val = None
+  timer = None
+  await _client.set(dst, value=0, idem=True)
+  await _self.watch(src, fetch=True)
+
+  async for msg in _info:
+      if isinstance(msg, _cls.ChangeMsg):
+          try:
+              val = msg.value
+          except AttributeError:
+              continue
+          if last_val is None:
+              last_val = val
+              this_val = val
+              continue
+          this_val = val
+          delta = this_val - last_val
+          if delta > 0 and timer is None:
+              # fire an immediate update at first change
+              await _client.set(dst, value=delta*factor, idem=(delta == 0))
+              timer = await _self.timer(seconds)
+          elif delta < 0:
+              # wraparound or whatever
+              last_val = this_val
+              if timer is not None:
+                  await timer.cancel()
+                  timer = None
+      elif isinstance(msg, _cls.TimerMsg):
+          delta = this_val - last_val
+          if delta >= 0:
+              await _client.set(dst, value=delta*factor, idem=(delta == 0))
+          if delta > 0:
+              await timer.run(seconds)
+          else:
+              timer = None
+          last_val = this_val
+info: generate timeslots for counter deltas
+is_async: true
+vars:
+- src
+- dst
+- seconds
+- factor
+
+# This code converts a randomly-updating counter into one that carries a
+# defined meaning.
+#
+# Consider a rain meter. The counter triggers whenever the meter's counter
+# triggers possibly aggregated so that you don't get more than one update
+# every ten seconds even if it's raining buckets.
+#
+# However, in your display you want the rate of rain over, say, the last
+# minute, so you can show some approximation of "how much rain is there
+# right now".
+#
+# This code sends an initial update immediately so that receiving code sees
+# some value > 0 ASAP, then another update every ‹seconds›.
+#
+# Updates are scaled by ‹factor› so you can translate the counter's output
+# to something understandable like "how many mm of water would there be on
+# the ground if this amount of rain continued for an hour".

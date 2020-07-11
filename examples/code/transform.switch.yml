@@ -1,0 +1,82 @@
+code: |
+  await _self.watch(src, fetch=False)
+  inv = high < low
+  if inv:
+      high,low = low,high
+  res = await _client.get(flip)
+  if "value" in res:
+      is_high = res.value != inv
+  else:
+      await _client.set(flip, value=inv)
+      is_high = False
+
+  async for msg in _info:
+      if isinstance(msg, _cls.ChangeMsg):
+          try:
+              val = msg.value
+          except AttributeError:
+              continue
+          if is_high and val < low:
+              is_high = False
+              await _client.set(flip, value=inv)
+          elif not is_high and val > high:
+              is_high = True
+              await _client.set(flip, value=not inv)
+          else:
+              if is_high:
+                  val += high-low
+              await _client.set(dst, value=val)
+info: Switch input between triggers
+is_async: true
+vars:
+- src
+- dst
+- flip
+- high
+- low
+
+# Consider this simple hook-up of a photoresistor:
+#
+#         +5V --- PHOTO --+-- R1 --+-- R2 --- GND
+#                         |        |
+#                       sensor    port
+#
+# The port is a pull-down output: thus, this setup switches resistance
+# between R1 and R1+R2, which allows us to measure the wide range of
+# resistance which a typical photoresistor has, without requiring more
+# fancy circuitry.
+# ‹low› and ‹high› need to be calculated so that
+# 
+# * when the photoresistor's resistance is such that the voltage at the
+#   sensor is at ‹high›, switching on the port will set the voltage to
+#   ‹low›, so you don't get a break in the brightness curve
+# * the rate of change is roughly equal, so you don't get a kink in that
+#   curve.
+# 
+# These conditions are satisfied when R(photo) = √(R1*(R1+R2)).
+# So if R1=100Ω and R2=10kΩ, R(photo) at the switching point would be 1005Ω,
+# thus you can calculate V(high) as 4.55 Volt and V(low) as 0.45 Volt.
+# 
+# The actual choice of resistors is up to you and depends on the
+# photoresistor's behavior in "interesting" lighting conditions. In general
+# you'd want a high-resolution capture of the values at both ends of the
+# range. Thus the above resistor values are sensible if the photoresistor
+# is at 5kΩ when the light gets bright enough to read the newspaper (you
+# want to capture as many nuances of the dark phase as possible), and at
+# 50Ω on a bright summer day just as a cloud has obscured the sun.
+# Or something like that.
+# 
+# 'src' is the path which the sensor value is written to. Presumably it's
+# polled periodically.
+#
+# 'dst' is the entry which receives the adjusted value.
+#
+# 'flip' is the entry which corresponds to the port. It receives a `bool`
+# value (`False` on startup).
+#
+# 'low' and 'high' are the threshold values. If 'low' is greater than
+# 'high', the port is inverted (i.e. it's set to `True` on startup).
+#
+# When a ‹src› update causes the port to be inverted, writing to ‹dst› is
+# skipped: if the new value is close to the threshold, the delay doesn't
+# matter much, and if it's not the value would be too inaccurate.

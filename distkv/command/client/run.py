@@ -9,7 +9,7 @@ from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, Path, data_get
+from distkv.util import yprint, PathLongener, P, Path, data_get, NotGiven
 
 import logging
 
@@ -238,11 +238,11 @@ async def delete(obj, path, force):
         val = res.value
         if val.target is not None:
             val.target = None
-            res = await obj.client.set(obj.path + path, nchain=3, chain=res.chain)
+            res = await obj.client.set(obj.path + path, value=val, nchain=3, chain=res.chain)
             if not force:
                 res.info = "'target' was set: cleared but not deleted."
         if force or val.target is None:
-            sres = await obj.client.get(obj.statepath + path, nchain=obj.meta)
+            sres = await obj.client.get(obj.statepath + path, nchain=3)
             if not force and "value" in sres and sres.value.stopped < sres.value.started:
                 res.info = "Still running, not deleted."
             else:
@@ -308,10 +308,17 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         vl = res.setdefault("data", {})
         k, v = var
         if eval_:
-            v = eval(v)  # pylint:disable=eval-used
+            if v == "-":
+                v = NotGiven
+            else:
+                v = eval(v)  # pylint:disable=eval-used
         elif path_:
             v = P(v)
-        vl[k] = v
+
+        if v is NotGiven:
+            del vl[k]
+        else:
+            vl[k] = v
     if code is not None:
         res["code"] = code
     if ok is not None:

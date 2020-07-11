@@ -1,0 +1,21 @@
+code: |
+  await _self.watch(src, fetch=False)
+  async for msg in _info:
+      if isinstance(msg, _cls.ChangeMsg):
+          try:
+              val = msg.value * factor + offset
+          except AttributeError:
+              continue
+          await _client.set(dst, value=val, idem=False)
+info: Apply factor+offset
+is_async: true
+vars:
+- src
+- dst
+- factor
+- offset
+
+# Whenever the value at 'src', changes, this code multiplies it by
+# 'factor', adds 'offset', and writes it to 'dst'.
+# 
+# This takes ~0.025 seconds, end-to-end, on a Raspberry Pi 3.
