@@ -922,8 +922,8 @@ class ServerClient:
         send_prev = True
         nchain = msg.get("nchain", 1)
 
-        if msg.get("idem",False) and entry.data == value:
-            res = attrdict(tock=entry.tock,changed=False)
+        if msg.get("idem", False) and type(entry.data) is type(value) and entry.data == value:
+            res = attrdict(tock=entry.tock, changed=False)
             if nchain > 0:
                 res.chain = entry.chain.serialize(nchain=nchain)
             return res
