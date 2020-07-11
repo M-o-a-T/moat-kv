@@ -207,8 +207,7 @@ for incremental output.
 
 .. option:: path…
 
-   Access the entry at this location. The default is the root node,
-   which usually isn't what you want.
+   Access the entry at this location.
 
 
 .. program:: distkv client data list
@@ -251,8 +250,7 @@ default to 1.
 
 .. option:: path…
 
-   Access the entry at this location. The default is the root node,
-   which usually isn't what you want.
+   Access the entry at this location.
 
 
 .. program:: distkv client data set
@@ -294,8 +292,7 @@ accidentally overwrite something.
 
 .. option:: path…
 
-   Write to the entry at this location. The default is the root node, which
-   usually isn't what you want.
+   Write to the entry at this location.
 
 
 .. program:: distkv client data delete
@@ -327,8 +324,7 @@ Recursive changes only check the entry you mention on the command line.
 
 .. option:: path…
 
-   Write to the entry at this location. The default is the root node, which
-   usually isn't what you want.
+   Write to the entry at this location.
 
 
 .. program:: distkv client data watch
@@ -340,6 +336,15 @@ Monitor changes to the state of an entry, or rather its subtree.
    Before emitting changes, emit the current state of this subtree.
 
    A flag entry will be printed when this step is completed.
+
+.. option:: -o, --only
+
+   Only emit the value. This mode is ideal for monitoring an entry with a
+   script or similar.
+
+   This mode will only watch a single entry, not the whole tree. The command
+   will exit silently if the value is deleted or, when ``--state`` is used,
+   doesn't exist in the first place.
 
 .. note::
 
@@ -354,7 +359,7 @@ Monitor changes to the state of an entry, or rather its subtree.
 
 .. option:: path…
 
-   Monitor the subtree at this location. The default is the root node.
+   Monitor the subtree at this location.
 
 
 .. program:: distkv client data update
@@ -879,7 +884,7 @@ List code snippets stored in DistKV.
 
 .. option:: path…
 
-   List the code below this location. The default is the root node.
+   List the code below this location.
 
 
 .. program:: distkv client code get
@@ -1174,6 +1179,24 @@ All of these nodes must be online for clean-up to work.
 
    If you want to shut deletion down temporarily, you can also add a
    nonexistent node to the list.
+
+
+.. program:: distkv client error
+
+Manage errors.
+
+
+.. program:: distkv clent error dump
+
+Show currently-logged errors.
+
+
+.. program:: distkv clent error resolve
+
+Mark an error as handled.
+
+DistKV does this itself, usually, but not if the node which caused the
+problem is deleted.
 
 
 .. program:: distkv dump
