@@ -694,7 +694,7 @@ class Client:
             raise RuntimeError("You need a path, not a string")
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
-    def set(self, path, value=NotGiven, *, chain=NotGiven, prev=NotGiven, nchain=0):
+    def set(self, path, value=NotGiven, *, chain=NotGiven, prev=NotGiven, nchain=0, idem=None):
         """
         Set or update a value.
 
@@ -706,6 +706,7 @@ class Client:
             chain: the previous value's change chain. Use ``None`` for new values.
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain tag, for further updates.
+            idem: if True, no-op if the value doesn't change
         """
         if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
@@ -717,6 +718,8 @@ class Client:
             kw["prev"] = prev
         if chain is not NotGiven:
             kw["chain"] = chain
+        if idem is not None:
+            kw["idem"] = idem
 
         return self._request(
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
