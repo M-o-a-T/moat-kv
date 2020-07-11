@@ -204,26 +204,35 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
 async def watch(obj, path, state, only):
     """Watch a DistKV subtree"""
 
-    flushing = only or not state
+    flushing = not state
     path = P(path)
+    seen = False
 
     async with obj.client.watch(
         path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
     ) as res:
         async for r in res:
             if r.get("state", "") == "uptodate":
+                if only and not seen:
+                    # value doesn't exist
+                    return
                 flushing = True
                 continue
             del r["seq"]
             r["time"] = time.monotonic()
             r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             if only:
-                print(r.value, file=obj.stdout)
+                try:
+                    print(r.value, file=obj.stdout)
+                except AttributeError:
+                    # value has been deleted
+                    return
             else:
                 yprint(r, stream=obj.stdout)
                 print("---", file=obj.stdout)
             if flushing:
                 obj.stdout.flush()
+            seen = True
 
 
 @cli.command()
