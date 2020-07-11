@@ -402,6 +402,7 @@ class RunnerEntry(AttrClientEntry):
 
             except BaseException as exc:
                 self._logger.info("Error: %r", exc)
+                raise
             else:
                 self._logger.debug("End")
             finally:

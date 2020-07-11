@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @main.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")
-@click.option("-g", "--group", help="group to run this code on. Empty: any one node")
+@click.option("-g", "--group", help="group to run this code on. Empty: default")
 @click.pass_obj
 async def cli(obj, node, group):
     """Run code stored in DistKV."""
