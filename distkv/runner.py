@@ -123,10 +123,11 @@ class CallAdmin:
         self._subpath = runner.subpath
         self._n_watch = 0
         self._n_watch_seen = 0
+        self._logger = runner._logger
 
     async def _run(self, code, data):
         """Called by the runner to actually execute the code."""
-        logger.debug("Start %r with %r", self._runner._path, self._runner.code)
+        self._logger.debug("Start %r with %r", self._runner._path, self._runner.code)
         async with anyio.create_task_group() as tg:
             self._taskgroup = tg
             async with AsyncExitStack() as stack:
@@ -421,7 +422,8 @@ class RunnerEntry(AttrClientEntry):
                 r = await self.root.err.record_error(
                     "run", self._path, exc=exc, data=self.data, comment=c
                 )
-                await self.root.err.wait_chain(r.chain)
+                if r is not None:
+                    await self.root.err.wait_chain(r.chain)
             state.backoff += 1
         else:
             state.result = res
@@ -450,12 +452,15 @@ class RunnerEntry(AttrClientEntry):
     async def send_event(self, evt):
         """Send an event to the running process."""
         if self._q is None:
-            return
-        if self._q.qsize() < QLEN - 1:
+            self._logger.info("Discarding %r", evt)
+        elif self._q.qsize() < QLEN - 1:
+            self._logger.debug("Event: %r", evt)
             await self._q.put(evt)
         elif self._q.qsize() == QLEN - 1:
+            self._logger.warning("Queue full")
             await self._q.put(None)
             self._q = None
+            self._logger.info("Discarding %r", evt)
 
     async def seems_down(self):
         state = self.state
