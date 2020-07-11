@@ -920,6 +920,14 @@ class ServerClient:
                 # TODO pass exceptions to the client
 
         send_prev = True
+        nchain = msg.get("nchain", 1)
+
+        if msg.get("idem",False) and entry.data == value:
+            res = attrdict(tock=entry.tock,changed=False)
+            if nchain > 0:
+                res.chain = entry.chain.serialize(nchain=nchain)
+            return res
+
         if "prev" in msg:
             if entry.data != msg.prev:
                 raise ClientError(f"Data is {entry.data !r}")

@@ -360,14 +360,21 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                 # and the initial change is no longer retrievable.
                 # We need the latter to ensure that there are no memory leaks.
                 await trio.sleep(1)
-                r = await ci.set(P(":"), value=127, nchain=3)
-                assert r.prev == 126
-                assert r.chain.tick == 2
-                assert r.chain.node == "test_1"
-                assert r.chain.prev.tick == 1
-                assert r.chain.prev.node == "test_0"
-                assert r.chain.prev.tick == 1
-                assert r.chain.prev.prev is None
+                for idem in (False,True):
+                    # not setting to False on purpose
+                    r = await ci.set(P(":"), value=127, nchain=3, idem=True)
+                    if not idem:
+                        assert r.prev == 126
+                    else:
+                        assert 'prev' not in r
+                    assert r.chain.tick == 2
+                    assert r.chain.node == "test_1"
+                    assert r.chain.prev.tick == 1
+                    assert r.chain.prev.node == "test_0"
+                    assert r.chain.prev.tick == 1
+                    assert r.chain.prev.prev is None
+                    assert r.changed != idem
+
                 await trio.sleep(1)
 
                 with pytest.raises(ServerError):
