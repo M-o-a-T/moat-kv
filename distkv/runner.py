@@ -878,7 +878,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self._name
+        self.group = "run." + self._path[-1]
 
     def get_node(self, name):
         return RunnerNode(self, name)
@@ -1032,7 +1032,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self._path[-2]
+        self.group = "run.%s.%s" % (self._path[-2],self._path[-1])
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -1105,7 +1105,7 @@ class AllRunnerRoot(SingleRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self.name
+        self.group = "run." + self._path[-1]
 
     async def _state_runner(self):
         self.state = await StateRoot.as_handler(
