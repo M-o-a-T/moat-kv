@@ -794,8 +794,6 @@ class _BaseRunnerRoot(ClientRoot):
         await self._tg.spawn(self._run_actor)
 
         # the next block needs to be atomic
-        for n in self.all_children:
-            print(n)
         self.ready = True
 
         await self.state.runner_running()
