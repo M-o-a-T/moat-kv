@@ -453,7 +453,8 @@ class RunnerEntry(AttrClientEntry):
     async def send_event(self, evt):
         """Send an event to the running process."""
         if self._q is None:
-            self._logger.info("Discarding %r", evt)
+            if self._running:
+                self._logger.info("Discarding %r", evt)
         elif self._q.qsize() < QLEN - 1:
             self._logger.debug("Event: %r", evt)
             await self._q.put(evt)
@@ -878,7 +879,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self._name
+        self.group = "run.any." + self._path[-1]
 
     def get_node(self, name):
         return RunnerNode(self, name)
@@ -1032,7 +1033,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self._path[-2]
+        self.group = "run.single.%s.%s" % (self._path[-2],self._path[-1])
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -1105,7 +1106,7 @@ class AllRunnerRoot(SingleRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run." + self.name
+        self.group = "run.all." + self._path[-1]
 
     async def _state_runner(self):
         self.state = await StateRoot.as_handler(

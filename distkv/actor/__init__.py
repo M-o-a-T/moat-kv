@@ -69,7 +69,8 @@ class ActorState:
     def __init__(self, msg=None):
         self.msg = msg
 
-    pass
+    def __repr__(self):
+        return "<%s:%r>" % (self.__class__.__name__, self.msg)
 
 
 class BrokenState(ActorState):
