@@ -453,7 +453,8 @@ class RunnerEntry(AttrClientEntry):
     async def send_event(self, evt):
         """Send an event to the running process."""
         if self._q is None:
-            self._logger.info("Discarding %r", evt)
+            if self._running:
+                self._logger.info("Discarding %r", evt)
         elif self._q.qsize() < QLEN - 1:
             self._logger.debug("Event: %r", evt)
             await self._q.put(evt)
