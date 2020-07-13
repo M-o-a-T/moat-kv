@@ -67,6 +67,18 @@ class ChangeMsg(RunnerMsg):
     pass
 
 
+class MQTTmsg(RunnerMsg):
+    """A message transporting some MQTT data.
+
+    `value` is the MsgPack-decoded content. If that doesn't exist the
+    message is not decodeable.
+
+    The runner also sets the ``path`` attribute.
+    """
+
+    pass
+
+
 class ReadyMsg(RunnerMsg):
     """
     This message is queued when the last watcher has read all data.
@@ -97,6 +109,7 @@ for _c in (
     TimerMsg,
     ReadyMsg,
     ChangeMsg,
+    MQTTmsg,
     RunnerMsg,
     ErrorRecorded,
 ):
@@ -264,11 +277,72 @@ class CallAdmin:
         await self._taskgroup.spawn(w.run)
         return w
 
+    async def send(self, path, value=NotGiven, raw=None):
+        """
+        Publish an MQTT message.
+
+        Set either ``value`` or ``raw``.
+        """
+        await self._client.msg_send(topic=path, data=value, raw=raw)
+
+    async def monitor(self, path, cls=MQTTmsg, **kw):
+        """
+        Create an MQTT monitor.
+        Messages are encapsulated in `MQTTmsg` objects.
+
+        By default a monitor will only monitor a single entry. You may use
+        MQTT wildcards.
+
+        The message is decoded and stored in the ``value`` attribute unless
+        it's either undecodeable or ``raw`` is set, in which case it's
+        stored in ``.msg``. The topic the message was sent to is in
+        ``topic``.
+        """
+
+        class Monitor:
+            """Helper class for reading an MQTT topic"""
+
+            def __init__(self, admin, runner, client, cls, path, kw):
+                self.admin = admin
+                self.runner = runner
+                self.client = client
+                self.path = path
+                self.kw = kw
+                self.cls = cls
+                self.scope = None
+
+            async def run(self):
+                async with anyio.open_cancel_scope() as sc:
+                    self.scope = sc
+                    async with self.client.msg_monitor(path, **kw) as watcher:
+                        async for msg in watcher:
+                            if "topic" in msg:
+                                chg = cls(msg.get('raw', None))
+                                try:
+                                    chg.value = (  # pylint:disable=attribute-defined-outside-init
+                                        msg.data
+                                    )
+                                except AttributeError:
+                                    pass
+                                chg.path = (  # pylint:disable=attribute-defined-outside-init
+                                    Path.build(msg.topic)
+                                )
+                                await self.runner.send_event(chg)
+
+            async def cancel(self):
+                if self.scope is None:
+                    return False
+                sc, self.scope = self.scope, None
+                await sc.cancel()
+
+        w = Monitor(self, self._runner, self._client, cls, path, kw)
+        await self._taskgroup.spawn(w.run)
+        return w
+
     async def timer(self, delay, cls=TimerMsg):
         class Timer:
-            def __init__(self, runner, delay, cls, tg):
+            def __init__(self, runner, cls, tg):
                 self.runner = runner
-                self.delay = delay
                 self.cls = cls
                 self.scope = None
                 self._taskgroup = tg
@@ -290,10 +364,11 @@ class CallAdmin:
             async def run(self, delay):
                 await self.cancel()
                 self.delay = delay
-                await self._taskgroup.spawn(t._run)
+                if self.delay > 0:
+                    await self._taskgroup.spawn(t._run)
 
-        t = Timer(self._runner, delay, cls, self._taskgroup)
-        await self._taskgroup.spawn(t._run)
+        t = Timer(self._runner, cls, self._taskgroup)
+        await t.run(delay)
         return t
 
 
