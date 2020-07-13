@@ -266,9 +266,8 @@ class CallAdmin:
 
     async def timer(self, delay, cls=TimerMsg):
         class Timer:
-            def __init__(self, runner, delay, cls, tg):
+            def __init__(self, runner, cls, tg):
                 self.runner = runner
-                self.delay = delay
                 self.cls = cls
                 self.scope = None
                 self._taskgroup = tg
@@ -290,10 +289,11 @@ class CallAdmin:
             async def run(self, delay):
                 await self.cancel()
                 self.delay = delay
-                await self._taskgroup.spawn(t._run)
+                if self.delay > 0:
+                    await self._taskgroup.spawn(t._run)
 
-        t = Timer(self._runner, delay, cls, self._taskgroup)
-        await self._taskgroup.spawn(t._run)
+        t = Timer(self._runner, cls, self._taskgroup)
+        await t.run(delay)
         return t
 
 
