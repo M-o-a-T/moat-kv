@@ -11,4 +11,7 @@ export MSGPACK_PUREPYTHON=1
 override_dh_install:
 	dh_install
 	$(MAKE) install PREFIX=debian/distkv
+
+override_dh_python3:
+	dh_python3
 	rm -f debian/distkv/usr/lib/python3/dist-packages/test.log
