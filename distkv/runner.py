@@ -317,15 +317,15 @@ class CallAdmin:
                     async with self.client.msg_monitor(path, **kw) as watcher:
                         async for msg in watcher:
                             if "topic" in msg:
-                                chg = cls(msg.get('raw', None))
+                                chg = cls(msg.get("raw", None))
                                 try:
                                     chg.value = (  # pylint:disable=attribute-defined-outside-init
                                         msg.data
                                     )
                                 except AttributeError:
                                     pass
-                                chg.path = (  # pylint:disable=attribute-defined-outside-init
-                                    Path.build(msg.topic)
+                                chg.path = Path.build(  # pylint:disable=attribute-defined-outside-init
+                                    msg.topic
                                 )
                                 await self.runner.send_event(chg)
 
@@ -1106,7 +1106,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run.single.%s.%s" % (self._path[-2],self._path[-1])
+        self.group = "run.single.%s.%s" % (self._path[-2], self._path[-1])
 
     async def set_value(self, value):
         await super().set_value(value)
