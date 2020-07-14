@@ -103,6 +103,13 @@ def _state_fix_2(rs):
             )
     except AttributeError:
         pass
+    try:
+        if rs.computed:
+            rs.computed = datetime.datetime.fromtimestamp(rs.computed).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
 
 
 async def _state_fix(obj, state, path, r):

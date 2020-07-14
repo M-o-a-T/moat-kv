@@ -316,7 +316,7 @@ class CallAdmin:
         elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
-        res = await self._client.get(path, value=value, chain=chain)
+        res = await self._client.get(path, value=value)  # TODO chain
 
         if "value" in res:
             return res.value
@@ -700,15 +700,17 @@ class StateEntry(AttrClientEntry):
       result (Any): the code's return value
       node (str): the node running this code
       backoff (float): on error, the multiplier to apply to the restart timeout
+      computed (float): computed start time
     """
 
-    ATTRS = "started stopped result node backoff".split()
+    ATTRS = "started stopped computed result node backoff".split()
 
     started = 0  # timestamp
     stopped = 0  # timestamp
     node = None  # on which the code is currently running
     result = NotGiven
     backoff = 0
+    computed = 0  # timestamp
 
     @property
     def runner(self):
@@ -842,6 +844,7 @@ class _BaseRunnerRoot(ClientRoot):
 
     _trigger: anyio.abc.Event = None
     _run_now_task: anyio.abc.CancelScope = None
+    _tagged: bool = True
 
     err = None
     code = None
@@ -947,16 +950,24 @@ class _BaseRunnerRoot(ClientRoot):
                         self._trigger = anyio.create_event()
 
                 t = time.time()
-                t_next = t + 99999
+                t_next = t + 999
                 for j in self.all_children:
                     d = j.should_start()
                     if d is False:
+                        j.state.computed = 0
+                        if self._tagged:
+                            await j.state.save()
                         continue
                     if d <= t:
                         await self._tg.spawn(j.run)
                         await anyio.sleep(self._start_delay)
-                    elif t_next > d:
-                        t_next = d
+                    else:
+                        j.state.computed = d
+                        if self._tagged:
+                            await j.state.save()
+
+                        if t_next > d:
+                            t_next = d
 
     async def notify_actor_state(self, msg=None):
         """
@@ -994,6 +1005,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     _stale_times = None
     tg = None
     seen_load = None
+    _tagged: bool = False
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -1036,6 +1048,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     self.node_history += node
 
                 elif isinstance(msg, TagEvent):
+                    self._tagged = True
                     load = 100 - psutil.cpu_percent(interval=None)
                     await act.set_value(load)
                     if self.seen_load is not None:
@@ -1050,6 +1063,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     await self.state.ping()
 
                 elif isinstance(msg, UntagEvent):
+                    self._tagged = False
                     await act.set_value(100 - psutil.cpu_percent(interval=None))
                     self.seen_load = 0
 
