@@ -457,6 +457,10 @@ class RunnerEntry(AttrClientEntry):
                 else:
                     data = deepcopy(data)
 
+                for k, v in code.value.get("default", {}).items():
+                    if k not in data:
+                        data[k] = v
+
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
                 data["_client"] = self.root.client
