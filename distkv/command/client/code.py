@@ -45,13 +45,22 @@ async def get(obj, path, script):
 @click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
-@click.option("-v", "--vars", "vars_", multiple=True, type=str, help="Required variables")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
 @click.option("-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)")
+@click.option("-v", "--var", "vars_", nargs=2, multiple=True, help="Value (name val…)")
+@click.option("-e", "--eval", "eval_", nargs=2, multiple=True, help="Value (name val), evaluated")
+@click.option("-p", "--path", "path_", nargs=2, multiple=True, help="Value (name val), as path")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def set_(obj, path, thread, script, data, vars_, async_, info):
-    """Save Python code."""
+async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, info):
+    """Save Python code.
+    
+    The code may have inputs. You specify the inputs and their default
+    values with '-v VAR VALUE' (string), '-p VAR PATH' (DistKV path), or
+    '-e VAR EXPR' (Python expression). Use '-e VAR -' to state that VAR
+    shall not have a default value, and '-e VAR /' to delete VAR from the
+    list of inputs entirely.
+    """
     if async_:
         if thread:
             raise click.UsageError("You can't specify both '--async' and '--thread'.")
@@ -68,7 +77,7 @@ async def set_(obj, path, thread, script, data, vars_, async_, info):
     if data:
         msg = yload(data)
     else:
-        msg = {}
+        msg = await obj.client.get(obj.cfg["codes"]["prefix"] + path, nchain=3)
     chain = NotGiven
     if "value" in msg:
         chain = msg.get("chain", NotGiven)
@@ -88,12 +97,27 @@ async def set_(obj, path, thread, script, data, vars_, async_, info):
         msg["code"] = script.read()
 
     if "vars" in msg:
-        if vars_:
-            raise click.UsageError("Duplicate variables")
-    elif vars_:
-        vl = msg["vars"] = []
-        for vv in vars_:
-            vl.extend(vv.split(","))
+        vs = set(msg.vars)
+    else:
+        vs = set()
+    vd = msg.setdefault("default", {})
+
+    for k, v in vars_:
+        vs.add(k)
+        vd[k] = v
+    for k, v in eval_:
+        vs.add(k)
+        if v == "-":
+            vd.pop(k, None)
+        elif v == "/":
+            vd.pop(k, None)
+            vs.discard(k)
+        else:
+            vd[k] = eval(v)  # pylint:disable=eval-used
+    for k, v in path_:
+        vs.add(k)
+        vd[k] = P(v)
+    msg.vars = list(vs)
 
     res = await obj.client.set(
         obj.cfg["codes"]["prefix"] + path,
@@ -217,7 +241,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
             del r.value["code"]
 
         if short:
-            print(" ".join(path), "::", r.value.info)
+            print(path, "::", r.value.info)
             continue
 
         if as_dict is not None:
