@@ -264,6 +264,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
         yprint(y, stream=obj.stdout)
     return
 
+
 @cli.command()
 @click.argument("path", nargs=1)
 @click.pass_obj
@@ -277,9 +278,8 @@ async def delete(obj, path):
     else:
         res = await obj.client.delete(obj.cfg["codes"].prefix + path, chain=res.chain)
         res.info = "Deleted."
-        
+
     if obj.meta:
         yprint(res, stream=obj.stdout)
     elif obj.debug:
         print(res.info, file=obj.stdout)
-

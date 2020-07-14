@@ -162,7 +162,12 @@ async def list_(obj, state, as_dict, path):
     if state:
         state = obj.statepath + path
 
-    await data_get(obj, obj.path + path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state, None if as_dict else path))
+    await data_get(
+        obj,
+        obj.path + path,
+        as_dict=as_dict,
+        item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
+    )
 
 
 @cli.command("state")
