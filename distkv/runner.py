@@ -270,6 +270,11 @@ class CallAdmin:
                 sc, self.scope = self.scope, None
                 await sc.cancel()
 
+        if isinstance(path,(tuple,list)):
+            path = Path.build(path)
+        elif not isinstance(path,Path):
+            raise RuntimeError("You didn't pass in a path")
+
         kw.setdefault("max_depth", 0)
         if kw.setdefault("fetch", True):
             self._n_watch += 1
@@ -284,6 +289,11 @@ class CallAdmin:
 
         Set either ``value`` or ``raw``.
         """
+        if isinstance(path,(tuple,list)):
+            path = Path.build(path)
+        elif not isinstance(path,Path):
+            raise RuntimeError("You didn't pass in a path")
+
         await self._client.msg_send(topic=path, data=value, raw=raw)
 
     async def monitor(self, path, cls=MQTTmsg, **kw):
@@ -332,6 +342,11 @@ class CallAdmin:
                     return False
                 sc, self.scope = self.scope, None
                 await sc.cancel()
+
+        if isinstance(path,(tuple,list)):
+            path = Path.build(path)
+        elif not isinstance(path,Path):
+            raise RuntimeError("You didn't pass in a path")
 
         w = Monitor(self, self._runner, self._client, cls, path, kw)
         await self._taskgroup.spawn(w.run)
