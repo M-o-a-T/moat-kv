@@ -160,6 +160,7 @@ class CallAdmin:
 
                     await tg.spawn(is_ok, oka)
 
+                await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
                 if code.is_async is not None:
                     res = await res
@@ -317,16 +318,13 @@ class CallAdmin:
                     async with self.client.msg_monitor(path, **kw) as watcher:
                         async for msg in watcher:
                             if "topic" in msg:
-                                chg = cls(msg.get('raw', None))
+                                # pylint:disable=attribute-defined-outside-init
+                                chg = cls(msg.get("raw", None))
                                 try:
-                                    chg.value = (  # pylint:disable=attribute-defined-outside-init
-                                        msg.data
-                                    )
+                                    chg.value = msg.data
                                 except AttributeError:
                                     pass
-                                chg.path = (  # pylint:disable=attribute-defined-outside-init
-                                    Path.build(msg.topic)
-                                )
+                                chg.path = Path.build(msg.topic)
                                 await self.runner.send_event(chg)
 
             async def cancel(self):
@@ -346,11 +344,12 @@ class CallAdmin:
                 self.cls = cls
                 self.scope = None
                 self._taskgroup = tg
+                self.delay = None
 
             async def _run(self):
                 async with anyio.open_cancel_scope() as sc:
                     self.scope = sc
-                    await anyio.sleep(delay)
+                    await anyio.sleep(self.delay)
                     self.scope = None
                     await self.runner.send_event(self.cls(self))
 
@@ -456,6 +455,10 @@ class RunnerEntry(AttrClientEntry):
                     data = {}
                 else:
                     data = deepcopy(data)
+
+                for k, v in code.value.get("default", {}).items():
+                    if k not in data:
+                        data[k] = v
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
@@ -1106,7 +1109,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = "run.single.%s.%s" % (self._path[-2],self._path[-1])
+        self.group = "run.single.%s.%s" % (self._path[-2], self._path[-1])
 
     async def set_value(self, value):
         await super().set_value(value)

@@ -9,7 +9,7 @@ from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, Path, data_get, NotGiven
+from distkv.util import yprint, PathLongener, P, Path, data_get
 
 import logging
 
@@ -105,7 +105,7 @@ def _state_fix_2(rs):
         pass
 
 
-async def _state_fix(obj, state, r):
+async def _state_fix(obj, state, path, r):
     try:
         val = r.value
     except AttributeError:
@@ -120,6 +120,8 @@ async def _state_fix(obj, state, r):
             val["state"] = rs.value
         if "value" in rs:
             _state_fix_2(rs.value)
+    if path:
+        r.path = path + r.path
     try:
         val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
     except (AttributeError, TypeError):
@@ -159,9 +161,13 @@ async def list_(obj, state, as_dict, path):
 
     if state:
         state = obj.statepath + path
-    path = obj.path + path
 
-    await data_get(obj, path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state))
+    await data_get(
+        obj,
+        obj.path + path,
+        as_dict=as_dict,
+        item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
+    )
 
 
 @cli.command("state")
@@ -212,7 +218,7 @@ async def get(obj, path, state):
     res.path = path
     if state:
         state = obj.statepath
-    await _state_fix(obj, state, res)
+    await _state_fix(obj, state, res, None)
     if not obj.meta:
         res = res.value
 
@@ -255,7 +261,7 @@ async def delete(obj, path, force):
 
     if obj.meta:
         yprint(res, stream=obj.stdout)
-    else:
+    elif obj.debug:
         print(res.info)
 
 
@@ -268,21 +274,21 @@ async def delete(obj, path, force):
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
-@click.option("-v", "--var", nargs=2, help="Value (name val…)")
-@click.option("-e", "--eval", "eval_", is_flag=True, help="Value must be evaluated")
-@click.option("-p", "--path", "path_", is_flag=True, help="Value is a path")
+@click.option("-v", "--var", nargs=2, multiple=True, help="Value (name val…)")
+@click.option("-e", "--eval", "eval_", nargs=2, multiple=True, help="Value (name val), evaluated")
+@click.option("-p", "--path", "path_", nargs=2, multiple=True, help="Value (name val), as path")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var, copy):
-    """Save / modify a run entry."""
+    """Add or modify a runner.
+
+    Code typically requires some input parameters.
+
+    You should use '-v NAME VALUE' for string values, '-p NAME VALUE' for
+    paths, and '-e NAME VALUE' for other data. '-e NAME -' deletes an item.
+    """
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
-    if not path:
-        raise click.UsageError("You need a non-empty path.")
-    if path_ and eval_:
-        raise click.UsageError("'--eval' and '--path' are mutually exclusive.")
-    if (path_ or eval_) and not var:
-        raise click.UsageError("'--eval' or '--path' need a variable+value.")
 
     if code is not None:
         code = P(code)
@@ -304,21 +310,17 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         if copy and "code" not in res:
             raise click.UsageError("'--copy' needs a runner entry")
 
-    if var:
-        vl = res.setdefault("data", {})
-        k, v = var
-        if eval_:
-            if v == "-":
-                v = NotGiven
-            else:
-                v = eval(v)  # pylint:disable=eval-used
-        elif path_:
-            v = P(v)
-
-        if v is NotGiven:
-            del vl[k]
+    vl = res.setdefault("data", {})
+    for k, v in var:
+        vl[k] = v
+    for k, v in eval_:
+        if v == "-":
+            vl.pop(k, None)
         else:
-            vl[k] = v
+            vl[k] = eval(v)  # pylint:disable=eval-used
+    for k, v in path_:
+        vl[k] = P(v)
+
     if code is not None:
         res["code"] = code
     if ok is not None:
