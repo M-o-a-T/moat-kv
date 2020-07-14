@@ -487,7 +487,7 @@ class ErrorRoot(ClientRoot):
         try:
             await rec.save()
         except anyio.exceptions.ClosedResourceError:
-            logger.error("Could not save error %s %s: %s %r", subsystem, path, message, exc)
+            logger.exception("Could not save error %s %s: %s %r", subsystem, path, message, exc, exc_info=exc)
             return  # owch, but can't be helped
 
         r = await rec.real_entry.add_exc(
