@@ -296,6 +296,33 @@ class CallAdmin:
 
         await self._client.msg_send(topic=path, data=value, raw=raw)
 
+    async def set(self, path, value, chain=NotGiven):
+        """
+        Set a DistKV value.
+        """
+        if isinstance(path,(tuple,list)):
+            path = Path.build(path)
+        elif not isinstance(path,Path):
+            raise RuntimeError("You didn't pass in a path")
+
+        return await self._client.set(path, value=value, chain=chain)
+
+    async def get(self, path, value):
+        """
+        Get a DistKV value.
+        """
+        if isinstance(path,(tuple,list)):
+            path = Path.build(path)
+        elif not isinstance(path,Path):
+            raise RuntimeError("You didn't pass in a path")
+
+        res = await self._client.get(path, value=value, chain=chain)
+
+        if 'value' in res:
+            return res.value
+        else:
+            return KeyError(path)
+
     async def monitor(self, path, cls=MQTTmsg, **kw):
         """
         Create an MQTT monitor.
