@@ -168,12 +168,13 @@ async def list_(obj, state, table, as_dict, path):
 
     if table:
         from distkv.errors import ErrorRoot
+
         err = await ErrorRoot.as_handler(obj.client)
 
         async for r in obj.client.get_tree(obj.path + path):
             p = path + r.path
-            s = await obj.client.get(state+r.path)
-            if 'value' not in s:
+            s = await obj.client.get(state + r.path)
+            if "value" not in s:
                 st = "-never-"
             elif s.value.started > s.value.stopped:
                 st = s.value.node
@@ -186,8 +187,19 @@ async def list_(obj, state, table, as_dict, path):
                     if e is None or e.resolved:
                         st = "-stopped-"
                     else:
-                        st = " | ".join("%s %s" % (Path.build(e.subpath) if e._path[-2] == ee._path[-1] else Path.build(ee.subpath), getattr(ee,'message',None) or getattr(ee,'comment',None) or "-") for ee in e)
-            print(p,r.value.code,st, file=obj.stdout)
+                        st = " | ".join(
+                            "%s %s"
+                            % (
+                                Path.build(e.subpath)
+                                if e._path[-2] == ee._path[-1]
+                                else Path.build(ee.subpath),
+                                getattr(ee, "message", None)
+                                or getattr(ee, "comment", None)
+                                or "-",
+                            )
+                            for ee in e
+                        )
+            print(p, r.value.code, st, file=obj.stdout)
 
     else:
         await data_get(

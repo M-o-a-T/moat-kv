@@ -144,8 +144,8 @@ async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
     y = {}
     res = None
 
-    if node is None and len(path) == 2 and isinstance(path[-1],int):  # single error?
-        r = await obj.client.get(path_+path, nchain=3 if obj.meta else 0)
+    if node is None and len(path) == 2 and isinstance(path[-1], int):  # single error?
+        r = await obj.client.get(path_ + path, nchain=3 if obj.meta else 0)
         # Mangle a few variables so that the output is still OK
         r.path = path
         node = None

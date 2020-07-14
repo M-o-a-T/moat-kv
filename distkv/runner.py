@@ -270,9 +270,9 @@ class CallAdmin:
                 sc, self.scope = self.scope, None
                 await sc.cancel()
 
-        if isinstance(path,(tuple,list)):
+        if isinstance(path, (tuple, list)):
             path = Path.build(path)
-        elif not isinstance(path,Path):
+        elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
         kw.setdefault("max_depth", 0)
@@ -289,9 +289,9 @@ class CallAdmin:
 
         Set either ``value`` or ``raw``.
         """
-        if isinstance(path,(tuple,list)):
+        if isinstance(path, (tuple, list)):
             path = Path.build(path)
-        elif not isinstance(path,Path):
+        elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
         await self._client.msg_send(topic=path, data=value, raw=raw)
@@ -300,9 +300,9 @@ class CallAdmin:
         """
         Set a DistKV value.
         """
-        if isinstance(path,(tuple,list)):
+        if isinstance(path, (tuple, list)):
             path = Path.build(path)
-        elif not isinstance(path,Path):
+        elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
         return await self._client.set(path, value=value, chain=chain)
@@ -311,14 +311,14 @@ class CallAdmin:
         """
         Get a DistKV value.
         """
-        if isinstance(path,(tuple,list)):
+        if isinstance(path, (tuple, list)):
             path = Path.build(path)
-        elif not isinstance(path,Path):
+        elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
         res = await self._client.get(path, value=value, chain=chain)
 
-        if 'value' in res:
+        if "value" in res:
             return res.value
         else:
             return KeyError(path)
@@ -370,9 +370,9 @@ class CallAdmin:
                 sc, self.scope = self.scope, None
                 await sc.cancel()
 
-        if isinstance(path,(tuple,list)):
+        if isinstance(path, (tuple, list)):
             path = Path.build(path)
-        elif not isinstance(path,Path):
+        elif not isinstance(path, Path):
             raise RuntimeError("You didn't pass in a path")
 
         w = Monitor(self, self._runner, self._client, cls, path, kw)

@@ -939,7 +939,9 @@ class ServerClient:
             elif entry.data is NotGiven:
                 raise ClientChainError("Entry is new at {msg.path}")
             elif entry.chain != msg.chain:
-                raise ClientChainError(f"Chain is {entry.chain !r} not {msg.chain !r} for {msg.path}")
+                raise ClientChainError(
+                    f"Chain is {entry.chain !r} not {msg.chain !r} for {msg.path}"
+                )
             send_prev = False
 
         res = attrdict()
