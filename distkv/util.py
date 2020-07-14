@@ -1351,5 +1351,8 @@ def digits(n, digits=6):
     123400000
     >>> digits(math.pi, 4)
     3.142
+
+    ``digits`` may be a fraction, in order to move the cut-off point to
+    somewhere other than between 9.999 and 10.00.
     """
-    return round(n, digits - 1 - int(log10(abs(n))))
+    return round(n, int(digits - 1 - log10(abs(n))))
