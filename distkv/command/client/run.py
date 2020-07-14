@@ -186,7 +186,7 @@ async def list_(obj, state, table, as_dict, path):
                     if e is None or e.resolved:
                         st = "-stopped-"
                     else:
-                        st = " | ".join("%s %s" % (Path.build(e.subpath) if e._path[-2] == ee._path[-1] else Path.build(ee.subpath), ee.comment) for ee in e)
+                        st = " | ".join("%s %s" % (Path.build(e.subpath) if e._path[-2] == ee._path[-1] else Path.build(ee.subpath), getattr(ee,'message',None) or getattr(ee,'comment',None) or "-") for ee in e)
             print(p,r.value.code,st, file=obj.stdout)
 
     else:
