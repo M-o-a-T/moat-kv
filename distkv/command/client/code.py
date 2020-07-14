@@ -239,3 +239,23 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     if as_dict is not None:
         yprint(y, stream=obj.stdout)
     return
+
+@cli.command()
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def delete(obj, path):
+    """Remove a code entry"""
+    path = P(path)
+
+    res = await obj.client.get(obj.cfg["codes"].prefix + path, nchain=3)
+    if "value" not in res:
+        res.info = "Does not exist."
+    else:
+        res = await obj.client.delete(obj.cfg["codes"].prefix + path, chain=res.chain)
+        res.info = "Deleted."
+        
+    if obj.meta:
+        yprint(res, stream=obj.stdout)
+    elif obj.debug:
+        print(res.info, file=obj.stdout)
+
