@@ -105,7 +105,7 @@ def _state_fix_2(rs):
         pass
 
 
-async def _state_fix(obj, state, r):
+async def _state_fix(obj, state, path, r):
     try:
         val = r.value
     except AttributeError:
@@ -120,6 +120,8 @@ async def _state_fix(obj, state, r):
             val["state"] = rs.value
         if "value" in rs:
             _state_fix_2(rs.value)
+    if path:
+        r.path = path + r.path
     try:
         val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
     except (AttributeError, TypeError):
@@ -159,9 +161,8 @@ async def list_(obj, state, as_dict, path):
 
     if state:
         state = obj.statepath + path
-    path = obj.path + path
 
-    await data_get(obj, path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state))
+    await data_get(obj, obj.path + path, as_dict=as_dict, item_mangle=partial(_state_fix, obj, state, None if as_dict else path))
 
 
 @cli.command("state")
@@ -212,7 +213,7 @@ async def get(obj, path, state):
     res.path = path
     if state:
         state = obj.statepath
-    await _state_fix(obj, state, res)
+    await _state_fix(obj, state, res, None)
     if not obj.meta:
         res = res.value
 
