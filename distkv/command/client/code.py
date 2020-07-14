@@ -88,13 +88,10 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
     if info is not None:
         msg["info"] = info
 
-    if "code" in msg:
-        if script:
-            raise click.UsageError("Duplicate script")
-    else:
-        if not script:
-            raise click.UsageError("Missing script")
+    if script:
         msg["code"] = script.read()
+    elif "code" not in msg:
+        raise click.UsageError("Missing script")
 
     if "vars" in msg:
         vs = set(msg.vars)
