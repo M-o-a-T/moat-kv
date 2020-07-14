@@ -318,16 +318,13 @@ class CallAdmin:
                     async with self.client.msg_monitor(path, **kw) as watcher:
                         async for msg in watcher:
                             if "topic" in msg:
+                                # pylint:disable=attribute-defined-outside-init
                                 chg = cls(msg.get("raw", None))
                                 try:
-                                    chg.value = (  # pylint:disable=attribute-defined-outside-init
-                                        msg.data
-                                    )
+                                    chg.value = msg.data
                                 except AttributeError:
                                     pass
-                                chg.path = Path.build(  # pylint:disable=attribute-defined-outside-init
-                                    msg.topic
-                                )
+                                chg.path = Path.build(msg.topic)
                                 await self.runner.send_event(chg)
 
             async def cancel(self):
@@ -347,6 +344,7 @@ class CallAdmin:
                 self.cls = cls
                 self.scope = None
                 self._taskgroup = tg
+                self.delay = None
 
             async def _run(self):
                 async with anyio.open_cancel_scope() as sc:

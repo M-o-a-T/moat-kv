@@ -1341,7 +1341,7 @@ def logger_for(path: Path):
     return logging.getLogger(p)
 
 
-def digits(n, digits=6):
+def digits(n, digits=6):  # pylint: disable=redefined-outer-name
     """
     Returns ``n`` rounded to ``digits`` significant digits. Default: 6.
     Ensures that the number doesn't carry nonsense precision or

@@ -54,7 +54,7 @@ async def get(obj, path, script):
 @click.pass_obj
 async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, info):
     """Save Python code.
-    
+
     The code may have inputs. You specify the inputs and their default
     values with '-v VAR VALUE' (string), '-p VAR PATH' (DistKV path), or
     '-e VAR EXPR' (Python expression). Use '-e VAR -' to state that VAR

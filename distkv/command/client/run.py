@@ -9,7 +9,7 @@ from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, Path, data_get, NotGiven
+from distkv.util import yprint, PathLongener, P, Path, data_get
 
 import logging
 
