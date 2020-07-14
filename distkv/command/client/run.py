@@ -255,7 +255,7 @@ async def delete(obj, path, force):
 
     if obj.meta:
         yprint(res, stream=obj.stdout)
-    else:
+    elif obj.debug:
         print(res.info)
 
 
