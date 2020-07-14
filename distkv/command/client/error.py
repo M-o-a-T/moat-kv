@@ -144,25 +144,17 @@ async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
     y = {}
     res = None
 
-    if False and node is not None and len(path) == 1:  # single error?
-        try:
-            if len(path) != 2:
-                raise ValueError
-            tock = int(path[1])
-        except ValueError:
-            pass
-        else:
-            r = await obj.client.get(path_, tock, nchain=3 if obj.meta else 0)
-            # Mangle a few variables so that the output is still OK
-            path = ()
-            path_ = path_[:-1]
-            r.path = (node, tock)
-            node = None
+    if node is None and len(path) == 2 and isinstance(path[-1], int):  # single error?
+        r = await obj.client.get(path_ + path, nchain=3 if obj.meta else 0)
+        # Mangle a few variables so that the output is still OK
+        r.path = path
+        node = None
 
-            async def ait(r):
-                yield r
+        async def ait(r):
+            yield r
 
-            res = ait(r)
+        res = ait(r)
+        path = ()
 
     if res is None:
         res = obj.client.get_tree(path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0)

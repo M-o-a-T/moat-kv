@@ -930,16 +930,18 @@ class ServerClient:
 
         if "prev" in msg:
             if entry.data != msg.prev:
-                raise ClientError(f"Data is {entry.data !r}")
+                raise ClientError(f"Data is {entry.data !r} not {msg.prev !r} at {msg.path}")
             send_prev = False
         if "chain" in msg:
             if msg.chain is None:
                 if entry.data is not NotGiven:
-                    raise ClientChainError("This entry already exists")
+                    raise ClientChainError("Entry already exists at {msg.path}")
             elif entry.data is NotGiven:
-                raise ClientChainError("This entry is new")
+                raise ClientChainError("Entry is new at {msg.path}")
             elif entry.chain != msg.chain:
-                raise ClientChainError(f"Chain is {entry.chain !r}")
+                raise ClientChainError(
+                    f"Chain is {entry.chain !r} not {msg.chain !r} for {msg.path}"
+                )
             send_prev = False
 
         res = attrdict()

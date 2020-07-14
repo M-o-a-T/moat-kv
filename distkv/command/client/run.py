@@ -103,6 +103,13 @@ def _state_fix_2(rs):
             )
     except AttributeError:
         pass
+    try:
+        if rs.computed:
+            rs.computed = datetime.datetime.fromtimestamp(rs.computed).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
 
 
 async def _state_fix(obj, state, path, r):
@@ -132,6 +139,7 @@ async def _state_fix(obj, state, path, r):
 
 @cli.command("list")
 @click.option("-s", "--state", is_flag=True, help="Add state data")
+@click.option("-t", "--table", is_flag=True, help="one-line output")
 @click.option(
     "-d",
     "--as-dict",
@@ -141,9 +149,12 @@ async def _state_fix(obj, state, path, r):
 )
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, state, as_dict, path):
+async def list_(obj, state, table, as_dict, path):
     """List run entries.
     """
+    if table and state:
+        click.UsageError("'--table' and '--state' are mutually exclusive")
+
     path = P(path)
     if obj.subpath[-1] == "-":
         if path:
@@ -159,15 +170,51 @@ async def list_(obj, state, as_dict, path):
             print(r.path[-1], file=obj.stdout)
         return
 
-    if state:
+    if state or table:
         state = obj.statepath + path
 
-    await data_get(
-        obj,
-        obj.path + path,
-        as_dict=as_dict,
-        item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
-    )
+    if table:
+        from distkv.errors import ErrorRoot
+
+        err = await ErrorRoot.as_handler(obj.client)
+
+        async for r in obj.client.get_tree(obj.path + path):
+            p = path + r.path
+            s = await obj.client.get(state + r.path)
+            if "value" not in s:
+                st = "-never-"
+            elif s.value.started > s.value.stopped:
+                st = s.value.node
+            else:
+                try:
+                    e = await err.get_error_record("run", obj.path + p, create=False)
+                except KeyError:
+                    st = "-stopped-"
+                else:
+                    if e is None or e.resolved:
+                        st = "-stopped-"
+                    else:
+                        st = " | ".join(
+                            "%s %s"
+                            % (
+                                Path.build(e.subpath)
+                                if e._path[-2] == ee._path[-1]
+                                else Path.build(ee.subpath),
+                                getattr(ee, "message", None)
+                                or getattr(ee, "comment", None)
+                                or "-",
+                            )
+                            for ee in e
+                        )
+            print(p, r.value.code, st, file=obj.stdout)
+
+    else:
+        await data_get(
+            obj,
+            obj.path + path,
+            as_dict=as_dict,
+            item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
+        )
 
 
 @cli.command("state")
