@@ -160,6 +160,7 @@ class CallAdmin:
 
                     await tg.spawn(is_ok, oka)
 
+                await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
                 if code.is_async is not None:
                     res = await res
