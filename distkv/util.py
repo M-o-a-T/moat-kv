@@ -22,6 +22,7 @@ from typing import Union, Dict, Optional
 from ssl import SSLContext
 from functools import partial, total_ordering
 from math import log10
+from sniffio import current_async_library
 
 import ruamel.yaml as yaml
 
@@ -478,6 +479,8 @@ class _Server:
                 await server.aclose()
 
     async def __aenter__(self):
+        if current_async_library() != "trio":
+            raise RuntimeError("This only works with Trio right now.Sorry.")
         send_q, self.recv_q = trio.open_memory_channel(1)
         try:
             servers = await trio.open_tcp_listeners(self.port, **self._kw)
