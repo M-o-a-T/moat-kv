@@ -33,6 +33,7 @@ from .util import (
     NotGiven,
     combine_dict,
     ValueEvent,
+    service_taskgroup,
 )
 from .default import CFG
 from .exceptions import (
@@ -69,11 +70,9 @@ async def open_client(**cfg):
     There is no attempt to reconnect if the connection should fail.
     """
     client = Client(cfg)
-    async with anyio.create_task_group() as tg:
-        async with client._connected(tg) as client:
-            yield client
-            pass  # end connected
-        pass  # end taskgroup
+    async with client._connected() as client:
+        yield client
+        pass  # end _connected
     pass  # end client
 
 
@@ -324,6 +323,7 @@ class Client:
     _config = None
     _socket = None
     tg = None
+    _n = None
     exit_stack = None
 
     server_name = None
@@ -381,7 +381,7 @@ class Client:
                         pass  # exiting helper
 
                 evt = anyio.create_event()
-                await self.tg.spawn(_run, factory, evt)
+                await self.tg.service.spawn(_run, factory, evt)
                 await evt.wait()
                 self._helpers[path] = h
         return h
@@ -606,7 +606,7 @@ class Client:
         await auth.auth(self)
 
     @asynccontextmanager
-    async def _connected(self, tg):
+    async def _connected(self):
         """
         This async context manager handles the actual TCP connection to
         the DistKV server.
@@ -626,52 +626,51 @@ class Client:
         ssl = gen_ssl(cfg["ssl"], server=False)
 
         # logger.debug("Conn %s %s",self.host,self.port)
-        async with AsyncExitStack() as ex:
-            self.exit_stack = ex
-            try:
-                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
-            except socket.gaierror:
-                raise ServerConnectionError(host, port)
-            stream = await ex.enter_async_context(ctx)
+        try:
+            ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
+        except socket.gaierror:
+            raise ServerConnectionError(host, port)
 
-            if ssl:
-                await stream.start_tls()
-            try:
-                self.tg = tg
-                self._socket = stream
-                await self.tg.spawn(self._reader)
-                async with anyio.fail_after(init_timeout):
-                    self._server_init = await hello.get()
-                    logger.debug("Hello %s", self._server_init)
-                    self.server_name = self._server_init.node
-                    self.client_name = cfg["name"] or self.server_name
-                    await self._run_auth(auth)
+        else:
+            async with ctx as stream, service_taskgroup() as tg, AsyncExitStack() as ex:
+                self.exit_stack = ex
 
-                from .config import ConfigRoot
+                if ssl:
+                    await stream.start_tls()
+                try:
+                    self.tg = tg
+                    self._socket = stream
+                    await self.tg.service.spawn(self._reader)
+                    async with anyio.fail_after(init_timeout):
+                        self._server_init = await hello.get()
+                        logger.debug("Hello %s", self._server_init)
+                        self.server_name = self._server_init.node
+                        self.client_name = cfg["name"] or self.server_name
+                        await self._run_auth(auth)
 
-                self._config = await ConfigRoot.as_handler(self)
+                    from .config import ConfigRoot
 
-            except TimeoutError:
-                raise
-            except socket.error as e:
-                raise ServerConnectionError(host, port) from e
-            else:
-                yield self
-            finally:
-                async with anyio.fail_after(2, shield=True):
-                    # Clean up our hacked config
-                    try:
-                        del self._config
-                    except AttributeError:
-                        pass
-                    self.config = ClientConfig(self)
+                    self._config = await ConfigRoot.as_handler(self)
+
+                except TimeoutError:
+                    raise
+                except socket.error as e:
+                    raise ServerConnectionError(host, port) from e
+                else:
+                    yield self
+                finally:
+                    async with anyio.fail_after(2, shield=True):
+                        # Clean up our hacked config
+                        try:
+                            del self._config
+                        except AttributeError:
+                            pass
+                        self.config = ClientConfig(self)
 
                     await self.tg.cancel_scope.cancel()
-                    if self._socket is not None:
-                        async with self._send_lock:
-                            await self._socket.close()
-                        self._socket = None
-                    self.tg = None
+        finally:
+            self._socket = None
+            self.tg = None
 
     # externally visible interface ##########################
 
