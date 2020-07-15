@@ -488,9 +488,9 @@ class _Server:
             raise OSError(f"Port {self.port} in use", errno=exc.errno) from exc
 
         self.ports = []
-        for s in servers:
-            await self.tg.spawn(self._accept, s, send_q.clone())
-        await send_q.aclose()
+        async with send_q:
+            for s in servers:
+                await self.tg.spawn(self._accept, s, send_q.clone())
         return self
 
     async def __aexit__(self, *tb):
