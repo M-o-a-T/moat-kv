@@ -94,7 +94,7 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
         raise click.UsageError("Missing script")
 
     if "vars" in msg:
-        vs = set(msg.vars)
+        vs = set(msg["vars"])
     else:
         vs = set()
     vd = msg.setdefault("default", {})
@@ -114,7 +114,7 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
     for k, v in path_:
         vs.add(k)
         vd[k] = P(v)
-    msg.vars = list(vs)
+    msg["vars"] = list(vs)
 
     res = await obj.client.set(
         obj.cfg["codes"]["prefix"] + path,
