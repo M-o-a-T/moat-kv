@@ -26,8 +26,8 @@ async def collect(i, path=()):
 async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=40) as st:
         async with st.client() as c:
+            e = await ErrorRoot.as_handler(c)
             async with st.client() as cx:
-                e = await ErrorRoot.as_handler(c)
                 ex = await ErrorRoot.as_handler(cx)
                 try:
                     1 / 0
@@ -35,11 +35,11 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
                     await ex.record_error("tester", P("here.or.there"), exc=exc)
                 await trio.sleep(1)
                 n = 0
-                for err in e.all_errors("tester"):
-                    n += 1
-                    await err.resolve()
-                assert n == 1
-                await trio.sleep(1)
+            for err in e.all_errors("tester"):
+                n += 1
+                await err.resolve()
+            assert n == 1
+            await trio.sleep(1)
 
 
 @pytest.mark.trio
