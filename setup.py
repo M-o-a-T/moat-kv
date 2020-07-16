@@ -22,6 +22,7 @@ setup(
         "attrs >= 19",
         "asyncserf >= 0.16",
         "asyncactor >= 0.20.5",
+        "asyncscope >= 0.2.1",
         "jsonschema >= 2.5",
         "ruamel.yaml >= 0.16",
         # "argon2 >= 18.3",

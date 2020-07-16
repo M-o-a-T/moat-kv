@@ -10,6 +10,7 @@ import attr
 import copy
 import time
 from functools import partial
+from asyncscope import main_scope
 
 from distkv.default import CFG
 from distkv.server import Server
@@ -87,7 +88,8 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
         await old()
 
-    async with anyio.create_task_group() as tg:
+    async with main_scope("_distkv_test_serf") as scp:
+        tg = scp._tg
         st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:
             st.ex = ex  # pylint: disable=attribute-defined-outside-init

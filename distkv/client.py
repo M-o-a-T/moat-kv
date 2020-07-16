@@ -9,6 +9,7 @@ import outcome
 import socket
 import os
 from typing import Tuple
+import asyncscope
 
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
@@ -33,7 +34,7 @@ from .util import (
     NotGiven,
     combine_dict,
     ValueEvent,
-    service_taskgroup,
+    Path,
 )
 from .default import CFG
 from .exceptions import (
@@ -51,7 +52,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["NoData", "ManyData", "open_client", "StreamedRequest"]
+__all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest"]
 
 
 class NoData(ValueError):
@@ -63,17 +64,44 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(**cfg):
+async def open_client(_main_name="_distkv_client", **cfg):
     """
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the connection should fail.
+
+    The client connection is run within a separate `asyncscope.ScopeSet`.
+    If you're already using asyncscope in your code, you might want to use
+    `client_scope` instead.
     """
-    client = Client(cfg)
-    async with client._connected() as client:
+    async with asyncscope.main_scope(name=_main_name):
+        client = await client_scope(**cfg)
         yield client
         pass  # end _connected
     pass  # end client
+
+
+async def client_scope(**cfg):
+    """
+    Return the opened client connection, by way of an asyncscope service.
+
+    The configuration's 'connect' dict may include a name to disambiguate
+    multiple connections. This name must not be equal to your main code's.
+
+    There is no attempt to reconnect if the connection should fail.
+    """
+    async def _mgr(cfg):
+        client = Client(cfg)
+        async with client._connected() as client:
+            await asyncscope.register(client)
+            await asyncscope.no_more_dependents()
+            pass  # end _connected
+
+    name = cfg['connect'].get('name', None)
+    if name is None:
+        name = "_distkv_conn"  # MUST NOT be the same as in open_client
+    res = await asyncscope.service(name, _mgr, cfg)
+    return res
 
 
 class StreamedRequest:
@@ -315,14 +343,15 @@ class Client:
     """
     The client side of a DistKV connection.
 
-    Use :func:`open_client` to use this class.
+    Use `open_client` or `client_scope` to use this class.
     """
 
     _server_init = None  # Server greeting
     _dh_key = None
     _config = None
     _socket = None
-    tg = None
+    tg:anyio.abc.TaskGroup = None
+    scope: asyncscope.Scope = None
     _n = None
     exit_stack = None
 
@@ -352,39 +381,18 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, path, factory=None):
+    async def unique_helper(self, path, factory):
         """
         Run a (single) async context manager on that path.
-
         """
-        h = self._helpers.get(path, None)
-        if h is None:
-            h = anyio.create_lock()
-            self._helpers[path] = h
-        if isinstance(h, anyio.abc.Lock):
-            async with h:
-                if self.tg is None:
-                    # race condition w/ closing
-                    return None
-                h2 = self._helpers[path]
-                if h2 is not h:
-                    # another task already did the work
-                    return h2
+        p = str(Path.build(path))
 
-                async def _run(factory, evt):
-                    async with factory() as f:
-                        nonlocal h
-                        h = f
-                        await evt.set()
-                        while True:
-                            await anyio.sleep(99999)
-                        pass  # exiting helper
+        async def with_factory(f):
+            async with f() as r:
+                await asyncscope.register(r)
+                await asyncscope.no_more_dependents()
 
-                evt = anyio.create_event()
-                await self.tg.service.spawn(_run, factory, evt)
-                await evt.wait()
-                self._helpers[path] = h
-        return h
+        return await asyncscope.service(p, with_factory, factory)
 
     async def _handle_msg(self, msg):
         try:
@@ -632,15 +640,17 @@ class Client:
             raise ServerConnectionError(host, port)
 
         else:
-            async with ctx as stream, service_taskgroup() as tg, AsyncExitStack() as ex:
+            async with ctx as stream, anyio.create_task_group() as tg, AsyncExitStack() as ex:
+                self.scope = asyncscope.scope.get()
+                # self.tg = tg  # TODO might not be necessary
+                self._service_tg = self.scope._tg
                 self.exit_stack = ex
 
                 if ssl:
                     await stream.start_tls()
                 try:
-                    self.tg = tg
                     self._socket = stream
-                    await self.tg.service.spawn(self._reader)
+                    await self.scope.spawn(self._reader)
                     async with anyio.fail_after(init_timeout):
                         self._server_init = await hello.get()
                         logger.debug("Hello %s", self._server_init)
@@ -650,7 +660,7 @@ class Client:
 
                     from .config import ConfigRoot
 
-                    self._config = await ConfigRoot.as_handler(self)
+                    self._config = await ConfigRoot.as_handler(self, require_client=False)
 
                 except TimeoutError:
                     raise
@@ -667,7 +677,7 @@ class Client:
                             pass
                         self.config = ClientConfig(self)
 
-                    await self.tg.cancel_scope.cancel()
+                    # await self.tg.cancel_scope.cancel()
         finally:
             self._socket = None
             self.tg = None

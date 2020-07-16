@@ -485,7 +485,9 @@ class _Server:
         try:
             servers = await trio.open_tcp_listeners(self.port, **self._kw)
         except EnvironmentError as exc:
-            raise OSError(f"Port {self.port} in use", errno=exc.errno) from exc
+            err = OSError(f"Port {self.port} in use")
+            err.errno = exc.errno
+            raise err from exc
 
         self.ports = []
         async with send_q:
@@ -1359,46 +1361,3 @@ def digits(n, digits=6):  # pylint: disable=redefined-outer-name
     somewhere other than between 9.999 and 10.00.
     """
     return round(n, int(digits - 1 - log10(abs(n))))
-
-
-@asynccontextmanager
-async def service_taskgroup():
-    """Provides a task group augmented with a cancellation ordering constraint.
-
-    If an entire service taskgroup becomes cancelled, either due to an
-    exception raised by some task in the nursery or due to the
-    cancellation of a scope that surrounds the nursery, the body of
-    the task group's ``async with`` block will receive the cancellation
-    first, and no other tasks will be cancelled until its body has exited.
-    """
-
-    sc = None
-    stg = None
-
-    async def service(evt):
-        # pylint: disable=unused-variable
-        nonlocal sc, stg
-        async with anyio.open_cancel_scope(shield=True) as sc, anyio.create_task_group() as stg:
-            await evt.set()
-            while True:
-                await trio.sleep(99999)
-
-    class ServiceTG:
-        def __init__(self, a, b):
-            self.tg = a
-            self.spawn = a.spawn
-            self.cancel_scope = a.cancel_scope
-            self.service = b
-
-    async with anyio.create_task_group() as tg:
-        evt = anyio.create_event()
-        await tg.spawn(service, evt)
-        await evt.wait()
-        try:
-            async with anyio.create_task_group() as tgi:
-                try:
-                    yield ServiceTG(tgi, stg)
-                finally:
-                    await tgi.cancel_scope.cancel()
-        finally:
-            await sc.cancel()
