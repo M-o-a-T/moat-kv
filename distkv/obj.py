@@ -7,7 +7,7 @@ import anyio
 import weakref
 import heapq
 from collections.abc import Mapping
-import asyncscope
+from asyncscope import scope
 
 try:
     from contextlib import asynccontextmanager
@@ -450,7 +450,7 @@ class ClientRoot(ClientEntry):
         """A coroutine that fetches, and continually updates, a subtree.
         """
         if self._require_client:
-            asyncscope.requires(self.client.scope)
+            scope.requires(self.client.scope)
 
         async with anyio.create_task_group() as tg:
             self._tg = tg

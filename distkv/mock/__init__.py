@@ -69,8 +69,8 @@ class S:
                 continue
             try:
                 async with open_client(
-                    _main_name="_client_%d_%d" % (i,self._seq),
-                    connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)
+                    _main_name="_client_%d_%d" % (i, self._seq),
+                    connect=dict(host=host, port=port, ssl=self.client_ctx, **kv),
                 ) as c:
                     yield c
                     return

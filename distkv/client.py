@@ -9,7 +9,7 @@ import outcome
 import socket
 import os
 from typing import Tuple
-import asyncscope
+from asyncscope import scope, Scope, main_scope
 
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
@@ -74,7 +74,7 @@ async def open_client(_main_name="_distkv_client", **cfg):
     If you're already using asyncscope in your code, you might want to use
     `client_scope` instead.
     """
-    async with asyncscope.main_scope(name=_main_name):
+    async with main_scope(name=_main_name):
         client = await client_scope(**cfg)
         yield client
         pass  # end _connected
@@ -90,17 +90,18 @@ async def client_scope(**cfg):
 
     There is no attempt to reconnect if the connection should fail.
     """
+
     async def _mgr(cfg):
         client = Client(cfg)
         async with client._connected() as client:
-            await asyncscope.register(client)
-            await asyncscope.no_more_dependents()
+            await scope.register(client)
+            await scope.no_more_dependents()
             pass  # end _connected
 
-    name = cfg['connect'].get('name', None)
+    name = cfg["connect"].get("name", None)
     if name is None:
         name = "_distkv_conn"  # MUST NOT be the same as in open_client
-    res = await asyncscope.service(name, _mgr, cfg)
+    res = await scope.service(name, _mgr, cfg)
     return res
 
 
@@ -350,8 +351,8 @@ class Client:
     _dh_key = None
     _config = None
     _socket = None
-    tg:anyio.abc.TaskGroup = None
-    scope: asyncscope.Scope = None
+    tg: anyio.abc.TaskGroup = None
+    scope: Scope = None
     _n = None
     exit_stack = None
 
@@ -389,10 +390,10 @@ class Client:
 
         async def with_factory(f):
             async with f() as r:
-                await asyncscope.register(r)
-                await asyncscope.no_more_dependents()
+                await scope.register(r)
+                await scope.no_more_dependents()
 
-        return await asyncscope.service(p, with_factory, factory)
+        return await scope.service(p, with_factory, factory)
 
     async def _handle_msg(self, msg):
         try:
@@ -641,9 +642,8 @@ class Client:
 
         else:
             async with ctx as stream, anyio.create_task_group() as tg, AsyncExitStack() as ex:
-                self.scope = asyncscope.scope.get()
+                self.scope = scope.get()
                 # self.tg = tg  # TODO might not be necessary
-                self._service_tg = self.scope._tg
                 self.exit_stack = ex
 
                 if ssl:
