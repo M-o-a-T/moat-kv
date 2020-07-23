@@ -22,6 +22,7 @@ from typing import Union, Dict, Optional
 from ssl import SSLContext
 from functools import partial, total_ordering
 from math import log10
+from sniffio import current_async_library
 
 import ruamel.yaml as yaml
 
@@ -478,16 +479,20 @@ class _Server:
                 await server.aclose()
 
     async def __aenter__(self):
+        if current_async_library() != "trio":
+            raise RuntimeError("This only works with Trio right now.Sorry.")
         send_q, self.recv_q = trio.open_memory_channel(1)
         try:
             servers = await trio.open_tcp_listeners(self.port, **self._kw)
         except EnvironmentError as exc:
-            raise OSError(f"Port {self.port} in use", errno=exc.errno) from exc
+            err = OSError(f"Port {self.port} in use")
+            err.errno = exc.errno
+            raise err from exc
 
         self.ports = []
-        for s in servers:
-            await self.tg.spawn(self._accept, s, send_q.clone())
-        await send_q.aclose()
+        async with send_q:
+            for s in servers:
+                await self.tg.spawn(self._accept, s, send_q.clone())
         return self
 
     async def __aexit__(self, *tb):

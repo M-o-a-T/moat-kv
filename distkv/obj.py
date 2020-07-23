@@ -7,6 +7,7 @@ import anyio
 import weakref
 import heapq
 from collections.abc import Mapping
+from asyncscope import scope
 
 try:
     from contextlib import asynccontextmanager
@@ -355,13 +356,14 @@ class ClientRoot(ClientEntry):
 
     CFG = "You need to override this with a dict(prefix=('where','ever'))"
 
-    def __init__(self, client, path, *, need_wait=False, cfg=None):
+    def __init__(self, client, path, *, need_wait=False, cfg=None, require_client=True):
         # pylint: disable=super-init-not-called
         self._init()
         self.client = client
         self._path = path
         self._need_wait = need_wait
         self._loaded = anyio.create_event()
+        self._require_client = require_client
 
         if cfg is None:
             cfg = {}
@@ -447,6 +449,9 @@ class ClientRoot(ClientEntry):
     async def run(self):
         """A coroutine that fetches, and continually updates, a subtree.
         """
+        if self._require_client:
+            scope.requires(self.client.scope)
+
         async with anyio.create_task_group() as tg:
             self._tg = tg
 

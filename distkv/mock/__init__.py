@@ -45,6 +45,7 @@ class S:
     serfs = attr.ib(factory=set)
     s = attr.ib(factory=list)  # servers
     c = attr.ib(factory=list)  # clients
+    _seq = 1
 
     async def ready(self, i=None):
         if i is not None:
@@ -62,12 +63,14 @@ class S:
     async def client(self, i: int = 0, **kv):
         """Get a client for the i'th server."""
         await self.s[i].is_serving
+        self._seq += 1
         for host, port, *_ in self.s[i].ports:
             if host[0] == ":":
                 continue
             try:
                 async with open_client(
-                    connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)
+                    _main_name="_client_%d_%d" % (i, self._seq),
+                    connect=dict(host=host, port=port, ssl=self.client_ctx, **kv),
                 ) as c:
                     yield c
                     return

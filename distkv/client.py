@@ -9,6 +9,7 @@ import outcome
 import socket
 import os
 from typing import Tuple
+from asyncscope import scope, Scope, main_scope
 
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
@@ -33,6 +34,7 @@ from .util import (
     NotGiven,
     combine_dict,
     ValueEvent,
+    Path,
 )
 from .default import CFG
 from .exceptions import (
@@ -50,7 +52,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["NoData", "ManyData", "open_client", "StreamedRequest"]
+__all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest"]
 
 
 class NoData(ValueError):
@@ -62,19 +64,45 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(**cfg):
+async def open_client(_main_name="_distkv_client", **cfg):
     """
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the connection should fail.
+
+    The client connection is run within a separate `asyncscope.ScopeSet`.
+    If you're already using asyncscope in your code, you might want to use
+    `client_scope` instead.
     """
-    client = Client(cfg)
-    async with anyio.create_task_group() as tg:
-        async with client._connected(tg) as client:
-            yield client
-            pass  # end connected
-        pass  # end taskgroup
+    async with main_scope(name=_main_name):
+        client = await client_scope(**cfg)
+        yield client
+        pass  # end _connected
     pass  # end client
+
+
+async def client_scope(**cfg):
+    """
+    Return the opened client connection, by way of an asyncscope service.
+
+    The configuration's 'connect' dict may include a name to disambiguate
+    multiple connections. This name must not be equal to your main code's.
+
+    There is no attempt to reconnect if the connection should fail.
+    """
+
+    async def _mgr(cfg):
+        client = Client(cfg)
+        async with client._connected() as client:
+            await scope.register(client)
+            await scope.no_more_dependents()
+            pass  # end _connected
+
+    name = cfg["connect"].get("name", None)
+    if name is None:
+        name = "_distkv_conn"  # MUST NOT be the same as in open_client
+    res = await scope.service(name, _mgr, cfg)
+    return res
 
 
 class StreamedRequest:
@@ -316,14 +344,16 @@ class Client:
     """
     The client side of a DistKV connection.
 
-    Use :func:`open_client` to use this class.
+    Use `open_client` or `client_scope` to use this class.
     """
 
     _server_init = None  # Server greeting
     _dh_key = None
     _config = None
     _socket = None
-    tg = None
+    tg: anyio.abc.TaskGroup = None
+    scope: Scope = None
+    _n = None
     exit_stack = None
 
     server_name = None
@@ -352,39 +382,18 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, path, factory=None):
+    async def unique_helper(self, path, factory):
         """
         Run a (single) async context manager on that path.
-
         """
-        h = self._helpers.get(path, None)
-        if h is None:
-            h = anyio.create_lock()
-            self._helpers[path] = h
-        if isinstance(h, anyio.abc.Lock):
-            async with h:
-                if self.tg is None:
-                    # race condition w/ closing
-                    return None
-                h2 = self._helpers[path]
-                if h2 is not h:
-                    # another task already did the work
-                    return h2
+        p = str(Path.build(path))
 
-                async def _run(factory, evt):
-                    async with factory() as f:
-                        nonlocal h
-                        h = f
-                        await evt.set()
-                        while True:
-                            await anyio.sleep(99999)
-                        pass  # exiting helper
+        async def with_factory(f):
+            async with f() as r:
+                await scope.register(r)
+                await scope.no_more_dependents()
 
-                evt = anyio.create_event()
-                await self.tg.spawn(_run, factory, evt)
-                await evt.wait()
-                self._helpers[path] = h
-        return h
+        return await scope.service(p, with_factory, factory)
 
     async def _handle_msg(self, msg):
         try:
@@ -606,7 +615,7 @@ class Client:
         await auth.auth(self)
 
     @asynccontextmanager
-    async def _connected(self, tg):
+    async def _connected(self):
         """
         This async context manager handles the actual TCP connection to
         the DistKV server.
@@ -626,52 +635,52 @@ class Client:
         ssl = gen_ssl(cfg["ssl"], server=False)
 
         # logger.debug("Conn %s %s",self.host,self.port)
-        async with AsyncExitStack() as ex:
-            self.exit_stack = ex
-            try:
-                ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
-            except socket.gaierror:
-                raise ServerConnectionError(host, port)
-            stream = await ex.enter_async_context(ctx)
+        try:
+            ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
+        except socket.gaierror:
+            raise ServerConnectionError(host, port)
 
-            if ssl:
-                await stream.start_tls()
-            try:
-                self.tg = tg
-                self._socket = stream
-                await self.tg.spawn(self._reader)
-                async with anyio.fail_after(init_timeout):
-                    self._server_init = await hello.get()
-                    logger.debug("Hello %s", self._server_init)
-                    self.server_name = self._server_init.node
-                    self.client_name = cfg["name"] or self.server_name
-                    await self._run_auth(auth)
+        else:
+            async with ctx as stream, anyio.create_task_group() as tg, AsyncExitStack() as ex:
+                self.scope = scope.get()
+                # self.tg = tg  # TODO might not be necessary
+                self.exit_stack = ex
 
-                from .config import ConfigRoot
+                if ssl:
+                    await stream.start_tls()
+                try:
+                    self._socket = stream
+                    await self.scope.spawn(self._reader)
+                    async with anyio.fail_after(init_timeout):
+                        self._server_init = await hello.get()
+                        logger.debug("Hello %s", self._server_init)
+                        self.server_name = self._server_init.node
+                        self.client_name = cfg["name"] or self.server_name
+                        await self._run_auth(auth)
 
-                self._config = await ConfigRoot.as_handler(self)
+                    from .config import ConfigRoot
 
-            except TimeoutError:
-                raise
-            except socket.error as e:
-                raise ServerConnectionError(host, port) from e
-            else:
-                yield self
-            finally:
-                async with anyio.fail_after(2, shield=True):
-                    # Clean up our hacked config
-                    try:
-                        del self._config
-                    except AttributeError:
-                        pass
-                    self.config = ClientConfig(self)
+                    self._config = await ConfigRoot.as_handler(self, require_client=False)
 
-                    await self.tg.cancel_scope.cancel()
-                    if self._socket is not None:
-                        async with self._send_lock:
-                            await self._socket.close()
-                        self._socket = None
-                    self.tg = None
+                except TimeoutError:
+                    raise
+                except socket.error as e:
+                    raise ServerConnectionError(host, port) from e
+                else:
+                    yield self
+                finally:
+                    async with anyio.fail_after(2, shield=True):
+                        # Clean up our hacked config
+                        try:
+                            del self._config
+                        except AttributeError:
+                            pass
+                        self.config = ClientConfig(self)
+
+                    # await self.tg.cancel_scope.cancel()
+        finally:
+            self._socket = None
+            self.tg = None
 
     # externally visible interface ##########################
 

@@ -28,11 +28,10 @@ async def resolve(obj, path, subsys):
     Mark an error as resolved.
     """
     path = P(path)
-    err = await ErrorRoot.as_handler(obj.client)
     if subsys:
-        e = err.get_error_record(subsys, path)
+        e = obj.err.get_error_record(subsys, path)
     else:
-        e = err.follow(path)
+        e = obj.err.follow(path)
     if e.resolved:
         print("Already resolved.", file=sys.stderr)
         return

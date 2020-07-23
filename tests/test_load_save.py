@@ -1,6 +1,7 @@
 import pytest
 import trio
 import anyio
+from asyncscope import scope
 
 from distkv.mock.mqtt import stdtest
 
@@ -36,13 +37,14 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 234
             evt = anyio.create_event()
-            await c.tg.spawn(watch_changes, c, evt)
+            cs = await scope.spawn(watch_changes, c, evt)
             await evt.wait()
 
             await c.set(P("foo"), value="hello", nchain=3)
             await c.set(P("foo.bar"), value="baz", nchain=3)
             await c.set(P(":"), value=2345, nchain=3)
             await trio.sleep(1)  # allow the writer to write
+            await cs.cancel()
             pass  # client end
 
         logger.debug("SAVE %s", path)
@@ -80,7 +82,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 
         async with st.client() as c:
             evt = anyio.create_event()
-            await c.tg.spawn(watch_changes, c, evt)
+            cs = await scope.spawn(watch_changes, c, evt)
             await evt.wait()
 
             await c.set(P("foof"), value="again")
@@ -88,6 +90,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
             assert (await c.get(P("foo.bar"))).value == "baz"
             assert (await c.get(P(":"))).value == 2345
             await trio.sleep(1)  # allow the writer to write
+            await cs.cancel()
 
     for m in msgs:
         m.pop("tock", None)
