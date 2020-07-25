@@ -47,17 +47,27 @@ async def cfg_dump(obj, path):
 
 @cli.command("file")
 @click.option("-p", "--path", is_flag=True, default=False, help="Unwrap paths")
+@click.option("-f", "--filter", multiple=True, help="Only emit entries with this path")
 @click.argument("file", nargs=1)
 @click.pass_obj
-async def file_(obj, file, path):
+async def file_(obj, file, path, filter):
     """Read a MsgPack file and dump as YAML."""
-    if path:
+    if path or filter:
         pl = PathLongener()
     else:
         pl = lambda _: None
+    filter = [ P(x) for x in filter ]
     async with MsgReader(path=file) as f:
         async for msg in f:
             pl(msg)
+            if filter:
+                if 'path' not in msg:
+                    continue
+                for f in filter:
+                    if msg.path[:len(f)] == f:
+                        break
+                else:
+                    continue
             yprint(msg, stream=obj.stdout)
             print("---", file=obj.stdout)
 
