@@ -1065,6 +1065,8 @@ class Path(collections.abc.Sequence):
         # 2=it's a hex number
 
         pos = 0
+        if isinstance(path, (tuple,list)):
+            return cls.build(path)
         if path == ":":
             return cls()
 
