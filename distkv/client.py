@@ -641,7 +641,7 @@ class Client:
             raise ServerConnectionError(host, port)
 
         else:
-            async with ctx as stream, anyio.create_task_group() as tg, AsyncExitStack() as ex:
+            async with ctx as stream, AsyncExitStack() as ex:
                 self.scope = scope.get()
                 # self.tg = tg  # TODO might not be necessary
                 self.exit_stack = ex
