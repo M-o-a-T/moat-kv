@@ -433,7 +433,7 @@ class RunnerEntry(AttrClientEntry):
         ok_after (float): the job is marked OK if it has run this long.
             Default: zero: the code will do that itself.
         backoff (float): Exponential back-off factor on errors.
-            Default: 1.4.
+            Default: 1.1.
 
     The code runs with these additional keywords::
 
@@ -454,7 +454,7 @@ class RunnerEntry(AttrClientEntry):
     delay = 100  # timedelta, before restarting
     repeat = 0
     target = 0
-    backoff = 1.4
+    backoff = 1.1
     ok_after = 0
 
     code = ()  # what to execute
@@ -731,7 +731,7 @@ class StateEntry(AttrClientEntry):
 
         self.stopped = time.time()
         self.node = None
-        self.backoff += 1
+        self.backoff = min(20, self.backoff + 1)
         await self.root.runner.err.record_error(
             "run", self.runner._path, message="Runner restarted"
         )
@@ -741,7 +741,7 @@ class StateEntry(AttrClientEntry):
         self.stopped = time.time()
         node = self.node
         self.node = None
-        self.backoff += 2
+        self.backoff = min(20, self.backoff + 2)
         await self.root.runner.err.record_error(
             "run",
             self.runner._path,
