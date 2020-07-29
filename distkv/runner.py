@@ -960,7 +960,7 @@ class _BaseRunnerRoot(ClientRoot):
                     d, r = j.should_start()
                     if not d or d > t:
                         j.state.computed = d
-                        j.state.reason = d
+                        j.state.reason = r
                         if self._tagged:
                             await j.state.save()
                         if d and t_next > d:
