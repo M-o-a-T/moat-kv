@@ -623,31 +623,31 @@ class RunnerEntry(AttrClientEntry):
 
         Returns:
           ``False``: No, it's running (or has run and doesn't restart).
-          n>0: wait for n seconds before thinking again.
-          n<0: should have been started n seconds ago, do something!
+          ``0``: No, it should not start
+          ``>0``: timestamp at which it should start, or should have started
 
         """
 
         state = self.state
         if self.code is None:
-            return False
+            return False, "no code"
         if state.node is not None:
-            return False
+            return False, "node set"
         if state.started and not state.stopped:
             raise RuntimeError("Running! should not be called")
 
         if self.target is None:
-            return False
+            return False, "no target"
         elif self.target > state.started:
-            return self.target
+            return self.target, "target > started"
         elif state.backoff:
-            return state.stopped + self.delay * (self.backoff ** state.backoff)
+            return state.stopped + self.delay * (self.backoff ** state.backoff), "backoff"
         elif self.repeat:
-            return state.stopped + self.repeat
+            return state.stopped + self.repeat, "repeat"
         elif state.started:
-            return False
+            return False, "is started"
         else:
-            return 0
+            return 0, "no target"
 
     def __hash__(self):
         return hash(self.subpath)
@@ -701,9 +701,10 @@ class StateEntry(AttrClientEntry):
       node (str): the node running this code
       backoff (float): on error, the multiplier to apply to the restart timeout
       computed (float): computed start time
+      reason (str): reason why (not) starting
     """
 
-    ATTRS = "started stopped computed result node backoff".split()
+    ATTRS = "started stopped computed reason result node backoff".split()
 
     started = 0  # timestamp
     stopped = 0  # timestamp
@@ -711,6 +712,7 @@ class StateEntry(AttrClientEntry):
     result = NotGiven
     backoff = 0
     computed = 0  # timestamp
+    reason = ""
 
     @property
     def runner(self):
@@ -963,6 +965,7 @@ class _BaseRunnerRoot(ClientRoot):
                         await anyio.sleep(self._start_delay)
                     else:
                         j.state.computed = d
+                        j.state.reason = d
                         if self._tagged:
                             await j.state.save()
 
