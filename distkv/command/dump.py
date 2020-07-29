@@ -4,7 +4,7 @@ import sys
 import asyncclick as click
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener, P, yload
+from distkv.util import yprint, PathLongener, P, yload, Path
 from distkv.codec import unpacker
 
 import logging
@@ -133,7 +133,6 @@ async def msg_(obj, path):
     _Unpack._unpack_multiple = distkv.server.Server._unpack_multiple
     _unpacker = _Unpack()._unpack_multiple
 
-    px = 0
     if not path:
         path = P(obj.cfg.server.root) | "update"
         path.append("update")
@@ -143,8 +142,6 @@ async def msg_(obj, path):
             p = path[0][1:]
             path = P(obj.cfg.server.root)
             path |= [p or "#"]
-            if not p:
-                px = len(path) - 1
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]
 
@@ -158,8 +155,7 @@ async def msg_(obj, path):
                     v = _unpacker(v)
                     if v is None:
                         continue
-                    if px > 0:
-                        v["_topic"] = t[px:]
+                    v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
 
