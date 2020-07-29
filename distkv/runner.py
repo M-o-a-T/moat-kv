@@ -761,6 +761,9 @@ class StateEntry(AttrClientEntry):
         except KeyError:
             return
 
+        # side effect: add to the global node list
+        run.root.get_node(n)
+
         # Check whether running code needs to be killed off
         if run.scope is None:
             return
@@ -954,23 +957,17 @@ class _BaseRunnerRoot(ClientRoot):
                 t = time.time()
                 t_next = t + 999
                 for j in self.all_children:
-                    d = j.should_start()
-                    if d is False:
-                        j.state.computed = 0
-                        if self._tagged:
-                            await j.state.save()
-                        continue
-                    if d <= t:
-                        await self._tg.spawn(j.run)
-                        await anyio.sleep(self._start_delay)
-                    else:
+                    d, r = j.should_start()
+                    if not d or d > t:
                         j.state.computed = d
                         j.state.reason = d
                         if self._tagged:
                             await j.state.save()
-
-                        if t_next > d:
+                        if d and t_next > d:
                             t_next = d
+                        continue
+                    await self._tg.spawn(j.run)
+                    await anyio.sleep(self._start_delay)
 
     async def notify_actor_state(self, msg=None):
         """
@@ -1057,6 +1054,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     if self.seen_load is not None:
                         pass  # TODO
 
+                    self.seen = time.time()
                     self.node_history += self.name
                     evt = anyio.create_event()
                     await self.spawn(self._run_now, evt)
@@ -1107,28 +1105,19 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
         TODO check where to use time.monotonic
         """
+        t0 = None
         t1 = time.time()
-        while age_q is not None:
-            await self.find_stale_nodes(t1)
+        while True:
             async with anyio.move_on_after(self.max_age):
                 await age_q.get()
                 t1 = time.time()
-                continue
             t2 = time.time()
             if t1 + self.max_age < t2:
                 raise NotSelected(self.max_age, t2, t1)
+            t0 = t1
             t1 = t2
-
-    async def _cleanup_nodes(self):
-        t = time.time()
-        while len(self.node_history) > 1:
-            node = self.get_node(self.node_history[-1])
-            if t - node.seen < self.max_age:
-                break
-            assert node.name == self.node_history.pop()
-            for j in self.all_children:
-                if j.node == node.name:
-                    await j.seems_down()
+            if t0 is not None:
+                await self.find_stale_nodes(t0)
 
 
 class SingleRunnerRoot(_BaseRunnerRoot):
