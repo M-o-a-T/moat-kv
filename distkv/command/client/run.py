@@ -105,9 +105,12 @@ def _state_fix_2(rs):
         pass
     try:
         if rs.computed:
-            rs.computed = datetime.datetime.fromtimestamp(rs.computed).strftime(
+            try:
+                rs.computed_date = datetime.datetime.fromtimestamp(rs.computed).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
+            except (ValueError,OverflowError) as e:
+                pass
     except AttributeError:
         pass
 
