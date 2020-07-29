@@ -739,14 +739,14 @@ class StateEntry(AttrClientEntry):
 
     async def stale(self):
         self.stopped = time.time()
+        node = self.node
         self.node = None
         self.backoff += 2
         await self.root.runner.err.record_error(
             "run",
             self.runner._path,
-            client_name=self.node,
-            message="Runner {node} {state}",
-            data={"node": self.node, "state": "offline" if self.stopped else "stale"},
+            message="Runner killed: {node} {state}",
+            data={"node": node, "state": "offline" if self.stopped else "stale"},
         )
         await self.save()
 
