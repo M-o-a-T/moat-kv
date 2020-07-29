@@ -47,23 +47,23 @@ async def cfg_dump(obj, path):
 
 @cli.command("file")
 @click.option("-p", "--path", is_flag=True, default=False, help="Unwrap paths")
-@click.option("-f", "--filter", multiple=True, help="Only emit entries with this path")
+@click.option("-f", "--filter", "filter_", multiple=True, help="Only emit entries with this path")
 @click.argument("file", nargs=1)
 @click.pass_obj
-async def file_(obj, file, path, filter):
+async def file_(obj, file, path, filter_):
     """Read a MsgPack file and dump as YAML."""
-    if path or filter:
+    if path or filter_:
         pl = PathLongener()
     else:
         pl = lambda _: None
-    filter = [P(x) for x in filter]
+    filter_ = [P(x) for x in filter_]
     async with MsgReader(path=file) as f:
         async for msg in f:
             pl(msg)
-            if filter:
+            if filter_:
                 if "path" not in msg:
                     continue
-                for f in filter:
+                for f in filter_:
                     if msg.path[: len(f)] == f:
                         break
                 else:
@@ -135,18 +135,14 @@ async def msg_(obj, path):
 
     px = 0
     if not path:
-        path = obj.cfg.server.root.split(".")
+        path = P(obj.cfg.server.root) | "update"
         path.append("update")
     elif len(path) == 1:
-        path = path[0].split(".")
+        path = P(path[0])
         if len(path) == 1 and path[0].startswith("+"):
             p = path[0][1:]
-            path = obj.cfg.server.root
-            if isinstance(path, str):
-                path = path.split(".")
-            else:
-                path = list(path)
-            path += [p or "#"]
+            path = P(obj.cfg.server.root)
+            path |= [p or "#"]
             if not p:
                 px = len(path) - 1
     be = obj.cfg.server.backend

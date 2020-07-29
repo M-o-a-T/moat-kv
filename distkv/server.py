@@ -579,9 +579,9 @@ class SCmd_msg_monitor(StreamCommand):
         raw = msg.get("raw", False)
         topic = msg.topic
         if isinstance(topic, str):
-            topic = (topic,)
+            topic = P(topic)
         if len(topic) and topic[0][0] == ":":
-            topic = self.client.server.cfg.root + topic
+            topic = P(self.client.server.cfg.root) + topic
 
         async with self.client.server.serf.monitor(*topic) as stream:
             async for resp in stream:
@@ -1005,7 +1005,7 @@ class ServerClient:
         if isinstance(topic, str):
             topic = (topic,)
         if topic[0][0] == ":":
-            topic = self.server.cfg.root + topic
+            topic = P(self.server.cfg.root) + topic
         if "raw" in msg:
             assert "data" not in msg
             data = msg.raw

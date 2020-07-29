@@ -20,7 +20,7 @@ except ImportError:
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn, digits, Path, P
+from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn, digits
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
@@ -1009,7 +1009,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = P(self.client.config.server.root) + P(self._cfg['name']) | "any" | self._path[-1]
+        self.group = (
+            P(self.client.config.server.root) + P(self._cfg["name"]) | "any" | self._path[-1]
+        )
 
     def get_node(self, name):
         return RunnerNode(self, name)
@@ -1054,7 +1056,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     if self.seen_load is not None:
                         pass  # TODO
 
-                    self.seen = time.time()
+                    self.get_node(self.name).seen = time.time()
                     self.node_history += self.name
                     evt = anyio.create_event()
                     await self.spawn(self._run_now, evt)
@@ -1157,7 +1159,12 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = P(self.client.config.server.root) + P(self._cfg['name']) | "single" | self._path[-2] | self._path[-1]
+        self.group = (
+            P(self.client.config.server.root) + P(self._cfg["name"])
+            | "single"
+            | self._path[-2]
+            | self._path[-1]
+        )
 
     async def set_value(self, value):
         await super().set_value(value)
@@ -1230,7 +1237,9 @@ class AllRunnerRoot(SingleRunnerRoot):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.group = P(self.client.config.server.root) + P(self._cfg['name']) | "all" | self._path[-1]
+        self.group = (
+            P(self.client.config.server.root) + P(self._cfg["name"]) | "all" | self._path[-1]
+        )
 
     async def _state_runner(self):
         self.state = await StateRoot.as_handler(
