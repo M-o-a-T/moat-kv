@@ -623,31 +623,31 @@ class RunnerEntry(AttrClientEntry):
 
         Returns:
           ``False``: No, it's running (or has run and doesn't restart).
-          n>0: wait for n seconds before thinking again.
-          n<0: should have been started n seconds ago, do something!
+          ``0``: No, it should not start
+          ``>0``: timestamp at which it should start, or should have started
 
         """
 
         state = self.state
         if self.code is None:
-            return False
+            return False, "no code"
         if state.node is not None:
-            return False
+            return False, "node set"
         if state.started and not state.stopped:
             raise RuntimeError("Running! should not be called")
 
         if self.target is None:
-            return False
+            return False, "no target"
         elif self.target > state.started:
-            return self.target
+            return self.target, "target > started"
         elif state.backoff:
-            return state.stopped + self.delay * (self.backoff ** state.backoff)
+            return state.stopped + self.delay * (self.backoff ** state.backoff), "backoff"
         elif self.repeat:
-            return state.stopped + self.repeat
+            return state.stopped + self.repeat, "repeat"
         elif state.started:
-            return False
+            return False, "is started"
         else:
-            return 0
+            return 0, "no target"
 
     def __hash__(self):
         return hash(self.subpath)
@@ -701,9 +701,10 @@ class StateEntry(AttrClientEntry):
       node (str): the node running this code
       backoff (float): on error, the multiplier to apply to the restart timeout
       computed (float): computed start time
+      reason (str): reason why (not) starting
     """
 
-    ATTRS = "started stopped computed result node backoff".split()
+    ATTRS = "started stopped computed reason result node backoff".split()
 
     started = 0  # timestamp
     stopped = 0  # timestamp
@@ -711,6 +712,7 @@ class StateEntry(AttrClientEntry):
     result = NotGiven
     backoff = 0
     computed = 0  # timestamp
+    reason = ""
 
     @property
     def runner(self):
@@ -737,14 +739,14 @@ class StateEntry(AttrClientEntry):
 
     async def stale(self):
         self.stopped = time.time()
+        node = self.node
         self.node = None
         self.backoff += 2
         await self.root.runner.err.record_error(
             "run",
             self.runner._path,
-            client_name=self.node,
-            message="Runner {node} {state}",
-            data={"node": self.node, "state": "offline" if self.stopped else "stale"},
+            message="Runner killed: {node} {state}",
+            data={"node": node, "state": "offline" if self.stopped else "stale"},
         )
         await self.save()
 
@@ -758,6 +760,9 @@ class StateEntry(AttrClientEntry):
             run = self.runner
         except KeyError:
             return
+
+        # side effect: add to the global node list
+        run.root.get_node(n)
 
         # Check whether running code needs to be killed off
         if run.scope is None:
@@ -952,22 +957,17 @@ class _BaseRunnerRoot(ClientRoot):
                 t = time.time()
                 t_next = t + 999
                 for j in self.all_children:
-                    d = j.should_start()
-                    if d is False:
-                        j.state.computed = 0
-                        if self._tagged:
-                            await j.state.save()
-                        continue
-                    if d <= t:
-                        await self._tg.spawn(j.run)
-                        await anyio.sleep(self._start_delay)
-                    else:
+                    d, r = j.should_start()
+                    if not d or d > t:
                         j.state.computed = d
+                        j.state.reason = d
                         if self._tagged:
                             await j.state.save()
-
-                        if t_next > d:
+                        if d and t_next > d:
                             t_next = d
+                        continue
+                    await self._tg.spawn(j.run)
+                    await anyio.sleep(self._start_delay)
 
     async def notify_actor_state(self, msg=None):
         """
@@ -1054,6 +1054,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     if self.seen_load is not None:
                         pass  # TODO
 
+                    self.seen = time.time()
                     self.node_history += self.name
                     evt = anyio.create_event()
                     await self.spawn(self._run_now, evt)
@@ -1104,28 +1105,19 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
         TODO check where to use time.monotonic
         """
+        t0 = None
         t1 = time.time()
-        while age_q is not None:
-            await self.find_stale_nodes(t1)
+        while True:
             async with anyio.move_on_after(self.max_age):
                 await age_q.get()
                 t1 = time.time()
-                continue
             t2 = time.time()
             if t1 + self.max_age < t2:
                 raise NotSelected(self.max_age, t2, t1)
+            t0 = t1
             t1 = t2
-
-    async def _cleanup_nodes(self):
-        t = time.time()
-        while len(self.node_history) > 1:
-            node = self.get_node(self.node_history[-1])
-            if t - node.seen < self.max_age:
-                break
-            assert node.name == self.node_history.pop()
-            for j in self.all_children:
-                if j.node == node.name:
-                    await j.seems_down()
+            if t0 is not None:
+                await self.find_stale_nodes(t0)
 
 
 class SingleRunnerRoot(_BaseRunnerRoot):

@@ -214,7 +214,7 @@ class ClientEntry:
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
-            r = await self.root.client.set(self._path, chain=self.chain, value=value, nchain=3)
+            r = await self.root.client.set(self._path, chain=self.chain, value=value, nchain=3, idem=True)
             if wait:
                 await self.root.wait_chain(r.chain)
             self.value = value
