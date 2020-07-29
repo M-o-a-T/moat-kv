@@ -1019,7 +1019,9 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     @property
     def max_age(self):
         """Timeout after which we really should have gotten another go"""
-        return self._act.cycle_time_max * (self._act.history_size + 1.5)
+        # allow one go-around without being in the list; happens when the
+        # bus is slow
+        return self._act.cycle_time_max * (self._act.history_size + 2.5)
 
     async def _run_actor(self):
         """
