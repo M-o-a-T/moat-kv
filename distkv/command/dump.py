@@ -56,15 +56,15 @@ async def file_(obj, file, path, filter):
         pl = PathLongener()
     else:
         pl = lambda _: None
-    filter = [ P(x) for x in filter ]
+    filter = [P(x) for x in filter]
     async with MsgReader(path=file) as f:
         async for msg in f:
             pl(msg)
             if filter:
-                if 'path' not in msg:
+                if "path" not in msg:
                     continue
                 for f in filter:
-                    if msg.path[:len(f)] == f:
+                    if msg.path[: len(f)] == f:
                         break
                 else:
                     continue
