@@ -535,7 +535,7 @@ class RunnerEntry(AttrClientEntry):
         except ErrorRecorded:
             # record_error() has already been called
             self._comment = None
-            state.backoff += 1
+            state.backoff = min(state.backoff + 1, 20)
 
         except BaseException as exc:
             c, self._comment = self._comment, None
@@ -545,7 +545,7 @@ class RunnerEntry(AttrClientEntry):
                 )
                 if r is not None:
                     await self.root.err.wait_chain(r.chain)
-            state.backoff += 1
+            state.backoff = min(state.backoff + 1, 20)
         else:
             state.result = res
             state.backoff = 0
