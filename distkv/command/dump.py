@@ -1,6 +1,7 @@
 # command line interface
 
 import sys
+import datetime
 import asyncclick as click
 
 from distkv.util import MsgReader, MsgWriter
@@ -158,6 +159,7 @@ async def msg_(obj, path):
                     v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
+                v["_timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)

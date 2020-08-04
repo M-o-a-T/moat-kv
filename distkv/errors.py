@@ -260,8 +260,8 @@ class ErrorEntry(AttrClientEntry):
         if kid is not None:
             dkid = dest.get(self.root.name)
             # logger.warning("DEL 2 %r %r %r %r",self,dest,kid,dkid)
+            val = kid.get_value()
             if dkid is None:
-                val = kid.get_value()
                 dkid = dest.allocate(self.root.name)
                 await dkid.set_value(val)
                 await dkid.save()

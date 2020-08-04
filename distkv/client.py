@@ -71,7 +71,7 @@ async def open_client(_main_name="_distkv_client", **cfg):
     There is no attempt to reconnect if the connection should fail.
 
     The client connection is run within a separate `asyncscope.ScopeSet`.
-    If you're already using asyncscope in your code, you might want to use
+    If you're already using asyncscope in your code, you should use
     `client_scope` instead.
     """
     async with main_scope(name=_main_name):

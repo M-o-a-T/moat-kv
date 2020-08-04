@@ -320,7 +320,7 @@ async def delete(obj, path, force):
 @click.option("-C", "--copy", help="Use this entry as a template.")
 @click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
 @click.option("-r", "--repeat", type=int, help="Seconds the code should re-run after")
-@click.option("-k", "--ok", type=int, help="Code is OK if it ran this many seconds")
+@click.option("-k", "--ok", type=float, help="Code is OK if it ran this many seconds")
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
