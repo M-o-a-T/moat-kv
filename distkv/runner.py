@@ -273,7 +273,7 @@ class CallAdmin:
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):
-            raise RuntimeError("You didn't pass in a path")
+            raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         kw.setdefault("max_depth", 0)
         if kw.setdefault("fetch", True):
@@ -292,7 +292,7 @@ class CallAdmin:
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):
-            raise RuntimeError("You didn't pass in a path")
+            raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         await self._client.msg_send(topic=path, data=value, raw=raw)
 
@@ -303,7 +303,7 @@ class CallAdmin:
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):
-            raise RuntimeError("You didn't pass in a path")
+            raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         return await self._client.set(path, value=value, chain=chain)
 
@@ -314,7 +314,7 @@ class CallAdmin:
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):
-            raise RuntimeError("You didn't pass in a path")
+            raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         res = await self._client.get(path, value=value)  # TODO chain
 
@@ -373,7 +373,7 @@ class CallAdmin:
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):
-            raise RuntimeError("You didn't pass in a path")
+            raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         w = Monitor(self, self._runner, self._client, cls, path, kw)
         await self._taskgroup.spawn(w.run)
