@@ -3,6 +3,7 @@
 import time
 import asyncclick as click
 import datetime
+import anyio
 
 from distkv.util import PathLongener, MsgReader, NotGiven, yprint, data_get, P
 from distkv.client import StreamedRequest
@@ -199,41 +200,50 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-o", "--only", is_flag=True, help="Value only, nothing fancy.")
-@click.argument("path", nargs=1)
+@click.argument("path", nargs=-1)
 @click.pass_obj
 async def watch(obj, path, state, only):
     """Watch a DistKV subtree"""
 
-    flushing = not state
-    path = P(path)
-    seen = False
+    if not path:
+        raise click.UsageError("Monitoring without path is boring.")
 
-    async with obj.client.watch(
-        path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
-    ) as res:
-        async for r in res:
-            if r.get("state", "") == "uptodate":
-                if only and not seen:
-                    # value doesn't exist
-                    return
-                flushing = True
-            else:
-                del r["seq"]
-                if only:
-                    try:
-                        print(r.value, file=obj.stdout)
+    path = [ P(p) for p in path ]
+    seen = len(path)
+    flushing = not state
+
+    async def mon(p):
+        nonlocal seen
+        nonlocal flushing
+        async with obj.client.watch(
+            p, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
+        ) as res:
+            async for r in res:
+                if r.get("state", "") == "uptodate":
+                    seen -= 1
+                    if only or seen:
                         continue
-                    except AttributeError:
-                        # value has been deleted
-                        return
-            if flushing:
-                r["time"] = time.monotonic()
-                r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            yprint(r, stream=obj.stdout)
-            print("---", file=obj.stdout)
-            if flushing:
-                obj.stdout.flush()
-            seen = True
+                    flushing = True
+                else:
+                    del r["seq"]
+                    if only:
+                        try:
+                            print(r.value, file=obj.stdout)
+                            continue
+                        except AttributeError:
+                            # value has been deleted
+                            continue
+                if flushing:
+                    r["time"] = time.monotonic()
+                    r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                yprint(r, stream=obj.stdout)
+                print("---", file=obj.stdout)
+                if flushing:
+                    obj.stdout.flush()
+    async with anyio.create_task_group() as tg:
+        for p in path:
+            await tg.spawn(mon, p)
+
 
 
 @cli.command()

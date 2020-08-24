@@ -136,7 +136,6 @@ async def msg_(obj, path):
 
     if not path:
         path = P(obj.cfg.server.root) | "update"
-        path.append("update")
     elif len(path) == 1:
         path = P(path[0])
         if len(path) == 1 and path[0].startswith("+"):

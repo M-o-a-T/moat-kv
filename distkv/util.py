@@ -734,7 +734,7 @@ async def data_get(
         if internal:
             res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
         else:
-            res = obj.client.get_tree(path, nchain=obj.meta, **kw)
+            res = obj.client.get_tree(path, **kw)
         async for r in res:
             r = await item_mangle(r)
             if r is None:
