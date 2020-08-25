@@ -1,3 +1,9 @@
+distkv (0.41.4-3) unstable; urgency=medium
+
+  * Duh
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 25 Aug 2020 08:10:29 +0200
+
 distkv (0.41.4-2) unstable; urgency=medium
 
   * dep on anyio <2
