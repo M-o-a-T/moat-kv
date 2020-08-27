@@ -62,7 +62,9 @@ CFG = attrdict(
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
         # positive: set in distkv, negative: broadcast to :distkv:run tag
-        actor=attrdict(cycle=10, nodes=-1, splits=5),  # Actor config  # required for Runner
+        actor=attrdict(
+            cycle=20, nodes=-1, splits=5, n_hosts=3, version=1
+        ),  # Actor config  # required for Runner
         sub=attrdict(group="any", single="at", all="all"),  # tags for various runner modes
     ),
     server=attrdict(
@@ -81,9 +83,11 @@ CFG = attrdict(
             host="localhost", port=PORT, ssl=False
         ),
         change=attrdict(length=5),  # chain length: use max nr of network sections +1
-        ping=attrdict(cycle=10, gap=2),  # asyncserf.Actor config timing for ping
-        delete=attrdict(cycle=10, gap=2),  # asyncserf.Actor config timing for deletion
-        # ping time also controls minimum startup time
+        ping=attrdict(cycle=10, gap=2),  # asyncserf.Actor config timing for server sync
+        # ping also controls minimum server startup time
+        delete=attrdict(
+            cycle=100, gap=10, version=1
+        ),  # asyncserf.Actor config timing for deletion
     ),
     paranoia=False,  # typecheck server>server updates?
     # how does a new server reach existing nodes, to download state?

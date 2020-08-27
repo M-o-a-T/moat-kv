@@ -21,7 +21,7 @@ setup(
         "range_set >= 0.2",
         "attrs >= 19",
         "asyncserf >= 0.16",
-        "asyncactor >= 0.20.5",
+        "asyncactor >= 0.21",
         "asyncscope >= 0.4.0",
         "jsonschema >= 2.5",
         "ruamel.yaml >= 0.16",
@@ -31,8 +31,9 @@ setup(
         "psutil",
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
+        "distmqtt >= 0.31",
     ],
-    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7", "distmqtt >= 0.30"],
+    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7", "distmqtt >= 0.31"],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[
