@@ -20,3 +20,6 @@ EnvironmentFile=-/etc/distkv.env
 
 TimeoutSec=300
 WatchdogSec=10
+
+Restart=always
+RestartSec=10
