@@ -58,7 +58,22 @@ TODOs:
 Changelog
 =========
 
+0.41: the message monitor can do multiple subpaths and only reports initial-load-complete once
+
+0.40: use asyncscope for running subsystems in a reasonable way
+
 0.35: allow forgetting nodes (if they have no data attached)
 
 0.30: major API refactoring: paths are now separate objects
+
+TODO
+====
+
+* update the whole ecosystem to anyio 2.0 (asyncclick asyncscope …)
+
+* clean up some of the more egregious command line mistakes
+
+* create a page for showcase-ing subprojects (distinv knx owfs akumuli …)
+
+* improve Home Assistant integration
 
