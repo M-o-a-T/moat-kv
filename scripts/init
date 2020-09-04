@@ -29,6 +29,8 @@ if test "$MODE" != "slave" ; then
     fi
 fi
 
-systemctl enable distkv.service
-systemctl enable distkv-rotate.timer
-systemctl restart distkv.service &
+if test "$(distkv dump cfg connect.host)" = "127.0.0.1" ; then
+    systemctl enable distkv.service
+    systemctl enable distkv-rotate.timer
+    systemctl restart distkv.service &
+fi
