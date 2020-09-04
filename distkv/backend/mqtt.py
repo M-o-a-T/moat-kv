@@ -45,11 +45,10 @@ class MqttBackend(Backend):
 
                 yield sub_get(sub)
         except BaseException as exc:
-            exx = exc
+            logger.exception("Monitor %s end: %r", topic, exc)
+            raise
         else:
-            exx = None
-        finally:
-            logger.error("Monitor %s end: %r", topic, exx)
+            logger.error("Monitor %s end", topic)
 
     def send(self, *topic, payload):  # pylint: disable=invalid-overridden-method
         """
