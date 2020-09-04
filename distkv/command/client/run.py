@@ -9,7 +9,7 @@ from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, Path, data_get
+from distkv.util import yprint, PathLongener, P, Path, data_get, attrdict
 
 import logging
 
@@ -360,16 +360,17 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         if copy and "code" not in res:
             raise click.UsageError("'--copy' needs a runner entry")
 
-    vl = res.setdefault("data", {})
+    vl = attrdict(**res.setdefault("data", {}))
     for k, v in var:
-        vl[k] = v
+        vl = vl._update(P(k), v)
     for k, v in eval_:
         if v == "-":
-            vl.pop(k, None)
+            vl = vl._delete(P(k))
         else:
-            vl[k] = eval(v)  # pylint:disable=eval-used
+            vl = vl._update(P(k), eval(v))  # pylint:disable=eval-used
     for k, v in path_:
-        vl[k] = P(v)
+        vl = vl._update(P(k), P(v))
+    res["data"] = vl
 
     if code is not None:
         res["code"] = code
