@@ -2014,6 +2014,7 @@ class Server:
 
                 cfg["auth"] = gen_auth(auth)
 
+                self.logger.error("Sync: connecting: %s", cfg)
                 async with distkv_client.open_client(connect=cfg) as client:
                     # TODO auth this client
 
@@ -2072,6 +2073,7 @@ class Server:
                         self.fetch_missing.add(nst)
                 if len(self.fetch_missing):
                     self.fetch_running = False
+                    self.logger.error("Sync: missing: %s", self.fetch_missing)
                     await self.spawn(self.do_send_missing)
                 if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
