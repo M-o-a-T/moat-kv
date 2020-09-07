@@ -372,8 +372,9 @@ class ConvEntry(MetaEntry):
             try:
                 self.metaroot["codec"].follow(value.codec, create=False)
             except KeyError:
-                logger.exception("Codec %r does not exist", value.codec)
-                raise ClientError("This codec does not exist")
+                logger.warning("Codec %r does not exist (yet?)", value.codec)
+                # raise ClientError("This codec does not exist")
+                # don't raise here
         await super().set(value)
 
 
