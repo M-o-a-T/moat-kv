@@ -2,9 +2,12 @@ import weakref
 import jsonschema
 
 from .model import Entry
-from .util import make_proc, NotGiven, singleton, Path
+from .util import make_proc, NotGiven, singleton, Path, P
 from .exceptions import ClientError, ACLError
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 # TYPES
 
@@ -106,15 +109,13 @@ class MatchEntry(MetaEntry):
         if value is NotGiven:
             pass
         elif isinstance(value.type, str):
-            value.type = (value.type,)
+            value.type = P(value.type)
         elif not isinstance(value.type, (Path, list, tuple)):
-            raise ValueError("Type is not a list")
+            raise ValueError("Type of %r is not a list" % (value.type,))
         try:
             self.metaroot["type"].follow(value.type, create=False)
         except KeyError:
-            import pdb
-
-            pdb.set_trace()
+            logger.exception("Type %r doesn't exist", value.type)
             raise ClientError("This type does not exist")
         # crashes if nonexistent
         await super().set(value)
@@ -365,12 +366,13 @@ class ConvEntry(MetaEntry):
             if not hasattr(value, "codec"):
                 raise ValueError("Duh? " + repr(value))
             if isinstance(value.codec, str):
-                value.codec = (value.codec,)
-            elif not isinstance(value.codec, (list, tuple)):
-                raise ValueError("Codec is not a string or list")
+                value.codec = P(value.codec)
+            elif not isinstance(value.codec, (Path, list, tuple)):
+                raise ValueError("Codec %r is not a list" % (value.codec,))
             try:
                 self.metaroot["codec"].follow(value.codec, create=False)
             except KeyError:
+                logger.exception("Codec %r does not exist", value.codec)
                 raise ClientError("This codec does not exist")
         await super().set(value)
 
