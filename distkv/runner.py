@@ -8,7 +8,6 @@ import anyio
 from weakref import ref
 from asyncactor import NodeList
 from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
-from copy import deepcopy
 import psutil
 import time
 from collections.abc import Mapping
@@ -159,6 +158,7 @@ class CallAdmin:
                         await self.setup_done()
 
                     await tg.spawn(is_ok, oka)
+                await tg.spawn(self._changed_code, code)
 
                 await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
@@ -167,6 +167,13 @@ class CallAdmin:
 
                 await sc.cancel()
                 return res
+
+    async def _changed_code(self, code):
+        """
+        Kill the job if the underlying code has changed
+        """
+        await code.reload_event.wait()
+        await self.cancel()
 
     async def cancel(self):
         """
@@ -492,15 +499,7 @@ class RunnerEntry(AttrClientEntry):
                 if state.node is not None:
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
-                data = self.data
-                if data is None:
-                    data = {}
-                else:
-                    data = deepcopy(data)
-
-                for k, v in code.value.get("default", {}).items():
-                    if k not in data:
-                        data[k] = v
+                data = combine_dict(self.data or {}, code.value.get("default", {}), deep=True)
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)

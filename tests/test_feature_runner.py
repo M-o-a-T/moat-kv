@@ -96,18 +96,19 @@ async def test_84_mqtt(autojump_clock):  # pylint: disable=unused-argument
             await ru.run_at(time.time() + 1)
             logger.info("Start sleep")
             rs = ru.state
-            with trio.fail_after(90):
-                await c._test_evt.wait()
-                await c.msg_send(P("test.abcd"), data=13)
-                await trio.sleep(2)
-                assert not rs.stopped
-                await c.msg_send(P("test.abcd"), data=41)
-                await trio.sleep(2)
-                assert not rs.stopped
-                await trio.sleep(10)
-                assert rs.stopped
-
-            await st.run("data get -rd_ :", do_stdout=False)
+            try:
+                with trio.fail_after(90):
+                    await c._test_evt.wait()
+                    await c.msg_send(P("test.abcd"), data=13)
+                    await trio.sleep(2)
+                    assert not rs.stopped
+                    await c.msg_send(P("test.abcd"), data=41)
+                    await trio.sleep(2)
+                    assert not rs.stopped
+                    await trio.sleep(10)
+                    assert rs.stopped
+            finally:
+                await st.run("data get -rd_ :", do_stdout=False)
             await trio.sleep(11)
 
             logger.info("End sleep")

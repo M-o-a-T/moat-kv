@@ -17,6 +17,7 @@ import ast as _ast
 from getpass import getpass
 from collections import deque
 from collections.abc import Mapping
+from copy import deepcopy
 from types import ModuleType
 from typing import Union, Dict, Optional
 from ssl import SSLContext
@@ -124,7 +125,7 @@ class NotGiven:
         return "NotGiven"
 
 
-def combine_dict(*d, cls=dict) -> dict:
+def combine_dict(*d, cls=dict, deep=False) -> dict:
     """
     Returns a dict with all keys+values of all dict arguments.
     The first found value wins.
@@ -134,27 +135,40 @@ def combine_dict(*d, cls=dict) -> dict:
     Args:
       cls (type): a class to instantiate the result with. Default: dict.
         Often used: :class:`attrdict`.
+      deep (bool): if set, always copy.
     """
     res = cls()
     keys = {}
-    if len(d) <= 1:
-        return d
+    if not len(d):
+        return res
+
+    if len(d) == 1 and deep and not isinstance(d[0], Mapping):
+        if deep and isinstance(d[0], (list, tuple)):
+            return deepcopy(d[0])
+        else:
+            return d[0]
+
     for kv in d:
         for k, v in kv.items():
             if k not in keys:
                 keys[k] = []
             keys[k].append(v)
+
     for k, v in keys.items():
         if v[0] is NotGiven:
             res.pop(k, None)
-        elif len(v) == 1:
+        elif len(v) == 1 and not deep:
             res[k] = v[0]
         elif not isinstance(v[0], Mapping):
             for vv in v[1:]:
                 assert vv is NotGiven or not isinstance(vv, Mapping)
-            res[k] = v[0]
+            if deep and isinstance(v[0], (list, tuple)):
+                res[k] = deepcopy(v[0])
+            else:
+                res[k] = v[0]
         else:
             res[k] = combine_dict(*v, cls=cls)
+
     return res
 
 
