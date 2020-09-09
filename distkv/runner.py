@@ -158,6 +158,7 @@ class CallAdmin:
                         await self.setup_done()
 
                     await tg.spawn(is_ok, oka)
+                await tg.spawn(self._changed_code, code)
 
                 await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
@@ -166,6 +167,13 @@ class CallAdmin:
 
                 await sc.cancel()
                 return res
+
+    async def _changed_code(self, code):
+        """
+        Kill the job if the underlying code has changed
+        """
+        await code.reload_event.wait()
+        await self.cancel()
 
     async def cancel(self):
         """
