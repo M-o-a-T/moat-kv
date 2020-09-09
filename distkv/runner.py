@@ -8,7 +8,6 @@ import anyio
 from weakref import ref
 from asyncactor import NodeList
 from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
-from copy import deepcopy
 import psutil
 import time
 from collections.abc import Mapping
@@ -492,15 +491,7 @@ class RunnerEntry(AttrClientEntry):
                 if state.node is not None:
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
-                data = self.data
-                if data is None:
-                    data = {}
-                else:
-                    data = deepcopy(data)
-
-                for k, v in code.value.get("default", {}).items():
-                    if k not in data:
-                        data[k] = v
+                data = combine_dict(self.data or {}, code.value.get("default", {}), deep=True)
 
                 if code.is_async:
                     data["_info"] = self._q = anyio.create_queue(QLEN)
