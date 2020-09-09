@@ -183,6 +183,10 @@ class CodeEntry(ClientEntry):
     _code = None
     is_async = None
 
+    def __init__(self, *a, **kv):
+        self.reload_event = anyio.create_event()
+        super().__init__(*a, *kv)
+
     @property
     def name(self):
         return P(self.subpath)
@@ -208,6 +212,8 @@ class CodeEntry(ClientEntry):
             await self.root.err.record_working("compile", self.subpath)
             self._code = p
             self.is_async = a
+            await self.reload_event.set()
+            self.reload_event = anyio.create_event()
 
     def __call__(self, *a, **kw):
         if self._code is None:
