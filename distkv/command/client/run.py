@@ -104,6 +104,13 @@ def _state_fix_2(rs):
     except AttributeError:
         pass
     try:
+        if rs.pinged:
+            rs.pinged_date = datetime.datetime.fromtimestamp(rs.pinged).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+    except AttributeError:
+        pass
+    try:
         if rs.computed:
             try:
                 rs.computed_date = datetime.datetime.fromtimestamp(rs.computed).strftime(

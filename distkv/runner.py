@@ -168,6 +168,13 @@ class CallAdmin:
                 await sc.cancel()
                 return res
 
+    async def _pinger(self):
+        t = self._runner.ok_after or 10
+        await anyio.sleep(t / 2)
+        while True:
+            await self._runner.state.ping()
+            await anyio.sleep(t * 5)
+
     async def _changed_code(self, code):
         """
         Kill the job if the underlying code has changed
@@ -696,6 +703,7 @@ class StateEntry(AttrClientEntry):
     Arguments:
       started (float): timestamp when the job was last started
       stopped (float): timestamp when the job last terminated
+      pinged (float): timestamp when the state was last verified by the runner
       result (Any): the code's return value
       node (str): the node running this code
       backoff (float): on error, the multiplier to apply to the restart timeout
@@ -703,10 +711,11 @@ class StateEntry(AttrClientEntry):
       reason (str): reason why (not) starting
     """
 
-    ATTRS = "started stopped computed reason result node backoff".split()
+    ATTRS = "started stopped pinged computed reason result node backoff".split()
 
     started = 0  # timestamp
     stopped = 0  # timestamp
+    pinged = 0  # timestamp
     node = None  # on which the code is currently running
     result = NotGiven
     backoff = 0
@@ -736,10 +745,15 @@ class StateEntry(AttrClientEntry):
         )
         await self.save()
 
+    async def ping(self):
+        if self.node != self.root.name:
+            raise RuntimeError("Not our state!")
+        self.pinged = time.time()
+        await self.save()
+
     async def stale(self):
         self.stopped = time.time()
-        node = self.node
-        self.node = None
+        node, self.node = self.node, None
         self.backoff = min(20, self.backoff + 2)
         await self.root.runner.err.record_error(
             "run",
