@@ -660,9 +660,7 @@ class Client:
         except socket.gaierror:
             raise ServerConnectionError(host, port)
         if ssl:
-            ctx = await anyio.streams.tls.TLSStream(
-                ctx, ssl_context=ssl_context, server_side=False
-            )
+            ctx = await anyio.streams.tls.TLSStream(ctx, ssl_context=ssl, server_side=False)
         try:
             async with ctx as stream, AsyncExitStack() as ex:
                 self.scope = scope.get()

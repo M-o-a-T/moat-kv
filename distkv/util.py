@@ -343,7 +343,10 @@ class _MsgRW:
 
     async def __aenter__(self):
         if self.path is not None:
-            self.stream = await anyio.aopen(self.path, self._mode)
+            try:
+                self.stream = await anyio.aopen(self.path, self._mode)
+            except AttributeError:
+                self.stream = await anyio.open_file(self.path, self._mode)
         return self
 
     async def __aexit__(self, *tb):
