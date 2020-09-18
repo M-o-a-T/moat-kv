@@ -44,6 +44,8 @@ class MqttBackend(Backend):
                         yield MqttMessage(msg.topic.split("/"), msg.data)
 
                 yield sub_get(sub)
+        except anyio.get_cancelled_exc_class():
+            raise
         except BaseException as exc:
             logger.exception("Monitor %s end: %r", topic, exc)
             raise
