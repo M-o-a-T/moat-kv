@@ -39,7 +39,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             await ru.run_at(time.time())
             logger.info("Start sleep")
             try:
-                with trio.fail_after(60):
+                with trio.fail_after(200):
                     await c._test_evt.wait()
             finally:
                 await st.run("data get -rd_ :", do_stdout=False)
