@@ -9,6 +9,11 @@ import trio  # signaling
 import anyio
 
 try:
+    Stream = anyio.abc.Stream
+except AttributeError:
+    Stream = anyio.abc.ByteStream
+
+try:
     from trio import BrokenResourceError as trioBrokenResourceError
     from trio import Cancelled as trioCancelled
 except ImportError:
