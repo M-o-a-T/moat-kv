@@ -1852,7 +1852,7 @@ class Server:
             self.logger.exception("Died %s: %r", action, exc)
             raise
         else:
-            self.logger.error("Stream ended %s", action)
+            self.logger.info("Stream ended %s", action)
 
     async def _run_del(self, evt):
         try:
@@ -2026,7 +2026,7 @@ class Server:
 
                 cfg["auth"] = gen_auth(auth)
 
-                self.logger.error("Sync: connecting: %s", cfg)
+                self.logger.info("Sync: connecting: %s", cfg)
                 async with distkv_client.open_client(connect=cfg) as client:
                     # TODO auth this client
 
