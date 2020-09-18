@@ -20,6 +20,15 @@ except ImportError:
         pass
 
 
+from distmqtt.utils import create_queue
+
+try:
+    ClosedResourceError = anyio.exceptions.ClosedResourceError
+    ExceptionGroup = anyio.exceptions.ExceptionGroup
+except AttributeError:
+    ClosedResourceError = anyio.ClosedResourceError
+    ExceptionGroup = anyio.ExceptionGroup
+
 try:
     from contextlib import asynccontextmanager
 except ImportError:
@@ -129,7 +138,7 @@ class StreamCommand:
         self.client = client
         self.msg = msg
         self.seq = msg.seq
-        self.in_q = anyio.create_queue(1)
+        self.in_q = create_queue(1)
         self.client.in_stream[self.seq] = self
 
     async def received(self, msg):
@@ -174,7 +183,7 @@ class StreamCommand:
             raise RuntimeError("Can't explicitly send in simple interaction")
         try:
             await self.client.send(msg)
-        except trioBrokenResourceError:
+        except (ClosedResourceError, trioBrokenResourceError):
             self.client.logger.info("OERR %d", self.client._client_nr)
 
     async def __call__(self, **kw):
@@ -715,7 +724,10 @@ class ServerClient:
             return k
 
         async with self.server.crypto_limiter:
-            k = await anyio.run_in_thread(gen_key)
+            try:
+                k = await anyio.run_in_thread(gen_key)
+            except AttributeError:
+                k = await anyio.run_sync_in_worker_thread(gen_key)
         return {"pubkey": num2byte(k.public_key)}
 
     cmd_diffie_hellman.noAuth = True
@@ -1109,7 +1121,7 @@ class ServerClient:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(packer(msg))
-            except (anyio.exceptions.ClosedResourceError, trioBrokenResourceError):
+            except (ClosedResourceError, trioBrokenResourceError):
                 self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
@@ -2649,17 +2661,15 @@ class Server:
             c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
-        except (trioBrokenResourceError, anyio.exceptions.ClosedResourceError):
+        except (trioBrokenResourceError, ClosedResourceError):
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
-            if isinstance(exc, anyio.exceptions.ExceptionGroup):
+            if isinstance(exc, ExceptionGroup):
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                if isinstance(
-                    exc, (trioBrokenResourceError, anyio.exceptions.ClosedResourceError)
-                ):
+                if isinstance(exc, (trioBrokenResourceError, ClosedResourceError)):
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)

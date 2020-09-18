@@ -95,6 +95,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+try:
+    ClosedResourceError = anyio.exceptions.ClosedResourceError
+except AttributeError:
+    ClosedResourceError = anyio.ClosedResourceError
+
+
 class ErrorSubEntry(AttrClientEntry):
     """
     Tracks the latest occurrence of an error, per node.
@@ -486,7 +492,7 @@ class ErrorRoot(ClientRoot):
 
         try:
             await rec.save()
-        except anyio.exceptions.ClosedResourceError:
+        except ClosedResourceError:
             logger.exception(
                 "Could not save error %s %s: %s %r", subsystem, path, message, exc, exc_info=exc
             )

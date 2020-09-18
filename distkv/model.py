@@ -12,9 +12,10 @@ from collections import defaultdict
 
 from typing import List, Any
 
+from distmqtt.utils import create_queue
+
 from .util import attrdict, NotGiven, Path
 from .exceptions import ACLError
-from anyio import create_queue
 
 from logging import getLogger
 

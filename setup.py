@@ -17,7 +17,7 @@ setup(
     install_requires=[
         "asyncclick",
         "trio >= 0.15",
-        "anyio",
+        "anyio >= 2.0",
         "range_set >= 0.2",
         "attrs >= 19",
         "asyncserf >= 0.16",
@@ -31,9 +31,9 @@ setup(
         "psutil",
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
-        "distmqtt >= 0.31",
+        "distmqtt >= 0.32",
     ],
-    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7", "distmqtt >= 0.31"],
+    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[

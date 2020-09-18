@@ -18,7 +18,7 @@ from distkv.codec import unpacker
 from distkv.util import attrdict, combine_dict, NotGiven, ValueEvent
 from distkv.mock import S as _S
 from asyncserf.stream import SerfEvent
-from anyio import create_queue
+from distmqtt.utils import create_queue
 
 import logging
 
