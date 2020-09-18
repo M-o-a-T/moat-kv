@@ -45,7 +45,7 @@ async def get(obj, path, script, encode, decode):
 async def list_(obj, path):
     """List type information entries"""
     res = await obj.client._request(
-        action="get_tree_internal", path=Path("codec") + path, iter=True, nchain=obj.meta
+        action="get_tree_internal", path=Path("codec") + P(path), iter=True, nchain=obj.meta
     )
     pl = PathLongener(())
     async for r in res:
@@ -133,7 +133,7 @@ async def convert(obj, path, codec, name, delete, list_this):
 
     if list_this:
         if name == "-":
-            if path:
+            if len(path):
                 raise click.UsageError("You can't use a path here.")
             res = await obj.client._request(
                 action="enum_internal", path=Path("conv"), iter=False, nchain=0, empty=True

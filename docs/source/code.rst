@@ -231,17 +231,17 @@ this::
    """
    async with _client.watch(_P("some.special.path")) as w1:
       async with _client.watch(P("some.other.path")) as w2:
-         q = anyio.create_queue()
+         q = anyio.create_queue()  # q_s,q_r = anyio.create_memory_object_stream()
          async def _watch(w):
             async for msg in w:
-               await q.put(msg)
+               await q.put(msg)  # q_s.send(msg)
          async def _timeout(t):
             await anyio.sleep(t)
             await process_timeout()
          await _self.spawn(_watch, w1)
          await _self.spawn(_watch, w2)
          await _self.spawn(_timeout, 100)
-         async for msg in q:
+         async for msg in q:  # q_r
             await process_data(msg)
 
 you can simplify this to::

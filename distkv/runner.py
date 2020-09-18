@@ -23,6 +23,12 @@ from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn, 
 
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
+from distmqtt.utils import create_queue
+
+try:
+    ClosedResourceError = anyio.exceptions.ClosedResourceError
+except AttributeError:
+    ClosedResourceError = anyio.ClosedResourceError
 
 import logging
 
@@ -509,7 +515,7 @@ class RunnerEntry(AttrClientEntry):
                 data = combine_dict(self.data or {}, code.value.get("default", {}), deep=True)
 
                 if code.is_async:
-                    data["_info"] = self._q = anyio.create_queue(QLEN)
+                    data["_info"] = self._q = create_queue(QLEN)
                 data["_client"] = self.root.client
                 data["_cfg"] = self.root.client._cfg
                 data["_cls"] = _CLASSES
@@ -570,7 +576,7 @@ class RunnerEntry(AttrClientEntry):
                 async with anyio.move_on_after(2, shield=True):
                     try:
                         await state.save()
-                    except anyio.exceptions.ClosedResourceError:
+                    except ClosedResourceError:
                         pass
                     except ServerError:
                         logger.exception("Could not save")
@@ -1045,7 +1051,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         ) as act:
             self._act = act
 
-            age_q = anyio.create_queue(10)
+            age_q = create_queue(10)
             await self.spawn(self._age_killer, age_q)
 
             psutil.cpu_percent(interval=None)
@@ -1201,7 +1207,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     async def _run_actor(self):
         async with anyio.create_task_group() as tg:
-            age_q = anyio.create_queue(1)
+            age_q = create_queue(1)
 
             async with ClientActor(self.client, self.name, topic=self.group, cfg=self._cfg) as act:
                 self._act = act

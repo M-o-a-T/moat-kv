@@ -11,6 +11,11 @@ import os
 from typing import Tuple
 from asyncscope import scope, Scope, main_scope
 
+try:
+    ClosedResourceError = anyio.exceptions.ClosedResourceError
+except AttributeError:
+    ClosedResourceError = anyio.ClosedResourceError
+
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
     import random
@@ -36,6 +41,7 @@ from .util import (
     ValueEvent,
     Path,
 )
+from distmqtt.utils import create_queue
 from .default import CFG
 from .exceptions import (
     ClientAuthMethodError,
@@ -128,7 +134,7 @@ class StreamedRequest:
         self._client = client
         self.seq = seq
         self._stream = stream
-        self.q = anyio.create_queue(100)
+        self.q = create_queue(100)
         self._client._handlers[seq] = self
         self._reply_stream = None
         self.n_msg = 0
@@ -424,11 +430,19 @@ class Client:
                 k.generate_public_key()
                 return k
 
-            k = await anyio.run_in_thread(gen_key)
+            try:
+                k = await anyio.run_in_thread(gen_key)
+            except AttributeError:
+                k = await anyio.run_sync_in_worker_thread(gen_key)
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            await anyio.run_in_thread(k.generate_shared_secret, byte2num(res.pubkey))
+            try:
+                await anyio.run_in_thread(k.generate_shared_secret, byte2num(res.pubkey))
+            except AttributeError:
+                await anyio.run_sync_in_worker_thread(
+                    k.generate_shared_secret, byte2num(res.pubkey)
+                )
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
@@ -442,7 +456,10 @@ class Client:
                 p = packer(params)
             except TypeError as e:
                 raise ValueError(f"Unable to pack: {params!r}") from e
-            await sock.send_all(p)
+            try:
+                await sock.send_all(p)
+            except AttributeError:
+                await sock.send(p)
 
     async def _reader(self, *, evt=None):
         """Main loop for reading
@@ -459,14 +476,17 @@ class Client:
                         # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
-                        except anyio.exceptions.ClosedResourceError:
+                        except ClosedResourceError:
                             raise RuntimeError(msg)
 
                     if self._socket is None:
                         break
                     try:
-                        buf = await self._socket.receive_some(4096)
-                    except anyio.exceptions.ClosedResourceError:
+                        try:
+                            buf = await self._socket.receive_some(4096)
+                        except AttributeError:
+                            buf = await self._socket.receive(4096)
+                    except ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.
                         raise ServerClosedError("Connection closed by peer")
@@ -478,7 +498,7 @@ class Client:
                     for m in hdl.values():
                         try:
                             await m.cancel()
-                        except anyio.exceptions.ClosedResourceError:
+                        except ClosedResourceError:
                             pass
 
     async def _request(
@@ -503,7 +523,7 @@ class Client:
         Any other keywords are forwarded to the server.
         """
         if self._handlers is None:
-            raise anyio.exceptions.ClosedResourceError()
+            raise ClosedResourceError()
         if seq is None:
             act = "action"
             self._seq += 1
@@ -582,7 +602,7 @@ class Client:
 
         # logger.debug("Send %s", params)
         if self._handlers is None:
-            raise anyio.exceptions.ClosedResourceError("Closed already")
+            raise ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
         if "path" in params and params.get("long_path", False):
             res._path_long = PathLongener(params["path"])
@@ -636,18 +656,17 @@ class Client:
 
         # logger.debug("Conn %s %s",self.host,self.port)
         try:
-            ctx = await anyio.connect_tcp(host, port, ssl_context=ssl, autostart_tls=False)
+            ctx = await anyio.connect_tcp(host, port)
         except socket.gaierror:
             raise ServerConnectionError(host, port)
-
-        else:
+        if ssl:
+            ctx = await anyio.streams.tls.TLSStream(ctx, ssl_context=ssl, server_side=False)
+        try:
             async with ctx as stream, AsyncExitStack() as ex:
                 self.scope = scope.get()
                 # self.tg = tg  # TODO might not be necessary
                 self.exit_stack = ex
 
-                if ssl:
-                    await stream.start_tls()
                 try:
                     self._socket = stream
                     await self.scope.spawn(self._reader)

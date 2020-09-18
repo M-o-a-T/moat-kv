@@ -35,7 +35,7 @@ class MqttBackend(Backend):
     @asynccontextmanager
     async def monitor(self, *topic):
         topic = "/".join(topic)
-        logger.error("Monitor %s start", topic)
+        logger.info("Monitor %s start", topic)
         try:
             async with self.client.subscription(topic) as sub:
 
@@ -44,11 +44,13 @@ class MqttBackend(Backend):
                         yield MqttMessage(msg.topic.split("/"), msg.data)
 
                 yield sub_get(sub)
+        except anyio.get_cancelled_exc_class():
+            raise
         except BaseException as exc:
             logger.exception("Monitor %s end: %r", topic, exc)
             raise
         else:
-            logger.error("Monitor %s end", topic)
+            logger.info("Monitor %s end", topic)
 
     def send(self, *topic, payload):  # pylint: disable=invalid-overridden-method
         """
