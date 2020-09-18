@@ -31,7 +31,7 @@ setup(
         "psutil",
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
-        "distmqtt >= 0.32",
+        "distmqtt >= 0.32.1",
     ],
     tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
     keywords=["async", "key-values", "distributed"],
