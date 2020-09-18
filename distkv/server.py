@@ -629,12 +629,11 @@ class ServerClient:
     acl: ACLStepper = NullACL
     tg = None
 
-    def __init__(self, server: "Server", stream: anyio.abc.Stream):
+    def __init__(self, server: "Server", stream: Stream):
         self.server = server
         self.root = server.root
         self.metaroot = self.root.follow(Path(None), create=True, nulls_ok=True)
         self.stream = stream
-        self.seq = 0
         self.tasks = {}
         self.in_stream = {}
         self._chop_path = 0
@@ -1184,11 +1183,6 @@ class ServerClient:
                         if send_q is not None:
                             await send_q.received(msg)
                         else:
-                            if self.seq >= seq:
-                                raise ClientError(
-                                    f"Channel closed? Sequence error: {self.seq} < {msg.seq}"
-                                )
-                            self.seq = seq
                             evt = anyio.create_event()
                             await self.tg.spawn(self.process, msg, evt)
                             await evt.wait()
