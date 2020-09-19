@@ -208,7 +208,7 @@ async def watch(obj, path, state, only):
     if not path:
         raise click.UsageError("Monitoring without path is boring.")
 
-    path = [ P(p) for p in path ]
+    path = [P(p) for p in path]
     seen = len(path)
     flushing = not state
 
@@ -240,10 +240,10 @@ async def watch(obj, path, state, only):
                 print("---", file=obj.stdout)
                 if flushing:
                     obj.stdout.flush()
+
     async with anyio.create_task_group() as tg:
         for p in path:
             await tg.spawn(mon, p)
-
 
 
 @cli.command()
