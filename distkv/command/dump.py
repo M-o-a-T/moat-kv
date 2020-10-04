@@ -31,6 +31,8 @@ async def cfg_dump(obj, path):
     E.g., "cfg connect.host" will print "localhost".
 
     Single values are printed with a trailing line feed.
+
+    Dump the whole config with "… dump cfg :".
     """
     cfg = obj.cfg
     for p in P(path):
