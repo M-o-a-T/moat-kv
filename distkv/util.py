@@ -939,10 +939,7 @@ async def spawn(taskgroup, proc, *args, **kw):
 
     async def _run(proc, args, kw, evt):
         """
-        Helper for starting a task.
-
-        This accepts a :class:`ValueEvent`, to pass the task's cancel scope
-        back to the caller.
+        Helper for starting a task within a cancel scope.
         """
         nonlocal scope
         async with anyio.open_cancel_scope() as sc:

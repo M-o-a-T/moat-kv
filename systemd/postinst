@@ -4,4 +4,4 @@ set -ex
 /usr/lib/distkv/init
 systemd-sysusers --no-pager /usr/lib/sysusers.d/distkv.conf
 systemctl enable distkv.service
-systemctl enable distkv-rotate.timer
+systemctl enable distkv-rotate.timer || true  # may be masked
