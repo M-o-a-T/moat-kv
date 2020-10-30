@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():
     """
-    Low-level tools that don't depend on a running server.
+    Low-level tools that don't depend on a running DistKV server.
     """
     pass
 
@@ -80,7 +80,7 @@ async def file_(obj, file, path, filter_):
 @cli.command("yaml")
 @click.argument("msgpack", nargs=1)
 async def yaml_(msgpack):
-    """Read a YAML file from stdin and dump as msgpack."""
+    """Read a multi-part YAML file from stdin and dump as msgpack stream."""
     async with MsgWriter(path=msgpack) as f:
         for d in yload(sys.stdin, multi=True):
             await f(d)
