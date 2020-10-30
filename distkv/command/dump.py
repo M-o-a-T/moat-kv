@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint, PathLongener, P, yload, Path
 from distkv.codec import unpacker
+from distmqtt.codecs import MsgPackCodec
 
 import logging
 
@@ -168,3 +169,29 @@ async def msg_(obj, path):
 
                 yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)
+
+
+@cli.command("post")
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def post_(obj, path):
+    """
+    Send a msgpack-encoded message (or several) to a specific MQTT topic.
+
+    Messages are read from YAML.
+    Common streams:
+    * ping: sync: all servers (default)
+    * update: data changes
+    * del: sync: nodes responsible for cleaning up deleted records
+    """
+    from distkv.backend import get_backend
+
+    path=P(path)
+    be = obj.cfg.server.backend
+    kw = obj.cfg.server[be]
+
+    async with get_backend(be)(codec=MsgPackCodec, **kw) as conn:
+        for d in yload(sys.stdin, multi=True):
+            topic = d.pop('_topic', path)
+            await conn.send(*topic, payload=d)
+
