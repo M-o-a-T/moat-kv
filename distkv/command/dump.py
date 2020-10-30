@@ -3,10 +3,12 @@
 import sys
 import datetime
 import asyncclick as click
+from collections.abc import Mapping
 
 from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint, PathLongener, P, yload, Path
 from distkv.codec import unpacker
+from distmqtt.codecs import MsgPackCodec
 
 import logging
 
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 @main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():
     """
-    Low-level tools that don't depend on a running server.
+    Low-level tools that don't depend on a running DistKV server.
     """
     pass
 
@@ -78,7 +80,7 @@ async def file_(obj, file, path, filter_):
 @cli.command("yaml")
 @click.argument("msgpack", nargs=1)
 async def yaml_(msgpack):
-    """Read a YAML file from stdin and dump as msgpack."""
+    """Read a multi-part YAML file from stdin and dump as msgpack stream."""
     async with MsgWriter(path=msgpack) as f:
         for d in yload(sys.stdin, multi=True):
             await f(d)
@@ -110,15 +112,17 @@ async def init(node, file):
 
 
 @cli.command("msg")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def msg_(obj, path):
     """
     Monitor the server-to-sever message stream.
 
-    The default is the main server's "update" stream.
+    The default (":") is the main server's "update" stream.
     Use '+NAME' to monitor a different stream instead.
     Use '+' to monitor all streams.
+    If the path has multiple parts, use it as-is.
+    Otherwise append to configured default
 
     Common streams:
     * ping: sync: all servers (default)
@@ -136,11 +140,11 @@ async def msg_(obj, path):
     _Unpack._unpack_multiple = distkv.server.Server._unpack_multiple
     _unpacker = _Unpack()._unpack_multiple
 
-    if not path:
+    path = P(path)
+    if len(path) == 0:
         path = P(obj.cfg.server.root) | "update"
     elif len(path) == 1:
-        path = P(path[0])
-        if len(path) == 1 and path[0].startswith("+"):
+        if path[0].startswith("+"):
             p = path[0][1:]
             path = P(obj.cfg.server.root)
             path |= [p or "#"]
@@ -157,6 +161,8 @@ async def msg_(obj, path):
                     v = _unpacker(v)
                     if v is None:
                         continue
+                    if not isinstance(v, Mapping):
+                        v = {'_data': v}
                     v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
@@ -164,3 +170,29 @@ async def msg_(obj, path):
 
                 yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)
+
+
+@cli.command("post")
+@click.argument("path", nargs=1)
+@click.pass_obj
+async def post_(obj, path):
+    """
+    Send a msgpack-encoded message (or several) to a specific MQTT topic.
+
+    Messages are read from YAML.
+    Common streams:
+    * ping: sync: all servers (default)
+    * update: data changes
+    * del: sync: nodes responsible for cleaning up deleted records
+    """
+    from distkv.backend import get_backend
+
+    path=P(path)
+    be = obj.cfg.server.backend
+    kw = obj.cfg.server[be]
+
+    async with get_backend(be)(codec=MsgPackCodec, **kw) as conn:
+        for d in yload(sys.stdin, multi=True):
+            topic = d.pop('_topic', path)
+            await conn.send(*topic, payload=d)
+
