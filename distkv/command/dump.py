@@ -112,15 +112,17 @@ async def init(node, file):
 
 
 @cli.command("msg")
-@click.argument("path", nargs=-1)
+@click.argument("path", nargs=1)
 @click.pass_obj
 async def msg_(obj, path):
     """
     Monitor the server-to-sever message stream.
 
-    The default is the main server's "update" stream.
+    The default (":") is the main server's "update" stream.
     Use '+NAME' to monitor a different stream instead.
     Use '+' to monitor all streams.
+    If the path has multiple parts, use it as-is.
+    Otherwise append to configured default
 
     Common streams:
     * ping: sync: all servers (default)
@@ -138,12 +140,12 @@ async def msg_(obj, path):
     _Unpack._unpack_multiple = distkv.server.Server._unpack_multiple
     _unpacker = _Unpack()._unpack_multiple
 
-    if not path:
+    path = P(path)
+    if len(path) == 0:
         path = P(obj.cfg.server.root) | "update"
         path.append("update")
     elif len(path) == 1:
-        path = P(path[0])
-        if len(path) == 1 and path[0].startswith("+"):
+        if path[0].startswith("+"):
             p = path[0][1:]
             path = P(obj.cfg.server.root)
             path |= [p or "#"]
