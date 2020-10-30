@@ -3,6 +3,7 @@
 import sys
 import datetime
 import asyncclick as click
+from collections.abc import Mapping
 
 from distkv.util import MsgReader, MsgWriter
 from distkv.util import yprint, PathLongener, P, yload, Path
@@ -158,6 +159,8 @@ async def msg_(obj, path):
                     v = _unpacker(v)
                     if v is None:
                         continue
+                    if not isinstance(v, Mapping):
+                        v = {'_data': v}
                     v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
