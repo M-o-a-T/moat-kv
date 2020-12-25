@@ -118,16 +118,16 @@ async def msg_(obj, path):
     """
     Monitor the server-to-sever message stream.
 
-    The default (":") is the main server's "update" stream.
+    Use ':' for the main server's "update" stream.
     Use '+NAME' to monitor a different stream instead.
     Use '+' to monitor all streams.
-    If the path has multiple parts, use it as-is.
-    Otherwise append to configured default
+    Otherwise use the given name as-is; Mosquitto wildcard rules apply.
 
-    Common streams:
-    * ping: sync: all servers (default)
-    * update: data changes
-    * del: sync: nodes responsible for cleaning up deleted records
+    \b
+    Common streams (prefix with '+'):
+    * ping    all servers
+    * update  data changes
+    * del     nodes responsible for cleaning up deleted records
     """
     from distkv.backend import get_backend
 
@@ -143,12 +143,10 @@ async def msg_(obj, path):
     path = P(path)
     if len(path) == 0:
         path = P(obj.cfg.server.root) | "update"
-        path.append("update")
-    elif len(path) == 1:
-        if path[0].startswith("+"):
-            p = path[0][1:]
-            path = P(obj.cfg.server.root)
-            path |= [p or "#"]
+    elif len(path) == 1 and path[0].startswith("+"):
+        p = path[0][1:]
+        path = P(obj.cfg.server.root)
+        path |= (p or "#")
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]
 
