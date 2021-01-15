@@ -160,8 +160,8 @@ and added to the path.
 
 Hex number input is purely a convenience; integers in paths are always
 printed in decimal form. While you also could use ``:0x…`` in place of
-``:x–``, the latter reduces visual clutter and ensures that the input is in
-fact a hex number and not something else.
+``:x…``, the latter reduces visual clutter and ensures that the input is in
+fact a hex number and not something else by mistake.
 
 .. warning::
 
@@ -173,7 +173,19 @@ fact a hex number and not something else.
    DistKV also allows you to use both ``False``, an integer zero, and a
    floating-point zero as path elements. This is dangerous because Python's
    comparison and hashing operators treat them as equal. (Same for ``True``
-   and 1; same for all floating point numbers without fractions.)
+   and 1; same for floating point numbers without fractions and the
+   corresponding integers.)
+
+   Floating point numbers are also dangerous for a different reason: floats 
+   that are not a fractional power of two, like 1/3, cannot be stored
+   exactly. Thus you might have problems entering them.
+
+   Bottom line:
+
+   * Don't use inexact fractions. 1/2 and 1/4 is fine, 1/3 or 1/5 is not.
+
+   * Don't use multiple types as keys on the same level.
+
 
 Persistent storage
 ==================
@@ -277,7 +289,7 @@ only exposes a user name::
    one $ distkv client data get
    ClientAuthRequiredError: You need to log in using: _test
    one $ dkv() { distkv client -a "_test name=joe" "$@"; }
-   one $ dkv data get
+   one $ dkv data get :
    123
    one $
 
@@ -516,7 +528,9 @@ Verification
 
 Complex data should be clean. Storing ``"Hello there!"`` in a value that
 the rest of your code expects to be an integer is likely to have unwanted
-effects. For instance, we'd like to enforce that all ``quota`` values in our
+effects.
+
+For this example, we'd like to enforce that all ``quota`` values in our
 site statistics are integer percentages.
 
 First, we define the type::
@@ -536,22 +550,22 @@ You can also declare subtypes::
     > END
     one $
 
-The example values must pass the supertype's checks.
+The example values, both good and bad, must pass the supertype's checks.
 
 Now we associate the test with our data::
 
-    one $ dkv type match -t int.percent stats '#' quota
+    one $ dkv type match -t int.percent 'stats.#.quota'
 
 Then we store some value::
 
     one $ dkv data set -v 123 stats.foo.bar.quota
     ServerError: ValueError("not an integer")
 
-Oops. We forgot that non-string values need to be evaluated. Better::
+Oops: non-string values need to be evaluated. Better::
 
     one $ dkv data set -ev 123 stats.foo.bar.quota
     ServerError: ValueError('not a percentage')
-    one $ dkv data set -ev 12 stats foo bar quota
+    one $ dkv data set -ev 12 stats.foo.bar.quota
     one $
 
 DistKV does not test that existing values match your restrictions.
@@ -591,11 +605,11 @@ This associates
 * all paths that start with ``monitor`` and end with ``value``
 
 with the codec list named ``floatval``. As not every user needs stringified
-numbers, we now need to tell DistKV which users to apply this codec to::
+numbers, we also need to tell DistKV which users to apply this codec to::
 
     one $ dkv auth user modify --aux codec=floatval name=joe
 	
-Thus, Joe will read and write values as strings::
+Thus, Joe will read and write ``value`` entries as strings::
 
     one $ dkv data set -v 99.5 monitor a b c value
     one $ dkv data set -v 12.3 monitor a b c thing
@@ -611,17 +625,23 @@ Thus, Joe will read and write values as strings::
               '12.3'
 
 This is especially helpful if Joe is in fact an MQTT gateway which only
-receives and transmits (binary) strings.
+receives and transmits strings, though a real-world application would use
+binary strings, not Unicode strings.
 
+
+Limitations
+-----------
 
 DistKV currently can't translate paths, or merge many values to one entry's attributes.
 
-Your best bet is to use active objects and add some code to their ``set_value``
-methods that translates between one and the other. There are some caveats:
+You can use either active objects (add some code to their ``set_value``
+methods) or code objects (listen to A and write to B) to effect such
+translations. There are some caveats:
 
 * All such data are stored twice.
 
-* Replacing a value with the same value counts as a change. Don't set up an endless loop.
+* Replacing a value with the exact same value still counts as a change.
+  Don't set up an endless loop.
 
 * You need to verify that the two trees match when you start up, and decide
   which is more correct. (The ``tock`` stamp will help you here.) Don't
