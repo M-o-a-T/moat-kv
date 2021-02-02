@@ -9,15 +9,13 @@ from distkv.util import (
     attrdict,
     combine_dict,
     NotGiven,
-    res_get,
-    res_update,
-    res_delete,
     yload,
     yprint,
 )
 from distkv.default import CFG
 from distkv.ext import load_one, list_ext, load_ext
 from distkv.exceptions import ClientError, ServerError
+from distkv.data import res_get, res_update, res_delete
 
 import logging
 from logging.config import dictConfig

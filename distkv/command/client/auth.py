@@ -2,7 +2,7 @@
 
 import asyncclick as click
 
-from distkv.util import split_one, NotGiven, yprint, Path
+from distkv.util import split_arg, NotGiven, yprint, Path
 from distkv.auth import loader, gen_auth
 
 import logging
@@ -182,7 +182,7 @@ async def param(obj, new, ident, type, key, args):  # pylint: disable=redefined-
         kw["key"] = key
 
         for a in args:
-            split_one(a, kw)
+            split_arg(a, kw)
 
         res = await obj.client._request(
             action="set_internal",
@@ -219,7 +219,7 @@ async def add_mod_user(obj, args, modify):
     else:
         kw = {}
     for a in args:
-        split_one(a, kw)
+        split_arg(a, kw)
 
     u = u.build(kw, _initial=False)
     if modify is None or u.ident != modify:
