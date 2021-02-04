@@ -394,7 +394,7 @@ class ClientRoot(ClientEntry):
                 cfg = combine_dict(cfg, defcfg)
         else:
             if not defcfg:
-                raise RuntimeError("no config")
+                raise RuntimeError("no config for "+repr(cls))
             cfg = defcfg
 
         def make():
