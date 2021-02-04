@@ -60,7 +60,7 @@ async def cli(ctx, host, port, auth, metadata):
 
     if auth is not None:
         cfg.auth = gen_auth(auth)
-        if obj._DEBUG:
+        if obj.DEBUG:
             cfg.auth._DEBUG = True
 
     cfg = combine_dict(attrdict(connect=cfg), obj.cfg, cls=attrdict)
