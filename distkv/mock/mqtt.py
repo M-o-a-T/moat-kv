@@ -61,7 +61,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         server_ctx = client_ctx = False
 
     clock = trio.lowlevel.current_clock()
-    # clock.autojump_threshold = 0.1
+    clock.autojump_threshold = 0.02  # networking
     # clock.rate = 5
 
     async def mock_get_host_port(st, host):
