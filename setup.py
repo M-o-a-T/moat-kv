@@ -33,7 +33,7 @@ setup(
         "simpleeval >= 0.9.10",
         "distmqtt >= 0.32.1",
     ],
-    tests_require=["trustme >= 0.5", "pytest", "flake8 >= 3.7"],
+    tests_require=["trustme >= 0.5", "pytest", "pytest-trio", "flake8 >= 3.7", "mock"],
     keywords=["async", "key-values", "distributed"],
     python_requires=">=3.7",
     classifiers=[
