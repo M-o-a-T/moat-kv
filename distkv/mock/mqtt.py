@@ -12,7 +12,7 @@ import time
 from functools import partial
 from asyncscope import main_scope
 
-from distkv.default import CFG
+from . import CFG
 from distkv.server import Server
 from distkv.util import attrdict, combine_dict, NotGiven
 from distkv.mock import S
