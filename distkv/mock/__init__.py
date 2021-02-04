@@ -42,7 +42,6 @@ async def run(*args, expect_exit=0, do_stdout=True):
 class S:
     tg = attr.ib()
     client_ctx = attr.ib()
-    serfs = attr.ib(factory=set)
     s = attr.ib(factory=list)  # servers
     c = attr.ib(factory=list)  # clients
     _seq = 1
