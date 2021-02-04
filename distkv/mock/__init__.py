@@ -28,7 +28,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
         CFG["_stdout"] = out = io.StringIO()
     try:
         print("*****", args)
-        res = await call_main(main, args=args, wrap=True, CFG=CFG)
+        res = await call_main(main, args=args, wrap=True, CFG=CFG, cfg=False)
         if res is None:
             res = attrdict()
         return res
