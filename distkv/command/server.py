@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
+@click.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
 @click.option(
     "-l",
     "--load",
