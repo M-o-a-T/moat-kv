@@ -912,13 +912,12 @@ class Client:
 
     def msg_monitor(self, topic: Tuple[str], raw: bool = False):
         """
-        Return an async iterator of tunneled Serf messages. This receives
+        Return an async iterator of tunneled messages. This receives
         all messages sent using :meth:`msg_send` with the same tag.
 
         Args:
             tag: the topic / "user:" tag to monitor.
                  The first character may not be '+'.
-                 Do not include Serf's "user:" prefix.
             raw: If ``True``, will not try to msgpack-decode incoming
                  messages.
 
@@ -940,13 +939,12 @@ class Client:
 
     def msg_send(self, topic: Tuple[str], data=None, raw: bytes = None):
         """
-        Tunnel a user-tagged message through Serf. This sends the message
+        Tunnel a user-tagged message. This sends the message
         to all active callers of :meth:`msg_monitor` which use the same tag.
 
         Args:
             tag: the "user:" tag to send to.
                  The first character may not be '+'.
-                 Do not include Serf's "user:" prefix.
             data: to-be-encoded data (anything ``msgpack`` can process).
             raw: raw binary data to send, mutually exclusive with ``data``.
         """
