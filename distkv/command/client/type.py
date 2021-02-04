@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()  # pylint: disable=undefined-variable
+@click.group()  # pylint: disable=undefined-variable
 async def cli():
     """Manage types and type matches. Usage: … type …"""
     pass

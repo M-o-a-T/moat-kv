@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():
     """
     Low-level tools that don't depend on a running DistKV server.

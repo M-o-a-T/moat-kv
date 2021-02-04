@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage data.")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():
     """
     This subcommand accesses the actual user data stored in your DistKV tree.

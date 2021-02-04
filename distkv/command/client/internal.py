@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
+@click.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
 async def cli():
     """
     This subcommand queries and controls the server's internal state.

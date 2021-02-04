@@ -12,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()  # pylint: disable=undefined-variable
+@click.group()  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
     """Manage error records in DistKV."""

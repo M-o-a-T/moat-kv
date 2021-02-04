@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
 @click.option("-m", "--method", default=None, help="Affect/use this auth method")
 @click.pass_obj
 async def cli(obj, method):

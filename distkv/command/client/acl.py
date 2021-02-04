@@ -14,7 +14,7 @@ ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate
 
 
-@main.group()  # pylint: disable=undefined-variable
+@click.group()  # pylint: disable=undefined-variable
 async def cli():
     """Manage ACLs. Usage: … acl …"""
     pass

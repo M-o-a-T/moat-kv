@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage logging.")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage logging.")  # pylint: disable=undefined-variable
 async def cli():
     """
     This subcommand controls a server's logging.
