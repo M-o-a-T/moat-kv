@@ -3,7 +3,7 @@
 import asyncclick as click
 from functools import partial
 
-from distkv.util import attrdict, combine_dict
+from distkv.util import attrdict, combine_dict, load_subgroup
 from distkv.client import open_client
 from distkv.command import Loader
 from distkv.default import CFG
@@ -35,7 +35,7 @@ class NullObj:
         raise self._exc
 
 
-@main.group(cls=partial(Loader, __file__, "client"))  # pylint: disable=undefined-variable
+@load_subgroup(plugin="client")  # pylint: disable=undefined-variable
 @click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
 @click.option(
     "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.connect.port}"

@@ -6,8 +6,7 @@ import datetime
 
 from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P
 from distkv.client import StreamedRequest
-from distkv.command import node_attr
-from distkv.data import data_get
+from distkv.data import data_get, node_attr
 
 import logging
 
