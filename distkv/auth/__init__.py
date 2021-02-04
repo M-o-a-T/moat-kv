@@ -65,7 +65,7 @@ from importlib import import_module
 from ..client import NoData, Client
 from ..model import Entry
 from ..server import StreamCommand, ServerClient
-from ..util import split_one, attrdict, NotGiven, yload, Path
+from ..util import split_arg, attrdict, NotGiven, yload, Path
 from ..exceptions import NoAuthModuleError
 from ..types import ACLFinder, NullACL
 
@@ -115,7 +115,7 @@ def gen_auth(s: str):
     else:
         kw = {}
         for pp in p:
-            split_one(pp, kw)
+            split_arg(pp, kw)
     try:
         m = loader(m, "user", server=False)
     except ModuleNotFoundError:

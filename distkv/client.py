@@ -587,7 +587,7 @@ class Client:
             # … or maybe … (auth does this)
             async with client._stream("interactive_thing", path=P(':n.foo)) as req:
                 msg = await req.recv()
-                while msg.get(s,"")=="more":
+                while msg.get(s,"") == "more":
                     await foo.send(s="more",value="some data")
                     msg = await req.recv()
                 await foo.send(s="that's all then")
@@ -619,6 +619,9 @@ class Client:
                 await res.aclose()
 
     async def _run_auth(self, auth=None):
+        """
+        As the name implies: process authorization.
+        """
         hello = self._server_init
         sa = hello.get("auth", ())
         if not sa or not sa[0]:
@@ -708,7 +711,7 @@ class Client:
         Retrieve the data at a particular subtree position.
 
         Usage::
-            res = await client.get("foo","bar")
+            res = await client.get(P("foo.bar"))
 
         If you want to update this value, you should retrieve its change chain entry
         so that a competing update can be detected::
@@ -717,6 +720,10 @@ class Client:
             res = await client.set("foo","bar", value=res.value+1, chain=res.chain)
 
         For lower overhead and set-directly-after-get change, nchain may be 1 or 2.
+
+        Arguments:
+            path (Path): the path to update.
+            nchain: set to retrieve the node's chain tag, for later updates.
         """
         if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
@@ -727,9 +734,10 @@ class Client:
         Set or update a value.
 
         Usage::
-            await client.set("foo","bar", value="baz", chain=None)
+            await client.set(P("foo.bar"), value="baz", chain=None)
 
         Arguments:
+            path (Path): the path to update.
             value: the value to set. Duh. ;-)
             chain: the previous value's change chain. Use ``None`` for new values.
             prev: the previous value. Discouraged; use ``chain`` instead.
@@ -758,9 +766,10 @@ class Client:
         Delete a node.
 
         Usage::
-            await client.delete("foo","bar")
+            await client.delete(P("foo.bar"))
 
         Arguments:
+            path (Path): the path of the entry to remove.
             chain: the previous value's change chain.
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain, for setting a new value.
@@ -780,6 +789,7 @@ class Client:
         Retrieve the next data level.
 
         Args:
+          path (Path): the path to retrieve the entries from.
           with_data (bool): Return the data along with the keys. Default False.
           empty (bool): Return [names of] empty nodes. Default True if
             with_data is not set.
@@ -803,6 +813,7 @@ class Client:
         if you need a consistent snapshot.
 
         Args:
+          path (Path): the path to retrieve the entries from.
           nchain (int): Length of change chain to add to the results, for updating.
           min_depth (int): min level of nodes to retrieve.
           max_depth (int): max level of nodes to retrieve.
@@ -849,6 +860,7 @@ class Client:
         Return an async iterator of changes to a subtree.
 
         Args:
+          path (Path): the path to monitor entries at.
           fetch (bool): if ``True``, also send the currect state. Be aware
             that this may overlap with processing changes: you may get
             updates before the current state is completely transmitted.

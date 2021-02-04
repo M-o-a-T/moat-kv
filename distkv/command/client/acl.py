@@ -3,7 +3,8 @@
 import sys
 import asyncclick as click
 
-from distkv.util import yprint, data_get, P, Path
+from distkv.util import yprint, P, Path
+from distkv.data import data_get
 
 import logging
 
