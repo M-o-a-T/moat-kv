@@ -37,7 +37,7 @@ class MqttBackend(Backend):
 
     @asynccontextmanager
     async def monitor(self, *topic):
-        topic = "/".join(topic)
+        topic = "/".join(str(x) for x in topic)
         logger.info("Monitor %s start", topic)
         try:
             async with self.client.subscription(topic) as sub:
@@ -60,7 +60,7 @@ class MqttBackend(Backend):
         Send this payload to this topic.
         """
         # client.publish is also async, pass-thru
-        return self.client.publish("/".join(topic), message=payload)
+        return self.client.publish("/".join(str(x) for x in topic), message=payload)
 
 
 @asynccontextmanager
