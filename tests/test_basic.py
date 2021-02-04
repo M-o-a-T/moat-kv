@@ -2,6 +2,8 @@ import pytest
 import trio
 from time import time
 
+import asyncclick as click
+
 from distkv.mock import run
 from distkv.mock.mqtt import stdtest
 
@@ -32,9 +34,9 @@ async def test_00_trio_clock(autojump_clock):  # pylint: disable=unused-argument
 
 @pytest.mark.trio
 async def test_00_runner(autojump_clock):  # pylint: disable=unused-argument
-    with pytest.raises(AssertionError):
+    with pytest.raises(click.exceptions.NoSuchOption):
         await run("--doesnotexist")
-    await run("--doesnotexist", expect_exit=2)
+    # await run("--doesnotexist", expect_exit=2)
     # await run('pdb','pdb')  # used for verifying that debugging works
 
 

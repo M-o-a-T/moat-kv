@@ -5,8 +5,16 @@ import attr
 import socket
 
 from distkv.client import open_client
-from distkv.command import main
+from distkv.command import call_main, main
 from distkv.default import CFG
+from distkv.util import attrdict, list_ext, load_ext, combine_dict
+
+CFG = attrdict(**CFG)  # shallow copy
+for n, _ in list_ext("distkv_ext"):
+    try:
+        CFG[n] = combine_dict(load_ext("distkv_ext", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict)
+    except ModuleNotFoundError:
+        pass
 
 try:
     from contextlib import asynccontextmanager
@@ -20,7 +28,9 @@ async def run(*args, expect_exit=0, do_stdout=True):
         CFG["_stdout"] = out = io.StringIO()
     try:
         print("*****", args)
-        res = await main.main(args)
+        res = await call_main(main, args=args, wrap=True, CFG=CFG, cfg=False)
+        if res is None:
+            res = attrdict()
         return res
     except SystemExit as exc:
         res = exc
@@ -42,7 +52,6 @@ async def run(*args, expect_exit=0, do_stdout=True):
 class S:
     tg = attr.ib()
     client_ctx = attr.ib()
-    serfs = attr.ib(factory=set)
     s = attr.ib(factory=list)  # servers
     c = attr.ib(factory=list)  # clients
     _seq = 1

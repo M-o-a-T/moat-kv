@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
 @click.option("-m", "--method", default=None, help="Affect/use this auth method")
 @click.pass_obj
 async def cli(obj, method):
@@ -131,7 +131,7 @@ async def list_user(obj, verbose):
 async def get(obj, ident):
     """Retrieve a user (processed)."""
     lv = loader(await one_auth(obj), "user", make=True, server=False)
-    if obj._DEBUG:
+    if obj.DEBUG:
         lv._length = 16
 
     u = await lv.recv(obj.client, ident, _initial=False)
@@ -157,7 +157,7 @@ async def param(obj, new, ident, type, key, args):  # pylint: disable=redefined-
     """Set user parameters for auth, conversion, etc."""
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
-    if obj._DEBUG:
+    if obj.DEBUG:
         u._length = 16
     # ou = await u.recv(obj.client, ident, _initial=False)  # unused
     res = await obj.client._request(
@@ -211,7 +211,7 @@ async def mod(obj, ident, args):
 async def add_mod_user(obj, args, modify):
     auth = await one_auth(obj)
     u = loader(auth, "user", make=True, server=False)
-    if obj._DEBUG:
+    if obj.DEBUG:
         u._length = 16
     if modify:
         ou = await u.recv(obj.client, modify, _initial=False)

@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@main.group()  # pylint: disable=undefined-variable
+@click.group()  # pylint: disable=undefined-variable
 async def cli():
     """Manage codecs and converters. Usage: … codec …"""
     pass

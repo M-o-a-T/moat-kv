@@ -8,7 +8,7 @@ import asyncclick as click
 import simpleeval
 import ast as _ast
 
-from distkv.util import yprint, Path, NotGiven
+from distkv.util import yprint, Path, NotGiven, attrdict
 
 async def data_get(
     obj,

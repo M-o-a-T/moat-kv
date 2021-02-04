@@ -60,6 +60,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     @attr.s
     class S(_S):
         splits = attr.ib(factory=set)
+        serfs = attr.ib(factory=set)
 
         def split(self, s):
             assert s not in self.splits
