@@ -388,7 +388,7 @@ class ClientRoot(ClientEntry):
         d = []
         if cfg is not None:
             d.append(cfg)
-        defcfg = CFG.get(cls.CFG, None)
+        defcfg = client._cfg.get(cls.CFG)
         if cfg:
             if defcfg:
                 cfg = combine_dict(cfg, defcfg)
