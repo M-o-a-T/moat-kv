@@ -77,9 +77,11 @@ class S:
             if host[0] == ":":
                 continue
             try:
+                cfg=combine_dict(
+                    dict(connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)),
+                    CFG)
                 async with open_client(
-                    _main_name="_client_%d_%d" % (i, self._seq),
-                    connect=dict(host=host, port=port, ssl=self.client_ctx, **kv),
+                    _main_name="_client_%d_%d" % (i, self._seq), **cfg
                 ) as c:
                     yield c
                     return
