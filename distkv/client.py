@@ -486,6 +486,8 @@ class Client:
                             buf = await self._socket.receive_some(4096)
                         except AttributeError:
                             buf = await self._socket.receive(4096)
+                        except anyio.EndOfStream:
+                            raise ServerClosedError("Connection closed by peer")
                     except ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.
