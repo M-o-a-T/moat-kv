@@ -68,7 +68,7 @@ async def cli(ctx, host, port, auth, metadata):
     obj.meta = 3 if metadata else False
 
     try:
-        obj.client = await ctx.enter_async_context(open_client(**cfg))
+        obj.client = await ctx.with_async_resource(open_client(**cfg))
     except OSError as exc:
         obj.client = NullObj(exc)
     else:
