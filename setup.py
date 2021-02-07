@@ -15,7 +15,7 @@ setup(
     # namespace_packages=["distkv_ext.dummy"],
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
-        "asyncclick",
+        "asyncclick >= 8",
         "trio >= 0.15",
         "anyio >= 2.0",
         "range_set >= 0.2",

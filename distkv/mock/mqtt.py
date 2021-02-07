@@ -64,7 +64,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     try:
         clock.autojump_threshold = 0.02  # networking
     except Exception:
-        pass # test doesn't have autojump_clock fixture
+        pass  # test doesn't have autojump_clock fixture
 
     async def mock_get_host_port(st, host):
         i = int(host[host.rindex("_") + 1 :])  # noqa: E203

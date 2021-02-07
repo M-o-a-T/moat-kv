@@ -36,8 +36,7 @@ NullACL = None  # imported later, if/when needed
 
 
 class Node:
-    """Represents one DistKV participant.
-    """
+    """Represents one DistKV participant."""
 
     name: str = None
     tick: int = None
@@ -534,8 +533,7 @@ class NodeEvent:
 
 
 class UpdateEvent:
-    """Represents an event which updates something.
-    """
+    """Represents an event which updates something."""
 
     def __init__(self, event: NodeEvent, entry: "Entry", new_value, old_value=NotGiven, tock=None):
         self.event = event
@@ -606,8 +604,7 @@ class UpdateEvent:
 
 
 class Entry:
-    """This class represents one key/value pair
-    """
+    """This class represents one key/value pair"""
 
     _parent: "Entry" = None
     name: str = None

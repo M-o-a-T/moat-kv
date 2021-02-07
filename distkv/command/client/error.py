@@ -48,8 +48,7 @@ async def resolve(obj, path, subsys):
 @click.option("-p", "--path", default=":", help="only show errors below this subpath")
 @click.pass_obj
 async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
-    """Dump error entries.
-    """
+    """Dump error entries."""
     path = P(path)
     path_ = obj.cfg["errors"].prefix
     d = 2

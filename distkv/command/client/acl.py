@@ -23,8 +23,7 @@ async def cli():
 @cli.command("list")
 @click.pass_obj
 async def list_(obj):
-    """List ACLs.
-    """
+    """List ACLs."""
     res = await obj.client._request(
         action="enum_internal", path=("acl",), iter=False, nchain=obj.meta, empty=True
     )

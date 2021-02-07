@@ -24,8 +24,7 @@ class MetaEntry(Entry):
 
 
 class TypeEntry(Entry):
-    """I am a type-checking node.
-    """
+    """I am a type-checking node."""
 
     _code = None
     _schema = None
@@ -82,8 +81,7 @@ TypeEntry.SUBTYPE = TypeEntry
 
 
 class TypeRoot(Entry):
-    """I am the root of DistKV's type hierarchy.
-    """
+    """I am the root of DistKV's type hierarchy."""
 
     SUBTYPE = TypeEntry
 
@@ -251,8 +249,7 @@ class MetaPathEntry(MetaEntry):
 
 
 class MatchRoot(MetaPathEntry):
-    """I am the root of DistKV's type hierarchy.
-    """
+    """I am the root of DistKV's type hierarchy."""
 
     SUBTYPE = MatchEntry
 
@@ -270,8 +267,7 @@ class MatchRoot(MetaPathEntry):
 
 
 class CodecEntry(Entry):
-    """I am a codec.
-    """
+    """I am a codec."""
 
     _enc = None
     _dec = None
@@ -336,8 +332,7 @@ CodecEntry.SUBTYPE = CodecEntry
 
 
 class CodecRoot(Entry):
-    """I am the root of DistKV's codec hierarchy.
-    """
+    """I am the root of DistKV's codec hierarchy."""
 
     SUBTYPE = CodecEntry
 
@@ -397,8 +392,7 @@ ConvNull = ConvNull()
 
 
 class ConvName(MetaPathEntry):
-    """I am a named tree for conversion entries.
-    """
+    """I am a named tree for conversion entries."""
 
     SUBTYPE = ConvEntry
 
@@ -449,8 +443,7 @@ AclEntry.SUBTYPE = AclEntry
 
 
 class AclName(AclEntry):
-    """I am a named tree for ACL entries.
-    """
+    """I am a named tree for ACL entries."""
 
     SUBTYPE = AclEntry
 

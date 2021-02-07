@@ -624,8 +624,7 @@ class RunnerEntry(AttrClientEntry):
         await self.root.trigger_rescan()
 
     async def run_at(self, t: float):
-        """Next run at this time.
-        """
+        """Next run at this time."""
         self.target = t
         if not self._running:
             await self.save()

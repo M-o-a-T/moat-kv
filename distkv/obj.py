@@ -15,7 +15,6 @@ except ImportError:
     from async_generator import asynccontextmanager
 
 from .util import PathLongener, NoLock, NotGiven, combine_dict
-from .default import CFG
 
 import logging
 
@@ -394,7 +393,7 @@ class ClientRoot(ClientEntry):
                 cfg = combine_dict(cfg, defcfg)
         else:
             if not defcfg:
-                raise RuntimeError("no config for "+repr(cls))
+                raise RuntimeError("no config for " + repr(cls))
             cfg = defcfg
 
         def make():
@@ -449,8 +448,7 @@ class ClientRoot(ClientEntry):
 
     @asynccontextmanager
     async def run(self):
-        """A coroutine that fetches, and continually updates, a subtree.
-        """
+        """A coroutine that fetches, and continually updates, a subtree."""
         if self._require_client:
             scope.requires(self.client.scope)
 

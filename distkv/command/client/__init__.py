@@ -1,11 +1,9 @@
 # command line interface
 
 import asyncclick as click
-from functools import partial
 
 from distkv.util import attrdict, combine_dict, load_subgroup
 from distkv.client import open_client
-from distkv.command import Loader
 from distkv.default import CFG
 from distkv.auth import gen_auth
 
@@ -68,7 +66,7 @@ async def cli(ctx, host, port, auth, metadata):
     obj.meta = 3 if metadata else False
 
     try:
-        obj.client = await ctx.enter_async_context(open_client(**cfg))
+        obj.client = await ctx.with_async_resource(open_client(**cfg))
     except OSError as exc:
         obj.client = NullObj(exc)
     else:

@@ -4,6 +4,7 @@ Section: python
 Priority: optional
 Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
   python3-anyio (>= 2),
+  python3-asyncclick (>= 8),
   python3-asyncserf (>= 0.16),
   python3-asyncactor (>= 0.20),
   python3-asyncscope (>= 0.4),
@@ -25,6 +26,7 @@ Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   distmqtt (>= 0.32.1) | python3-asyncserf (>= 0.16),
   python3-anyio (>= 2),
+  python3-asyncclick (>= 8),
   python3-asyncactor (>= 0.20),
   python3-asyncscope (>= 0.4),
   python3-attr (>= 19),

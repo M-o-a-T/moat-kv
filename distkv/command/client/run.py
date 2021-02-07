@@ -161,8 +161,7 @@ async def _state_fix(obj, state, path, r):
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def list_(obj, state, table, as_dict, path):
-    """List run entries.
-    """
+    """List run entries."""
     if table and state:
         click.UsageError("'--table' and '--state' are mutually exclusive")
 
@@ -233,8 +232,7 @@ async def list_(obj, state, table, as_dict, path):
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def state_(obj, path, result):
-    """Get the status of a runner entry.
-    """
+    """Get the status of a runner entry."""
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if result and obj.meta:
