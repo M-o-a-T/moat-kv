@@ -36,7 +36,7 @@ async def test_00_trio_clock(autojump_clock):  # pylint: disable=unused-argument
 async def test_00_runner(autojump_clock):  # pylint: disable=unused-argument
     with pytest.raises(click.exceptions.NoSuchOption):
         await run("--doesnotexist")
-    #await run("--doesnotexist", expect_exit=2)
+    # await run("--doesnotexist", expect_exit=2)
     # await run('pdb','pdb')  # used for verifying that debugging works
 
 

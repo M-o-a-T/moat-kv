@@ -22,9 +22,9 @@ class MqttBackend(Backend):
 
     @asynccontextmanager
     async def connect(self, *a, **kw):
-        codec=kw.pop("codec", None)
+        codec = kw.pop("codec", None)
         if codec is None:
-            codec=NoopCodec()
+            codec = NoopCodec()
         C = MQTTClient(self._tg, codec=codec)
         try:
             await C.connect(*a, **kw)

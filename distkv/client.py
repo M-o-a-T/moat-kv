@@ -299,8 +299,7 @@ class _SingleReply:
 
 
 class ClientConfig:
-    """Accessor for configuration, possibly stored in DistKV.
-    """
+    """Accessor for configuration, possibly stored in DistKV."""
 
     _changed = None  # pylint
 
@@ -462,8 +461,7 @@ class Client:
                 await sock.send(p)
 
     async def _reader(self, *, evt=None):
-        """Main loop for reading
-        """
+        """Main loop for reading"""
         unpacker = stream_unpacker()
 
         async with anyio.open_cancel_scope():
@@ -482,12 +480,9 @@ class Client:
                     if self._socket is None:
                         break
                     try:
-                        try:
-                            buf = await self._socket.receive_some(4096)
-                        except AttributeError:
-                            buf = await self._socket.receive(4096)
-                        except anyio.EndOfStream:
-                            raise ServerClosedError("Connection closed by peer")
+                        buf = await self._socket.receive(4096)
+                    except anyio.EndOfStream:
+                        raise ServerClosedError("Connection closed by peer")
                     except ClosedResourceError:
                         return  # closed by us
                     if len(buf) == 0:  # Connection was closed.

@@ -150,8 +150,7 @@ async def null_client_login(stream, user: "BaseClientAuth"):  # pylint: disable=
 
 
 def _load_example(typ: str, make: bool, server: bool):  # pragma: no cover
-    """example code for :proc:`load`
-    """
+    """example code for :proc:`load`"""
     if typ == "client":
         if server:
             return null_server_login

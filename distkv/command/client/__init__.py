@@ -1,11 +1,9 @@
 # command line interface
 
 import asyncclick as click
-from functools import partial
 
 from distkv.util import attrdict, combine_dict, load_subgroup
 from distkv.client import open_client
-from distkv.command import Loader
 from distkv.default import CFG
 from distkv.auth import gen_auth
 

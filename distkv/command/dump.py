@@ -146,7 +146,7 @@ async def msg_(obj, path):
     elif len(path) == 1 and path[0].startswith("+"):
         p = path[0][1:]
         path = P(obj.cfg.server.root)
-        path |= (p or "#")
+        path |= p or "#"
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]
 
@@ -161,7 +161,7 @@ async def msg_(obj, path):
                     if v is None:
                         continue
                     if not isinstance(v, Mapping):
-                        v = {'_data': v}
+                        v = {"_data": v}
                     v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
@@ -186,12 +186,11 @@ async def post_(obj, path):
     """
     from distkv.backend import get_backend
 
-    path=P(path)
+    path = P(path)
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]
 
     async with get_backend(be)(codec=MsgPackCodec, **kw) as conn:
         for d in yload(sys.stdin, multi=True):
-            topic = d.pop('_topic', path)
+            topic = d.pop("_topic", path)
             await conn.send(*topic, payload=d)
-

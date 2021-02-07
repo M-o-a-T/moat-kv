@@ -778,8 +778,7 @@ class ServerClient:
         return await self.cmd_get_internal(msg)
 
     async def cmd_root(self, msg):
-        """Change to a sub-tree.
-        """
+        """Change to a sub-tree."""
         self._chroot(msg.path)
         return self.root.serialize(chop_path=self._chop_path, conv=self.conv)
 
@@ -829,8 +828,7 @@ class ServerClient:
             return {"access": acl.result.data if acl.allows("a") else True}
 
     async def cmd_enum(self, msg, with_data=None, _nulls_ok=None, root=None):
-        """Get all sub-nodes.
-        """
+        """Get all sub-nodes."""
         if root is None:
             root = self.root
         if with_data is None:
@@ -875,8 +873,7 @@ class ServerClient:
         await self.server.drop_node(node.name)
 
     async def cmd_get_value(self, msg, _nulls_ok=None, root=None):
-        """Get a node's value.
-        """
+        """Get a node's value."""
         if "node" in msg and "path" not in msg:
             n = Node(msg.node, cache=self.server.node_cache, create=False)
             return n[msg.tick].serialize(
@@ -900,15 +897,13 @@ class ServerClient:
         return entry
 
     async def cmd_set_value(self, msg, **kw):
-        """Set a node's value.
-        """
+        """Set a node's value."""
         if "value" not in msg:
             raise ClientError("Call 'delete_value' if you want to clear the value")
         return await self._set_value(msg, value=msg.value, **kw)
 
     async def cmd_delete_value(self, msg, **kw):
-        """Delete a node's value.
-        """
+        """Delete a node's value."""
         if "value" in msg:
             raise ClientError("A deleted entry can't have a value")
 
@@ -1756,8 +1751,7 @@ class Server:
                 self._delete_also_nodes = NodeSet()
 
     def _pack_multiple(self, msg):
-        """
-        """
+        """"""
         # protect against mistakenly encoded multi-part messages
         # TODO use a msgpack extension instead
         if isinstance(msg, Mapping):
@@ -1962,8 +1956,7 @@ class Server:
         return (host, port)
 
     async def do_send_missing(self):
-        """Task to periodically send "missing …" messages
-        """
+        """Task to periodically send "missing …" messages"""
         self.logger.debug("send-missing started")
         clock = self.cfg.server.ping.gap
         while self.fetch_missing:
@@ -2361,8 +2354,7 @@ class Server:
                 n.report_superseded(lk, local=True)
 
     async def _save(self, writer, shorter, nchain=-1, full=False):
-        """Save the current state.
-        """
+        """Save the current state."""
 
         async def saver(entry):
             if entry.data is NotGiven:

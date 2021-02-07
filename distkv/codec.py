@@ -5,7 +5,6 @@ plus an unpacker factory for streams.
 
 # compatibility
 
-from .util import *
+from .util import *  # noqa: F403
 
-__all__ = ["packer", "unpacker", "stream_unpacker"]
-
+__all__ = ["packer", "unpacker", "stream_unpacker"]  # noqa: F405

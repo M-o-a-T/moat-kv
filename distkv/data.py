@@ -5,10 +5,8 @@ import sys
 import os
 import asyncclick as click
 
-import simpleeval
-import ast as _ast
-
 from distkv.util import yprint, Path, NotGiven, attrdict
+
 
 async def data_get(
     obj,
@@ -216,5 +214,3 @@ async def node_attr(
 
     res = await obj.client.set(path, value=value, nchain=obj.meta, chain=chain)
     return res
-
-
