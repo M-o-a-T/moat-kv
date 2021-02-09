@@ -9,8 +9,6 @@ from distkv.util import yprint, P, Path
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.group()  # pylint: disable=undefined-variable
 @click.pass_obj

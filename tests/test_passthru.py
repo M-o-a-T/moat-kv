@@ -5,10 +5,6 @@ from distkv.mock.serf import stdtest
 from distkv.exceptions import CancelledError
 from distkv.util import P
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 @pytest.mark.trio
 async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument

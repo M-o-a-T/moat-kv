@@ -13,8 +13,6 @@ from asyncactor import PingEvent, TagEvent
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 TAGS = 4
 
 

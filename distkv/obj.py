@@ -16,9 +16,6 @@ except ImportError:
 
 from .util import PathLongener, NoLock, NotGiven, combine_dict
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 

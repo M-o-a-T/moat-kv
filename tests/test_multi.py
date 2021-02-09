@@ -8,9 +8,6 @@ import asyncserf
 import msgpack
 from distkv.util import attrdict, P, Path
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 N = 10
 
