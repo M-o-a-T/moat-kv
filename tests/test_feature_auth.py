@@ -117,7 +117,7 @@ async def test_24_auth_password(autojump_clock):
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        await run_c("data", "set", "-v", "42", "answers.life etc:.")
+        await run_c("data", "set", "-ev", "42", "answers.life etc:.")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
@@ -136,7 +136,7 @@ typ: password
 """
         )
         run_u = partial(run_c, "-a", "password name=joe password=test123")
-        await run_c("-a", "root", "data", "set", "-v", 42, "answers.life etc:.")
+        await run_c("-a", "root", "data", "set", "-ev", 42, "answers.life etc:.")
         with pytest.raises(ClientAuthMethodError):
             res = await run_u("data", "get", "answers.life etc:.")
         await run_c("-a", "root", "auth", "-m", "password", "init", "-s")
