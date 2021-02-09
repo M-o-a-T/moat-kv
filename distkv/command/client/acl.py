@@ -8,7 +8,6 @@ from distkv.data import data_get
 
 import logging
 
-logger = logging.getLogger(__name__)
 
 ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate

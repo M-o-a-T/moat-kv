@@ -6,8 +6,6 @@ from distkv.util import yprint, NotGiven, PathLongener, yload, P, Path
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.group()  # pylint: disable=undefined-variable
 async def cli():

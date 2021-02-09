@@ -14,8 +14,6 @@ from distkv.data import data_get
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")

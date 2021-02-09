@@ -8,8 +8,6 @@ from collections.abc import Mapping
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
 async def cli():

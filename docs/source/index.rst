@@ -59,6 +59,7 @@ strings. Some pieces of documentation might still reflect the old style.
    translator.rst
    debugging.rst
    extend.rst
+   related.rst
 
    TODO.rst
    history.rst

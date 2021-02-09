@@ -6,10 +6,6 @@ import asyncclick as click
 from distkv.util import main_
 from distkv.exceptions import ClientError, ServerError
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 def cmd():
     """

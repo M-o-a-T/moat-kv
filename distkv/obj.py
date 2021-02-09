@@ -16,9 +16,6 @@ except ImportError:
 
 from .util import PathLongener, NoLock, NotGiven, combine_dict
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
@@ -476,11 +473,10 @@ class ClientRoot(ClientEntry):
                                 if entry.chain == r.chain:
                                     # entry.update() has set this
                                     await entry.seen_value()
-                                    continue
-                                if _node_gt(entry.chain, r.chain):
+                                elif _node_gt(entry.chain, r.chain):
                                     # stale data
-                                    continue
-                                if not _node_gt(r.chain, entry.chain):
+                                    pass
+                                elif not _node_gt(r.chain, entry.chain):
                                     entry.mark_inconsistent(r)
                             except AttributeError:
                                 pass

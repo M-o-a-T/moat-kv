@@ -24,7 +24,7 @@ setup(
         "asyncactor >= 0.21",
         "asyncscope >= 0.4.0",
         "jsonschema >= 2.5",
-        "ruamel.yaml >= 0.16",
+        "ruyaml >= 0.89",
         # "argon2 >= 18.3",
         "PyNaCl >= 1.3",
         "diffiehellman",

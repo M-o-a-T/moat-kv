@@ -22,8 +22,6 @@ from ..exceptions import AuthFailedError
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 def load(typ: str, *, make: bool = False, server: bool):
     if typ == "client":

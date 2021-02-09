@@ -6,8 +6,6 @@ from distkv.server import Server
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
 @click.option(

@@ -7,8 +7,6 @@ from distkv.auth import loader, gen_auth
 
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 @click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
 @click.option("-m", "--method", default=None, help="Affect/use this auth method")
