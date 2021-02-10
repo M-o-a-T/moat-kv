@@ -258,7 +258,7 @@ is equivalent to::
 
   Limit recursion depth.
 
-* add_empty
+* empty
 
   Include empty nodes. This is useful when limiting the depth to non-leaf
   nodes without data.

@@ -42,7 +42,7 @@ async def data_get(
         if mindepth is not None:
             kw["min_depth"] = mindepth
         if empty:
-            kw["add_empty"] = True
+            kw["empty"] = True
         if obj.meta:
             kw.setdefault("nchain", obj.meta)
         y = {}
