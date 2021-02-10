@@ -5,34 +5,9 @@ import os
 import io
 import signal
 import time
-import trio  # signaling
 import anyio
 
-try:
-    Stream = anyio.abc.Stream
-except AttributeError:
-    Stream = anyio.abc.ByteStream
-
-try:
-    from trio import BrokenResourceError as trioBrokenResourceError
-    from trio import Cancelled as trioCancelled
-except ImportError:
-
-    class trioBrokenResourceError(Exception):
-        pass
-
-    class trioCancelled(BaseException):
-        pass
-
-
 from distmqtt.utils import create_queue
-
-try:
-    ClosedResourceError = anyio.exceptions.ClosedResourceError
-    ExceptionGroup = anyio.exceptions.ExceptionGroup
-except AttributeError:
-    ClosedResourceError = anyio.ClosedResourceError
-    ExceptionGroup = anyio.ExceptionGroup
 
 try:
     from contextlib import asynccontextmanager
@@ -85,6 +60,10 @@ from . import _version_tuple
 
 import logging
 
+Stream = anyio.abc.ByteStream
+
+ClosedResourceError = anyio.ClosedResourceError
+ExceptionGroup = anyio.ExceptionGroup
 
 _client_nr = 0
 
@@ -186,7 +165,7 @@ class StreamCommand:
             raise RuntimeError("Can't explicitly send in simple interaction")
         try:
             await self.client.send(msg)
-        except (ClosedResourceError, trioBrokenResourceError):
+        except ClosedResourceError:
             self.client.logger.info("OERR %d", self.client._client_nr)
 
     async def __call__(self, **kw):
@@ -1118,7 +1097,7 @@ class ServerClient:
                 msg["tock"] = self.server.tock
             try:
                 await self.stream.send_all(packer(msg))
-            except (ClosedResourceError, trioBrokenResourceError):
+            except ClosedResourceError:
                 self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
                 raise
@@ -1194,7 +1173,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive_some(4096)
-                except (ConnectionResetError, trioBrokenResourceError):
+                except ConnectionResetError:
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
@@ -1836,7 +1815,7 @@ class Server:
                     async with anyio.fail_after(10):
                         await self.tock_seen(msg.get("tock", 0))
                         await cmd(msg)
-        except (CancelledError, trioCancelled):
+        except CancelledError:
             self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:
@@ -2500,7 +2479,7 @@ class Server:
             await sd.wait()
 
     async def _sigterm(self):
-        with trio.open_signal_receiver(signal.SIGTERM) as r:
+        async with anyio.open_signal_receiver(signal.SIGTERM) as r:
             async for s in r:
                 for s, sd in self._savers:
                     await s.cancel()
@@ -2650,7 +2629,7 @@ class Server:
             c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
-        except (trioBrokenResourceError, ClosedResourceError):
+        except ClosedResourceError:
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
@@ -2658,7 +2637,7 @@ class Server:
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                if isinstance(exc, (trioBrokenResourceError, ClosedResourceError)):
+                if isinstance(exc, ClosedResourceError):
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)

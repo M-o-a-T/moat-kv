@@ -20,9 +20,12 @@ rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
     import random
 else:  # pragma: no cover
-    import trio._core._run as tcr
-
-    random = tcr._r
+    try:
+        import trio._core._run as tcr
+    except ImportError:
+        import random
+    else:
+        random = tcr._r
 
 try:
     from contextlib import asynccontextmanager, AsyncExitStack
