@@ -58,12 +58,12 @@ async def path__(obj, path):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command("all")
+@cli.command("run")
 @click.option(
     "-n", "--nodes", type=int, default=0, help="Size of the group (not for single-node runners)"
 )
 @click.pass_obj
-async def all_(obj, nodes):
+async def run(obj, nodes):
     """
     Run code that needs to run.
 
@@ -399,7 +399,7 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         yprint(res, stream=obj.stdout)
 
 
-@click.command()
+@cli.command()
 @click.pass_obj
 async def monitor(obj):
     """
