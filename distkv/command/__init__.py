@@ -14,7 +14,8 @@ def cmd():
     click.anyio_backend = "trio"
 
     try:
-        # pylint: disable=no-value-for-parameter,unexpected-keyword-arg
+        # @click.* decorators change the semantics
+        # pylint: disable=no-value-for-parameter
         main_()
     except (ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)

@@ -20,8 +20,6 @@ from ..server import StreamCommand
 from ..model import Entry
 from ..exceptions import AuthFailedError
 
-import logging
-
 
 def load(typ: str, *, make: bool = False, server: bool):
     if typ == "client":

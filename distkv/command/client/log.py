@@ -4,8 +4,6 @@ import asyncclick as click
 
 from distkv.util import yprint
 
-import logging
-
 
 @click.group(short_help="Manage logging.")  # pylint: disable=undefined-variable
 async def cli():

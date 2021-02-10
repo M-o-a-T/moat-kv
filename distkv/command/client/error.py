@@ -7,8 +7,6 @@ import datetime
 from distkv.errors import ErrorRoot
 from distkv.util import yprint, P, Path
 
-import logging
-
 
 @click.group()  # pylint: disable=undefined-variable
 @click.pass_obj

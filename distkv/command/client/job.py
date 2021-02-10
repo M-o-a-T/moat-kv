@@ -12,8 +12,6 @@ from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
 from distkv.util import yprint, PathLongener, P, Path, attrdict
 from distkv.data import data_get
 
-import logging
-
 
 @click.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")

@@ -10,8 +10,6 @@ from distkv.util import yprint, PathLongener, P, yload, Path
 from distkv.codec import unpacker
 from distmqtt.codecs import MsgPackCodec
 
-import logging
-
 
 @click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():

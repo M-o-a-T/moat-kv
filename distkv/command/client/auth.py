@@ -5,8 +5,6 @@ import asyncclick as click
 from distkv.util import split_arg, NotGiven, yprint, Path
 from distkv.auth import loader, gen_auth
 
-import logging
-
 
 @click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable
 @click.option("-m", "--method", default=None, help="Affect/use this auth method")

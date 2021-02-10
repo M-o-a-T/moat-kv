@@ -4,8 +4,6 @@ import asyncclick as click
 
 from distkv.server import Server
 
-import logging
-
 
 @click.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
 @click.option(
