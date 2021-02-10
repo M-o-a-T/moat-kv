@@ -399,7 +399,7 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         yprint(res, stream=obj.stdout)
 
 
-@click.command()
+@cli.command()
 @click.pass_obj
 async def monitor(obj):
     """
