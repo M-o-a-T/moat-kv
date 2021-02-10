@@ -776,7 +776,8 @@ class StateEntry(AttrClientEntry):
             return
 
         # side effect: add to the global node list
-        run.root.get_node(n)
+        if n is not None:
+            run.root.get_node(n)
 
         # Check whether running code needs to be killed off
         if run.scope is None:
