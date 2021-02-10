@@ -171,7 +171,7 @@ This subcommand does not have options.
 
 Read a DistKV value.
 
-If you read a sub-tree recursively, be aware that the whole subtree will
+If you read a sub-tree recursively, be aware that the whole subtree may
 be read before anything is printed. Use the ``watch --state`` subcommand
 for incremental output.
 
@@ -190,6 +190,10 @@ for incremental output.
    Using this option in conjunction with ``--recursive`` requires keeping
    the whole data set in memory before starting to print anything. This may
    take a long time or eat a lot of memory.
+
+   When this option is not used, the result is emitted as a list. Each item
+   consists of a dictionary with a single entry; the key is the item's
+   path. Some YAML parsers might not like that.
 
 .. option:: -m, --mindepth <integer>
 
@@ -989,7 +993,7 @@ TODO: Old versions of the code continue to run; DistKV does not yet restart user
 
 
 
-.. program:: distkv client run
+.. program:: distkv client job
 
 Subcommand for controlling and executing code stored in DistKV.
 
@@ -1007,16 +1011,28 @@ Subcommand for controlling and executing code stored in DistKV.
    The default group is "all".
 
 
-.. program:: distkv client run all
+.. program:: distkv client job run
 
 This is the actual runner, i.e. the program that runs stored tasks.
 
 This program does not terminate.
 
 
-.. program:: distkv client run list
+.. program:: distkv client job info
+
+List available groups (or nodes, if ``-g -`` is used).
+
+
+.. program:: distkv client job list
 
 List available run entries.
+
+The output is YAML-formatted unless ``-t`` is used.
+
+.. option:: -d, --as-dict <text>
+
+   When you use this option, the data is printed as a dictionary.
+   Otherwise it's a list of dicts with the entries' path as single key.
 
 .. option:: -s, --state
 
@@ -1026,7 +1042,11 @@ List available run entries.
 
    Only print the current state.
 
-.. option:: <prefix> …
+.. option:: -t, --table
+
+   Print a table with one line per job.
+
+.. option:: <prefix>
 
    Limit listing to this prefix.
 

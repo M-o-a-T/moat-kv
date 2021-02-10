@@ -16,12 +16,29 @@ from distkv.data import data_get
 @click.group()  # pylint: disable=undefined-variable
 @click.option("-n", "--node", help="node to run this code on. Empty: any one node, '-': all nodes")
 @click.option("-g", "--group", help="group to run this code on. Empty: default")
-@click.pass_obj
-async def cli(obj, node, group):
-    """Run code stored in DistKV."""
+@click.pass_context
+async def cli(ctx, node, group):
+    """Run code stored in DistKV.
+    
+    \b
+    The option '-n' is somewhat special:
+    -n -     Jobs for all hosts
+    -n XXX   Jobs for host XXX
+    (no -n)  Jobs for any host
+
+    The default group is 'default'.
+    """
+    obj = ctx.obj
     if group is None:
         group = "default"
-    if not node:
+    if group == "-":
+        if node is not None:
+            raise click.UsageError("'-g -' doesn't make sense with '-n'")
+        if ctx.invoked_subcommand != "info":
+            raise click.UsageError("'-g -' only makes sense with the 'info' command")
+        obj.runner_root = SingleRunnerRoot
+        subpath = (None,)
+    elif not node:
         obj.runner_root = AnyRunnerRoot
         subpath = (group,)
     elif node == "-":
@@ -29,7 +46,6 @@ async def cli(obj, node, group):
         subpath = (group,)
     else:
         obj.runner_root = SingleRunnerRoot
-
         subpath = (node, group)
 
     obj.subpath = Path(obj.cfg["runner"]["sub"][obj.runner_root.SUB]) + subpath
@@ -37,9 +53,27 @@ async def cli(obj, node, group):
     obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
 
 
-@cli.command("path")
+@cli.command("info")
 @click.pass_obj
+async def info(obj):
+    """
+    List available groups for the node in question.
+
+    \b
+    Options (between 'job' and 'info')
+    (none)    list groups with jobs for any host
+    -n -      list groups with jobs for all hosts
+    -g -      list hosts that have specific jobs
+    -n XXX    list groups with jobs for a specific host
+    """
+    path = obj.path[:-1]
+    async for r in obj.client.get_tree(path=path, min_depth=1, max_depth=1, empty=True):
+        print(r.path[-1], file=obj.stdout)
+
+
+@cli.command("path")
 @click.argument("path", nargs=1)
+@click.pass_obj
 async def path__(obj, path):
     """
     Emit the full path leading to the specified runner object.
@@ -119,7 +153,7 @@ def _state_fix_2(rs):
         pass
 
 
-async def _state_fix(obj, state, path, r):
+async def _state_fix(obj, state, state_only, path, r):
     try:
         val = r.value
     except AttributeError:
@@ -128,24 +162,29 @@ async def _state_fix(obj, state, path, r):
         rs = await obj.client._request(
             action="get_value", path=state + r.path, iter=False, nchain=obj.meta
         )
-        if obj.meta:
-            val["state"] = rs
-        elif "value" in rs:
-            val["state"] = rs.value
+        if state_only:
+            r.value = rs
+        else:
+            if obj.meta:
+                val["state"] = rs
+            elif "value" in rs:
+                val["state"] = rs.value
         if "value" in rs:
             _state_fix_2(rs.value)
-    if path:
-        r.path = path + r.path
-    try:
-        val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
-    except (AttributeError, TypeError):
-        pass
+    if not state_only:
+        if path:
+            r.path = path + r.path
+        try:
+            val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
+        except (AttributeError, TypeError):
+            pass
 
     return r
 
 
 @cli.command("list")
 @click.option("-s", "--state", is_flag=True, help="Add state data")
+@click.option("-S", "--state-only", is_flag=True, help="Only output state data")
 @click.option("-t", "--table", is_flag=True, help="one-line output")
 @click.option(
     "-d",
@@ -156,27 +195,14 @@ async def _state_fix(obj, state, path, r):
 )
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, state, table, as_dict, path):
+async def list_(obj, state, state_only, table, as_dict, path):
     """List run entries."""
     if table and state:
         click.UsageError("'--table' and '--state' are mutually exclusive")
 
     path = P(path)
-    if obj.subpath[-1] == "-":
-        if len(path):
-            raise click.UsageError("Group '-' can only be used without a path.")
 
-        path = obj.path[:-1]
-        res = await obj.client._request(
-            action="get_tree", path=path, iter=True, max_depth=2, nchain=obj.meta, empty=True
-        )
-        pl = PathLongener(())
-        async for r in res:
-            pl(r)
-            print(r.path[-1], file=obj.stdout)
-        return
-
-    if state or table:
+    if state or state_only or table:
         state = obj.statepath + path
 
     if table:
@@ -219,7 +245,7 @@ async def list_(obj, state, table, as_dict, path):
             obj,
             obj.path + path,
             as_dict=as_dict,
-            item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
+            item_mangle=partial(_state_fix, obj, state, state_only, None if as_dict else path),
         )
 
 
@@ -294,6 +320,8 @@ async def delete(obj, path, force):
         res.info = "Does not exist."
     else:
         val = res.value
+        if 'target' not in val:
+            val.target = None
         if val.target is not None:
             val.target = None
             res = await obj.client.set(obj.path + path, value=val, nchain=3, chain=res.chain)
