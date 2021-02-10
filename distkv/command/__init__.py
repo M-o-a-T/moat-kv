@@ -16,6 +16,9 @@ def cmd():
     try:
         # @click.* decorators change the semantics
         # pylint: disable=no-value-for-parameter
+        main_.help = """\
+This is DistKV, a distributed master-less key-value storage system.
+"""
         main_()
     except (ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
