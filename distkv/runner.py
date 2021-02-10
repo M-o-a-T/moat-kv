@@ -11,11 +11,7 @@ from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 import psutil
 import time
 from collections.abc import Mapping
-
-try:
-    from contextlib import AsyncExitStack
-except ImportError:
-    from async_exit_stack import AsyncExitStack
+from contextlib import AsyncExitStack
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
@@ -780,7 +776,8 @@ class StateEntry(AttrClientEntry):
             return
 
         # side effect: add to the global node list
-        run.root.get_node(n)
+        if n is not None:
+            run.root.get_node(n)
 
         # Check whether running code needs to be killed off
         if run.scope is None:

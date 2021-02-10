@@ -6,7 +6,7 @@ import datetime
 
 from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P
 from distkv.client import StreamedRequest
-from distkv.data import data_get, node_attr
+from distkv.data import data_get, node_attr, add_dates
 
 
 @click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
@@ -34,6 +34,7 @@ async def cli():
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
 @click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
+@click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, **k):
@@ -195,9 +196,10 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-o", "--only", is_flag=True, help="Value only, nothing fancy.")
+@click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def watch(obj, path, state, only):
+async def watch(obj, path, state, only, add_date):
     """Watch a DistKV subtree"""
 
     flushing = not state
@@ -208,6 +210,8 @@ async def watch(obj, path, state, only):
         path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
     ) as res:
         async for r in res:
+            if add_date and 'value' in r:
+                add_dates(r.value)
             if r.get("state", "") == "uptodate":
                 if only and not seen:
                     # value doesn't exist
@@ -221,7 +225,7 @@ async def watch(obj, path, state, only):
                         continue
                     except AttributeError:
                         # value has been deleted
-                        return
+                        continue
             if flushing:
                 r["time"] = time.monotonic()
                 r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

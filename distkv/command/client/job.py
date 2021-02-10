@@ -10,7 +10,7 @@ from functools import partial
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
 from distkv.util import yprint, PathLongener, P, Path, attrdict
-from distkv.data import data_get
+from distkv.data import data_get, add_dates
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -119,40 +119,6 @@ async def run(obj, nodes):
             await anyio.sleep(99999)
 
 
-def _state_fix_2(rs):
-    try:
-        if rs.started:
-            rs.started_date = datetime.datetime.fromtimestamp(rs.started).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-    except AttributeError:
-        pass
-    try:
-        if rs.stopped:
-            rs.stopped_date = datetime.datetime.fromtimestamp(rs.stopped).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-    except AttributeError:
-        pass
-    try:
-        if rs.pinged:
-            rs.pinged_date = datetime.datetime.fromtimestamp(rs.pinged).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-    except AttributeError:
-        pass
-    try:
-        if rs.computed:
-            try:
-                rs.computed_date = datetime.datetime.fromtimestamp(rs.computed).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-            except (ValueError, OverflowError):
-                pass
-    except AttributeError:
-        pass
-
-
 async def _state_fix(obj, state, state_only, path, r):
     try:
         val = r.value
@@ -170,7 +136,7 @@ async def _state_fix(obj, state, state_only, path, r):
             elif "value" in rs:
                 val["state"] = rs.value
         if "value" in rs:
-            _state_fix_2(rs.value)
+            add_dates(rs.value)
     if not state_only:
         if path:
             r.path = path + r.path

@@ -1,8 +1,3 @@
-try:
-    from contextlib import asynccontextmanager, AsyncExitStack
-except ImportError:
-    from async_generator import asynccontextmanager
-    from async_exit_stack import AsyncExitStack
 import os
 import trio
 import anyio
@@ -10,6 +5,8 @@ import mock
 import copy
 import time
 from functools import partial
+from contextlib import asynccontextmanager, AsyncExitStack
+
 from asyncscope import main_scope
 
 from . import CFG

@@ -3,9 +3,39 @@ Data access
 """
 import sys
 import os
+import time
+import datetime
 import asyncclick as click
+from collections.abc import Mapping
 
 from distkv.util import yprint, Path, NotGiven, attrdict
+
+
+def add_dates(d):
+    """
+    Given a dict with int/float entries that might conceivably be dates,
+    add ``_*`` with a textual representation.
+    """
+
+    t = time.time()
+    start = t - 366*24*3600;
+    stop = t + 366*24*3600;
+    def _add(d):
+        if isinstance(d,(list,tuple)):
+            for dd in d:
+                _add(dd)
+            return
+        if not isinstance(d,Mapping):
+            return
+        for k,v in list(d.items()):
+            if k.startswith("_"):
+                continue
+            if not isinstance(v,(int,float)):
+                _add(v)
+                continue
+            if start <= v <= stop:
+                d[f"_{k}"] = datetime.datetime.fromtimestamp(v).strftime("%Y-%m-%d %H:%M:%S")
+    _add(d)
 
 
 async def data_get(
@@ -21,6 +51,7 @@ async def data_get(
     internal=False,
     path_mangle=None,
     item_mangle=None,
+    add_date=False
 ):
     """Generic code to dump a subtree.
 
@@ -59,6 +90,8 @@ async def data_get(
             path = path_mangle(path)
             if path is None:
                 continue
+            if add_date and 'value' in r:
+                add_dates(r.value)
 
             if as_dict is not None:
                 yy = y

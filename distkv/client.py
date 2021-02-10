@@ -9,29 +9,9 @@ import outcome
 import socket
 import os
 from typing import Tuple
+from contextlib import asynccontextmanager, AsyncExitStack
+
 from asyncscope import scope, Scope, main_scope
-
-try:
-    ClosedResourceError = anyio.exceptions.ClosedResourceError
-except AttributeError:
-    ClosedResourceError = anyio.ClosedResourceError
-
-rs = os.environ.get("PYTHONHASHSEED", None)
-if rs is None:
-    import random
-else:  # pragma: no cover
-    try:
-        import trio._core._run as tcr
-    except ImportError:
-        import random
-    else:
-        random = tcr._r
-
-try:
-    from contextlib import asynccontextmanager, AsyncExitStack
-except ImportError:  # pragma: no cover
-    from async_generator import asynccontextmanager
-    from async_exit_stack import AsyncExitStack
 
 from .util import (
     attrdict,
@@ -60,6 +40,22 @@ from .codec import packer, stream_unpacker
 import logging
 
 logger = logging.getLogger(__name__)
+
+try:
+    ClosedResourceError = anyio.exceptions.ClosedResourceError
+except AttributeError:
+    ClosedResourceError = anyio.ClosedResourceError
+
+rs = os.environ.get("PYTHONHASHSEED", None)
+if rs is None:
+    import random
+else:  # pragma: no cover
+    try:
+        import trio._core._run as tcr
+    except ImportError:
+        import random
+    else:
+        random = tcr._r
 
 __all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest"]
 
