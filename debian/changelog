@@ -1,3 +1,9 @@
+distkv (0.52.6-2) unstable; urgency=medium
+
+  * asyncclick has an epoch, dammit
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Wed, 10 Feb 2021 16:35:33 +0100
+
 distkv (0.52.6-1) unstable; urgency=medium
 
   * Merge
