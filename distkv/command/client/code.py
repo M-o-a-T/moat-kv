@@ -5,8 +5,6 @@ import sys
 
 from distkv.util import yprint, NotGiven, yload, P
 
-import logging
-
 
 @click.group()  # pylint: disable=undefined-variable
 async def cli():

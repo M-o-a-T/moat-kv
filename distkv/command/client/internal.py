@@ -6,8 +6,6 @@ from range_set import RangeSet
 from distkv.util import yprint, PathLongener, P
 from collections.abc import Mapping
 
-import logging
-
 
 @click.group(short_help="Control internal state.")  # pylint: disable=undefined-variable
 async def cli():

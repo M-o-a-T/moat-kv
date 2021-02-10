@@ -9,8 +9,6 @@ from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P
 from distkv.client import StreamedRequest
 from distkv.data import data_get, node_attr
 
-import logging
-
 
 @click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
 async def cli():

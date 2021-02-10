@@ -6,8 +6,6 @@ import asyncclick as click
 from distkv.util import yprint, P, Path
 from distkv.data import data_get
 
-import logging
-
 
 ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate

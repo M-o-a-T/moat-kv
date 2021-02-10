@@ -4,8 +4,6 @@ import asyncclick as click
 
 from distkv.util import yprint, NotGiven, PathLongener, yload, P, Path
 
-import logging
-
 
 @click.group()  # pylint: disable=undefined-variable
 async def cli():

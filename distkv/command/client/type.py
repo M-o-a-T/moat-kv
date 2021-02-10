@@ -5,8 +5,6 @@ import json
 
 from distkv.util import yprint, NotGiven, yload, P, Path
 
-import logging
-
 
 @click.group()  # pylint: disable=undefined-variable
 async def cli():

@@ -11,7 +11,6 @@ from asyncactor import Actor
 from asyncactor.backend import get_transport
 from asyncactor import PingEvent, TagEvent
 
-import logging
 
 TAGS = 4
 
