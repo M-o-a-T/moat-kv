@@ -11,11 +11,7 @@ from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
 import psutil
 import time
 from collections.abc import Mapping
-
-try:
-    from contextlib import AsyncExitStack
-except ImportError:
-    from async_exit_stack import AsyncExitStack
+from contextlib import AsyncExitStack
 
 from .actor import ClientActor
 from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
