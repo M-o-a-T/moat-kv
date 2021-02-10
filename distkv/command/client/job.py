@@ -163,7 +163,7 @@ async def list_(obj, state, table, as_dict, path):
 
     path = P(path)
     if obj.subpath[-1] == "-":
-        if path:
+        if len(path):
             raise click.UsageError("Group '-' can only be used without a path.")
 
         path = obj.path[:-1]

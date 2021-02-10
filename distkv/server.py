@@ -441,7 +441,7 @@ class SCmd_get_tree(StreamCommand):
         nchain = msg.get("nchain", 0)
         ps = PathShortener(entry.path)
         max_depth = msg.get("max_depth", None)
-        empty = msg.get("add_empty", False)
+        empty = msg.get("empty", False)
         conv = client.conv
 
         if max_depth is not None:
@@ -500,7 +500,7 @@ class SCmd_watch(StreamCommand):
         nchain = msg.get("nchain", 0)
         max_depth = msg.get("max_depth", -1)
         min_depth = msg.get("min_depth", 0)
-        empty = msg.get("add_empty", False)
+        empty = msg.get("empty", False)
 
         async with Watcher(entry) as watcher:
             async with anyio.create_task_group() as tg:
