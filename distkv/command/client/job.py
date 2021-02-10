@@ -153,7 +153,7 @@ def _state_fix_2(rs):
         pass
 
 
-async def _state_fix(obj, state, path, r):
+async def _state_fix(obj, state, state_only, path, r):
     try:
         val = r.value
     except AttributeError:
@@ -162,24 +162,29 @@ async def _state_fix(obj, state, path, r):
         rs = await obj.client._request(
             action="get_value", path=state + r.path, iter=False, nchain=obj.meta
         )
-        if obj.meta:
-            val["state"] = rs
-        elif "value" in rs:
-            val["state"] = rs.value
+        if state_only:
+            r.value = rs
+        else:
+            if obj.meta:
+                val["state"] = rs
+            elif "value" in rs:
+                val["state"] = rs.value
         if "value" in rs:
             _state_fix_2(rs.value)
-    if path:
-        r.path = path + r.path
-    try:
-        val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
-    except (AttributeError, TypeError):
-        pass
+    if not state_only:
+        if path:
+            r.path = path + r.path
+        try:
+            val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
+        except (AttributeError, TypeError):
+            pass
 
     return r
 
 
 @cli.command("list")
 @click.option("-s", "--state", is_flag=True, help="Add state data")
+@click.option("-S", "--state-only", is_flag=True, help="Only output state data")
 @click.option("-t", "--table", is_flag=True, help="one-line output")
 @click.option(
     "-d",
@@ -190,14 +195,14 @@ async def _state_fix(obj, state, path, r):
 )
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, state, table, as_dict, path):
+async def list_(obj, state, state_only, table, as_dict, path):
     """List run entries."""
     if table and state:
         click.UsageError("'--table' and '--state' are mutually exclusive")
 
     path = P(path)
 
-    if state or table:
+    if state or state_only or table:
         state = obj.statepath + path
 
     if table:
@@ -240,7 +245,7 @@ async def list_(obj, state, table, as_dict, path):
             obj,
             obj.path + path,
             as_dict=as_dict,
-            item_mangle=partial(_state_fix, obj, state, None if as_dict else path),
+            item_mangle=partial(_state_fix, obj, state, state_only, None if as_dict else path),
         )
 
 
