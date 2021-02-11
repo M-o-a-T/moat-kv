@@ -227,8 +227,8 @@ async def monitor(obj, path, state, only, add_date):
                         # value has been deleted
                         continue
             if flushing:
-                r["time"] = time.monotonic()
-                r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                r["time"] = time.time()
+                r["_time"] = datetime.datetime.now().isoformat(sep=' ', timespec='milliseconds')
             yprint(r, stream=obj.stdout)
             print("---", file=obj.stdout)
             if flushing:
