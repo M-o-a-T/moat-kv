@@ -60,15 +60,7 @@ async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
         if not all_errors and bool(val.get("resolved", False)) != resolved:
             return
 
-        fs = val.get("first_seen")
-        if fs:
-            val.first_seen_date = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
-        ls = val.get("last_seen")
-        if ls:
-            val.last_seen_date = datetime.datetime.fromtimestamp(ls).strftime("%Y-%m-%d %H:%M:%S")
-        fs = val.get("seen")
-        if fs:
-            val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime("%Y-%m-%d %H:%M:%S")
+        add_dates(val)
         try:
             rp = val.path
             if as_dict:
@@ -93,11 +85,7 @@ async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
             if node and rr.path[-1] != node:
                 return
             val = rr.value
-            fs = val.get("seen")
-            if fs:
-                val["seen_date"] = datetime.datetime.fromtimestamp(fs).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+            add_dates(val)
             if verbose < 2:
                 rr.value.pop("trace", None)
             rn[rr.path[-1]] = rr if obj.meta else rr.value

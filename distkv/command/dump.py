@@ -161,7 +161,8 @@ async def msg_(obj, path):
                     v["_topic"] = Path.build(t)
                 else:
                     v["_type"] = type(msg).__name__
-                v["_timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                v["_timestamp"] = datetime.datetime.now().isoformat(sep=' ', timespec='milliseconds')
 
                 yprint(v, stream=obj.stdout)
                 print("---", file=obj.stdout)
