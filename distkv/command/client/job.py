@@ -140,10 +140,7 @@ async def _state_fix(obj, state, state_only, path, r):
     if not state_only:
         if path:
             r.path = path + r.path
-        try:
-            val.target_date = datetime.datetime.fromtimestamp(val.target).strftime("%Y-%m-%d %H:%M:%S")
-        except (AttributeError, TypeError):
-            pass
+        add_dates(val)
 
     return r
 

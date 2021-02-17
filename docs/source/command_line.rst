@@ -172,7 +172,7 @@ This subcommand does not have options.
 Read a DistKV value.
 
 If you read a sub-tree recursively, be aware that the whole subtree may
-be read before anything is printed. Use the ``watch --state`` subcommand
+be read before anything is printed. Use the ``monitor --state`` subcommand
 for incremental output.
 
 .. option:: -r, --recursive
@@ -331,7 +331,7 @@ Recursive changes only check the entry you mention on the command line.
    Write to the entry at this location.
 
 
-.. program:: distkv client data watch
+.. program:: distkv client data monitor
 
 Monitor changes to the state of an entry, or rather its subtree.
 

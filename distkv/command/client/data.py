@@ -199,8 +199,8 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
 @click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
 @click.argument("path", nargs=1)
 @click.pass_obj
-async def watch(obj, path, state, only, add_date):
-    """Watch a DistKV subtree"""
+async def monitor(obj, path, state, only, add_date):
+    """Monitor a DistKV subtree"""
 
     flushing = not state
     path = P(path)
@@ -227,8 +227,8 @@ async def watch(obj, path, state, only, add_date):
                         # value has been deleted
                         continue
             if flushing:
-                r["time"] = time.monotonic()
-                r["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                r["time"] = time.time()
+                r["_time"] = datetime.datetime.now().isoformat(sep=' ', timespec='milliseconds')
             yprint(r, stream=obj.stdout)
             print("---", file=obj.stdout)
             if flushing:
