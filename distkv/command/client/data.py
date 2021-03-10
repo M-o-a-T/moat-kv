@@ -210,7 +210,7 @@ async def monitor(obj, path, state, only, add_date):
         path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
     ) as res:
         async for r in res:
-            if add_date and 'value' in r:
+            if add_date and "value" in r:
                 add_dates(r.value)
             if r.get("state", "") == "uptodate":
                 if only and not seen:
@@ -228,7 +228,7 @@ async def monitor(obj, path, state, only, add_date):
                         continue
             if flushing:
                 r["time"] = time.time()
-                r["_time"] = datetime.datetime.now().isoformat(sep=' ', timespec='milliseconds')
+                r["_time"] = datetime.datetime.now().isoformat(sep=" ", timespec="milliseconds")
             yprint(r, stream=obj.stdout)
             print("---", file=obj.stdout)
             if flushing:
