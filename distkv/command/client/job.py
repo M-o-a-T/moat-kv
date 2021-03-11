@@ -19,7 +19,7 @@ from distkv.data import data_get, add_dates
 @click.pass_context
 async def cli(ctx, node, group):
     """Run code stored in DistKV.
-    
+
     \b
     The option '-n' is somewhat special:
     -n -     Jobs for all hosts
@@ -283,7 +283,7 @@ async def delete(obj, path, force):
         res.info = "Does not exist."
     else:
         val = res.value
-        if 'target' not in val:
+        if "target" not in val:
             val.target = None
         if val.target is not None:
             val.target = None

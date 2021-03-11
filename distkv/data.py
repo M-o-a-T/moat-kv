@@ -18,23 +18,27 @@ def add_dates(d):
     """
 
     t = time.time()
-    start = t - 366*24*3600;
-    stop = t + 366*24*3600;
+    start = t - 366 * 24 * 3600
+    stop = t + 366 * 24 * 3600
+
     def _add(d):
-        if isinstance(d,(list,tuple)):
+        if isinstance(d, (list, tuple)):
             for dd in d:
                 _add(dd)
             return
-        if not isinstance(d,Mapping):
+        if not isinstance(d, Mapping):
             return
-        for k,v in list(d.items()):
+        for k, v in list(d.items()):
             if k.startswith("_"):
                 continue
-            if not isinstance(v,(int,float)):
+            if not isinstance(v, (int, float)):
                 _add(v)
                 continue
             if start <= v <= stop:
-                d[f"_{k}"] = datetime.datetime.fromtimestamp(v).isoformat(sep=' ', timespec='milliseconds')
+                d[f"_{k}"] = datetime.datetime.fromtimestamp(v).isoformat(
+                    sep=" ", timespec="milliseconds"
+                )
+
     _add(d)
 
 
@@ -51,7 +55,7 @@ async def data_get(
     internal=False,
     path_mangle=None,
     item_mangle=None,
-    add_date=False
+    add_date=False,
 ):
     """Generic code to dump a subtree.
 
@@ -90,7 +94,7 @@ async def data_get(
             path = path_mangle(path)
             if path is None:
                 continue
-            if add_date and 'value' in r:
+            if add_date and "value" in r:
                 add_dates(r.value)
 
             if as_dict is not None:
