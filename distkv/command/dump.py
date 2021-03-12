@@ -11,7 +11,7 @@ from distkv.codec import unpacker
 from distmqtt.codecs import MsgPackCodec
 
 
-@click.group(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable
+@load_subgroup(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable
 async def cli():
     """
     Low-level tools that don't depend on a running DistKV server.
