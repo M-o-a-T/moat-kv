@@ -6,12 +6,12 @@ import asyncclick as click
 from collections.abc import Mapping
 
 from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener, P, yload, Path
+from distkv.util import yprint, PathLongener, P, yload, Path, load_subgroup
 from distkv.codec import unpacker
 from distmqtt.codecs import MsgPackCodec
 
 
-@click.group(short_help="Manage data.")  # pylint: disable=undefined-variable
+@click.group(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable
 async def cli():
     """
     Low-level tools that don't depend on a running DistKV server.
