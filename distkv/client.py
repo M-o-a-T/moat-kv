@@ -946,5 +946,7 @@ class Client:
         """
         if raw is None:
             return self._request(action="msg_send", topic=topic, data=data)
+        elif data is not None:
+            raise RuntimeError("You can either send raw or non-raw data")
         else:
             return self._request(action="msg_send", topic=topic, raw=raw)
