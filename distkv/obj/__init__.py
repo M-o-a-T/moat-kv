@@ -14,7 +14,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from .util import PathLongener, NoLock, NotGiven, combine_dict
+from ..util import PathLongener, NoLock, NotGiven, combine_dict
 
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
@@ -219,14 +219,14 @@ class ClientEntry:
             self.chain = r.chain
             return r
 
-    async def delete(self, _locked=False, nchain=0, chain=True, wait=False):
+    async def delete(self, _locked=False, nchain=0, chain=True, wait=False, recursive=False):
         """Delete this node's value.
 
         This is a coroutine.
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.delete(
-                self._path, nchain=nchain, **({"chain": self.chain} if chain else {})
+                self._path, nchain=nchain, recursive=recursive, **({"chain": self.chain} if chain else {})
             )
             if wait:
                 await self.root.wait_chain(r.chain)
