@@ -3,7 +3,7 @@
 import asyncclick as click
 import sys
 
-from distkv.util import yprint, NotGiven, yload, P
+from distkv.util import yprint, NotGiven, yload, P, attr_args, process_args
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -43,19 +43,17 @@ async def get(obj, path, script):
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
 @click.option("-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)")
-@click.option("-v", "--var", "vars_", nargs=2, multiple=True, help="Value (name val…)")
-@click.option("-e", "--eval", "eval_", nargs=2, multiple=True, help="Value (name val), evaluated")
-@click.option("-p", "--path", "path_", nargs=2, multiple=True, help="Value (name val), as path")
 @click.argument("path", nargs=1)
+@attr_args
 @click.pass_obj
 async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, info):
     """Save Python code.
 
     The code may have inputs. You specify the inputs and their default
     values with '-v VAR VALUE' (string), '-p VAR PATH' (DistKV path), or
-    '-e VAR EXPR' (Python expression). Use '-e VAR -' to state that VAR
-    shall not have a default value, and '-e VAR /' to delete VAR from the
-    list of inputs entirely.
+    '-e VAR EXPR' (simple Python expression). Use '-e VAR -' to state that
+    VAR shall not have a default value, and '-e VAR /' to delete VAR from
+    the list of inputs entirely.
     """
     if async_:
         if thread:
@@ -95,21 +93,7 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
         vs = set()
     vd = msg.setdefault("default", {})
 
-    for k, v in vars_:
-        vs.add(k)
-        vd[k] = v
-    for k, v in eval_:
-        vs.add(k)
-        if v == "-":
-            vd.pop(k, None)
-        elif v == "/":
-            vd.pop(k, None)
-            vs.discard(k)
-        else:
-            vd[k] = eval(v)  # pylint:disable=eval-used
-    for k, v in path_:
-        vs.add(k)
-        vd[k] = P(v)
+    process_args(vars_, eval_, path_, vd, vs)
     msg["vars"] = list(vs)
 
     res = await obj.client.set(

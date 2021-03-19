@@ -137,10 +137,15 @@ async def set_(obj, path, value, eval_, last, new, path_, attr):
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
+class nstr:
+    def __new__(cls, val):
+        if val is NotGiven:
+            return val
+        return str(val)
 
 @cli.command(short_help="Delete an entry / subtree")
 @click.argument("path", nargs=1)
-@click.option("-p", "--prev", default=NotGiven, help="Previous value. Deprecated; use 'last'")
+@click.option("-p", "--prev", type=nstr, default=NotGiven, help="Previous value. Deprecated; use 'last'")
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
@@ -165,7 +170,7 @@ async def delete(obj, path, prev, last, recursive, eval_, internal):
         raise click.UsageError("You need to add a value that can be evaluated")
     if recursive:
         if prev is not NotGiven or last:
-            raise click.UsageError("'local' and 'force' are mutually exclusive")
+            raise click.UsageError("You can't use a prev value when deleting recursively.")
         if internal:
             raise click.UsageError("'internal' and 'recursive' are mutually exclusive")
     else:

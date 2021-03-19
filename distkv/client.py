@@ -757,7 +757,8 @@ class Client:
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, path, *, chain=NotGiven, prev=NotGiven, nchain=0):
+    def delete(self, path, *, chain=NotGiven, prev=NotGiven, nchain=0,
+            recursive=False):
         """
         Delete a node.
 
@@ -769,6 +770,8 @@ class Client:
             chain: the previous value's change chain.
             prev: the previous value. Discouraged; use ``chain`` instead.
             nchain: set to retrieve the node's chain, for setting a new value.
+            recursive: delete the whole subtree. Cannot be used with
+                ``chain`` and/or ``prev``.
         """
         if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
@@ -778,7 +781,7 @@ class Client:
         if chain is not NotGiven:
             kw["chain"] = chain
 
-        return self._request(action="delete_value", path=path, iter=False, nchain=nchain, **kw)
+        return self._request(action="delete_tree" if recursive else "delete_value", path=path, iter=False, nchain=nchain, **kw)
 
     async def list(self, path, *, with_data=False, empty=None, **kw):
         """

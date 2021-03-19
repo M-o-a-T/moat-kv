@@ -1,5 +1,7 @@
 include README.rst CHEATSHEET.rst LICENSE* CODE_OF_CONDUCT* CONTRIBUTING*
 include .coveragerc
 include test-requirements.txt
-recursive-include docs *
+include MANIFEST.in pyproject.toml .pylintrc .readthedocs.yml .travis.yml
+recursive-include bin ci docs examples scripts setup.* systemd tests
 prune docs/build
+prune docs/tmp
