@@ -203,12 +203,12 @@ code: "if not isinstance(value,int): raise ValueError('not an int')"
             await rr("type", "match", "-t", "int.percent", "foo.+.bar")
 
             with pytest.raises(ServerError):
-                await rr("data", "set", "-v", "123", "foo.dud.bar")
+                await rr("data", "foo.dud.bar", "set", "-v", ":", "123")
             with pytest.raises(ServerError):
-                await rr("data", "set", "-ev", "123", "foo.dud.bar")
+                await rr("data", "foo.dud.bar", "set", "-e", ":", "123")
             with pytest.raises(ServerError):
-                await rr("data", "set", "-ev", "5.5", "foo.dud.bar")
-            await rr("data", "set", "-ev", "55", "foo.dud.bar")
+                await rr("data", "foo.dud.bar", "set", "-e", ":", "5.5")
+            await rr("data", "foo.dud.bar", "set", "-e", ":", "55")
 
             assert (await c.get(P("foo.dud.bar"))).value == 55
 

@@ -4,12 +4,14 @@ import time
 import asyncclick as click
 import datetime
 
-from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P, attr_args, process_args
+from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P, attr_args
 from distkv.client import StreamedRequest
 from distkv.data import data_get, node_attr, add_dates
 
 
-@click.group(short_help="Manage data.", invoke_without_command=True)  # pylint: disable=undefined-variable
+@click.group(
+    short_help="Manage data.", invoke_without_command=True
+)  # pylint: disable=undefined-variable
 @click.argument("path", type=P, nargs=1)
 @click.pass_context
 async def cli(ctx, path):
@@ -129,8 +131,11 @@ class nstr:
             return val
         return str(val)
 
+
 @cli.command(short_help="Delete an entry / subtree")
-@click.option("-p", "--prev", type=nstr, default=NotGiven, help="Previous value. Deprecated; use 'last'")
+@click.option(
+    "-p", "--prev", type=nstr, default=NotGiven, help="Previous value. Deprecated; use 'last'"
+)
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
@@ -165,12 +170,7 @@ async def delete(obj, prev, last, recursive, eval_, internal):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.delete(
-        path=obj.path,
-        nchain=obj.meta,
-        recursive=recursive,
-        **args
-    )
+    res = await obj.client.delete(path=obj.path, nchain=obj.meta, recursive=recursive, **args)
     if isinstance(res, StreamedRequest):
         pl = PathLongener(obj.path)
         async for r in res:
@@ -230,6 +230,6 @@ async def update(obj, infile):
     """Send a list of updates to a DistKV subtree"""
     async with MsgReader(path=infile) as reader:
         async for msg in reader:
-            if not hasattr(msg,'path'):
+            if not hasattr(msg, "path"):
                 continue
-            await obj.client.set(obj.path+msg.path, value=msg.value)
+            await obj.client.set(obj.path + msg.path, value=msg.value)

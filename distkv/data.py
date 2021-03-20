@@ -5,7 +5,6 @@ import sys
 import os
 import time
 import datetime
-import asyncclick as click
 from collections.abc import Mapping
 
 from distkv.util import yprint, Path, NotGiven, attrdict, process_args
@@ -180,9 +179,7 @@ def res_update(res, attr: Path, value=None, **kw):  # pylint: disable=redefined-
     return val._update(attr, value=value, **kw)
 
 
-async def node_attr(
-    obj, path, vars_, eval_, path_, res=None, chain=None
-):
+async def node_attr(obj, path, vars_, eval_, path_, res=None, chain=None):
     """
     Sub-attr setter.
 
@@ -198,12 +195,15 @@ async def node_attr(
     if res is None:
         res = await obj.client.get(path, nchain=obj.meta or 2)
     if chain is None:
-        chain = res.chain
-
+        try:
+            chain = res.chain
+        except AttributeError:
+            pass
     try:
         val = res.value
     except AttributeError:
         chain = None
+        val = NotGiven
     val = process_args(val, vars_, eval_, path_)
     if val is NotGiven:
         res = await obj.client.delete(path, nchain=obj.meta, chain=chain)

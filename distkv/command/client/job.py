@@ -4,12 +4,11 @@ import sys
 import asyncclick as click
 import time
 import anyio
-import datetime
 from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, PathLongener, P, Path, attrdict
+from distkv.util import yprint, P, Path, attrdict
 from distkv.data import data_get, add_dates
 
 
@@ -55,7 +54,7 @@ async def cli(ctx, node, group):
 
 @cli.command("info")
 @click.pass_obj
-async def info(obj):
+async def info_(obj):
     """
     List available groups for the node in question.
 
@@ -232,7 +231,7 @@ async def state_(obj, path, result):
             print("Not found (yet?)", file=sys.stderr)
         sys.exit(1)
 
-    _state_fix_2(res.value)
+    add_dates(res.value)
     if not obj.meta:
         res = res.value
     yprint(res, stream=obj.stdout)
@@ -259,7 +258,7 @@ async def get(obj, path, state):
     res.path = path
     if state:
         state = obj.statepath
-    await _state_fix(obj, state, res, None)
+    await _state_fix(obj, state, False, path, res)
     if not obj.meta:
         res = res.value
 

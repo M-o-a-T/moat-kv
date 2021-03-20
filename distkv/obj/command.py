@@ -1,19 +1,13 @@
 # command line interface helpers for objects
 
-import os
-import sys
-
 import asyncclick as click
-
-from distkv.util import P, attrdict
-from distkv.data import data_get
-from distkv_ext.inv.model import InventoryRoot, Host, Wire
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["inv_sub"]
+
 
 class _InvSub:
     """
@@ -79,7 +73,7 @@ def inv_sub(cli, *a, **kw):
     """
     tinv = _InvSub(*a, **kw)
     tname = tinv.name
-    tnname = "n_"+tname
+    tnname = "n_" + tname
 
     def this(obj):
         # Delayed resolving of the actual thing subhierarchy
@@ -113,15 +107,12 @@ def inv_sub(cli, *a, **kw):
             n = this(obj).by_name(name)
             if n is None:
                 raise KeyError(name)
-            res = {}
             for k in n.ATTRS + getattr(n, "AUX_ATTRS", ()):
                 v = getattr(n, k, None)
                 if v is not None:
                     if isinstance(v, dict):
                         v = v.items()
-                    if isinstance(
-                        v, type({}.items())
-                    ):  # pylint: disable=isinstance-second-argument-not-valid-type
+                    if isinstance(v, type({}.items())):  # pylint: disable=W1116
                         for kk, vv in sorted(v):
                             if isinstance(vv, (tuple, list)):
                                 if vv:
@@ -216,4 +207,3 @@ def inv_sub(cli, *a, **kw):
 
     # Finally, return the CLI so the user can attach more stuff
     return typ
-

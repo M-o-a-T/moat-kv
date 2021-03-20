@@ -28,23 +28,23 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
 
-        r = await run_c("data", "get", ":")
+        r = await run_c("data", ":", "get")
         assert r.stdout == "123\n"
 
         r = await run_c("auth", "-m", "root", "user", "add")
 
-        r = await run_c("data", "get", ":")
+        r = await run_c("data", ":", "get")
         assert r.stdout == "123\n"
 
         r = await run_c("auth", "-m", "root", "init")
 
         with pytest.raises(ClientAuthRequiredError):
-            await run_c("data", "get", ":")
+            await run_c("data", ":", "get")
         with pytest.raises(ClientAuthRequiredError):
             async with st.client() as c:
                 assert (await c.get(P(":"))).value == 123
 
-        r = await run_c("-a", "root", "data", "get", ":")
+        r = await run_c("-a", "root", "data", ":", "get")
         assert r.stdout == "123\n"
 
         anull = gen_auth("root")
@@ -74,7 +74,7 @@ async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        await run_c("data", "set", "-v", "there", "hello")
+        await run_c("data", "hello", "set", "-v", ":", "there")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
@@ -96,14 +96,14 @@ typ: _test
         await run_c("-a", "root", "auth", "-m", "_test", "init", "-s")
 
         with pytest.raises(ClientAuthMethodError):
-            await run_c("-a", "root", "data", "get", "hello")
+            await run_c("-a", "root", "data", "hello")
         with pytest.raises(ClientAuthRequiredError):
-            await run_c("data", "get", "hello")
+            await run_c("data", "hello")
         with pytest.raises(jsonschema.ValidationError):
-            await run_c("-a", "_test", "data", "get", "hello")
+            await run_c("-a", "_test", "data", "hello")
 
         run_t = partial(run_c, "-a", "_test name=fubar")
-        res = await run_t("data", "get", "hello")
+        res = await run_t("data", "hello")
         assert res.stdout == "'there'\n"
 
 
@@ -117,7 +117,7 @@ async def test_24_auth_password(autojump_clock):
             if h[0] != ":":
                 break
         run_c = partial(run, "-D", "client", "-h", h, "-p", p)
-        await run_c("data", "set", "-ev", "42", "answers.life etc:.")
+        await run_c("data", "answers.life etc:.", "set", "-e", ":", "42")
 
         await run_c("auth", "-m", "root", "user", "add")
         await run_c("auth", "-m", "root", "init")
@@ -136,14 +136,14 @@ typ: password
 """
         )
         run_u = partial(run_c, "-a", "password name=joe password=test123")
-        await run_c("-a", "root", "data", "set", "-ev", 42, "answers.life etc:.")
+        await run_c("-a", "root", "data", "answers.life etc:.", "set", "-e", ":", 42)
         with pytest.raises(ClientAuthMethodError):
-            res = await run_u("data", "get", "answers.life etc:.")
+            res = await run_u("data", "answers.life etc:.")
         await run_c("-a", "root", "auth", "-m", "password", "init", "-s")
-        res = await run_u("data", "get", "answers.life etc:.")
+        res = await run_u("data", "answers.life etc:.")
         assert res.stdout == "42\n"
         run_u = partial(run_c, "-a", "password name=joe password=test1234")
         with pytest.raises(ServerError) as se:
-            res = await run_u("data", "get", "answers.life etc:.")
+            res = await run_u("data", "answers.life etc:.")
         assert str(se.value).startswith("AuthFailedError(")
         assert "hashes do not match" in str(se.value)
