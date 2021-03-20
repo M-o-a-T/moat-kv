@@ -20,39 +20,40 @@ from ..util import PathLongener, NoLock, NotGiven, combine_dict
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
 
-class NamedRoot: 
+class NamedRoot:
     """
     This is a mix-on class for the root of a subhierarchy that caches named
     sub-entries.
 
     Named children should call `_add_name` on this entry.
     """
+
     def __init__(self, *a, **k):
         self.__named = {}
         super().__init__(*a, **k)
-    
-    def by_name(self, name): 
+
+    def by_name(self, name):
         if name is None:
             return None
-        if not isinstance(name, str):     
+        if not isinstance(name, str):
             raise ValueError("No string: " + repr(name))
         return self.__named.get(name)
-    
+
     def _add_name(self, obj):
-        n = obj.name              
+        n = obj.name
         if n is None:
             return
-    
+
         self.__named[n] = obj
         obj.reg_del(self, "_del__name", obj, n)
-    
+
     def _del__name(self, obj, n):
         old = self.__named.pop(n)
         if old is None or old is obj:
-            return                      
+            return
         # Oops, that has been superseded. Put it back.
         self.__named[n] = old
-    
+
 
 class ClientEntry:
     """A helper class that represents a node on the server, as returned by
@@ -266,7 +267,10 @@ class ClientEntry:
         """
         async with NoLock if _locked else self._lock:
             r = await self.root.client.delete(
-                self._path, nchain=nchain, recursive=recursive, **({"chain": self.chain} if chain else {})
+                self._path,
+                nchain=nchain,
+                recursive=recursive,
+                **({"chain": self.chain} if chain else {})
             )
             if wait:
                 await self.root.wait_chain(r.chain)

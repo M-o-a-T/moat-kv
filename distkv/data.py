@@ -5,10 +5,9 @@ import sys
 import os
 import time
 import datetime
-import asyncclick as click
 from collections.abc import Mapping
 
-from distkv.util import yprint, Path, NotGiven, attrdict
+from distkv.util import yprint, Path, NotGiven, attrdict, process_args
 
 
 def add_dates(d):
@@ -72,9 +71,9 @@ async def data_get(
 
     if recursive:
         kw = {}
-        if maxdepth is not None:
+        if maxdepth is not None and maxdepth >= 0:
             kw["max_depth"] = maxdepth
-        if mindepth is not None:
+        if mindepth:
             kw["min_depth"] = mindepth
         if empty:
             kw["empty"] = True
@@ -138,10 +137,6 @@ async def data_get(
             yprint(y, stream=obj.stdout)
         return
 
-    if maxdepth is not None or mindepth is not None:
-        raise click.UsageError("'mindepth' and 'maxdepth' only work with 'recursive'")
-    if as_dict is not None:
-        raise click.UsageError("'as-dict' only works with 'recursive'")
     res = await obj.client.get(path, nchain=obj.meta)
     if not obj.meta:
         try:
@@ -184,70 +179,34 @@ def res_update(res, attr: Path, value=None, **kw):  # pylint: disable=redefined-
     return val._update(attr, value=value, **kw)
 
 
-def res_delete(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
-    """
-    Remove a node's sub-item's value, possibly removing now-empty
-    intermediate dicts.
-
-    The node value must be an attrdict.
-
-    Returns the new value.
-    """
-    val = res.get("value", attrdict())
-    return val._delete(attr, **kw)
-
-
-async def node_attr(
-    obj, path, attr, value=NotGiven, eval_=False, split_=False, res=None, chain=None
-):
+async def node_attr(obj, path, vars_, eval_, path_, res=None, chain=None):
     """
     Sub-attr setter.
 
     Args:
         obj: command object
         path: address of the node to change
-        attr: path of the element to change
-        value: new value (default NotGiven)
-        eval_: evaluate the new value? (default False)
-        split_: split a string value into words? (bool or separator, default False)
+        vars_, eval_, path_: the results of `attr_args`
         res: old node, if it has been read already
         chain: change chain of node, copied from res if clear
 
-    Special: if eval_ is True, a value of NotGiven deletes, otherwise it
-    prints the record without changing it. A mapping replaces instead of updating.
-
-    Returns the result of setting the attribute, or ``None`` if it printed
+    Returns the result of setting the attribute.
     """
     if res is None:
         res = await obj.client.get(path, nchain=obj.meta or 2)
     if chain is None:
-        chain = res.chain
-
+        try:
+            chain = res.chain
+        except AttributeError:
+            pass
     try:
         val = res.value
     except AttributeError:
         chain = None
-    if split_ is True:
-        split_ = ""
-    if eval_:
-        if value is NotGiven:
-            value = res_delete(res, attr)
-        else:
-            value = eval(value)  # pylint: disable=eval-used
-            if split_ is not False:
-                value = value.split(split_)
-            value = res_update(res, attr, value=value)
+        val = NotGiven
+    val = process_args(val, vars_, eval_, path_)
+    if val is NotGiven:
+        res = await obj.client.delete(path, nchain=obj.meta, chain=chain)
     else:
-        if value is NotGiven:
-            if not attr and obj.meta:
-                val = res
-            else:
-                val = res_get(res, attr)
-            yprint(val, stream=obj.stdout)
-            return
-        if split_ is not False:
-            value = value.split(split_)
-        value = res_update(res, attr, value=value)
-
-    res = await obj.client.set(path, value=value, nchain=obj.meta, chain=chain)
+        res = await obj.client.set(path, value=val, nchain=obj.meta, chain=chain)
     return res

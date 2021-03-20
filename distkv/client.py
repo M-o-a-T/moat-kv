@@ -757,8 +757,7 @@ class Client:
             action="set_value", path=path, value=value, iter=False, nchain=nchain, **kw
         )
 
-    def delete(self, path, *, chain=NotGiven, prev=NotGiven, nchain=0,
-            recursive=False):
+    def delete(self, path, *, chain=NotGiven, prev=NotGiven, nchain=0, recursive=False):
         """
         Delete a node.
 
@@ -781,7 +780,13 @@ class Client:
         if chain is not NotGiven:
             kw["chain"] = chain
 
-        return self._request(action="delete_tree" if recursive else "delete_value", path=path, iter=False, nchain=nchain, **kw)
+        return self._request(
+            action="delete_tree" if recursive else "delete_value",
+            path=path,
+            iter=False,
+            nchain=nchain,
+            **kw,
+        )
 
     async def list(self, path, *, with_data=False, empty=None, **kw):
         """

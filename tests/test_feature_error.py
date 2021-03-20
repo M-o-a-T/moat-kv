@@ -63,7 +63,7 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
                 tg.start_soon(err, ez)
                 await trio.sleep(2)
 
-            await st.run("data get -rd_", do_stdout=False)
+            await st.run("data : get -rd_", do_stdout=False)
             await trio.sleep(2)
 
             n = 0

@@ -36,7 +36,7 @@ You can configure the destination by adapting the config file::
 
 You can now retrieve the root value::
 
-   one $ distkv client data get
+   one $ distkv client data :
    "Testing"
    one $
 
@@ -50,7 +50,7 @@ you can start another server on a different host::
 This will take a few seconds for the servers to sync up with each other.
 You can verify that the second server has successfully synced up::
 
-   two $ distkv client data get
+   two $ distkv client data :
    "Testing"
    two $
 
@@ -109,7 +109,7 @@ hierarchically, (among other reasons) for ease of retrieval::
 
 DistKV's internal data are stored under a special ``null`` root key.
 You can use ``distkv client internal dump :`` to display them. This command
-behaves like ``distkv client data get -rd_``. It too accepts a path prefix.
+behaves like ``distkv client data : get -rd_``.
 
 Path specification
 ------------------
@@ -246,7 +246,7 @@ After this point, you can no longer use DistKV without a password::
     ClientAuthRequiredError: You need to log in using: password
     one $
 
-    one $ distkv client -a "password name=joe password?=Code" data get
+    one $ distkv client -a "password name=joe password?=Code" data :
     Code: ******
     "Root"
     one $
@@ -273,8 +273,8 @@ scheme depends on the auth method.
 NB: nothing prevents you from using the string ``"null"`` as an ordinary
 key name::
 
-   one $ distkv client -a "password name=joe password=test123" data set -v bar null.foo
-   one $ distkv client -a "password name=joe password=test123" data get -rd_ :
+   one $ distkv client -a "password name=joe password=test123" data null.foo set -v : bar
+   one $ distkv client -a "password name=joe password=test123" data : get -rd_
    …
    'null':
      foo:
@@ -286,10 +286,10 @@ only exposes a user name::
    one $ distkv client auth -m _test user add name=joe
    one $ distkv client auth -m _test user add name=root
    one $ distkv client auth -m _test init
-   one $ distkv client data get
+   one $ distkv client data :
    ClientAuthRequiredError: You need to log in using: _test
    one $ dkv() { distkv client -a "_test name=joe" "$@"; }
-   one $ dkv data get :
+   one $ dkv data :
    123
    one $
 
@@ -322,10 +322,10 @@ Let's say that we'd like to create a "write-only" data storage::
 
    one $ distkv client -a "_test name=root" acl set writeonly -a xc 'wom.#'
    one $ distkv client -a "_test name=root" auth user set param joe acl writeonly
-   one $ dkv data set -ev 42 wom.foo.bar
-   one $ dkv data set -ev 43 wom.foo.bar
+   one $ dkv data wom.foo.bar set -e : 42
+   one $ dkv data wom.foo.bar set -e : 43
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'w')
-   one $ dkv data get wom.foo
+   one $ dkv data wom.foo
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'r')
    one $
 
@@ -558,14 +558,14 @@ Now we associate the test with our data::
 
 Then we store some value::
 
-    one $ dkv data set -v 123 stats.foo.bar.quota
+    one $ dkv data stats.foo.bar.quota set -v : 123
     ServerError: ValueError("not an integer")
 
 Oops: non-string values need to be evaluated. Better::
 
-    one $ dkv data set -ev 123 stats.foo.bar.quota
+    one $ dkv data stats.foo.bar.quota set -e : 123
     ServerError: ValueError('not a percentage')
-    one $ dkv data set -ev 12 stats.foo.bar.quota
+    one $ dkv data stats.foo.bar.quota set -e : 12
     one $
 
 DistKV does not test that existing values match your restrictions.
@@ -611,9 +611,9 @@ numbers, we also need to tell DistKV which users to apply this codec to::
 	
 Thus, Joe will read and write ``value`` entries as strings::
 
-    one $ dkv data set -v 99.5 monitor a b c value
-    one $ dkv data set -v 12.3 monitor a b c thing
-    one $ dkv data get -rd_ monitor
+    one $ dkv data monitor.a.b.c.value set -v : 99.5
+    one $ dkv data monitor.a.b.c.thing set -v : 12.3
+    one $ dkv data monitor get -rd_
     a:
       b:
         c:
@@ -625,7 +625,7 @@ Thus, Joe will read and write ``value`` entries as strings::
               '12.3'
 
 This is especially helpful if Joe is in fact an MQTT gateway which only
-receives and transmits strings, though a real-world application would use
+receives and transmits strings. A real-world application would use
 binary strings, not Unicode strings.
 
 

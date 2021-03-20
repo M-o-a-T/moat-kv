@@ -1,19 +1,13 @@
 # command line interface helpers for objects
 
-import os
-import sys
-
 import asyncclick as click
-
-from distkv.util import P, attrdict
-from distkv.data import data_get
-from distkv_ext.inv.model import InventoryRoot, Host, Wire
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["inv_sub"]
+
 
 class _InvSub:
     """
@@ -29,7 +23,6 @@ class _InvSub:
         name_cb=None,
         id_cb=None,
         postproc=None,
-        ext=(),
         apply=None,
         short_help=None,
     ):
@@ -40,7 +33,6 @@ class _InvSub:
         self.apply = apply or (lambda _c, _x: None)
         self.name_cb = name_cb or (lambda _c, _k, x: x)
         self.aux = aux
-        self.ext = ext
         self.short_help = short_help
         self.postproc = postproc or (lambda _c, x: None)
 
@@ -77,22 +69,11 @@ def inv_sub(cli, *a, **kw):
                 click.option("-w", "--wlan", type=str, default=None, help="WLAN SSID"),
             ),
             short_help="Manage VLANs",
-            ext=(test_cmd, {"name":"test", short_help="a command attached to this"})
         )
-
-    Warning: in the interest of simplifying your code, `inv_sub` modifies
-    the caller's global directory so that "test_cmd" (in this case) is now
-    a click.command (or click.group if you set group=True in the dict)
-    that's attached to the calling interface. The dict is passed as keyword
-    args to click.command/group.
-
-    Thus you can't use non-global functions in ``ext`` and you can't
-    recycle them. If you need to do that, factor the work out.
-
     """
     tinv = _InvSub(*a, **kw)
     tname = tinv.name
-    tnname = "n_"+tname
+    tnname = "n_" + tname
 
     def this(obj):
         # Delayed resolving of the actual thing subhierarchy
@@ -126,15 +107,12 @@ def inv_sub(cli, *a, **kw):
             n = this(obj).by_name(name)
             if n is None:
                 raise KeyError(name)
-            res = {}
             for k in n.ATTRS + getattr(n, "AUX_ATTRS", ()):
                 v = getattr(n, k, None)
                 if v is not None:
                     if isinstance(v, dict):
                         v = v.items()
-                    if isinstance(
-                        v, type({}.items())
-                    ):  # pylint: disable=isinstance-second-argument-not-valid-type
+                    if isinstance(v, type({}.items())):  # pylint: disable=W1116
                         for kk, vv in sorted(v):
                             if isinstance(vv, (tuple, list)):
                                 if vv:
@@ -227,15 +205,5 @@ def inv_sub(cli, *a, **kw):
                         raise AttributeError(k, v) from None
         await obj.save()
 
-    # Yes this is a hack.
-    import inspect
-    g = inspect.currentframe().f_back.f_globals
-    for t, kv in tinv.ext:
-        p = t
-        if kv.pop("group", False):
-            p = typ.group(**kv)(p)
-        else:
-            p = typ.command(**kv)(p)
-        g[t.__name__] = p
-
-
+    # Finally, return the CLI so the user can attach more stuff
+    return typ

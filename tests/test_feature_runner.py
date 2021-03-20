@@ -53,7 +53,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 await trio.sleep(2)
                 assert not rs.stopped
                 await trio.sleep(10)
-                await st.run("data get -rd_ :", do_stdout=False)
+                await st.run("data : get -rd_", do_stdout=False)
                 assert rs.stopped
                 pass  # end
 
@@ -109,7 +109,7 @@ async def test_84_mqtt(autojump_clock):  # pylint: disable=unused-argument
                     await trio.sleep(10)
                     assert rs.stopped
             finally:
-                await st.run("data get -rd_ :", do_stdout=False)
+                await st.run("data : get -rd_", do_stdout=False)
             await trio.sleep(11)
 
             logger.info("End sleep")

@@ -93,7 +93,7 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
         vs = set()
     vd = msg.setdefault("default", {})
 
-    process_args(vars_, eval_, path_, vd, vs)
+    vd = process_args(vd, vars_, eval_, path_, vs)
     msg["vars"] = list(vs)
 
     res = await obj.client.set(

@@ -164,7 +164,9 @@ This subcommand collects all sub-subcommand which talk to a DistKV server.
 
 Basic data access.
 
-This subcommand does not have options.
+.. option:: path
+
+   Access the entry at this location.
 
 
 .. program:: distkv client data get
@@ -209,16 +211,12 @@ for incremental output.
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
 
-.. option:: path…
-
-   Access the entry at this location.
-
 
 .. program:: distkv client data list
 
 List DistKV values.
 
-This command is basically like ``distkv client data get``, except that
+This command is basically like ``distkv client data ‹path› get``, except that
 ``--recursive`` and ``empty`` are always set. ``mindepth`` and ``maxdepth``
 default to 1.
 
@@ -251,10 +249,6 @@ default to 1.
    The default is to print the whole tree. Use ``1`` to print the entry itself
    (assuming that it has a value and you didn't use ``--mindepth=1``)
    and its immediate children.
-
-.. option:: path…
-
-   Access the entry at this location.
 
 
 .. program:: distkv client data set
@@ -294,10 +288,6 @@ accidentally overwrite something.
 
    This value is also affected by ``--eval``.
 
-.. option:: path…
-
-   Write to the entry at this location.
-
 
 .. program:: distkv client data delete
 
@@ -325,10 +315,6 @@ Recursive changes only check the entry you mention on the command line.
    Try not to use this option; ``--last`` is much better.
 
    This value is also affected by ``--eval``.
-
-.. option:: path…
-
-   Write to the entry at this location.
 
 
 .. program:: distkv client data monitor
@@ -361,24 +347,17 @@ Monitor changes to the state of an entry, or rather its subtree.
 
    The default is to use YAML.
 
-.. option:: path…
-
-   Monitor the subtree at this location.
-
 
 .. program:: distkv client data update
 
-Stream a list of changes from standard input to DistKV.
+Stream a list of changes from standard input to DistKV. Paths in the data
+set are interpreted relative to the path given.
 
 .. option:: -m, --msgpack
 
    Interpret the input as ``MsgPack`` data. XXX TODO
 
    The default is to use YAML. XXX TODO
-
-.. option:: path…
-
-   Interpret the streamed data relative to this subtree.
 
 
 .. program:: distkv client control
