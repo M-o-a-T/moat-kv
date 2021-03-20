@@ -182,16 +182,16 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
 
-            r = await st.run("data set -v hello foo")
-            r = await st.run("data set -ev 'baz' foo.bar")
+            r = await st.run("data set foo -v : hello")
+            r = await st.run("data set foo.bar -e : 'baz'")
 
-            r = await st.run("data get :")
+            r = await st.run("data :")
             assert r.stdout == "123\n"
 
-            r = await st.run("data get foo")
+            r = await st.run("data foo")
             assert r.stdout == "'hello'\n"
 
-            r = await st.run("data get foo.bar")
+            r = await st.run("data foo.bar")
             assert r.stdout == "'baz'\n"
 
             r = await c._request(
