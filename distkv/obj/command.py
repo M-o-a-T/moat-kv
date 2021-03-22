@@ -1,5 +1,6 @@
 # command line interface helpers for objects
 
+import sys
 import asyncclick as click
 
 from distkv.util import NotGiven
@@ -29,6 +30,7 @@ class _InvSub:
         short_help=None,
         sub_base=None,
         sub_name=None,
+        long_name=None,
     ):
         self.name = name
         self.id_name = id_name
@@ -39,6 +41,7 @@ class _InvSub:
         self.aux = aux
         self.short_help = short_help
         self.postproc = postproc or (lambda _c, x: None)
+        self.long_name = long_name or name
         self.sub_base = sub_base
         if sub_name is NotGiven:
             self.sub_name = None
@@ -99,13 +102,13 @@ def inv_sub(cli, *a, **kw):
         invoke_without_command=True,
         short_help=tinv.short_help,
         help="""\
-            Manager for {tname}s.
+            Manager for {tlname}s.
 
             \b
             Use '… {tname} -' to list all entries.
             Use '… {tname} NAME' to show details of a single entry.
             """.format(
-            tname=tname
+            tname=tname, tlname=tinv.long_name
         ),
     )
     @click.argument("name", type=str, nargs=1)
@@ -115,16 +118,22 @@ def inv_sub(cli, *a, **kw):
         if name == "-":
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
+            cnt = 0
             for n in this(obj):
+                cnt += 1
                 print(n, file=obj.stdout)
+            if not cnt and ctx.obj.debug:
+                print("no entries", file=sys.stderr)
         elif ctx.invoked_subcommand is None:
             # Show data from a single entry
             n = this(obj).by_name(name)
             if n is None:
                 raise KeyError(name)
+            cnt = 0
             for k in n.ATTRS + getattr(n, "AUX_ATTRS", ()):
                 v = getattr(n, k, None)
                 if v is not None:
+                    cnt += 1
                     if isinstance(v, dict):
                         v = v.items()
                     if isinstance(v, type({}.items())):  # pylint: disable=W1116
@@ -139,9 +148,14 @@ def inv_sub(cli, *a, **kw):
                             print("%s %s %s" % (k, kk, vv), file=obj.stdout)
                     else:
                         print("%s %s" % (k, v), file=obj.stdout)
+            if not cnt and ctx.obj.debug:
+                print("exists, no data", file=sys.stderr)
         else:
             obj[tnname] = name
-            obj[tname] = this(obj).by_name(name)
+            try:
+                obj[tname] = this(obj).by_name(name)
+            except KeyError:
+                obj[tname] = None
 
     def alloc(obj, name):
         # Allocate a new thing
@@ -151,12 +165,14 @@ def inv_sub(cli, *a, **kw):
             n = this(obj).allocate(name)
         return n
 
-    @typ.command(short_help="Add a " + tname)
+    @typ.command(short_help="Add a " + tinv.long_name)
     @tinv.id_arg
     @tinv.apply_aux
     @click.pass_obj
     async def add(obj, **kw):
         name = obj[tnname]
+        if obj[tname] is not None:
+            raise RuntimeError(f"{name} already exists")
         if tinv.id_name:
             kw["name"] = name
             n = alloc(obj, kw.pop(tinv.id_name))
@@ -165,21 +181,18 @@ def inv_sub(cli, *a, **kw):
 
         await _v_mod(n, **kw)
 
-    add.__doc__ = (
-        """
+    add.__doc__ = f"""
         Add a %s
-        """
-        % tname
-    )
+        """ % tinv.long_name
 
-    @typ.command("set", short_help="Modify a " + tname)
+    @typ.command("set", short_help="Modify a " + tinv.long_name)
     @tinv.apply_aux
     @click.pass_obj
     async def set_(obj, **kw):
         name = obj[tnname]
-        n = this(obj).by_name(name)
+        n = obj[tname]
         if n is None:
-            raise KeyError(n)
+            raise KeyError(tname)
 
         await _v_mod(n, **kw)
 
@@ -187,10 +200,10 @@ def inv_sub(cli, *a, **kw):
         """
         Modify a %s
         """
-        % tname
+        % tinv.long_name
     )
 
-    @typ.command(short_help="Delete a " + tname)
+    @typ.command(short_help="Delete a " + tinv.long_name)
     @click.pass_obj
     async def delete(obj, **kw):  # pylint: disable=unused-argument,unused-variable
         name = obj[tnname]
@@ -202,7 +215,7 @@ def inv_sub(cli, *a, **kw):
         """
         Delete a %s
         """
-        % tname
+        % tinv.long_name
     )
 
     async def _v_mod(obj, **kw):
