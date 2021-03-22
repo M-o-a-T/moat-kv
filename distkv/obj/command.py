@@ -2,6 +2,8 @@
 
 import asyncclick as click
 
+from distkv.util import NotGiven
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,14 +19,16 @@ class _InvSub:
     def __init__(
         self,
         name,
-        id_name=None,
-        id_typ=None,
+        id_name="name",
+        id_typ=str,
         aux=(),
         name_cb=None,
         id_cb=None,
         postproc=None,
         apply=None,
         short_help=None,
+        sub_base=None,
+        sub_name=None,
     ):
         self.name = name
         self.id_name = id_name
@@ -35,6 +39,11 @@ class _InvSub:
         self.aux = aux
         self.short_help = short_help
         self.postproc = postproc or (lambda _c, x: None)
+        self.sub_base = sub_base
+        if sub_name is NotGiven:
+            self.sub_name = None
+        else:
+            self.sub_name = sub_name or name
 
     def id_arg(self, proc):
         if self.id_name is None:
@@ -77,7 +86,13 @@ def inv_sub(cli, *a, **kw):
 
     def this(obj):
         # Delayed resolving of the actual thing subhierarchy
-        return getattr(obj.data, tname)
+        if tinv.sub_base:
+            data = getattr(obj, tinv.sub_base)
+        else:
+            data = obj.data
+        if tinv.sub_name:
+            return getattr(data, tinv.sub_name)
+        return data
 
     @cli.group(
         name=tname,
@@ -147,7 +162,6 @@ def inv_sub(cli, *a, **kw):
             n = alloc(obj, kw.pop(tinv.id_name))
         else:
             n = alloc(obj, name)
-        tinv.postproc(obj, kw)
 
         await _v_mod(n, **kw)
 
@@ -166,7 +180,6 @@ def inv_sub(cli, *a, **kw):
         n = this(obj).by_name(name)
         if n is None:
             raise KeyError(n)
-        tinv.postproc(obj, kw)
 
         await _v_mod(n, **kw)
 
@@ -183,7 +196,7 @@ def inv_sub(cli, *a, **kw):
         name = obj[tnname]
         n = this(obj).by_name(name)
         if n is not None:
-            await n.delete()
+            await n.delete(recursive=True)
 
     delete.__doc__ = (
         """
@@ -203,6 +216,7 @@ def inv_sub(cli, *a, **kw):
                 except AttributeError:
                     if k != "name":
                         raise AttributeError(k, v) from None
+        tinv.postproc(obj, kw)
         await obj.save()
 
     # Finally, return the CLI so the user can attach more stuff
