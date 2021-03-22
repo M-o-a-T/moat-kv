@@ -9,12 +9,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["inv_sub"]
+__all__ = ["std_command"]
 
 
 class _InvSub:
     """
-    This class is a helper for "inv_sub".
+    This class is a helper for "std_command".
     """
 
     def __init__(
@@ -59,7 +59,7 @@ class _InvSub:
         return proc
 
 
-def inv_sub(cli, *a, **kw):
+def std_command(cli, *a, **kw):
     """
     This procedure builds the interface for an inventory-ish thing.
 
@@ -71,7 +71,7 @@ def inv_sub(cli, *a, **kw):
             "Inventorize your computers, networks, and their connections."
             obj.inv = await InventoryRoot.as_handler(obj.client)
 
-        inv_sub(
+        std_command(
             cli,  # from above
             "vlan",  # subcommand name
             "id",  # item identifier
