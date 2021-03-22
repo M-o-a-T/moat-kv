@@ -115,7 +115,7 @@ def inv_sub(cli, *a, **kw):
         if name == "-":
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
-            for n in this(obj).all_children:
+            for n in this(obj):
                 print(n, file=obj.stdout)
         elif ctx.invoked_subcommand is None:
             # Show data from a single entry
