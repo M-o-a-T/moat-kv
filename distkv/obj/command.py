@@ -34,11 +34,11 @@ class _InvSub:
         self.id_name = id_name
         self.id_typ = id_typ
         self.id_cb = id_cb or (lambda _c, _k, x: x)
-        self.apply = apply or (lambda _c, _x: None)
+        self.apply = apply or (lambda _c, _t, _x: None)
         self.name_cb = name_cb or (lambda _c, _k, x: x)
         self.aux = aux
         self.short_help = short_help
-        self.postproc = postproc or (lambda _c, x: None)
+        self.postproc = postproc or (lambda _c, _t, x: None)
         self.sub_base = sub_base
         if sub_name is NotGiven:
             self.sub_name = None
@@ -206,7 +206,7 @@ def inv_sub(cli, *a, **kw):
     )
 
     async def _v_mod(obj, thing, **kw):
-        tinv.apply(thing, kw)
+        tinv.apply(obj, thing, kw)
         for k, v in kw.items():
             if v:
                 if v == "-":
