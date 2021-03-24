@@ -163,7 +163,7 @@ def inv_sub(cli, *a, **kw):
         else:
             n = alloc(obj, name)
 
-        await _v_mod(n, **kw)
+        await _v_mod(obj, n, **kw)
 
     add.__doc__ = (
         """
@@ -181,7 +181,7 @@ def inv_sub(cli, *a, **kw):
         if n is None:
             raise KeyError(n)
 
-        await _v_mod(n, **kw)
+        await _v_mod(obj, n, **kw)
 
     set_.__doc__ = (
         """
@@ -205,18 +205,18 @@ def inv_sub(cli, *a, **kw):
         % tname
     )
 
-    async def _v_mod(obj, **kw):
-        tinv.apply(obj, kw)
+    async def _v_mod(obj, thing, **kw):
+        tinv.apply(thing, kw)
         for k, v in kw.items():
             if v:
                 if v == "-":
                     v = None
                 try:
-                    setattr(obj, k, v)
+                    setattr(thing, k, v)
                 except AttributeError:
                     if k != "name":
                         raise AttributeError(k, v) from None
-        tinv.postproc(obj, kw)
+        tinv.postproc(obj, thing, kw)
         await obj.save()
 
     # Finally, return the CLI so the user can attach more stuff
