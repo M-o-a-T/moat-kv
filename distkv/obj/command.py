@@ -217,7 +217,7 @@ def inv_sub(cli, *a, **kw):
                     if k != "name":
                         raise AttributeError(k, v) from None
         tinv.postproc(obj, thing, kw)
-        await obj.save()
+        await thing.save()
 
     # Finally, return the CLI so the user can attach more stuff
     return typ
