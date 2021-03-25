@@ -8,6 +8,7 @@ systemd-sysusers --no-pager /usr/lib/sysusers.d/distkv.conf
 
 grep -qs '^MODE=' /etc/distkv.env || echo MODE=master >>/etc/distkv.env
 grep -qs '^NAME=' /etc/distkv.env || echo NAME=$(hostname) >>/etc/distkv.env
+grep -qs '^LOCAL=' /etc/distkv.env || echo LOCAL=no >>/etc/distkv.env
 
 . /etc/distkv.env
 
