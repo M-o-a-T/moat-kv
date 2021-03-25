@@ -1,9 +1,14 @@
 #!/bin/bash
 set -ex
 
-# This script file starts up DistKV.
+# This script starts up DistKV.
 
-if test "$(distkv dump cfg connect.host)" != "127.0.0.1"; then
+# Normally, starting DistKV on a host where clients don't connect locally is
+# a bad idea. However, on a system that has more than one network namespace
+# you need to use a specific address. So set LOCAL=yes to force starting
+# anyway.
+
+if test "$LOCAL" != "yes" && test "$(distkv dump cfg connect.host)" != "127.0.0.1"; then
     echo "Server is not localhost: not starting."
     exit 42  # mark as succeeded
 fi
