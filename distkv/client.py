@@ -673,7 +673,7 @@ class Client:
                         self._server_init = await hello.get()
                         logger.debug("Hello %s", self._server_init)
                         self.server_name = self._server_init.node
-                        self.client_name = cfg["name"] or self.server_name
+                        self.client_name = cfg["name"] or socket.gethostname() or self.server_name
                         await self._run_auth(auth)
 
                     from .config import ConfigRoot
