@@ -131,8 +131,8 @@ Each node has a tick counter that increments when you change anything; it's
 also broadcast periodically. Thus, each node notices when there's missing
 data and will send a message seeking the missing items.
 
-Each node is associated with a ``known`` range, which says "yes I have once
-seen this message, but it's been superseded since then, so that's OK".
+Each node is associated with a range of ``known`` ticks, which says "yes I
+have once seen this message, but it's been superseded".
 
 The entries' ``chain`` data ensures that stale data cannot overwrite more
 recent messages.

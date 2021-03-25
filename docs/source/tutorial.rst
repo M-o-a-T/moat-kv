@@ -119,16 +119,15 @@ solution is to prefix it with an escape character: a colon (``:``).
 Thus, a path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``.
 We choose a colon because it is easy to type and doesn't occur often.
 
-The traditional Unix escape character (backslash ``\\``) is not easy to
-type and must be duplicated almost everywhere you want to actually type it,
-thus we don't use that. You may need it to shell-escape spaces or quotes in
-paths, however.
+In contrast, the traditional Unix escape character (backslash ``\\``) is
+not easy to type and must be duplicated almost everywhere you want to
+actually use it, thus we don't like to use it.
 
 Of course, you now need to escape colons too: the path 'a' 'b:c' 'd' is
 written as ``a.b::c.d``.
 
 Colons have other uses because ``True``, ``False``, ``None``, arbitrary
-numbers, or even lists can also be path elements. Also, DistKV codes the empty
+numbers, or even lists can be path elements. Also, DistKV codes the empty
 string as ``:e`` – otherwise it'd be too easy to leave a stray or duplicate
 dot at the end of a path and then wonder why your data are missing.
 
@@ -137,31 +136,38 @@ needs to be escaped on the command line. Experience shows that people tend
 to skip that.
 
 There's also the empty path (i.e. the top of DistKV's entry hierarchy,
-not the same as a path that consists of an empty string!), which is
-coded as a single colon for much the same reason.
+not the same as a path that consists of an empty-string element!) which is
+coded as a stand-alone ``:`` for much the same reason.
 
 Thus:
 
 ==== ==========
 Code   Meaning
 ---- ----------
- :.      .
- ::      :
+ :.  literal ``.``
+ ::  literal ``:``
  :_    space
+==== ==========
  :t    True
  :f    False
  :n    None
- :e    empty
- :x  hex number
+ :e  empty string
+ :x  hex integer
+ :b  binary integer
+ :y  hex bytestring
+ :v  literal bytestring
+
 ==== ==========
 
-If anything else follows your colon, it's evaluated as a Python expression
-and added to the path.
+The first three are inline escape sequences while the others start a new
+element.
+
+If anything else follows your colon, it's evaluated as a Python expression.
 
 Hex number input is purely a convenience; integers in paths are always
 printed in decimal form. While you also could use ``:0x…`` in place of
 ``:x…``, the latter reduces visual clutter and ensures that the input is in
-fact a hex number and not something else by mistake.
+fact a hex number.
 
 .. warning::
 
@@ -172,12 +178,12 @@ fact a hex number and not something else by mistake.
    
    DistKV also allows you to use both ``False``, an integer zero, and a
    floating-point zero as path elements. This is dangerous because Python's
-   comparison and hashing operators treat them as equal. (Same for ``True``
-   and 1; same for floating point numbers without fractions and the
-   corresponding integers.)
+   comparison and hashing operators treat them as being equal. (Same for
+   ``True`` and 1; same for floating point numbers without fractions and
+   the corresponding integers.)
 
    Floating point numbers are also dangerous for a different reason: floats 
-   that are not a fractional power of two, like 1/3, cannot be stored
+   that are not a fractional power of two, such as 1/3, cannot be stored
    exactly. Thus you might have problems entering them.
 
    Bottom line:
@@ -198,7 +204,8 @@ survive a power outage, you might want to tell your server to save them::
 This command writes the current state to this file. The server keeps the
 file open and appends new records to it. The ``log dest`` has options to
 either write an incremental change record, or to just write a one-shot
-dump.
+dump. Subsequent incremental files are guaranteed to not have missing or
+duplicate records.
 
 When you need to restart your DistKV system from scratch, simply pass the
 newest saved state file::
@@ -206,7 +213,7 @@ newest saved state file::
     one $ distkv server -l $(ls -t /var/local/lib/distkv.*.state | head -1) $(hostname)
     Running.
 
-Obviously, if your state dump files are incremental, you should instead do
+If your state dump files are incremental, you should instead do
 something like this::
 
     one $ distkv server -l <(cat /var/local/lib/distkv.*.state) $(hostname)
@@ -215,11 +222,11 @@ something like this::
 These commands are somewhat safe to use on a network that's already
 running; your node may run with old state for a few seconds until it
 retrieves the updates that happened while it was down. An option to delay
-startup until that process has completed is on the TODO list.
+startup until that process has completed is somewhere on the TODO list.
 
 In a typical DistKV network, at most two or three nodes will use persistent
-storage; all others simply syncs up with their peers whenever they are
-restarted.
+storage; all others simply sync up with one of their peers whenever they
+are restarted.
 
 
 Authorization
@@ -435,10 +442,11 @@ Let's start by simply setting some value::
 
    import anyio
    from distkv.client import open_client
+   from distkv.util import P
 
    async def dkv_example():
       async with open_client() as client:
-         client.set(("one","two","three"), value=("Test",42,False), chain=None)
+         client.set(P("one.two.three"), value=("Test",42,False), chain=None)
 
    anyio.run(dkv_example)
 
@@ -447,19 +455,25 @@ That was easy. Now we'd like to update that entry::
    from distkv.util import P
    async def dkv_example():
       async with open_client() as client:
-         res = client.get(P("one.two.three"))
+         res = client.get(P("one.two.three"), nchain=2)
          ret = client.set(P("one.two.three"), value=("Test",v[1]+1,False), chain=res.chain)
          assert res.chain != ret.chain
 
 The ``chain`` parameter is important: it tells DistKV which change caused
-the old value. So if somebody else changed your ``one.two.three`` entry
-while your program was running, you'd get a collision and the ``set`` would
-fail.
+the old value. So if somebody else changes your ``one.two.three`` entry
+while your program was running, you get a collision and the ``set`` fails.
 
 ``set`` returns a new chain so you can update your value multiple times.
 
 Deleting an entry clears the chain because the source of a non-existing value
 doesn't matter.
+
+.. warning::
+   DistKV is an asynchronous distributed system. Thus, asuming that you
+   have more than one DistKV server, this does not prevent your ``set``
+   command from being ignored; it just reduces the window when this could
+   happen from the time since the last ``get`` to a couple of milliseconds.
+
 
 Watching for Changes
 --------------------
