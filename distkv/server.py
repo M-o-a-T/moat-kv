@@ -2054,8 +2054,8 @@ class Server:
                         self.fetch_missing.add(nst)
                 if len(self.fetch_missing):
                     self.fetch_running = False
-                    for n in self.fetch_missing:
-                        self.logger.error("Sync: missing: %s %s", n.name, n.local_missing)
+                    for nm in self.fetch_missing:
+                        self.logger.error("Sync: missing: %s %s", nm.name, nm.local_missing)
                     await self.spawn(self.do_send_missing)
                 if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
