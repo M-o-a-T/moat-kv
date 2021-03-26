@@ -193,9 +193,12 @@ def std_command(cli, *a, **kw):
 
         await _v_mod(obj, n, **kw)
 
-    add.__doc__ = f"""
+    add.__doc__ = (
+        f"""
         Add a %s
-        """ % tinv.long_name
+        """
+        % tinv.long_name
+    )
 
     @typ.command("set", short_help="Modify a " + tinv.long_name)
     @tinv.apply_aux
