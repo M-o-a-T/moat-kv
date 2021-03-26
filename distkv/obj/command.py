@@ -31,6 +31,7 @@ class _InvSub:
         sub_base=None,
         sub_name=None,
         long_name=None,
+        prepare=None,
     ):
         self.name = name
         self.id_name = id_name
@@ -43,6 +44,7 @@ class _InvSub:
         self.postproc = postproc or (lambda _c, _t, x: None)
         self.long_name = long_name or name
         self.sub_base = sub_base
+        self.prepare = prepare
         if sub_name is NotGiven:
             self.sub_name = None
         else:
@@ -115,6 +117,9 @@ def std_command(cli, *a, **kw):
     @click.pass_context
     async def typ(ctx, name):
         obj = ctx.obj
+        if tinv.prepare is not None:
+            await tinv.prepare(obj)
+
         if name == "-":
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
