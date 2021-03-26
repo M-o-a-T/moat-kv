@@ -174,7 +174,7 @@ def std_command(cli, *a, **kw):
     # multiple arguments, but you shouldn't do that anyway.
     @typ.command("--help", hidden=True)
     @click.pass_context
-    def help(ctx):
+    def help_(ctx):  # pylint:disable=unused-variable  # oh boy
         print(typ.get_help(ctx))
 
     @typ.command(short_help="Add a " + tinv.long_name)
@@ -193,30 +193,23 @@ def std_command(cli, *a, **kw):
 
         await _v_mod(obj, n, **kw)
 
-    add.__doc__ = (
-        f"""
-        Add a %s
+    add.__doc__ = f"""
+        Add a {tinv.long_name}
         """
-        % tinv.long_name
-    )
 
     @typ.command("set", short_help="Modify a " + tinv.long_name)
     @tinv.apply_aux
     @click.pass_obj
     async def set_(obj, **kw):
-        name = obj[tnname]
         n = obj[tname]
         if n is None:
             raise KeyError(tname)
 
         await _v_mod(obj, n, **kw)
 
-    set_.__doc__ = (
+    set_.__doc__ = f"""
+        Modify a {tinv.long_name}
         """
-        Modify a %s
-        """
-        % tinv.long_name
-    )
 
     @typ.command(short_help="Delete a " + tinv.long_name)
     @click.pass_obj
@@ -226,12 +219,9 @@ def std_command(cli, *a, **kw):
         if n is not None:
             await n.delete(recursive=True)
 
-    delete.__doc__ = (
+    delete.__doc__ = """
+        Delete a {tinv.long_name}
         """
-        Delete a %s
-        """
-        % tinv.long_name
-    )
 
     async def _v_mod(obj, thing, **kw):
         tinv.apply(obj, thing, kw)
