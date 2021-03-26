@@ -170,6 +170,13 @@ def std_command(cli, *a, **kw):
             n = this(obj).allocate(name)
         return n
 
+    # This is a hack for groups that take arguments. Doesn't work for
+    # multiple arguments, but you shouldn't do that anyway.
+    @typ.command("--help", hidden=True)
+    @click.pass_context
+    def help(ctx):
+        print(typ.get_help(ctx))
+
     @typ.command(short_help="Add a " + tinv.long_name)
     @tinv.id_arg
     @tinv.apply_aux
