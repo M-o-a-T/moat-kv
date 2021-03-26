@@ -31,6 +31,7 @@ class _InvSub:
         sub_base=None,
         sub_name=None,
         long_name=None,
+        prepare=None,
     ):
         self.name = name
         self.id_name = id_name
@@ -43,6 +44,7 @@ class _InvSub:
         self.postproc = postproc or (lambda _c, _t, x: None)
         self.long_name = long_name or name
         self.sub_base = sub_base
+        self.prepare = prepare
         if sub_name is NotGiven:
             self.sub_name = None
         else:
@@ -115,6 +117,9 @@ def std_command(cli, *a, **kw):
     @click.pass_context
     async def typ(ctx, name):
         obj = ctx.obj
+        if tinv.prepare is not None:
+            await tinv.prepare(obj)
+
         if name == "-":
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
@@ -165,6 +170,13 @@ def std_command(cli, *a, **kw):
             n = this(obj).allocate(name)
         return n
 
+    # This is a hack for groups that take arguments. Doesn't work for
+    # multiple arguments, but you shouldn't do that anyway.
+    @typ.command("--help", hidden=True)
+    @click.pass_context
+    def help_(ctx):  # pylint:disable=unused-variable  # oh boy
+        print(typ.get_help(ctx))
+
     @typ.command(short_help="Add a " + tinv.long_name)
     @tinv.id_arg
     @tinv.apply_aux
@@ -182,26 +194,22 @@ def std_command(cli, *a, **kw):
         await _v_mod(obj, n, **kw)
 
     add.__doc__ = f"""
-        Add a %s
-        """ % tinv.long_name
+        Add a {tinv.long_name}
+        """
 
     @typ.command("set", short_help="Modify a " + tinv.long_name)
     @tinv.apply_aux
     @click.pass_obj
     async def set_(obj, **kw):
-        name = obj[tnname]
         n = obj[tname]
         if n is None:
             raise KeyError(tname)
 
         await _v_mod(obj, n, **kw)
 
-    set_.__doc__ = (
+    set_.__doc__ = f"""
+        Modify a {tinv.long_name}
         """
-        Modify a %s
-        """
-        % tinv.long_name
-    )
 
     @typ.command(short_help="Delete a " + tinv.long_name)
     @click.pass_obj
@@ -211,12 +219,9 @@ def std_command(cli, *a, **kw):
         if n is not None:
             await n.delete(recursive=True)
 
-    delete.__doc__ = (
+    delete.__doc__ = """
+        Delete a {tinv.long_name}
         """
-        Delete a %s
-        """
-        % tinv.long_name
-    )
 
     async def _v_mod(obj, thing, **kw):
         tinv.apply(obj, thing, kw)

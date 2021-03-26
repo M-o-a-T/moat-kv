@@ -22,7 +22,7 @@ if test ! -v NAME ; then
     exit 1
 fi
 
-if test -s "$TEMP" ; then
+if test -v TEMP && test -s "$TEMP" ; then
     exec distkv -c /etc/distkv.cfg server -a -l "$TEMP" "$NAME"
 else
     exec distkv -c /etc/distkv.cfg server "$NAME"
