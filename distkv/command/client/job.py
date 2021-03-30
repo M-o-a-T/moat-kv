@@ -8,7 +8,7 @@ from functools import partial
 
 from distkv.code import CodeRoot
 from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, P, Path, attrdict
+from distkv.util import yprint, P, Path, attrdict, attr_args, process_args
 from distkv.data import data_get, add_dates
 
 
@@ -52,6 +52,21 @@ async def cli(ctx, node, group):
     obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
 
 
+@cli.group("at", short_help="path of the job to operate on", invoke_without_command=True)
+@click.argument("path", nargs=1, type=P)
+@click.pass_context
+async def at_cli(ctx, path):
+    """
+    Add, list, modify, delete jobs at/under this path.
+    """
+    obj = ctx.obj
+    obj.jobpath = path
+
+    if ctx.invoked_subcommand is None:
+        res = await obj.client.get(obj.path + path, nchain=obj.meta)
+        yprint(res, stream=obj.stdout)
+
+
 @cli.command("info")
 @click.pass_obj
 async def info_(obj):
@@ -70,10 +85,15 @@ async def info_(obj):
         print(r.path[-1], file=obj.stdout)
 
 
-@cli.command("path")
-@click.argument("path", nargs=1)
+@at_cli.command("--help", hidden=True)
+@click.pass_context
+def help_(ctx):  # pylint:disable=unused-variable  # oh boy
+    print(at_cli.get_help(ctx))
+
+
+@at_cli.command("path")
 @click.pass_obj
-async def path__(obj, path):
+async def path__(obj):
     """
     Emit the full path leading to the specified runner object.
 
@@ -84,7 +104,7 @@ async def path__(obj, path):
 
     Updating the control object will cancel any running code.
     """
-    path = P(path)
+    path = obj.jobpath
     res = dict(command=obj.path + path, state=obj.statepath + path)
     yprint(res, stream=obj.stdout)
 
@@ -144,7 +164,7 @@ async def _state_fix(obj, state, state_only, path, r):
     return r
 
 
-@cli.command("list")
+@at_cli.command("list")
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.option("-S", "--state-only", is_flag=True, help="Only output state data")
 @click.option("-t", "--table", is_flag=True, help="one-line output")
@@ -155,14 +175,13 @@ async def _state_fix(obj, state, state_only, path, r):
     help="Structure as dictionary. The argument is the key to use "
     "for values. Default: return as list",
 )
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, state, state_only, table, as_dict, path):
+async def list_(obj, state, state_only, table, as_dict):
     """List run entries."""
     if table and state:
         click.UsageError("'--table' and '--state' are mutually exclusive")
 
-    path = P(path)
+    path = obj.jobpath
 
     if state or state_only or table:
         state = obj.statepath + path
@@ -211,19 +230,20 @@ async def list_(obj, state, state_only, table, as_dict, path):
         )
 
 
-@cli.command("state")
+@at_cli.command("state")
 @click.option("-r", "--result", is_flag=True, help="Just print the actual result.")
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def state_(obj, path, result):
+async def state_(obj, result):
     """Get the status of a runner entry."""
+    path = obj.jobpath
+
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if result and obj.meta:
         raise click.UsageError("You can't use '-v' and '-r' at the same time.")
     if not len(path):
         raise click.UsageError("You need a non-empty path.")
-    path = obj.statepath + P(path)
+    path = obj.statepath + obj.jobpath
 
     res = await obj.client.get(path, nchain=obj.meta)
     if "value" not in res:
@@ -237,13 +257,12 @@ async def state_(obj, path, result):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
-@click.argument("path", nargs=1)
+@at_cli.command()
 @click.option("-s", "--state", is_flag=True, help="Add state data")
 @click.pass_obj
-async def get(obj, path, state):
+async def get(obj, state):
     """Read a runner entry"""
-    path = P(path)
+    path = obj.jobpath
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
@@ -265,13 +284,13 @@ async def get(obj, path, state):
     yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@at_cli.command()
 @click.option("-f", "--force", is_flag=True, help="Force deletion even if messy")
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def delete(obj, path, force):
+async def delete(obj, force):
     """Remove a runner entry"""
-    path = P(path)
+    path = obj.jobpath
+
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
     if not path:
@@ -307,7 +326,7 @@ async def delete(obj, path, force):
         print(res.info)
 
 
-@cli.command("set")
+@at_cli.command("set")
 @click.option("-c", "--code", help="Path to the code that should run.")
 @click.option("-C", "--copy", help="Use this entry as a template.")
 @click.option("-t", "--time", "tm", help="time the code should next run at. '-':not")
@@ -316,12 +335,9 @@ async def delete(obj, path, force):
 @click.option("-b", "--backoff", type=float, help="Back-off factor. Default: 1.4")
 @click.option("-d", "--delay", type=int, help="Seconds the code should retry after (w/ backoff)")
 @click.option("-i", "--info", help="Short human-readable information")
-@click.option("-v", "--var", nargs=2, multiple=True, help="Value (name val…)")
-@click.option("-e", "--eval", "eval_", nargs=2, multiple=True, help="Value (name val), evaluated")
-@click.option("-p", "--path", "path_", nargs=2, multiple=True, help="Value (name val), as path")
-@click.argument("path", nargs=1)
+@attr_args
 @click.pass_obj
-async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, path_, var, copy):
+async def set_(obj, code, tm, info, ok, repeat, delay, backoff, copy, vars_, eval_, path_):
     """Add or modify a runner.
 
     Code typically requires some input parameters.
@@ -329,6 +345,8 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
     You should use '-v NAME VALUE' for string values, '-p NAME VALUE' for
     paths, and '-e NAME VALUE' for other data. '-e NAME -' deletes an item.
     """
+    path = obj.jobpath
+
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
 
@@ -353,15 +371,7 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
             raise click.UsageError("'--copy' needs a runner entry")
 
     vl = attrdict(**res.setdefault("data", {}))
-    for k, v in var:
-        vl = vl._update(P(k), v)
-    for k, v in eval_:
-        if v == "-":
-            vl = vl._delete(P(k))
-        else:
-            vl = vl._update(P(k), eval(v))  # pylint:disable=eval-used
-    for k, v in path_:
-        vl = vl._update(P(k), P(v))
+    vl = process_args(vl, vars_, eval_, path_)
     res["data"] = vl
 
     if code is not None:
@@ -387,12 +397,11 @@ async def set_(obj, path, code, tm, info, ok, repeat, delay, backoff, eval_, pat
         yprint(res, stream=obj.stdout)
 
 
-@cli.command()
+@cli.command(short_help="Show runners' keepalive messages")
 @click.pass_obj
 async def monitor(obj):
     """
-    Runners periodically send a keepalive message to Serf, if thus
-    configured (this is the default).
+    Runners periodically send a keepalive message. Show them.
     """
 
     # TODO this does not watch changes in DistKV.
