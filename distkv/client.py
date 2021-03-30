@@ -146,7 +146,7 @@ class StreamedRequest:
             self.dw = DelayedWrite(client.qlen)
             self.qr = DelayedRead(client.qlen, get_seq=self._get_seq, send_ack=self._send_ack)
         else:
-            self.qr = create_queue(client.cfg.server.buffer)
+            self.qr = create_queue(client.config.server.buffer)
 
     @staticmethod
     def _get_seq(msg):
