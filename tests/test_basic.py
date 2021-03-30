@@ -46,6 +46,7 @@ async def collect(i, path=()):
     async for r in i:
         r.pop("tock", 0)
         r.pop("seq", 0)
+        r.pop("wseq", 0)
         pl(r)
         res.append(r)
     return res
@@ -425,3 +426,21 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
             }
             pass  # client end
         pass  # server end
+
+@pytest.mark.trio
+async def test_03_lots(autojump_clock):  # pylint: disable=unused-argument
+    async with stdtest(args={"init": 123}, tocks=1000) as st:
+        async with st.client() as c:
+            assert (await c.get(P(":"))).value == 123
+
+            for n in range(200):
+                r = await c.set(P("foo")|n, value=n)
+            r = await c.list(P("foo"))
+            assert len(r) == 200, r
+            async with c._stream("get_tree", path=P("foo"), max_depth=2) as rr:
+                r = await collect(rr)
+            assert len(r) == 200, r
+
+        pass  # server end
+
+

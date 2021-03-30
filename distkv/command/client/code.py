@@ -3,27 +3,34 @@
 import asyncclick as click
 import sys
 
-from distkv.util import yprint, NotGiven, yload, P, attr_args, process_args
+from distkv.util import yprint, NotGiven, yload, P, Path, attr_args, process_args, PathLongener
 
 
-@click.group()  # pylint: disable=undefined-variable
-async def cli():
+@click.group(invoke_without_command=True)  # pylint: disable=undefined-variable
+@click.argument("path", nargs=1, type=P)
+@click.pass_context
+async def cli(ctx, path):
     """Manage code stored in DistKV."""
-    pass
+    obj = ctx.obj
+    obj.path = obj.cfg["codes"]["prefix"] + path
+    obj.codepath = path
+
+    if ctx.invoked_subcommand is None:
+        pl = PathLongener(path)
+        async for res in obj.client.get_tree(obj.path, long_path=False):
+            pl(res)
+            print(Path(*res.path), res.value.info, file=obj.stdout)
 
 
 @cli.command()
 @click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the code here")
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def get(obj, path, script):
+async def get(obj, script):
     """Read a code entry"""
-    path = P(path)
-    if not len(path):
+    if not len(obj.codepath):
         raise click.UsageError("You need a non-empty path.")
-    res = await obj.client._request(
-        action="get_value", path=obj.cfg["codes"]["prefix"] + path, iter=False, nchain=obj.meta
-    )
+
+    res = await obj.client._request(action="get_value", path=obj.path, iter=False, nchain=obj.meta)
     if "value" not in res:
         if obj.debug:
             print("No entry here.", file=sys.stderr)
@@ -43,10 +50,9 @@ async def get(obj, path, script):
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
 @click.option("-d", "--data", type=click.File(mode="r"), help="load the metadata (YAML)")
-@click.argument("path", nargs=1)
 @attr_args
 @click.pass_obj
-async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, info):
+async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
     """Save Python code.
 
     The code may have inputs. You specify the inputs and their default
@@ -64,14 +70,14 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
         else:
             async_ = None
 
-    path = P(path)
-    if not len(path):
+    if not len(obj.codepath):
         raise click.UsageError("You need a non-empty path.")
+    path = obj.path
 
     if data:
         msg = yload(data)
     else:
-        msg = await obj.client.get(obj.cfg["codes"]["prefix"] + path, nchain=3)
+        msg = await obj.client.get(path, nchain=3)
     chain = NotGiven
     if "value" in msg:
         chain = msg.get("chain", NotGiven)
@@ -95,18 +101,19 @@ async def set_(obj, path, thread, script, data, vars_, eval_, path_, async_, inf
 
     vd = process_args(vd, vars_, eval_, path_, vs)
     msg["vars"] = list(vs)
+    msg["default"] = vd
 
-    res = await obj.client.set(
-        obj.cfg["codes"]["prefix"] + path,
-        value=msg,
-        nchain=obj.meta,
-        **({"chain": chain} if chain is not NotGiven else {}),
-    )
+    kv = {}
+    if chain is not NotGiven:
+        kv["chain"] = chain
+
+    res = await obj.client.set(obj.path, value=msg, nchain=obj.meta, **kv)
     if obj.meta:
         yprint(res, stream=obj.stdout)
 
 
-@cli.group("module")
+# disabled for now
+@cli.group("module", hidden=True)
 async def mod():
     """
     Change the code of a module stored in DistKV

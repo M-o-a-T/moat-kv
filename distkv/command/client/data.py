@@ -186,8 +186,9 @@ async def delete(obj, prev, last, recursive, eval_, internal):
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-o", "--only", is_flag=True, help="Value only, nothing fancy.")
 @click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
+@click.option("-i", "--ignore", multiple=True, type=P, help="Skip this (sub)tree")
 @click.pass_obj
-async def monitor(obj, state, only, add_date):
+async def monitor(obj, state, only, add_date, ignore):
     """Monitor a DistKV subtree"""
 
     flushing = not state
@@ -199,6 +200,8 @@ async def monitor(obj, state, only, add_date):
         async for r in res:
             if add_date and "value" in r:
                 add_dates(r.value)
+            if any(p == r.path[: len(p)] for p in ignore):
+                continue
             if r.get("state", "") == "uptodate":
                 if only and not seen:
                     # value doesn't exist

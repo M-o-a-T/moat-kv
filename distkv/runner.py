@@ -553,11 +553,16 @@ class RunnerEntry(AttrClientEntry):
                 )
                 if r is not None:
                     await self.root.err.wait_chain(r.chain)
-            state.backoff = min(state.backoff + 1, 20)
+            if isinstance(exc, Exception):
+                state.backoff = min(state.backoff + 1, 20)
+            else:
+                raise
+
         else:
             state.result = res
             state.backoff = 0
             await self.root.err.record_working("run", self._path)
+
         finally:
             async with anyio.fail_after(2, shield=True):
                 if state.node == state.root.name:
@@ -569,14 +574,15 @@ class RunnerEntry(AttrClientEntry):
                     self.retry = t + (self.backoff ** state.backoff) * self.delay
                 else:
                     self.retry = None
-                async with anyio.move_on_after(2, shield=True):
-                    try:
-                        await state.save()
-                    except ClosedResourceError:
-                        pass
-                    except ServerError:
-                        logger.exception("Could not save")
-                    await self.root.trigger_rescan()
+
+                try:
+                    await state.save()
+                except ClosedResourceError:
+                    pass
+                except ServerError:
+                    logger.exception("Could not save")
+
+                await self.root.trigger_rescan()
 
     async def send_event(self, evt):
         """Send an event to the running process."""

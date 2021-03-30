@@ -69,6 +69,7 @@ CFG = attrdict(
     server=attrdict(
         # server-side configuration
         backend=NotGiven,  # must be specified
+        buffer=10,  # per-stream buffer
         serf=attrdict(
             # how to connect to Serf
             host="localhost",

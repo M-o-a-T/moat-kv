@@ -46,6 +46,7 @@ async def collect(i, path=()):
     async for r in i:
         r.pop("tock", 0)
         r.pop("seq", 0)
+        r.pop("wseq", 0)
         pl(r)
         res.append(r)
     return res

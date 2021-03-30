@@ -7,7 +7,7 @@ import signal
 import time
 import anyio
 
-from distmqtt.utils import create_queue
+from .util import create_queue, DelayedRead, DelayedWrite
 
 try:
     from contextlib import asynccontextmanager
@@ -90,11 +90,28 @@ def cmp_n(a, b):
     return b - a
 
 
+class HelloProc:
+    """
+    A hacked-up command processor for receiving the first client message.
+    """
+
+    def __init__(self, client):
+        self.client = client
+
+    async def received(self, msg):
+        qlen = msg.get("qlen", 0)
+        self.client.qlen = min(qlen, self.client.server.cfg.server.buffer)
+        del self.client.in_stream[0]
+
+    async def aclose(self):
+        self.client.in_stream.pop(0, None)
+
+
 class StreamCommand:
     """Represent the execution of a streamed command.
 
     Implement the actual command by overriding ``run``.
-    Read the next input line by reading ``in_q``.
+    Read the next input message by calling ``recv``.
 
     This auto-detects whether the client sends multiple lines, by closing
     the incoming channel if there's no state=start in the command.
@@ -108,6 +125,8 @@ class StreamCommand:
     send_q = None
     _scope = None
     end_msg = None
+    qr = None
+    dw = None
 
     def __new__(cls, client, msg):
         if cls is StreamCommand:
@@ -120,42 +139,52 @@ class StreamCommand:
         self.client = client
         self.msg = msg
         self.seq = msg.seq
-        self.in_q = create_queue(1)
         self.client.in_stream[self.seq] = self
+        self.qlen = self.client.qlen
+        if self.qlen:
+            self.qr = DelayedRead(self.qlen, get_seq=self._get_seq, send_ack=self._send_ack)
+            self.dw = DelayedWrite(self.qlen)
+        else:
+            self.qr = create_queue(1)
+
+    @staticmethod
+    def _get_seq(msg):
+        return msg.get("wseq", 0)
+
+    async def _send_ack(self, seq):
+        await self.client.send(seq=self.seq, state="ack", ack=seq)
 
     async def received(self, msg):
         """Receive another message from the client"""
 
         s = msg.get("state", "")
+        if s == "ack":
+            if self.dw is not None:
+                await self.dw.recv_ack(msg["ack"])
+            return
+
         err = msg.get("error", None)
         if err:
-            await self.in_q.put(msg)
+            await self.qr.put(msg)
         if s == "end":
             self.end_msg = msg
             await self.aclose()
         elif not err:
-            await self.in_q.put(msg)
+            await self.qr.put(msg)
 
     async def aclose(self):
         self.client.in_stream.pop(self.seq, None)
-        if self.in_q is not None:
-            await self.in_q.put(None)
-            self.in_q = None
+        await self.qr.close_sender()
 
     async def recv(self):
-        msg = await self.in_q.get()
-        if msg is None:
-            raise ServerClosedError
+        msg = await self.qr.get()
 
         if "error" in msg:
             raise ClientError(msg.error)
         return msg
 
     async def send(self, **msg):
-        """Send a message to the client.
-
-        TODO add a rate limit
-        """
+        """Send a message to the client."""
         msg["seq"] = self.seq
         if not self.multiline:
             if self.multiline is None:
@@ -164,6 +193,8 @@ class StreamCommand:
         elif self.multiline == -1:
             raise RuntimeError("Can't explicitly send in simple interaction")
         try:
+            if self.dw is not None:
+                msg["wseq"] = await self.dw.next_seq()
             await self.client.send(msg)
         except ClosedResourceError:
             self.client.logger.info("OERR %d", self.client._client_nr)
@@ -172,10 +203,11 @@ class StreamCommand:
         msg = self.msg
         if msg.get("state") != "start":
             # single message
-            if self.in_q is not None:
-                await self.in_q.put(None)
-                self.in_q = None
+            await self.qr.close_sender()
 
+        qlen = msg.get("qlen", 0)
+        if qlen > 0:
+            self.dw = DelayedWrite(qlen)
         if self.multiline > 0:
             await self.send(state="start")
             try:
@@ -605,6 +637,7 @@ class ServerClient:
     conv = ConvNull
     acl: ACLStepper = NullACL
     tg = None
+    qlen = 0
 
     def __init__(self, server: "Server", stream: Stream):
         self.server = server
@@ -612,7 +645,7 @@ class ServerClient:
         self.metaroot = self.root.follow(Path(None), create=True, nulls_ok=True)
         self.stream = stream
         self.tasks = {}
-        self.in_stream = {}
+        self.in_stream = {0: HelloProc(self)}
         self._chop_path = 0
         self._send_lock = anyio.create_lock()
 
@@ -1122,6 +1155,7 @@ class ServerClient:
                 "node": self.server.node.name,
                 "tick": self.server.node.tick,
                 "tock": self.server.tock,
+                "qlen": self.server.cfg.server.buffer,
             }
             try:
                 auth = self.root.follow(Path(None, "auth"), nulls_ok=True, create=False)
