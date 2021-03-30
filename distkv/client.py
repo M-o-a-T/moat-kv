@@ -5,7 +5,6 @@ Main entry point: :func:`open_client`.
 """
 
 import anyio
-import outcome
 import socket
 import os
 from typing import Tuple
@@ -23,8 +22,10 @@ from .util import (
     combine_dict,
     ValueEvent,
     Path,
+    create_queue,
+    DelayedRead,
+    DelayedWrite,
 )
-from distmqtt.utils import create_queue
 from .default import CFG
 from .exceptions import (
     ClientAuthMethodError,
@@ -127,32 +128,46 @@ class StreamedRequest:
 
     start_msg = None
     end_msg = None
+    qr = None
+    dw = None
 
     def __init__(self, client, seq, stream: bool = False, report_start: bool = False):
         self._stream = stream
         self._client = client
         self.seq = seq
         self._stream = stream
-        self.q = create_queue(100)
         self._client._handlers[seq] = self
         self._reply_stream = None
         self.n_msg = 0
         self._report_start = report_start
         self._started = anyio.create_event()
         self._path_long = lambda x: x
-        # None: no message yet; True: begin seen; False: end or single message seen
+        if client.qlen > 0:
+            self.dw = DelayedWrite(client.qlen)
+            self.qr = DelayedRead(client.qlen, get_seq=self._get_seq, send_ack=self._send_ack)
+        else:
+            self.qr = create_queue(client.cfg.server.buffer)
+
+    @staticmethod
+    def _get_seq(msg):
+        return msg.pop("wseq", 0)
+
+    async def _send_ack(self, seq):
+        await self._client._send(seq=self.seq, state="ack", ack=seq)
 
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
         self.n_msg += 1
         if "error" in msg:
             logger.info("ErrorMsg: %s", msg)
-            if self.q is not None:
-                try:
-                    cls = error_types[msg["etype"]]
-                except KeyError:
-                    cls = ServerError
-                await self.q.put(outcome.Error(cls(msg.error)))
+            try:
+                cls = error_types[msg["etype"]]
+            except KeyError:
+                cls = ServerError
+            try:
+                await self.qr.put_error(cls(msg.error))
+            except anyio.BrokenResourceError:
+                raise cls(msg.error)
             return
         state = msg.get("state", "")
 
@@ -163,16 +178,20 @@ class StreamedRequest:
             self.start_msg = msg
             await self._started.set()
             if self._report_start:
-                await self.q.put(outcome.Value(msg))
+                await self.qr.put(msg)
 
         elif state == "end":
             if self._reply_stream is not True:  # pragma: no cover
                 raise RuntimeError("Recv state 3", self._reply_stream, msg)
             self._reply_stream = None
             self.end_msg = msg
-            if self.q is not None:
-                await self.q.put(None)
+            if self.qr is not None:
+                await self.qr.close_sender()
             return False
+
+        elif state == "ack":
+            if self.dw is not None:
+                await self.dw.recv_ack(msg["ack"])
 
         else:
             if state not in ("", "uptodate"):  # pragma: no cover
@@ -182,10 +201,13 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 1", self._reply_stream, msg)
             elif self._reply_stream is None:
                 self._reply_stream = False
-            if self.q is not None:
-                await self.q.put(outcome.Value(msg))
-                if self._reply_stream is False:
-                    await self.q.put(None)
+            try:
+                async with anyio.fail_after(1):
+                    await self.qr.put(msg)
+            except anyio.BrokenResourceError:
+                logger.warning("Reader for %s closed: %s", self.seq, msg)
+            if self._reply_stream is False:
+                await self.qr.close_sender()
 
     async def get(self):
         """Receive a single reply"""
@@ -206,12 +228,10 @@ class StreamedRequest:
         return self
 
     async def __anext__(self):
-        res = await self.q.get()
-        if res is None:
-            self.q = None  # prevent deadlock if called again
-            raise StopAsyncIteration
         try:
-            res = res.unwrap()
+            res = await self.qr.get()
+        except (anyio.EndOfStream,anyio.ClosedResourceError):
+            raise StopAsyncIteration
         except CancelledError:
             raise StopAsyncIteration  # just terminate
         self._path_long(res)
@@ -230,22 +250,27 @@ class StreamedRequest:
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
         logger.debug("Send %s", {"seq": self.seq, **params})
+        if self.dw is not None:
+            params["wseq"] = await self.dw.next_seq()
         await self._client._send(seq=self.seq, **params)
 
     async def recv(self):
         return await self.__anext__()
 
     async def cancel(self):
-        if self.q is not None:
-            await self.q.put(outcome.Error(CancelledError()))
-        await self.aclose()
+        try:
+            await self.qr.put_error(CancelledError())
+        except (anyio.BrokenResourceError, anyio.ClosedResourceError):
+            pass
+        else:
+            await self.aclose()
 
     async def wait_started(self):
         await self._started.wait()
 
     async def aclose(self, timeout=0.2):
-        if self.q is not None:
-            await self.q.put(None)
+        await self.qr.close_sender()
+        await self.qr.close_receiver()
         if self._stream == 2:
             await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
@@ -362,6 +387,7 @@ class Client:
 
     server_name = None
     client_name = None
+    qlen: int = 0
 
     def __init__(self, cfg: dict):
         self._cfg = combine_dict(cfg, CFG, cls=attrdict)
@@ -550,10 +576,13 @@ class Client:
 
         elif iter is False and isinstance(res, StreamedRequest):
             rr = None
-            async for r in res:
-                if rr is not None:
-                    raise ManyData(action)
-                rr = r
+            try:
+                async for r in res:
+                    if rr is not None:
+                        raise ManyData(action)
+                    rr = r
+            finally:
+                await res.aclose()
             if rr is None:
                 raise NoData(action)
             res = rr
@@ -670,10 +699,13 @@ class Client:
                     self._socket = stream
                     await self.scope.spawn(self._reader)
                     async with anyio.fail_after(init_timeout):
-                        self._server_init = await hello.get()
-                        logger.debug("Hello %s", self._server_init)
-                        self.server_name = self._server_init.node
+                        self._server_init = msg = await hello.get()
+                        logger.debug("Hello %s", msg)
+                        self.server_name = msg.node
                         self.client_name = cfg["name"] or socket.gethostname() or self.server_name
+                        if "qlen" in msg:
+                            self.qlen = min(msg.qlen, self.config.server.buffer)
+                            await self._send(seq=0, qlen=self.qlen)
                         await self._run_auth(auth)
 
                     from .config import ConfigRoot
