@@ -68,7 +68,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         s = st.s[i]
         await s.is_serving
         for host, port, *_ in s.ports:
-            if host[0] != ":":
+            if host == "::" or host[0] != ":":
                 return host, port
 
     def tm():
@@ -127,16 +127,16 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             evts = []
             for i in range(n):
                 if kw.get("run_" + str(i), run):
-                    evt = anyio.create_event()
-                    await tg.spawn(partial(st.s[i].serve, ready_evt=evt))
+                    evt = anyio.Event()
+                    tg.spawn(partial(st.s[i].serve, ready_evt=evt))
                     evts.append(evt)
             for e in evts:
                 await e.wait()
             try:
                 yield st
             finally:
-                async with anyio.fail_after(2, shield=True):
+                with anyio.fail_after(2, shield=True):
                     logger.info("Runtime: %s", clock.current_time())
-                    await tg.cancel_scope.cancel()
+                    tg.cancel_scope.cancel()
         logger.info("End")
         pass  # unwinding AsyncExitStack

@@ -72,7 +72,7 @@ class ClientEntry:
         self.client = parent.client
 
     def _init(self):
-        self._lock = anyio.create_lock()  # for saving etc.
+        self._lock = anyio.Lock()  # for saving etc.
         self.chain = None
         self.value = NotGiven
         self._children = dict()
@@ -404,7 +404,7 @@ class ClientRoot(ClientEntry):
         self.client = client
         self._path = path
         self._need_wait = need_wait
-        self._loaded = anyio.create_event()
+        self._loaded = anyio.Event()
         self._require_client = require_client
 
         if cfg is None:
@@ -485,7 +485,7 @@ class ClientRoot(ClientEntry):
 
     async def running(self):
         """Hook for 'done reading current state'"""
-        await self._loaded.set()
+        self._loaded.set()
 
     @asynccontextmanager
     async def run(self):
@@ -506,7 +506,7 @@ class ClientRoot(ClientEntry):
                         if "path" not in r:
                             if r.get("state", "") == "uptodate":
                                 await self.running()
-                            await lock.set()
+                            lock.set()
                             continue
                         pl(r)
                         val = r.get("value", NotGiven)
@@ -556,17 +556,17 @@ class ClientRoot(ClientEntry):
                                 pass
                             else:
                                 while w and w[0][0] <= c.tick:
-                                    await heapq.heappop(w)[1].set()
+                                    heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            lock = anyio.create_event()
-            await tg.spawn(monitor, lock)
+            lock = anyio.Event()
+            tg.spawn(monitor, lock)
             await lock.wait()
             try:
                 yield self
             finally:
-                async with anyio.fail_after(2, shield=True):
-                    await tg.cancel_scope.cancel()
+                with anyio.fail_after(2, shield=True):
+                    tg.cancel_scope.cancel()
             pass  # end of 'run', closing taskgroup
 
     async def cancel(self):
@@ -585,7 +585,7 @@ class ClientRoot(ClientEntry):
         except KeyError:
             pass
         w = self._waiters.setdefault(chain.node, [])
-        e = anyio.create_event()
+        e = anyio.Event()
         heapq.heappush(w, (chain.tick, e))
         await e.wait()
 

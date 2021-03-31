@@ -75,7 +75,7 @@ class S:
         await self.s[i].is_serving
         self._seq += 1
         for host, port, *_ in self.s[i].ports:
-            if host[0] == ":":
+            if host != "::" and host[0] == ":":
                 continue
             try:
                 cfg = combine_dict(

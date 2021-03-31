@@ -25,7 +25,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
     async def watch_changes(c, evt):
         lg = PathLongener(())
         async with c.watch(P(":"), nchain=3, fetch=True) as res:
-            await evt.set()
+            evt.set()
             async for m in res:
                 logger.info(m)
                 lg(m)
@@ -36,7 +36,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         (s,) = st.s
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 234
-            evt = anyio.create_event()
+            evt = anyio.Event()
             cs = await scope.spawn(watch_changes, c, evt)
             await evt.wait()
 
@@ -44,7 +44,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
             await c.set(P("foo.bar"), value="baz", nchain=3)
             await c.set(P(":"), value=2345, nchain=3)
             await trio.sleep(1)  # allow the writer to write
-            await cs.cancel()
+            cs.cancel()
             pass  # client end
 
         logger.debug("SAVE %s", path)
@@ -74,14 +74,14 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         await s.load(path, local=True)
         logger.debug("LOADED")
 
-        evt = anyio.create_event()
-        await st.tg.spawn(partial(st.s[0].serve, ready_evt=evt))
+        evt = anyio.Event()
+        st.tg.spawn(partial(st.s[0].serve, ready_evt=evt))
         await evt.wait()
 
         logger.debug("RUNNING")
 
         async with st.client() as c:
-            evt = anyio.create_event()
+            evt = anyio.Event()
             cs = await scope.spawn(watch_changes, c, evt)
             await evt.wait()
 
@@ -90,7 +90,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
             assert (await c.get(P("foo.bar"))).value == "baz"
             assert (await c.get(P(":"))).value == 2345
             await trio.sleep(1)  # allow the writer to write
-            await cs.cancel()
+            cs.cancel()
 
     for m in msgs:
         m.pop("tock", None)

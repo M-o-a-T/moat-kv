@@ -349,7 +349,7 @@ class ErrorRoot(ClientRoot):
     def __init__(self, *a, name=None, **kw):
         super().__init__(*a, **kw)
         self.name = name or self.client.client_name
-        self._loaded = anyio.create_event()
+        self._loaded = anyio.Event()
         self._errors = defaultdict(dict)  # node > tock > Entry
         self._active = defaultdict(dict)  # subsystem > path > Entry
         self._done = defaultdict(WeakValueDictionary)  # subsystem > path > Entry

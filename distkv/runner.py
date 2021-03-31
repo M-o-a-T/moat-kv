@@ -159,15 +159,15 @@ class CallAdmin:
                         await anyio.sleep(oka)
                         await self.setup_done()
 
-                    await tg.spawn(is_ok, oka)
-                await tg.spawn(self._changed_code, code)
+                    tg.spawn(is_ok, oka)
+                tg.spawn(self._changed_code, code)
 
                 await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
                 if code.is_async is not None:
                     res = await res
 
-                await sc.cancel()
+                sc.cancel()
                 return res
 
     async def _pinger(self):
@@ -188,7 +188,7 @@ class CallAdmin:
         """
         Cancel the running task
         """
-        await self._taskgroup.cancel_scope.cancel()
+        self._taskgroup.cancel_scope.cancel()
 
     async def spawn(self, proc, *a, **kw):
         """
@@ -256,7 +256,7 @@ class CallAdmin:
                 self.scope = None
 
             async def run(self):
-                async with anyio.open_cancel_scope() as sc:
+                with anyio.CancelScope() as sc:
                     self.scope = sc
                     async with self.client.watch(path, **kw) as watcher:
                         async for msg in watcher:
@@ -284,7 +284,7 @@ class CallAdmin:
                 if self.scope is None:
                     return False
                 sc, self.scope = self.scope, None
-                await sc.cancel()
+                sc.cancel()
 
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
@@ -296,7 +296,7 @@ class CallAdmin:
             self._n_watch += 1
 
         w = Watcher(self, self._runner, self._client, cls, path, kw)
-        await self._taskgroup.spawn(w.run)
+        self._taskgroup.spawn(w.run)
         return w
 
     async def send(self, path, value=NotGiven, raw=None):
@@ -366,7 +366,7 @@ class CallAdmin:
                 self.scope = None
 
             async def run(self):
-                async with anyio.open_cancel_scope() as sc:
+                with anyio.CancelScope() as sc:
                     self.scope = sc
                     async with self.client.msg_monitor(path, **kw) as watcher:
                         async for msg in watcher:
@@ -384,7 +384,7 @@ class CallAdmin:
                 if self.scope is None:
                     return False
                 sc, self.scope = self.scope, None
-                await sc.cancel()
+                sc.cancel()
 
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
@@ -392,7 +392,7 @@ class CallAdmin:
             raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         w = Monitor(self, self._runner, self._client, cls, path, kw)
-        await self._taskgroup.spawn(w.run)
+        self._taskgroup.spawn(w.run)
         return w
 
     async def timer(self, delay, cls=TimerMsg):
@@ -405,7 +405,7 @@ class CallAdmin:
                 self.delay = None
 
             async def _run(self):
-                async with anyio.open_cancel_scope() as sc:
+                with anyio.CancelScope() as sc:
                     self.scope = sc
                     await anyio.sleep(self.delay)
                     self.scope = None
@@ -415,14 +415,14 @@ class CallAdmin:
                 if self.scope is None:
                     return False
                 sc, self.scope = self.scope, None
-                await sc.cancel()
+                sc.cancel()
                 return True
 
             async def run(self, delay):
                 await self.cancel()
                 self.delay = delay
                 if self.delay > 0:
-                    await self._taskgroup.spawn(t._run)
+                    self._taskgroup.spawn(t._run)
 
         t = Timer(self._runner, cls, self._taskgroup)
         await t.run(delay)
@@ -547,7 +547,7 @@ class RunnerEntry(AttrClientEntry):
 
         except BaseException as exc:
             c, self._comment = self._comment, None
-            async with anyio.move_on_after(5, shield=True):
+            with anyio.move_on_after(5, shield=True):
                 r = await self.root.err.record_error(
                     "run", self._path, exc=exc, data=self.data, comment=c
                 )
@@ -564,7 +564,7 @@ class RunnerEntry(AttrClientEntry):
             await self.root.err.record_working("run", self._path)
 
         finally:
-            async with anyio.fail_after(2, shield=True):
+            with anyio.fail_after(2, shield=True):
                 if state.node == state.root.name:
                     state.node = None
                 self._running = False
@@ -890,7 +890,7 @@ class _BaseRunnerRoot(ClientRoot):
         self.code = code
         self._nodes = {}
         self.n_nodes = nodes
-        self._trigger = anyio.create_event()
+        self._trigger = anyio.Event()
         self._x_subpath = _subpath
 
     @classmethod
@@ -940,7 +940,7 @@ class _BaseRunnerRoot(ClientRoot):
         return None
 
     async def running(self):
-        await self._tg.spawn(self._run_actor)
+        self._tg.spawn(self._run_actor)
 
         # the next block needs to be atomic
         self.ready = True
@@ -960,20 +960,20 @@ class _BaseRunnerRoot(ClientRoot):
     async def trigger_rescan(self):
         """Tell the _run_actor task to rescan our job list prematurely"""
         if self._trigger is not None:
-            await self._trigger.set()
+            self._trigger.set()
 
     async def _run_now(self, evt=None):
         t_next = self._run_next
-        async with anyio.open_cancel_scope() as sc:
+        with anyio.CancelScope() as sc:
             self._run_now_task = sc
             if evt is not None:
-                await evt.set()
+                evt.set()
             t = time.time()
             while True:
                 if t_next > t:
-                    async with anyio.move_on_after(t_next - t):
+                    with anyio.move_on_after(t_next - t):
                         await self._trigger.wait()
-                        self._trigger = anyio.create_event()
+                        self._trigger = anyio.Event()
 
                 t = time.time()
                 t_next = t + 999
@@ -987,7 +987,7 @@ class _BaseRunnerRoot(ClientRoot):
                         if d and t_next > d:
                             t_next = d
                         continue
-                    await self._tg.spawn(j.run)
+                    self._tg.spawn(j.run)
                     await anyio.sleep(self._start_delay)
 
     async def notify_actor_state(self, msg=None):
@@ -1054,7 +1054,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             self._act = act
 
             age_q = create_queue(10)
-            await self.spawn(self._age_killer, age_q)
+            self.spawn(self._age_killer, age_q)
 
             psutil.cpu_percent(interval=None)
             await act.set_value(0)
@@ -1081,8 +1081,8 @@ class AnyRunnerRoot(_BaseRunnerRoot):
 
                     self.get_node(self.name).seen = time.time()
                     self.node_history += self.name
-                    evt = anyio.create_event()
-                    await self.spawn(self._run_now, evt)
+                    evt = anyio.Event()
+                    self.spawn(self._run_now, evt)
                     await age_q.put(None)
                     await evt.wait()
 
@@ -1093,7 +1093,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     await act.set_value(100 - psutil.cpu_percent(interval=None))
                     self.seen_load = 0
 
-                    await self._run_now_task.cancel()
+                    self._run_now_task.cancel()
                     # TODO if this is a DetagEvent, kill everything?
 
                 await self.notify_actor_state(msg)
@@ -1133,7 +1133,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         t0 = None
         t1 = time.time()
         while True:
-            async with anyio.move_on_after(self.max_age):
+            with anyio.move_on_after(self.max_age):
                 await age_q.get()
                 t1 = time.time()
             t2 = time.time()
@@ -1213,8 +1213,8 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
             async with ClientActor(self.client, self.name, topic=self.group, cfg=self._cfg) as act:
                 self._act = act
-                await tg.spawn(self._age_notifier, age_q)
-                await self.spawn(self._run_now)
+                tg.spawn(self._age_notifier, age_q)
+                self.spawn(self._run_now)
                 await act.set_value(0)
 
                 async for msg in act:
@@ -1238,7 +1238,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
         """
         while True:
             try:
-                async with anyio.fail_after(self.max_age):
+                with anyio.fail_after(self.max_age):
                     await age_q.get()
             except TimeoutError:
                 await self.notify_actor_state()

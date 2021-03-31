@@ -22,13 +22,13 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
             r = await AnyRunnerRoot.as_handler(c, subpath=(), code=cr)
-            c._test_evt = anyio.create_event()
+            c._test_evt = anyio.Event()
             await cr.add(
                 P("forty.two"),
                 code="""\
                 c=_client
                 s=_self
-                await c._test_evt.set()
+                c._test_evt.set()
                 await s.setup_done()
                 await s.watch(_P("test:4242"))
                 async for msg in _info:
@@ -75,13 +75,13 @@ async def test_84_mqtt(autojump_clock):  # pylint: disable=unused-argument
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
             r = await AnyRunnerRoot.as_handler(c, subpath=(), code=cr)
-            c._test_evt = anyio.create_event()
+            c._test_evt = anyio.Event()
             await cr.add(
                 P("forty.three"),
                 code="""\
                 c=_client
                 s=_self
-                await c._test_evt.set()
+                c._test_evt.set()
                 await s.setup_done()
                 await s.monitor(_P("test.abcd"))
                 async for msg in _info:

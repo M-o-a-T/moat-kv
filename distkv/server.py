@@ -6,6 +6,7 @@ import io
 import signal
 import time
 import anyio
+from anyio.abc import SocketAttribute
 
 from .util import create_queue, DelayedRead, DelayedWrite
 
@@ -36,7 +37,7 @@ from .util import (
     MsgReader,
     combine_dict,
     drop_dict,
-    create_tcp_server,
+    run_tcp_server,
     gen_ssl,
     num2byte,
     byte2num,
@@ -219,7 +220,7 @@ class StreamCommand:
                     self.client.logger.exception("ERS%d %r", self.client._client_nr, self.msg)
                 await self.send(error=repr(exc))
             finally:
-                async with anyio.move_on_after(2, shield=True):
+                with anyio.move_on_after(2, shield=True):
                     await self.send(state="end")
 
         else:
@@ -563,7 +564,7 @@ class SCmd_watch(StreamCommand):
                         await entry.walk(worker, acl=acl, **kv)
                         await self.send(state="uptodate")
 
-                    await tg.spawn(orig_state)
+                    tg.spawn(orig_state)
 
                 async for m in watcher:
                     ml = len(m.entry.path) - len(msg.path)
@@ -647,7 +648,7 @@ class ServerClient:
         self.tasks = {}
         self.in_stream = {0: HelloProc(self)}
         self._chop_path = 0
-        self._send_lock = anyio.create_lock()
+        self._send_lock = anyio.Lock()
 
         global _client_nr
         _client_nr += 1
@@ -682,7 +683,7 @@ class ServerClient:
         self.logger.debug("IN_%d %s", self._client_nr, msg)
 
         seq = msg.seq
-        async with anyio.open_cancel_scope() as s:
+        with anyio.CancelScope() as s:
             self.tasks[seq] = s
             if "chain" in msg:
                 msg.chain = NodeEvent.deserialize(msg.chain, cache=self.server.node_cache)
@@ -699,7 +700,7 @@ class ServerClient:
                     raise NoAuthError()
                 fn = partial(self._process, fn, msg)
             if evt is not None:
-                await evt.set()
+                evt.set()
 
             try:
                 await fn()
@@ -738,10 +739,7 @@ class ServerClient:
             return k
 
         async with self.server.crypto_limiter:
-            try:
-                k = await anyio.run_in_thread(gen_key)
-            except AttributeError:
-                k = await anyio.run_sync_in_worker_thread(gen_key)
+            k = await anyio.to_thread.run_sync(gen_key)
         return {"pubkey": num2byte(k.public_key)}
 
     cmd_diffie_hellman.noAuth = True
@@ -1129,7 +1127,7 @@ class ServerClient:
             if "tock" not in msg:
                 msg["tock"] = self.server.tock
             try:
-                await self.stream.send_all(packer(msg))
+                await self.stream.send(packer(msg))
             except ClosedResourceError:
                 self.logger.info("ERO%d %r", self._client_nr, msg)
                 self._send_lock = None
@@ -1189,8 +1187,8 @@ class ServerClient:
                         if send_q is not None:
                             await send_q.received(msg)
                         else:
-                            evt = anyio.create_event()
-                            await self.tg.spawn(self.process, msg, evt)
+                            evt = anyio.Event()
+                            self.tg.spawn(self.process, msg, evt)
                             await evt.wait()
                     except Exception as exc:
                         msg = {"error": str(exc)}
@@ -1206,7 +1204,7 @@ class ServerClient:
                         await self.send(msg)
 
                 try:
-                    buf = await self.stream.receive_some(4096)
+                    buf = await self.stream.receive(4096)
                 except ConnectionResetError:
                     self.logger.info("DEAD %d", self._client_nr)
                     break
@@ -1215,7 +1213,7 @@ class ServerClient:
                     break
                 unpacker_.feed(buf)
 
-            await tg.cancel_scope.cancel()
+            tg.cancel_scope.cancel()
 
     def drop_old_event(self, evt, old_evt=NotGiven):
         return self.server.drop_old_event(evt, old_evt)
@@ -1267,26 +1265,26 @@ class _RecoverControl:
         return id(self)
 
     async def cancel(self):
-        await self.scope.cancel()
+        self.scope.cancel()
         rt = self.server._recover_tasks
         for node in self.local_history:
             if rt.get(node, None) is self:
                 del rt[node]
         self.local_history = ()
         for evt in list(self._waiters.values()):
-            await evt.set()
+            evt.set()
 
     async def set(self, n):
         evt = self._waiters.get(n, None)
         if evt is None:
-            evt = anyio.create_event()
+            evt = anyio.Event()
             self._waiters[n] = evt
-        await evt.set()
+        evt.set()
 
     async def wait(self, n):
         evt = self._waiters.get(n, None)
         if evt is None:
-            evt = anyio.create_event()
+            evt = anyio.Event()
             self._waiters[n] = evt
         await evt.wait()
 
@@ -1338,12 +1336,12 @@ class Server:
         self.node = Node(name, None, cache=self.node_cache)
 
         self._init = init
-        self.crypto_limiter = anyio.create_semaphore(3)
+        self.crypto_limiter = anyio.Semaphore(3)
         self.logger = logging.getLogger("distkv.server." + name)
         self._delete_also_nodes = NodeSet()
 
         # Lock for generating a new node event
-        self._evt_lock = anyio.create_lock()
+        self._evt_lock = anyio.Lock()
 
         # connected clients
         self._clients = set()
@@ -1418,7 +1416,7 @@ class Server:
                 if n is not None:
                     self.logger.warning("Deletion %s %d due to %r", self.node, n.tick, exc)
                     self.node.report_deleted(RangeSet((nt,)), self)
-                    async with anyio.move_on_after(2, shield=True):
+                    with anyio.move_on_after(2, shield=True):
                         await self._send_event(
                             "info", dict(node="", tick=0, deleted={self.node.name: (nt,)})
                         )
@@ -1846,7 +1844,7 @@ class Server:
                     if not msg:  # None, empty, whatever
                         continue
                     self.logger.debug("Recv %s: %r", action, msg)
-                    async with anyio.fail_after(10):
+                    with anyio.fail_after(10):
                         await self.tock_seen(msg.get("tock", 0))
                         await cmd(msg)
         except CancelledError:
@@ -1886,12 +1884,12 @@ class Server:
         ) as actor:
             self._actor = actor
             await self._check_ticked()
-            await delay.set()
+            delay.set()
             async for msg in actor:
                 # self.logger.debug("IN %r",msg)
 
                 if isinstance(msg, RecoverEvent):
-                    await self.spawn(
+                    self.spawn(
                         self.recover_split,
                         msg.prio,
                         msg.replace,
@@ -1900,7 +1898,7 @@ class Server:
                     )
 
                 elif isinstance(msg, GoodNodeEvent):
-                    await self.spawn(self.fetch_data, msg.nodes)
+                    self.spawn(self.fetch_data, msg.nodes)
 
                 elif isinstance(msg, RawMsgEvent):
                     msg = msg.msg
@@ -1934,6 +1932,9 @@ class Server:
         While you can use the hostmap to temporarily add new hosts with
         unusual addresses, the new host still needs a config entry.
         """
+
+        # this is async because the test mock needs that
+
         port = self.cfg.connect.port
         domain = self.cfg.domain
         try:
@@ -2090,7 +2091,7 @@ class Server:
                     self.fetch_running = False
                     for nm in self.fetch_missing:
                         self.logger.error("Sync: missing: %s %s", nm.name, nm.local_missing)
-                    await self.spawn(self.do_send_missing)
+                    self.spawn(self.do_send_missing)
                 if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
                         self.node.tick = 0
@@ -2157,7 +2158,7 @@ class Server:
             return
         if self.node.tick is not None:
             self.logger.debug("Ready")
-            await self._ready.set()
+            self._ready.set()
             await self._set_tock()
         else:
             # self.logger.debug("Not yet ready.")
@@ -2167,7 +2168,7 @@ class Server:
         """
         Recover from a network split.
         """
-        async with anyio.open_cancel_scope() as scope:
+        with anyio.CancelScope() as scope:
             for node in sources:
                 if node not in self._recover_tasks:
                     break
@@ -2188,7 +2189,7 @@ class Server:
 
                 # Step 1: send an info/ticks message
                 # for prio=0 this fires immediately. That's intentional.
-                async with anyio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
+                with anyio.move_on_after(clock * (1 - 1 / (1 << prio))) as x:
                     await t.wait(1)
                 if x.cancel_called:
                     msg = dict((x.name, x.tick) for x in self._nodes.values())
@@ -2203,7 +2204,7 @@ class Server:
                 # chance to wait for other info/ticks messages. We can't
                 # trigger on them because there may be more than one, for a
                 # n-way merge.
-                async with anyio.move_on_after(clock * (2 - 1 / (1 << prio)) / 2) as x:
+                with anyio.move_on_after(clock * (2 - 1 / (1 << prio)) / 2) as x:
                     await t.wait(2)
 
                 if x.cancel_called:
@@ -2218,7 +2219,7 @@ class Server:
                 await self._run_send_missing(prio)
 
             finally:
-                async with anyio.open_cancel_scope(shield=True):
+                with anyio.CancelScope(shield=True):
                     # Protect against cleaning up when another recovery task has
                     # been started (because we saw another merge)
                     self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
@@ -2253,7 +2254,7 @@ class Server:
 
         if self.sending_missing is None:
             self.sending_missing = True
-            await self.spawn(self._send_missing_data, prio)
+            self.spawn(self._send_missing_data, prio)
         elif not self.sending_missing:
             self.sending_missing = True
 
@@ -2445,7 +2446,7 @@ class Server:
                         cnt = 0
 
                     try:
-                        async with anyio.fail_after(1 if cnt else 60 - td):
+                        with anyio.fail_after(1 if cnt else 60 - td):
                             msg = await updates.__anext__()
                     except TimeoutError:
                         await mw.flush()
@@ -2465,8 +2466,8 @@ class Server:
         self, path: str = None, stream=None, done: ValueEvent = None, save_state=False
     ):
 
-        async with anyio.open_cancel_scope() as s:
-            sd = anyio.create_event()
+        with anyio.CancelScope() as s:
+            sd = anyio.Event()
             state = (s, sd)
             self._savers.append(state)
             try:
@@ -2476,9 +2477,11 @@ class Server:
             except EnvironmentError as err:
                 if done is None:
                     raise
-                await done.set_error(err)
+                res = done.set_error(err)
+                import pdb;pdb.set_trace()
+                pass
             finally:
-                async with anyio.open_cancel_scope(shield=True):
+                with anyio.CancelScope(shield=True):
                     await sd.set()
 
     async def run_saver(self, path: str = None, stream=None, save_state=False, wait: bool = True):
@@ -2501,7 +2504,7 @@ class Server:
         done = ValueEvent() if wait else None
         res = None
         if path is not None:
-            await self.spawn(
+            self.spawn(
                 partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
             )
             if wait:
@@ -2514,7 +2517,7 @@ class Server:
             await sd.wait()
 
     async def _sigterm(self):
-        async with anyio.open_signal_receiver(signal.SIGTERM) as r:
+        with anyio.open_signal_receiver(signal.SIGTERM) as r:
             async for s in r:
                 for s, sd in self._savers:
                     await s.cancel()
@@ -2533,7 +2536,7 @@ class Server:
         await self._ready2.wait()
 
     async def serve(self, log_path=None, log_inc=False, force=False, ready_evt=None):
-        """Task that opens a Serf connection and actually runs the server.
+        """Task that opens a backend connection and actually runs the server.
 
         Args:
           ``setup_done``: optional event that's set when the server is initially set up.
@@ -2568,10 +2571,10 @@ class Server:
 
             # Set when self.node.tick is no longer None, i.e. we have some
             # reasonable state
-            self._ready = anyio.create_event()
+            self._ready = anyio.Event()
 
             # set when we're ready to accept client connections
-            self._ready2 = anyio.create_event()
+            self._ready2 = anyio.Event()
 
             self.serf = serf
             self.spawn = serf.spawn
@@ -2589,12 +2592,12 @@ class Server:
 
             # used to sync starting up everything so no messages get either
             # lost, or processed prematurely
-            delay = anyio.create_event()
-            delay2 = anyio.create_event()
-            delay3 = anyio.create_event()
+            delay = anyio.Event()
+            delay2 = anyio.Event()
+            delay3 = anyio.Event()
 
-            await self.spawn(self._run_del, delay3)
-            await self.spawn(self._delete_also)
+            self.spawn(self._run_del, delay3)
+            self.spawn(self._delete_also)
 
             if log_path is not None:
                 await self.run_saver(path=log_path, save_state=not log_inc, wait=False)
@@ -2602,10 +2605,10 @@ class Server:
             # Link up our "user_*" code
             for d in dir(self):
                 if d.startswith("user_"):
-                    await self.spawn(self.monitor, d[5:], delay)
+                    self.spawn(self.monitor, d[5:], delay)
 
             await delay3.wait()
-            await self.spawn(self.watcher)
+            self.spawn(self.watcher)
 
             if self._init is not NotGiven:
                 assert self.node.tick is None
@@ -2613,13 +2616,13 @@ class Server:
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init, tock=self.tock, server=self)
 
-            await self.spawn(self._sigterm)
+            self.spawn(self._sigterm)
 
             # send initial ping
-            await self.spawn(self._pinger, delay2)
+            self.spawn(self._pinger, delay2)
 
             await anyio.sleep(0.1)
-            await delay.set()
+            delay.set()
             await self._check_ticked()  # when _init is set
             await delay2.wait()
             await self._ready.wait()
@@ -2630,33 +2633,29 @@ class Server:
             async with anyio.create_task_group() as tg:
                 for n, cfg in enumerate(cfgs):
                     cfg = combine_dict(cfg, cfg_b, cls=attrdict)
-                    evt = anyio.create_event()
+                    evt = anyio.Event()
                     evts.append(evt)
-                    await tg.spawn(self._accept_clients, cfg, n, evt)
+                    tg.spawn(self._accept_clients, tg, cfg, n, evt)
                 for evt in evts:
                     await evt.wait()
 
-                await self._ready2.set()
+                self._ready2.set()
                 if ready_evt is not None:
-                    await ready_evt.set()
+                    ready_evt.set()
                 pass  # end of server taskgroup
             pass  # end of server
         pass  # end of serf client
 
-    async def _accept_clients(self, cfg, n, evt):
+    async def _accept_clients(self, tg, cfg, n, evt):
         ssl_ctx = gen_ssl(cfg["ssl"], server=True)
         cfg = combine_dict({"ssl": ssl_ctx}, cfg, cls=attrdict)
-
-        async with create_tcp_server(**cfg) as server:
+        
+        def rdy(n, server):
             if n == 0:
-                self.ports = server.ports
-            if evt is not None:
-                await evt.set()
-
-            async for stream in server:
-                await self.spawn(self._connect, stream)
-            pass  # unwinding create_tcp_server
-        pass  # unwinding the client (cancelled or error)
+                port = server.extra(SocketAttribute.local_address)
+            self.ports = [port]
+            evt.set()
+        await run_tcp_server(self._connect, tg=tg, _rdy=partial(rdy,n), **cfg)
 
     async def _connect(self, stream):
         c = None
@@ -2677,14 +2676,14 @@ class Server:
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)
             try:
-                async with anyio.move_on_after(2) as cs:
+                with anyio.move_on_after(2) as cs:
                     cs.shield = True
                     if c is not None:
                         await c.send({"error": str(exc)})
             except Exception:
                 pass
         finally:
-            async with anyio.move_on_after(2, shield=True):
+            with anyio.move_on_after(2, shield=True):
                 if c is not None:
                     self._clients.remove(c)
                 await stream.aclose()
