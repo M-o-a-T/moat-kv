@@ -24,7 +24,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
                 except CancelledError:
                     pass
 
-            await s.spawn(mon)
+            s.spawn(mon)
             await trio.sleep(0.2)
             await c._request("msg_send", topic=P("foo.bar"), data=["Hello", 42])
             await c._request("msg_send", topic=("foo", "baz"), data=b"duh")
@@ -50,7 +50,7 @@ async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argume
                 except CancelledError:
                     pass
 
-            await s.spawn(mon)
+            s.spawn(mon)
             await trio.sleep(0.2)
             await c._request("msg_send", topic=("foo",), data=["Hello", 42])
             await c._request("msg_send", topic=P("foo"), raw=b"duh")

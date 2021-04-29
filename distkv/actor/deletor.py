@@ -107,7 +107,7 @@ class DeleteActor:
                     else:
                         await actor.disable()
                 if evt is not None:
-                    await evt.set()
+                    evt.set()
                 async for evt in actor:
                     if isinstance(evt, PingEvent):
                         val = evt.value

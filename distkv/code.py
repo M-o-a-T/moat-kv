@@ -184,7 +184,7 @@ class CodeEntry(ClientEntry):
     is_async = None
 
     def __init__(self, *a, **kv):
-        self.reload_event = anyio.create_event()
+        self.reload_event = anyio.Event()
         super().__init__(*a, *kv)
 
     @property
@@ -212,8 +212,8 @@ class CodeEntry(ClientEntry):
             await self.root.err.record_working("compile", self.subpath)
             self._code = p
             self.is_async = a
-            await self.reload_event.set()
-            self.reload_event = anyio.create_event()
+            self.reload_event.set()
+            self.reload_event = anyio.Event()
 
     def __call__(self, *a, **kw):
         if self._code is None:
@@ -222,9 +222,6 @@ class CodeEntry(ClientEntry):
             proc = self._code
             if kw:
                 proc = partial(proc, **kw)
-            try:
-                return anyio.run_in_thread(proc, *a)
-            except AttributeError:
-                return anyio.run_sync_in_worker_thread(proc, *a)
+            return anyio.to_thread.run_sync(proc, *a)
 
         return self._code(*a, **kw)

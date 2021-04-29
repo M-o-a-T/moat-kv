@@ -67,7 +67,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
                         recv.append(m)
 
         evt = trio.Event()
-        await s.spawn(mon, evt)
+        s.spawn(mon, evt)
         await evt.wait()
         async with st.client(auth=um.build({"name": "con"})) as c:
             await c.set(P("inty.ten"), value="10")

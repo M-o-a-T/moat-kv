@@ -9,6 +9,7 @@ import socket
 import os
 from typing import Tuple
 from contextlib import asynccontextmanager, AsyncExitStack
+from inspect import iscoroutine
 
 from asyncscope import scope, Scope, main_scope
 
@@ -42,10 +43,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-try:
-    ClosedResourceError = anyio.exceptions.ClosedResourceError
-except AttributeError:
-    ClosedResourceError = anyio.ClosedResourceError
+ClosedResourceError = anyio.ClosedResourceError
 
 rs = os.environ.get("PYTHONHASHSEED", None)
 if rs is None:
@@ -59,6 +57,18 @@ else:  # pragma: no cover
         random = tcr._r
 
 __all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest"]
+
+
+class AsyncValueEvent(ValueEvent):
+    async def set(self,val):
+        super().set(val)
+    async def set_error(self,val):
+        super().set_error(val)
+    def cancel(self):
+        if self.scope is not None:
+            self.scope.cancel()
+        super().set_error(CancelledError())
+        return anyio.DeprecatedAwaitable(self.cancel)
 
 
 class NoData(ValueError):
@@ -140,7 +150,7 @@ class StreamedRequest:
         self._reply_stream = None
         self.n_msg = 0
         self._report_start = report_start
-        self._started = anyio.create_event()
+        self._started = anyio.Event()
         self._path_long = lambda x: x
         if client.qlen > 0:
             self.dw = DelayedWrite(client.qlen)
@@ -176,7 +186,7 @@ class StreamedRequest:
                 raise RuntimeError("Recv state 2", self._reply_stream, msg)
             self._reply_stream = True
             self.start_msg = msg
-            await self._started.set()
+            self._started.set()
             if self._report_start:
                 await self.qr.put(msg)
 
@@ -202,7 +212,7 @@ class StreamedRequest:
             elif self._reply_stream is None:
                 self._reply_stream = False
             try:
-                async with anyio.fail_after(1):
+                with anyio.fail_after(1):
                     await self.qr.put(msg)
             except anyio.BrokenResourceError:
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
@@ -274,7 +284,7 @@ class StreamedRequest:
         if self._stream == 2:
             await self._client._send(seq=self.seq, state="end")
             if timeout is not None:
-                async with anyio.move_on_after(timeout):
+                with anyio.move_on_after(timeout):
                     try:
                         await self.recv()
                     except StopAsyncIteration:
@@ -293,7 +303,7 @@ class _SingleReply:
     def __init__(self, conn, seq, params):
         self._conn = conn
         self.seq = seq
-        self.q = ValueEvent()
+        self.q = AsyncValueEvent()
         self._params = params
 
     async def set(self, msg):
@@ -333,7 +343,7 @@ class ClientConfig:
     def _init(self, client):
         self._client = client
         self._current = {}
-        self._changed = anyio.create_event()
+        self._changed = anyio.Event()
 
     def __getattr__(self, k):
         if k.startswith("_"):
@@ -355,8 +365,8 @@ class ClientConfig:
         configuration; the old data is discarded.
         """
         self._current[k] = combine_dict(v, self._client._cfg.get(k, {}))
-        c, self._changed = self._changed, anyio.create_event()
-        await c.set()
+        c, self._changed = self._changed, anyio.Event()
+        c.set()
 
     async def _watch(self):
         class CfgWatcher:
@@ -395,7 +405,7 @@ class Client:
 
         self._seq = 0
         self._handlers = {}
-        self._send_lock = anyio.create_lock()
+        self._send_lock = anyio.Lock()
         self._helpers = {}
         self._name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
 
@@ -454,19 +464,11 @@ class Client:
                 k.generate_public_key()
                 return k
 
-            try:
-                k = await anyio.run_in_thread(gen_key)
-            except AttributeError:
-                k = await anyio.run_sync_in_worker_thread(gen_key)
+            k = await anyio.to_thread.run_sync(gen_key)
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            try:
-                await anyio.run_in_thread(k.generate_shared_secret, byte2num(res.pubkey))
-            except AttributeError:
-                await anyio.run_sync_in_worker_thread(
-                    k.generate_shared_secret, byte2num(res.pubkey)
-                )
+            await anyio.to_thread.run_sync(k.generate_shared_secret, byte2num(res.pubkey))
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
@@ -480,16 +482,13 @@ class Client:
                 p = packer(params)
             except TypeError as e:
                 raise ValueError(f"Unable to pack: {params!r}") from e
-            try:
-                await sock.send_all(p)
-            except AttributeError:
-                await sock.send(p)
+            await sock.send(p)
 
     async def _reader(self, *, evt=None):
         """Main loop for reading"""
         unpacker = stream_unpacker()
 
-        async with anyio.open_cancel_scope():
+        with anyio.CancelScope():
             # XXX store the scope so that the redaer may get cancelled?
             if evt is not None:
                 await evt.set()
@@ -515,11 +514,13 @@ class Client:
                     unpacker.feed(buf)
 
             finally:
-                async with anyio.fail_after(2, shield=True):
+                with anyio.fail_after(2, shield=True):
                     hdl, self._handlers = self._handlers, None
                     for m in hdl.values():
                         try:
-                            await m.cancel()
+                            res = m.cancel()
+                            if iscoroutine(res):
+                                await res
                         except ClosedResourceError:
                             pass
 
@@ -640,7 +641,7 @@ class Client:
                 await res.send(error=repr(exc))
             raise
         finally:
-            async with anyio.fail_after(2, shield=True):
+            with anyio.fail_after(2, shield=True):
                 await res.aclose()
 
     async def _run_auth(self, auth=None):
@@ -668,7 +669,7 @@ class Client:
         This async context manager handles the actual TCP connection to
         the DistKV server.
         """
-        hello = ValueEvent()
+        hello = AsyncValueEvent()
         self._handlers[0] = hello
 
         cfg = self._cfg["connect"]
@@ -698,7 +699,7 @@ class Client:
                 try:
                     self._socket = stream
                     await self.scope.spawn(self._reader)
-                    async with anyio.fail_after(init_timeout):
+                    with anyio.fail_after(init_timeout):
                         self._server_init = msg = await hello.get()
                         logger.debug("Hello %s", msg)
                         self.server_name = msg.node
@@ -719,7 +720,7 @@ class Client:
                 else:
                     yield self
                 finally:
-                    async with anyio.fail_after(2, shield=True):
+                    with anyio.fail_after(2, shield=True):
                         # Clean up our hacked config
                         try:
                             del self._config

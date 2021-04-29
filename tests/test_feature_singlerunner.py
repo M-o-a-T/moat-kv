@@ -22,13 +22,13 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
             r = await SingleRunnerRoot.as_handler(c, subpath=(), code=cr)
-            c._test_evt = anyio.create_event()
+            c._test_evt = anyio.Event()
             await cr.add(
                 P("forty.two"),
                 code="""\
                 import trio
                 c=_client
-                await c._test_evt.set()
+                c._test_evt.set()
                 await trio.sleep(10)
                 return 42
                 """,

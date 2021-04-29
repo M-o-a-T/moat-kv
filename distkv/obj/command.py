@@ -32,6 +32,7 @@ class _InvSub:
         sub_name=None,
         long_name=None,
         prepare=None,
+        list_recursive=False,
     ):
         self.name = name
         self.id_name = id_name
@@ -45,6 +46,7 @@ class _InvSub:
         self.long_name = long_name or name
         self.sub_base = sub_base
         self.prepare = prepare
+        self.list_recursive = list_recursive
         if sub_name is NotGiven:
             self.sub_name = None
         else:
@@ -124,7 +126,7 @@ def std_command(cli, *a, **kw):
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
             cnt = 0
-            for n in this(obj):
+            for n in (this(obj).all_children if tinv.list_recursive else this(obj)):
                 cnt += 1
                 print(n, file=obj.stdout)
             if not cnt and ctx.obj.debug:
