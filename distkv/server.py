@@ -221,7 +221,10 @@ class StreamCommand:
                 await self.send(error=repr(exc))
             finally:
                 with anyio.move_on_after(2, shield=True):
-                    await self.send(state="end")
+                    try:
+                        await self.send(state="end")
+                    except anyio.BrokenResourceError:
+                        pass
 
         else:
             res = await self.run(**kw)
