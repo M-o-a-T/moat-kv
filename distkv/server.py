@@ -221,7 +221,10 @@ class StreamCommand:
                 await self.send(error=repr(exc))
             finally:
                 with anyio.move_on_after(2, shield=True):
-                    await self.send(state="end")
+                    try:
+                        await self.send(state="end")
+                    except anyio.BrokenResourceError:
+                        pass
 
         else:
             res = await self.run(**kw)
@@ -2641,7 +2644,7 @@ class Server:
 
                 self._ready2.set()
                 if ready_evt is not None:
-                    ready_evt.set()
+                    await ready_evt.set()
                 pass  # end of server taskgroup
             pass  # end of server
         pass  # end of serf client

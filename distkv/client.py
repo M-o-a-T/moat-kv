@@ -60,10 +60,12 @@ __all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest
 
 
 class AsyncValueEvent(ValueEvent):
-    async def set(self,val):
+    def set(self,val):
         super().set(val)
-    async def set_error(self,val):
+        return anyio.DeprecatedAwaitable(self.set)
+    def set_error(self,val):
         super().set_error(val)
+        return anyio.DeprecatedAwaitable(self.set_error)
     def cancel(self):
         if self.scope is not None:
             self.scope.cancel()
