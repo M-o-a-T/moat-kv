@@ -2644,7 +2644,7 @@ class Server:
 
                 self._ready2.set()
                 if ready_evt is not None:
-                    ready_evt.set()
+                    await ready_evt.set()
                 pass  # end of server taskgroup
             pass  # end of server
         pass  # end of serf client
