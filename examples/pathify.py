@@ -1,32 +1,43 @@
 #!/usr/bin/python3
 
-# Batch-convert data. In this case I had some cable links from before these were
-# stored as Path, and needed to edit the raw data. That's much easier when
-# they're not a list.
+# Batch-convert data. In this case I had some entries which were stored as
+# a list, but using Path made much more sense (esp when you need to
+# view/edit the yaml export).
 
 import anyio
 from distkv.client import open_client
 from distkv.util import P, yload, Path
+import asyncclick as click
 
 def conv(m,s: str) -> bool:
-    d = m.value[s]
-    if isinstance(d[0],Path):
-        return True
-    d = (Path.build(d[0]), *d[1:])
+    try:
+        d = m.value[s]
+    except KeyError:
+        return 0
+    if isinstance(d,Path):
+        return 0
+    if not isinstance(d,Sequence):
+        return 0
+    d = Path.build(d)
     m.value[s] = d
-    return False
+    return 1
 
-ORIG=P(":.distkv.inventory.cable")
-
-async def dkv_example():
+@click.command()
+@click.argument("path", type=P)
+@click.argument("keys", type=str, nargs=-1)
+async def main(path, keys):
+    if not keys:
+        keys = "src dest dst state".split()
     with open("/etc/distkv.cfg") as cff:
         cfg = yload(cff)
     async with open_client(**cfg) as client:
-        async for m in client.get_tree(ORIG, nchain=2):
-            if conv(m,'a') + conv(m,'b') == 2:
-                continue
-            print(m)
-            await client.set(ORIG+m.path, value=m.value, chain=m.chain)
+        async for m in client.get_tree(path, nchain=2):
+            n = 0
+            for k in keys:
+                n += conv(m,k)
+            if n:
+                await client.set(ORIG+m.path, value=m.value, chain=m.chain)
 
-anyio.run(dkv_example)
+if __name__ == "__main__":
+    main()
 
