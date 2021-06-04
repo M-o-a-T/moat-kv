@@ -45,7 +45,7 @@ async def get(obj, script):
 
 
 @cli.command("set")
-@click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
+@click.option("-a/-A", "--async/--sync", "async_", is_flag=True, help="The code is async / sync (default: async)", default=True)
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
@@ -61,14 +61,10 @@ async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
     VAR shall not have a default value, and '-e VAR /' to delete VAR from
     the list of inputs entirely.
     """
-    if async_:
-        if thread:
-            raise click.UsageError("You can't specify both '--async' and '--thread'.")
-    else:
-        if thread:
-            async_ = False
-        else:
-            async_ = None
+    if thread:
+        async_ = False
+    elif not async_:
+        async_ = None
 
     if not len(obj.codepath):
         raise click.UsageError("You need a non-empty path.")
