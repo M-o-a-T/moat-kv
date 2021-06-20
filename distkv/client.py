@@ -244,7 +244,7 @@ class StreamedRequest:
     async def __anext__(self):
         try:
             res = await self.qr.get()
-        except (anyio.EndOfStream,anyio.ClosedResourceError):
+        except (anyio.EndOfStream, anyio.ClosedResourceError):
             raise StopAsyncIteration
         except CancelledError:
             raise StopAsyncIteration  # just terminate

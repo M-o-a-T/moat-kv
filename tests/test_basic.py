@@ -427,6 +427,7 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
             pass  # client end
         pass  # server end
 
+
 @pytest.mark.trio
 async def test_03_lots(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=1000) as st:
@@ -434,7 +435,7 @@ async def test_03_lots(autojump_clock):  # pylint: disable=unused-argument
             assert (await c.get(P(":"))).value == 123
 
             for n in range(200):
-                r = await c.set(P("foo")|n, value=n)
+                r = await c.set(P("foo") | n, value=n)
             r = await c.list(P("foo"))
             assert len(r) == 200, r
             async with c._stream("get_tree", path=P("foo"), max_depth=2) as rr:
@@ -442,5 +443,3 @@ async def test_03_lots(autojump_clock):  # pylint: disable=unused-argument
             assert len(r) == 200, r
 
         pass  # server end
-
-

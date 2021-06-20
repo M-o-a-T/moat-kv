@@ -126,7 +126,7 @@ def std_command(cli, *a, **kw):
             if ctx.invoked_subcommand is not None:
                 raise click.BadParameter("The name '-' triggers a list and precludes subcommands.")
             cnt = 0
-            for n in (this(obj).all_children if tinv.list_recursive else this(obj)):
+            for n in this(obj).all_children if tinv.list_recursive else this(obj):
                 cnt += 1
                 print(n, file=obj.stdout)
             if not cnt and ctx.obj.debug:

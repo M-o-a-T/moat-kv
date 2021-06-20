@@ -45,7 +45,14 @@ async def get(obj, script):
 
 
 @cli.command("set")
-@click.option("-a/-A", "--async/--sync", "async_", is_flag=True, help="The code is async / sync (default: async)", default=True)
+@click.option(
+    "-a/-A",
+    "--async/--sync",
+    "async_",
+    is_flag=True,
+    help="The code is async / sync (default: async)",
+    default=True,
+)
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
