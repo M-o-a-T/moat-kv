@@ -193,9 +193,8 @@ async def set_mod(obj, path, script, data):
 )
 @click.option("-f", "--full", is_flag=True, help="print complete entries.")
 @click.option("-s", "--short", is_flag=True, help="print shortened entries.")
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
+async def list_(obj, as_dict, maxdepth, mindepth, full, short):
     """
     List code entries.
 
@@ -203,7 +202,6 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     printed if you use the `--as-dict` option.
     """
 
-    path = P(path)
     if (full or as_dict) and short:
         raise click.UsageError("'-f'/'-d' and '-s' are incompatible.")
     kw = {}
@@ -212,7 +210,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     if mindepth is not None:
         kw["min_depth"] = mindepth
     y = {}
-    async for r in obj.client.get_tree(obj.cfg["codes"].prefix + path, nchain=obj.meta, **kw):
+    async for r in obj.client.get_tree(obj.path, nchain=obj.meta, **kw):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:
@@ -246,17 +244,14 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
 
 
 @cli.command()
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def delete(obj, path):
+async def delete(obj):
     """Remove a code entry"""
-    path = P(path)
-
-    res = await obj.client.get(obj.cfg["codes"].prefix + path, nchain=3)
+    res = await obj.client.get(obj.path, nchain=3)
     if "value" not in res:
         res.info = "Does not exist."
     else:
-        res = await obj.client.delete(obj.cfg["codes"].prefix + path, chain=res.chain)
+        res = await obj.client.delete(obj.path, chain=res.chain)
         res.info = "Deleted."
 
     if obj.meta:
