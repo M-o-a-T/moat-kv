@@ -45,7 +45,14 @@ async def get(obj, script):
 
 
 @cli.command("set")
-@click.option("-a", "--async", "async_", is_flag=True, help="The code is async")
+@click.option(
+    "-a/-A",
+    "--async/--sync",
+    "async_",
+    is_flag=True,
+    help="The code is async / sync (default: async)",
+    default=True,
+)
 @click.option("-t", "--thread", is_flag=True, help="The code should run in a worker thread")
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the code")
 @click.option("-i", "--info", type=str, help="one-liner info about the code")
@@ -61,14 +68,10 @@ async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
     VAR shall not have a default value, and '-e VAR /' to delete VAR from
     the list of inputs entirely.
     """
-    if async_:
-        if thread:
-            raise click.UsageError("You can't specify both '--async' and '--thread'.")
-    else:
-        if thread:
-            async_ = False
-        else:
-            async_ = None
+    if thread:
+        async_ = False
+    elif not async_:
+        async_ = None
 
     if not len(obj.codepath):
         raise click.UsageError("You need a non-empty path.")
@@ -197,9 +200,8 @@ async def set_mod(obj, path, script, data):
 )
 @click.option("-f", "--full", is_flag=True, help="print complete entries.")
 @click.option("-s", "--short", is_flag=True, help="print shortened entries.")
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
+async def list_(obj, as_dict, maxdepth, mindepth, full, short):
     """
     List code entries.
 
@@ -207,7 +209,6 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     printed if you use the `--as-dict` option.
     """
 
-    path = P(path)
     if (full or as_dict) and short:
         raise click.UsageError("'-f'/'-d' and '-s' are incompatible.")
     kw = {}
@@ -216,7 +217,7 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
     if mindepth is not None:
         kw["min_depth"] = mindepth
     y = {}
-    async for r in obj.client.get_tree(obj.cfg["codes"].prefix + path, nchain=obj.meta, **kw):
+    async for r in obj.client.get_tree(obj.path, nchain=obj.meta, **kw):
         r.pop("seq", None)
         path = r.pop("path")
         if not full:
@@ -250,17 +251,14 @@ async def list_(obj, path, as_dict, maxdepth, mindepth, full, short):
 
 
 @cli.command()
-@click.argument("path", nargs=1)
 @click.pass_obj
-async def delete(obj, path):
+async def delete(obj):
     """Remove a code entry"""
-    path = P(path)
-
-    res = await obj.client.get(obj.cfg["codes"].prefix + path, nchain=3)
+    res = await obj.client.get(obj.path, nchain=3)
     if "value" not in res:
         res.info = "Does not exist."
     else:
-        res = await obj.client.delete(obj.cfg["codes"].prefix + path, chain=res.chain)
+        res = await obj.client.delete(obj.path, chain=res.chain)
         res.info = "Deleted."
 
     if obj.meta:

@@ -60,12 +60,14 @@ __all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest
 
 
 class AsyncValueEvent(ValueEvent):
-    def set(self,val):
-        super().set(val)
+    def set(self, value):
+        super().set(value)
         return anyio.DeprecatedAwaitable(self.set)
-    def set_error(self,val):
-        super().set_error(val)
+
+    def set_error(self, exc):
+        super().set_error(exc)
         return anyio.DeprecatedAwaitable(self.set_error)
+
     def cancel(self):
         if self.scope is not None:
             self.scope.cancel()
@@ -242,7 +244,7 @@ class StreamedRequest:
     async def __anext__(self):
         try:
             res = await self.qr.get()
-        except (anyio.EndOfStream,anyio.ClosedResourceError):
+        except (anyio.EndOfStream, anyio.ClosedResourceError):
             raise StopAsyncIteration
         except CancelledError:
             raise StopAsyncIteration  # just terminate

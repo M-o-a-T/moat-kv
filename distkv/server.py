@@ -2480,9 +2480,7 @@ class Server:
             except EnvironmentError as err:
                 if done is None:
                     raise
-                res = done.set_error(err)
-                import pdb;pdb.set_trace()
-                pass
+                done.set_error(err)
             finally:
                 with anyio.CancelScope(shield=True):
                     await sd.set()
@@ -2652,13 +2650,14 @@ class Server:
     async def _accept_clients(self, tg, cfg, n, evt):
         ssl_ctx = gen_ssl(cfg["ssl"], server=True)
         cfg = combine_dict({"ssl": ssl_ctx}, cfg, cls=attrdict)
-        
+
         def rdy(n, server):
             if n == 0:
                 port = server.extra(SocketAttribute.local_address)
             self.ports = [port]
             evt.set()
-        await run_tcp_server(self._connect, tg=tg, _rdy=partial(rdy,n), **cfg)
+
+        await run_tcp_server(self._connect, tg=tg, _rdy=partial(rdy, n), **cfg)
 
     async def _connect(self, stream):
         c = None
@@ -2666,7 +2665,7 @@ class Server:
             c = ServerClient(server=self, stream=stream)
             self._clients.add(c)
             await c.run()
-        except ClosedResourceError:
+        except (ClosedResourceError, anyio.EndOfStream):
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
@@ -2674,7 +2673,7 @@ class Server:
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
-                if isinstance(exc, ClosedResourceError):
+                if isinstance(exc, (ClosedResourceError, anyio.EndOfStream)):
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)
