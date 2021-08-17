@@ -560,7 +560,7 @@ class ClientRoot(ClientEntry):
                             c = c.get("prev", None)
 
             lock = anyio.Event()
-            tg.spawn(monitor, lock)
+            await tg.spawn(monitor, lock)
             await lock.wait()
             try:
                 yield self
