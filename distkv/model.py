@@ -390,12 +390,9 @@ class NodeEvent:
         return 1 + len(self.prev)
 
     def __repr__(self):
-        return "<%s:%s @%s %s>" % (
-            self.__class__.__name__,
-            self.node,
-            "-" if self.tick is None else self.tick,
-            len(self),
-        )
+        pr = " "+self.prev._repr_chain() if self.prev is not None else ""
+        tk = "-" if self.tick is None else self.tick,
+        return f"<{self.__class__.__name__} {self.node.name} {tk}{pr}>"
 
     def __iter__(self):
         c = self
