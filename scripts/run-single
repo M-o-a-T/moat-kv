@@ -9,7 +9,7 @@ if test ! -v NAME ; then
 fi
 
 if test $# = 1 ; then
-    exec distkv -c /etc/distkv.cfg client run -n "$NAME" -g "$1" all
+    exec distkv -c /etc/distkv.cfg client job -n "$NAME" -g "$1" run
 else
-    exec distkv -c /etc/distkv.cfg client run -n "$NAME" all
+    exec distkv -c /etc/distkv.cfg client job -n "$NAME" run
 fi
