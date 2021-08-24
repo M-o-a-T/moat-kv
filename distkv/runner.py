@@ -645,7 +645,8 @@ class RunnerEntry(AttrClientEntry):
         if self.code is None:
             return False, "no code"
         if state.node is not None:
-            return False, "node set"
+            # not our responsibility!
+            return None, "node set"
         if state.started and not state.stopped:
             raise RuntimeError("Running! should not be called")
 
@@ -979,6 +980,8 @@ class _BaseRunnerRoot(ClientRoot):
                 t_next = t + 999
                 for j in self.all_children:
                     d, r = j.should_start()
+                    if d is None:
+                        continue
                     if not d or d > t:
                         j.state.computed = d
                         j.state.reason = r
