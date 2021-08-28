@@ -133,7 +133,7 @@ async def run(obj, nodes):
         await obj.runner_root.as_handler(
             c, subpath=obj.subpath, code=cr, **({"nodes": nodes} if nodes else {})
         )
-        await evt.set()
+        evt.set()
         while True:
             await anyio.sleep(99999)
 
