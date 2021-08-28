@@ -496,7 +496,7 @@ class ClientRoot(ClientEntry):
         async with anyio.create_task_group() as tg:
             self._tg = tg
 
-            async def monitor(lock):
+            async def monitor(*, task_status):
                 pl = PathLongener(())
                 await self.run_starting()
                 async with self.client._stream(
@@ -506,7 +506,7 @@ class ClientRoot(ClientEntry):
                         if "path" not in r:
                             if r.get("state", "") == "uptodate":
                                 await self.running()
-                            lock.set()
+                            task_status.started()
                             continue
                         pl(r)
                         val = r.get("value", NotGiven)
@@ -559,9 +559,7 @@ class ClientRoot(ClientEntry):
                                     heapq.heappop(w)[1].set()
                             c = c.get("prev", None)
 
-            lock = anyio.Event()
-            await tg.spawn(monitor, lock)
-            await lock.wait()
+            await tg.start(monitor)
             try:
                 yield self
             finally:
