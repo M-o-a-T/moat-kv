@@ -315,14 +315,14 @@ class _SingleReply:
         if msg.get("state") == "start":
             res = StreamedRequest(self._conn, self.seq, stream=None)
             await res.set(msg)
-            await self.q.set(res)
+            self.q.set(res)
             return res
         elif "error" in msg:
             msg["request_params"] = self._params
             logger.info("ErrorMsg: %s", msg)
-            await self.q.set_error(ServerError(msg.error))
+            self.q.set_error(ServerError(msg.error))
         else:
-            await self.q.set(msg)
+            self.q.set(msg)
         return False
 
     async def get(self):
@@ -452,7 +452,11 @@ class Client:
             logger.warning("Spurious message %s: %s", seq, msg)
             return
 
-        res = await hdl.set(msg)
+        res = hdl.set(msg)
+        if iscoroutine(res):
+            res = await res
+        elif res.__class__.__name__ == "DeprecatedAwaitable":
+            res = None
         if res is False:
             del self._handlers[seq]
         elif res:
