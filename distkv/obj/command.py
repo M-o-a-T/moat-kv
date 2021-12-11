@@ -219,7 +219,7 @@ def std_command(cli, *a, **kw):
         name = obj[tnname]
         n = this(obj).by_name(name)
         if n is not None:
-            await n.delete(recursive=True)
+            await n.delete()
 
     delete.__doc__ = """
         Delete a {tinv.long_name}
