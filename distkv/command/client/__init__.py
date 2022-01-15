@@ -19,6 +19,7 @@ class NullObj:
     """
 
     def __init__(self, exc):
+        import pdb;pdb.set_trace()
         self._exc = exc
 
     def __call__(self, *a, **kw):
