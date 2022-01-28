@@ -507,7 +507,7 @@ class Client:
                         try:
                             await self._handle_msg(msg)
                         except ClosedResourceError:
-                            raise RuntimeError(msg)
+                            return
 
                     if self._socket is None:
                         break
