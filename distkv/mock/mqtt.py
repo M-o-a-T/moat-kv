@@ -89,7 +89,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             ex.enter_context(mock.patch("time.time", new=tm))
             ex.enter_context(mock.patch("time.monotonic", new=tm))
             logging._startTime = tm()
-            await ex.enter_async_context(create_broker(config=broker_cfg))
+            await ex.with_async_resource(create_broker(config=broker_cfg))
 
             args_def = kw.get("args", attrdict())
             for i in range(n):
