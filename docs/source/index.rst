@@ -50,6 +50,7 @@ strings. Some pieces of documentation might still reflect the old style.
    tutorial.rst
    startup.rst
    command_line.rst
+   common_protocol.rst
    client_protocol.rst
    server_protocol.rst
    auth.rst
