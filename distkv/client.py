@@ -167,7 +167,9 @@ class StreamedRequest:
         return msg.pop("wseq", 0)
 
     async def _send_ack(self, seq):
-        await self._client._send(seq=self.seq, state="ack", ack=seq)
+        msg = dict(seq=self.seq, state="ack", ack=seq)
+        logger.debug("Send %s", msg)
+        await self._client._send(**msg)
 
     async def set(self, msg):
         """Called by the read loop to process a command's result"""
@@ -183,6 +185,7 @@ class StreamedRequest:
             except anyio.BrokenResourceError:
                 raise cls(msg.error)
             return
+        logger.debug("Reply %s", msg)
         state = msg.get("state", "")
 
         if state == "start":
@@ -249,7 +252,6 @@ class StreamedRequest:
         except CancelledError:
             raise StopAsyncIteration  # just terminate
         self._path_long(res)
-        logger.debug("OneResult: %s", res)
         return res
 
     async def send(self, **params):
@@ -263,10 +265,11 @@ class StreamedRequest:
             params["state"] = "start"
         elif self._stream == 2 and params.get("state", "") == "end":
             self._stream = None
-        logger.debug("Send %s", {"seq": self.seq, **params})
         if self.dw is not None:
             params["wseq"] = await self.dw.next_seq()
-        await self._client._send(seq=self.seq, **params)
+        msg = dict(seq=self.seq, **params)
+        logger.debug("Send %s", msg)
+        await self._client._send(**msg)
 
     async def recv(self):
         return await self.__anext__()
@@ -286,7 +289,9 @@ class StreamedRequest:
         await self.qr.close_sender()
         await self.qr.close_receiver()
         if self._stream == 2:
-            await self._client._send(seq=self.seq, state="end")
+            msg = dict(seq=self.seq, state="end")
+            logger.debug("Send %s", msg)
+            await self._client._send(**msg)
             if timeout is not None:
                 with anyio.move_on_after(timeout):
                     try:
@@ -574,7 +579,8 @@ class Client:
             return res
 
         res = await res.get()
-        logger.debug("Result %s", res)
+        if isinstance(res,dict):
+            logger.debug("Result %s", res)
 
         if iter is True and not isinstance(res, StreamedRequest):
 
