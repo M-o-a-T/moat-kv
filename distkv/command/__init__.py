@@ -7,7 +7,7 @@ from distkv.util import main_
 from distkv.exceptions import ClientError, ServerError
 
 
-def cmd():
+def cmd(backend="trio"):
     """
     The main command entry point, as declared in ``setup.py``.
     """
@@ -19,7 +19,7 @@ def cmd():
         main_.help = """\
 This is DistKV, a distributed master-less key-value storage system.
 """
-        main_()
+        main_(_anyio_backend=backend)
     except (ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)

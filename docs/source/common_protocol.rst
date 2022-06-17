@@ -42,3 +42,6 @@ A client must support both Path objects and plain lists when reading. It
 should send Path elements. Using plain lists instead is supported but
 not recommended.
 
+In this documentation's protocol examples, Paths are shown as ``P('some.string')``
+for readability.
+

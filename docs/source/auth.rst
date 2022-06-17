@@ -4,7 +4,12 @@ DistKV and authentication
 
 DistKV ships with a couple of rudimentary auth modules.
 
-Currently there is no access control. That's on the TODO list.
+The server's initial message lists the accepted authentication methods
+(``auth`` entry).
+
+Depending on the server version, auth requests may be answered with a
+stream even if the method doesn't actually require it. Login is successful
+if the reply (or stream-end message) doesn't contain an error.
 
 Included user auth methods
 ==========================
@@ -12,7 +17,12 @@ Included user auth methods
 root
 ----
 
-No access control. There is one possible user named "*".
+No access control. There is one possible user named "*"::
+
+    <<< {'seq': 0, 'version': (0, 58, 12), 'node': 'dev', 'auth': ('root',), …}
+    >>> {'typ': 'root', 'ident': '*', 'action': 'auth', 'seq': 1}
+    <<< {'state': 'start', 'seq': 2, 'wseq': 1, 'tock': 123}
+    <<< {'state': 'end', 'seq': 2, 'wseq': 2, 'tock': 124}
 
 password
 --------
@@ -24,11 +34,21 @@ protected with a separate shared secret (Diffie-Hellman).
 This method currently is a bit slow, unless you use test mode (in which
 case it's a bit insecure).
 
+The client initiates a Diffie-Hellman handshake if required, then wraps the
+SHA256 of the password in a ``SecretBox`` (using a random nonce) and sends
+that to the server. Logging in as ``root``::
+
+    <<< {'seq': 0, 'version': (0, 58, 12), 'node': 'dev', 'auth': ('password',), …}
+    >>> {'pubkey': b'[256 bytes]', 'length': 1024, 'action': 'diffie_hellman', 'seq': 1}
+    <<< {'pubkey': b'[256 bytes]', 'seq': 1, 'tock': 999}
+    >>> {'typ': 'password', 'ident': 'root', 'password': b'[data]', 'action': 'auth', 'seq': 2}
+    <<< {'state': 'start', 'seq': 2, 'wseq': 1, 'tock': 1001}
+    <<< {'state': 'end', 'seq': 2, 'wseq': 2, 'tock': 1002}
+
 _test
 -----
 
-This is a test method that's mostly suitable for experiments. It intentionally
-exchanges redundant messages between client and server.
+This is a test method that's suitable for experiments and testing.
 
 Users do not have a password.
 

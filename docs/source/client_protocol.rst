@@ -42,6 +42,11 @@ original with ``nchain`` set to one. Synchronization between DistKV servers
 requires the number of possible partitions plus one, in order to protect
 against spurious conflict reports.
 
+path
+----
+
+The subset of data affected by the current command.
+
 
 Replies
 =======
@@ -106,6 +111,16 @@ An always-increasing integer that's (supposed to be) shared within the
 whole DistKV system. You can use it when you need to reconnect to a server,
 to make sure that the system is (mostly) up-to-date.
 
+path
+----
+
+The subset of data described by the current message.
+
+depth
+-----
+
+
+
 Actions
 =======
 
@@ -123,10 +138,14 @@ authorize the client. If the list's first entry is ``None`` then
 authorization is not required. Other entries **may** be used for
 testing after a client is logged in.
 
+Sample::
+
+    >>> {'seq': 0, 'version': (0, 58, 12), 'node': 'dev', 'tick': 350225, 'tock': 558759182, 'qlen': 10, 'auth': ('password',)}
+
 auth
 ----
 
-Tell the server about your identity. This method **must** be sent first if
+Tell the server about your identity. This method **must** be sent first, if
 the server requests authorization.
 
 The ``identity`` parameter tells the server which user ID (or equivalent)
@@ -134,8 +153,13 @@ to use for logging in. ``typ`` contains the auth type to use; this
 **must** be identical to the first entry in the ``connect`` reply's
 ``auth`` parameter.
 
-If this is not the first message, the authorization is verified but the
+If this is not the first auth message, the authorization is verified but the
 resulting user identity is ignored.
+
+Example::
+
+    >>> {'typ': 'password', 'ident': 'root', 'password': b'[data]', 'action': 'auth', 'seq': 2}
+    <<< {'seq': 2}
 
 test_acl
 --------
@@ -167,7 +191,7 @@ message.
 get_value
 ---------
 
-Retrieve a single value. The ``path`` to the value needs to be sent as a list.
+Retrieve a single value.
 
 If the value does not exist or has been deleted, you'll get ``None`` back.
 
@@ -175,6 +199,10 @@ Alternately, you can set ``node`` and ``tick``, which returns the entry
 that has been set by this event (if the event is still available). The
 entry will contain the current value even if the event has set a previous
 value.
+
+Example::
+    >>> {'path': P('test.one'), 'action': 'get_value', 'seq': 4}
+    <<< {'value': 'Two', 'tock': 12345, 'seq': 4}
 
 set_value
 ---------
@@ -189,40 +217,78 @@ also use ``prev`` to send an expected old value, but you really shouldn't.
 This action returns the node's new change ``chain``. If you did not send a
 ``chain`` field, the previous value is returned in ``prev``.
 
+Simple example::
+
+    >>> {'path': P('test.one'), 'value': 'Three', 'action': 'set_value', 'seq': 5}
+    <<< {'changed': True, 'tock': 12348, 'seq': 5}
+
+However, this is not particularly safe if you want to modify a value, as
+there's no way to ascertain that it hasn't been changed by somebody else in
+the meantime. It's safer to retrieve the entry's change log, or at least
+its first couple of entries, and then send that along with the
+``set_value`` request::
+
+    >>> {'path': P('test.one'), 'nchain': 3, 'action': 'get_value', 'seq': 4}
+    <<< {'value': 'Three', 'chain': {'node': 'r-a', 'tick': 121, 'prev': None}, 'tock': 12355, 'seq': 4}
+    >>> {'path': P('test.one'), 'value': 'Four', 'nchain': 3, 'chain': {'node': 'r-a', 'tick': 121, 'prev': None}, 'action': 'set_value', 'seq': 5}
+    <<< {'changed': True, 'chain': {'node': 'dev', 'tick': 69, 'prev': {'node': 'r-a', 'tick': 121, 'prev': None}}, 'tock': 12358, 'seq': 5}
+
+The ``chain`` value should be treated as opaque, except for``None`` which
+indicates that the node doesn't exist.
+
 delete_value
 ------------
 
-Remove a single value. This is the same as setting it to ``None``.
+Remove a single value. This is the same as setting it to ``None``. The
+``chain`` semantics of ``set_value`` apply.
 
 get_state
 ---------
 
-Retrieve the current system state. The following ``bool`` attributes can be
-set to specify what is returned. The reply is stored in an attribute of the
-same name.
+Retrieve the current system state. The following ``bool``-valued attributes
+may be set to specify what is returned. The corresponding reply is stored
+in an attribute of the same name.
+
+All of these data is mainly useful for debugging the replication / recovery
+protocol. The resulting lists can become somewhat long on a busy system.
 
 * nodes
 
-A dict of node ⇒ tick.
+A dict of server ⇒ tick. Each server's known Tick values must be
+consecutive; when they are not, DistKV tries to retrieve the missing
+entries.
+
+* deleted
+
+A dict of server ⇒ ranges of ticks known to have been deleted.
 
 * known
 
-A dict of node ⇒ ranges of ticks known. This contains current data as well
+A dict of server ⇒ ranges of ticks known. This contains current data as well
 as events that have been superseded.
 
 * current
 
-A dict of node ⇒ ranges of ticks corresponding to the current state of
+A dict of server ⇒ ranges of ticks corresponding to the current state of
 nodes. This is expensive to calculate. It is a superset of `'known``.
 
 * missing
 
-A dict of node ⇒ ranges of ticks not available locally. This is the inverse
-of ``known``.
+A dict of server ⇒ ranges of ticks not available on the server. This list is
+empty if the server thinks it is up-to-date.
 
 * remote_missing
 
-A dict of node ⇒ ranges of ticks reported to be missing at some other node.
+A dict of server ⇒ ranges of ticks reported to be missing at some other node.
+
+* present
+
+A dict of server ⇒ ranges of entries that actually exist.
+
+* superseded
+
+A dict of server ⇒ ranges of entries that have been replaced by a newer
+version of the corresponding node.
 
 get_tree
 --------
