@@ -957,9 +957,9 @@ class ServerClient:
         if "chain" in msg:
             if msg.chain is None:
                 if entry.data is not NotGiven:
-                    raise ClientChainError("Entry already exists at {msg.path}")
+                    raise ClientChainError(f"Entry already exists at {msg.path}")
             elif entry.data is NotGiven:
-                raise ClientChainError("Entry is new at {msg.path}")
+                raise ClientChainError(f"Entry is new at {msg.path}")
             elif entry.chain != msg.chain:
                 raise ClientChainError(
                     f"Chain is {entry.chain !r} not {msg.chain !r} for {msg.path}"
