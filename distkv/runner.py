@@ -225,7 +225,7 @@ class CallAdmin:
         raise ErrorRecorded()
 
     async def open_context(self, ctx):
-        return await self._stack.with_async_resource(ctx)
+        return await self._stack.enter_async_context(ctx)
 
     async def watch(self, path, cls=ChangeMsg, **kw):
         """

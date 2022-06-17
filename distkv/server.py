@@ -1096,7 +1096,7 @@ class ServerClient:
             t = self.tasks[msg.task]
         except KeyError:
             return False
-        await t.cancel()
+        t.cancel()
         return True
 
     async def cmd_set_auth_typ(self, msg):
@@ -1262,12 +1262,12 @@ class _RecoverControl:
                 lh.append(n)
             self.local_history = lh
             if not lh:
-                await self.cancel()
+                self.cancel()
 
     def __hash__(self):
         return id(self)
 
-    async def cancel(self):
+    def cancel(self):
         self.scope.cancel()
         rt = self.server._recover_tasks
         for node in self.local_history:
@@ -1277,7 +1277,7 @@ class _RecoverControl:
         for evt in list(self._waiters.values()):
             evt.set()
 
-    async def set(self, n):
+    def set(self, n):
         evt = self._waiters.get(n, None)
         if evt is None:
             evt = anyio.Event()
@@ -1694,7 +1694,7 @@ class Server:
             # did this message pre-empt our own transmission?
             rec = self._recover_tasks.get(msg.node, None)
             if rec is not None:
-                await rec.set(1)
+                rec.set(1)
                 self.logger.debug("Step1: %r triggered by %s", rec, msg.node)
 
         # Step 2
@@ -1718,7 +1718,7 @@ class Server:
             # did this message pre-empt our own transmission?
             rec = self._recover_tasks.get(msg.node, None)
             if rec is not None:
-                await rec.set(2)
+                rec.set(2)
                 self.logger.debug("Step2: %r triggered by %s", rec, msg.node)
 
             if nn > 0:
@@ -2227,7 +2227,7 @@ class Server:
                     # been started (because we saw another merge)
                     self.logger.debug("SplitRecover %d: finished @%d", t._id, t.tock)
                     self.seen_missing = {}
-                    await t.cancel()
+                    t.cancel()
 
     async def _send_missing(self, force=False):
         msg = dict()
@@ -2431,7 +2431,9 @@ class Server:
 
                 await mw.flush()
                 if done is not None:
-                    await done.set(done_val)
+                    s = done.set(done_val)
+                    if s is not None:
+                        await s
 
                 cnt = 0
                 while True:
@@ -2483,7 +2485,7 @@ class Server:
                 done.set_error(err)
             finally:
                 with anyio.CancelScope(shield=True):
-                    await sd.set()
+                    sd.set()
 
     async def run_saver(self, path: str = None, stream=None, save_state=False, wait: bool = True):
         """
@@ -2514,14 +2516,14 @@ class Server:
         # At this point the new saver is operational, so we cancel the old one(s).
         while self._savers is not None and self._savers[0][0] is not res:
             s, sd = self._savers.pop(0)
-            await s.cancel()
+            s.cancel()
             await sd.wait()
 
     async def _sigterm(self):
         with anyio.open_signal_receiver(signal.SIGTERM) as r:
             async for s in r:
                 for s, sd in self._savers:
-                    await s.cancel()
+                    s.cancel()
                     await sd.wait()
                 break
         os.kill(os.getpid(), signal.SIGTERM)
