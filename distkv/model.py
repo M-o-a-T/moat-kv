@@ -397,7 +397,7 @@ class NodeEvent:
     def __repr__(self):
         pr = self._repr_chain()
         tk = ("-" if self.tick is None else self.tick,)
-        return f"<{self.__class__.__name__} {pr}>"
+        return f"<{self.__class__.__name__} {pr} {tk}>"
 
     def __iter__(self):
         c = self

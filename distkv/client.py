@@ -59,12 +59,6 @@ __all__ = ["NoData", "ManyData", "open_client", "client_scope", "StreamedRequest
 
 
 class AsyncValueEvent(ValueEvent):
-    def set(self, value):
-        super().set(value)
-
-    def set_error(self, exc):
-        super().set_error(exc)
-
     def cancel(self):
         if self.scope is not None:
             self.scope.cancel()
