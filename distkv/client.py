@@ -575,7 +575,7 @@ class Client:
             return res
 
         res = await res.get()
-        if isinstance(res,dict):
+        if isinstance(res, dict):
             logger.debug("Result %s", res)
 
         if iter is True and not isinstance(res, StreamedRequest):

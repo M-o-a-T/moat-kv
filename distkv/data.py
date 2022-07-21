@@ -28,7 +28,7 @@ def add_dates(d):
         if not isinstance(d, Mapping):
             return
         for k, v in list(d.items()):
-            if isinstance(k,str) and k.startswith("_"):
+            if isinstance(k, str) and k.startswith("_"):
                 continue
             if not isinstance(v, (int, float)):
                 _add(v)

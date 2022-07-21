@@ -388,10 +388,10 @@ class NodeEvent:
         return 1 + len(self.prev)
 
     def _repr_chain(self):
-        tk = self.tick or '-'
+        tk = self.tick or "-"
         pr = f"{self.node.name}:{tk}"
         if self.prev is not None:
-            pr += " "+self.prev._repr_chain()
+            pr += " " + self.prev._repr_chain()
         return pr
 
     def __repr__(self):

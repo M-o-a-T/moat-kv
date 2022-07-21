@@ -42,7 +42,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         import trustme
 
         ca = trustme.CA()
-        cert = ca.issue_server_cert(u"127.0.0.1")
+        cert = ca.issue_server_cert("127.0.0.1")
         server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         ca.configure_trust(client_ctx)

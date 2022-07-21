@@ -576,7 +576,7 @@ class RunnerEntry(AttrClientEntry):
                 state.stopped = t
 
                 if state.backoff > 0:
-                    self.retry = t + (self.backoff ** state.backoff) * self.delay
+                    self.retry = t + (self.backoff**state.backoff) * self.delay
                 else:
                     self.retry = None
 
@@ -660,7 +660,7 @@ class RunnerEntry(AttrClientEntry):
         elif self.target > state.started:
             return self.target, "target > started"
         elif state.backoff:
-            return state.stopped + self.delay * (self.backoff ** state.backoff), "backoff"
+            return state.stopped + self.delay * (self.backoff**state.backoff), "backoff"
         elif self.repeat:
             return state.stopped + self.repeat, "repeat"
         elif state.started:
