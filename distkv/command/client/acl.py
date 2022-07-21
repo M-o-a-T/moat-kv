@@ -1,11 +1,11 @@
 # command line interface
 
 import sys
+
 import asyncclick as click
 
-from distkv.util import yprint, P, Path
 from distkv.data import data_get
-
+from distkv.util import P, Path, yprint
 
 ACL = set("rwdcxena")
 # read, write, delete, create, access, enumerate

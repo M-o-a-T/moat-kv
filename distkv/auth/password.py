@@ -7,18 +7,18 @@ Does not limit anything, allows everything.
 
 import nacl.secret
 
+from ..client import Client, NoData
+from ..exceptions import AuthFailedError
+from ..model import Entry
+from ..server import StreamCommand
 from . import (
+    BaseClientAuth,
+    BaseClientAuthMaker,
     BaseServerAuthMaker,
     RootServerUser,
-    BaseClientAuthMaker,
-    BaseClientAuth,
-    null_server_login,
     null_client_login,
+    null_server_login,
 )
-from ..client import NoData, Client
-from ..server import StreamCommand
-from ..model import Entry
-from ..exceptions import AuthFailedError
 
 
 def load(typ: str, *, make: bool = False, server: bool):

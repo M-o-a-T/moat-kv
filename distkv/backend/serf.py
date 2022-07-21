@@ -1,6 +1,8 @@
+from contextlib import asynccontextmanager
+
 import anyio
 import asyncserf
-from contextlib import asynccontextmanager
+
 from . import Backend
 
 # Simply setting connect=asyncserf.serf_client interferes with mocking

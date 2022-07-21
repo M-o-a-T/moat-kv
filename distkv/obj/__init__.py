@@ -3,10 +3,11 @@ Object interface to distkv data
 
 """
 
-import anyio
-import weakref
 import heapq
+import weakref
 from collections.abc import Mapping
+
+import anyio
 from asyncscope import scope
 
 try:
@@ -14,8 +15,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from ..util import PathLongener, NoLock, NotGiven, combine_dict
-
+from ..util import NoLock, NotGiven, PathLongener, combine_dict
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 

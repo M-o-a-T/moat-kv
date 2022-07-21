@@ -1,14 +1,23 @@
 # command line interface
 
-import sys
 import datetime
-import asyncclick as click
+import sys
 from collections.abc import Mapping
 
-from distkv.util import MsgReader, MsgWriter
-from distkv.util import yprint, PathLongener, P, yload, Path, load_subgroup
-from distkv.codec import unpacker
+import asyncclick as click
 from distmqtt.codecs import MsgPackCodec
+
+from distkv.codec import unpacker
+from distkv.util import (
+    MsgReader,
+    MsgWriter,
+    P,
+    Path,
+    PathLongener,
+    load_subgroup,
+    yload,
+    yprint,
+)
 
 
 @load_subgroup(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable

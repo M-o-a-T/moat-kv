@@ -1,9 +1,11 @@
+import logging
+from contextlib import asynccontextmanager
+
 import anyio
 from distmqtt.client import MQTTClient
 from distmqtt.codecs import NoopCodec
-from contextlib import asynccontextmanager
+
 from . import Backend
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -79,18 +79,18 @@ of this record.
 
 """
 
-import anyio
+import logging
 import traceback
 from collections import defaultdict
-from weakref import WeakValueDictionary
 from time import time  # wall clock, intentionally
+from weakref import WeakValueDictionary
 
-from .obj import AttrClientEntry, ClientEntry, ClientRoot
-from .util import Cache, NotGiven, Path
+import anyio
+
 from .codec import packer
 from .exceptions import ServerError
-
-import logging
+from .obj import AttrClientEntry, ClientEntry, ClientRoot
+from .util import Cache, NotGiven, Path
 
 logger = logging.getLogger(__name__)
 

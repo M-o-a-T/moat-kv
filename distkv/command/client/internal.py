@@ -1,10 +1,11 @@
 # command line interface
 
-import asyncclick as click
-
-from range_set import RangeSet
-from distkv.util import yprint, PathLongener, P
 from collections.abc import Mapping
+
+import asyncclick as click
+from range_set import RangeSet
+
+from distkv.util import P, PathLongener, yprint
 
 
 @click.group(short_help="Control internal state.")  # pylint: disable=undefined-variable

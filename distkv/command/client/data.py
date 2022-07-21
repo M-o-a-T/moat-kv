@@ -1,12 +1,13 @@
 # command line interface
 
-import time
-import asyncclick as click
 import datetime
+import time
 
-from distkv.util import PathLongener, MsgReader, NotGiven, yprint, P, attr_args
+import asyncclick as click
+
 from distkv.client import StreamedRequest
-from distkv.data import data_get, node_attr, add_dates
+from distkv.data import add_dates, data_get, node_attr
+from distkv.util import MsgReader, NotGiven, P, PathLongener, attr_args, yprint
 
 
 @click.group(

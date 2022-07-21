@@ -6,14 +6,14 @@ so that it can be called easily.
 
 """
 
+import logging
 import sys
-import anyio
 from functools import partial
 
-from .util import make_module, make_proc, NotGiven, P
-from .obj import ClientRoot, ClientEntry
+import anyio
 
-import logging
+from .obj import ClientEntry, ClientRoot
+from .util import NotGiven, P, make_module, make_proc
 
 logger = logging.getLogger(__name__)
 

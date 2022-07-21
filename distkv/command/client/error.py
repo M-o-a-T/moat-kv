@@ -1,11 +1,12 @@
 # command line interface
 
 import sys
+
 import asyncclick as click
 
-from distkv.errors import ErrorRoot
-from distkv.util import yprint, P, Path
 from distkv.data import add_dates
+from distkv.errors import ErrorRoot
+from distkv.util import P, Path, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable

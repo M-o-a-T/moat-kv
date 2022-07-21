@@ -7,17 +7,15 @@ TODO: message chains should be refactored to arrays: much lower overhead.
 from __future__ import annotations
 
 import weakref
-from range_set import RangeSet
 from collections import defaultdict
-
-from typing import List, Any
+from logging import getLogger
+from typing import Any, List
 
 from distmqtt.utils import create_queue
+from range_set import RangeSet
 
-from .util import attrdict, NotGiven, Path
 from .exceptions import ACLError
-
-from logging import getLogger
+from .util import NotGiven, Path, attrdict
 
 logger = getLogger(__name__)
 

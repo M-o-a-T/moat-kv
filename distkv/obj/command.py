@@ -1,11 +1,11 @@
 # command line interface helpers for objects
 
+import logging
 import sys
+
 import asyncclick as click
 
 from distkv.util import NotGiven
-
-import logging
 
 logger = logging.getLogger(__name__)
 

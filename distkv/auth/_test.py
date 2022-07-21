@@ -9,16 +9,15 @@ import logging
 
 log = logging.getLogger(__name__)
 
+from ..client import Client
 from . import (
+    BaseClientAuth,
+    BaseClientAuthMaker,
     BaseServerAuthMaker,
     RootServerUser,
-    BaseClientAuthMaker,
-    BaseClientAuth,
-    null_server_login,
     null_client_login,
+    null_server_login,
 )
-
-from ..client import Client
 
 
 def load(typ: str, *, make: bool = False, server: bool):

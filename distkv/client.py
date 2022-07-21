@@ -4,42 +4,41 @@ Client code.
 Main entry point: :func:`open_client`.
 """
 
-import anyio
-import socket
+import logging
 import os
-from typing import Tuple
-from contextlib import asynccontextmanager, AsyncExitStack
+import socket
+from contextlib import AsyncExitStack, asynccontextmanager
 from inspect import iscoroutine
+from typing import Tuple
 
-from asyncscope import scope, Scope, main_scope
+import anyio
+from asyncscope import Scope, main_scope, scope
 
-from .util import (
-    attrdict,
-    gen_ssl,
-    num2byte,
-    byte2num,
-    PathLongener,
-    NotGiven,
-    combine_dict,
-    ValueEvent,
-    Path,
-    create_queue,
-    DelayedRead,
-    DelayedWrite,
-)
+from .codec import packer, stream_unpacker
 from .default import CFG
 from .exceptions import (
+    CancelledError,
     ClientAuthMethodError,
     ClientAuthRequiredError,
     ServerClosedError,
     ServerConnectionError,
     ServerError,
     error_types,
-    CancelledError,
 )
-from .codec import packer, stream_unpacker
-
-import logging
+from .util import (
+    DelayedRead,
+    DelayedWrite,
+    NotGiven,
+    Path,
+    PathLongener,
+    ValueEvent,
+    attrdict,
+    byte2num,
+    combine_dict,
+    create_queue,
+    gen_ssl,
+    num2byte,
+)
 
 logger = logging.getLogger(__name__)
 

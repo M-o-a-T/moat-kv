@@ -1,13 +1,13 @@
 """
 Data access
 """
-import sys
-import os
-import time
 import datetime
+import os
+import sys
+import time
 from collections.abc import Mapping
 
-from distkv.util import yprint, Path, NotGiven, attrdict, process_args
+from distkv.util import NotGiven, Path, attrdict, process_args, yprint
 
 
 def add_dates(d):
