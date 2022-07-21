@@ -1,6 +1,6 @@
 # Some rudimentary tests for merge and combine_dict
 
-from distkv.util import merge, combine_dict, NotGiven
+from distkv.util import NotGiven, combine_dict, merge
 
 
 def chkm(a, b, c):

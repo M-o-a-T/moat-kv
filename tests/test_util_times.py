@@ -1,8 +1,9 @@
 # Tests to figure out how long until a time spec fits / does not fit
 
-from distkv.util.times import time_until
 import datetime
 import sys
+
+from distkv.util.times import time_until
 
 lnp = None
 err = False

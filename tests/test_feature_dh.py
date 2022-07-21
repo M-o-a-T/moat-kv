@@ -1,8 +1,8 @@
+import logging
+
 import pytest
 
 from distkv.mock.mqtt import stdtest
-
-import logging
 
 logger = logging.getLogger(__name__)
 

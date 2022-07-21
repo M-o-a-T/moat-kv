@@ -1,16 +1,14 @@
-import pytest
-import trio
+import logging
 from time import time
 
 import asyncclick as click
-
-from distkv.mock import run
-from distkv.mock.mqtt import stdtest
+import pytest
+import trio
 
 from distkv.client import ServerError
-from distkv.util import PathLongener, P
-
-import logging
+from distkv.mock import run
+from distkv.mock.mqtt import stdtest
+from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

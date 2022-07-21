@@ -1,6 +1,7 @@
 import pytest
-from distkv.util import Path, yformat, yload, P
+
 from distkv.codec import packer, unpacker
+from distkv.util import P, Path, yformat, yload
 
 _valid = (
     (("a", "b", "c"), "a.b.c"),
