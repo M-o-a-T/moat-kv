@@ -3,8 +3,8 @@
 from distkv.util import NotGiven, combine_dict, merge
 
 
-def chkm(a, b, c):
-    r = merge(a, b)
+def chkm(a, b, c, drop=False):
+    r = merge(a, b, drop=drop)
     assert r == c
 
 
@@ -19,6 +19,12 @@ def test_merge():
     chkm(dict(a=1, b=[1, 2, 3], c=3), dict(b=(4, NotGiven, None, 6)), dict(a=1, b=[4, 3, 6], c=3))
     chkm(
         dict(a=1, b=[1, 2, 3], c=3), dict(b={0: 4, 1: NotGiven, 3: 6}), dict(a=1, b=[4, 3, 6], c=3)
+    )
+    chkm(
+        dict(a=1, b=[1, 2, 3], c=3),
+        dict(a=1, b=(4, NotGiven, None, 6)),
+        dict(a=1, b=[4, 3, 6]),
+        drop=True,
     )
 
 
