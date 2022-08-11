@@ -1,11 +1,11 @@
-import pytest
+import logging
 
-from distkv.mock.mqtt import stdtest
+import pytest
 
 from distkv.code import CodeRoot, ModuleRoot
 from distkv.errors import ErrorRoot
+from distkv.mock.mqtt import stdtest
 from distkv.util import P
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -1,14 +1,13 @@
-import pytest
 import io
+import logging
 from functools import partial
 
-from distkv.mock import run
-from distkv.mock.mqtt import stdtest
+import pytest
 
 from distkv.client import ServerError
-from distkv.util import PathLongener, P
-
-import logging
+from distkv.mock import run
+from distkv.mock.mqtt import stdtest
+from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

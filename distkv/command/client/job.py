@@ -1,15 +1,16 @@
 # command line interface
 
 import sys
-import asyncclick as click
 import time
-import anyio
 from functools import partial
 
+import anyio
+import asyncclick as click
+
 from distkv.code import CodeRoot
-from distkv.runner import AnyRunnerRoot, SingleRunnerRoot, AllRunnerRoot
-from distkv.util import yprint, P, Path, attrdict, attr_args, process_args
-from distkv.data import data_get, add_dates
+from distkv.data import add_dates, data_get
+from distkv.runner import AllRunnerRoot, AnyRunnerRoot, SingleRunnerRoot
+from distkv.util import P, Path, attr_args, attrdict, process_args, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable

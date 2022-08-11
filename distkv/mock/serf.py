@@ -1,23 +1,22 @@
-import trio
-import anyio
-import mock
-import attr
 import copy
+import logging
 import time
+from contextlib import AsyncExitStack, asynccontextmanager
 from functools import partial
-from contextlib import asynccontextmanager, AsyncExitStack
 
+import anyio
+import attr
+import mock
+import trio
 from asyncscope import main_scope
-
-from distkv.default import CFG
-from distkv.server import Server
-from distkv.codec import unpacker
-from distkv.util import attrdict, combine_dict, NotGiven, ValueEvent
-from distkv.mock import S as _S
 from asyncserf.stream import SerfEvent
 from distmqtt.utils import create_queue
 
-import logging
+from distkv.codec import unpacker
+from distkv.default import CFG
+from distkv.mock import S as _S
+from distkv.server import Server
+from distkv.util import NotGiven, ValueEvent, attrdict, combine_dict
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +38,11 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
     if ssl:
         import ssl
+
         import trustme
 
         ca = trustme.CA()
-        cert = ca.issue_server_cert(u"127.0.0.1")
+        cert = ca.issue_server_cert("127.0.0.1")
         server_ctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         client_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         ca.configure_trust(client_ctx)

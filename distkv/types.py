@@ -1,11 +1,11 @@
+import logging
 import weakref
+
 import jsonschema
 
+from .exceptions import ACLError, ClientError
 from .model import Entry
-from .util import make_proc, NotGiven, singleton, Path, P
-from .exceptions import ClientError, ACLError
-
-import logging
+from .util import NotGiven, P, Path, make_proc, singleton
 
 logger = logging.getLogger(__name__)
 

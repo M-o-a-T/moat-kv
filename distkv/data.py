@@ -1,13 +1,13 @@
 """
 Data access
 """
-import sys
-import os
-import time
 import datetime
+import os
+import sys
+import time
 from collections.abc import Mapping
 
-from distkv.util import yprint, Path, NotGiven, attrdict, process_args
+from distkv.util import NotGiven, Path, attrdict, process_args, yprint
 
 
 def add_dates(d):
@@ -28,7 +28,7 @@ def add_dates(d):
         if not isinstance(d, Mapping):
             return
         for k, v in list(d.items()):
-            if isinstance(k,str) and k.startswith("_"):
+            if isinstance(k, str) and k.startswith("_"):
                 continue
             if not isinstance(v, (int, float)):
                 _add(v)
@@ -83,7 +83,7 @@ async def data_get(
         if internal:
             res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
         else:
-            res = obj.client.get_tree(path, nchain=obj.meta, **kw)
+            res = obj.client.get_tree(path, **kw)
         async for r in res:
             r = await item_mangle(r)
             if r is None:

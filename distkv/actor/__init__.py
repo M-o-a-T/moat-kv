@@ -3,8 +3,8 @@ This module implements a :class:`asyncactor.Actor` which works on top of
 a DistKV client.
 """
 
-from asyncactor.abc import Transport, MonitorStream
 from asyncactor import Actor  # noqa
+from asyncactor.abc import MonitorStream, Transport
 
 __all__ = [
     "ClientActor",

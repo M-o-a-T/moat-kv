@@ -1,13 +1,12 @@
+import asyncserf
+import mock
+import msgpack
 import pytest
 import trio
-import mock
 
 # doesn't work with MQTT because we can't split
 from distkv.mock.serf import stdtest
-import asyncserf
-import msgpack
-from distkv.util import attrdict, P, Path
-
+from distkv.util import P, Path, attrdict
 
 N = 10
 

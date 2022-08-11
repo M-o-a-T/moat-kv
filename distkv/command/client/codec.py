@@ -2,7 +2,7 @@
 
 import asyncclick as click
 
-from distkv.util import yprint, NotGiven, PathLongener, yload, P, Path
+from distkv.util import NotGiven, P, Path, PathLongener, yload, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable

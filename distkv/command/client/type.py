@@ -1,9 +1,10 @@
 # command line interface
 
-import asyncclick as click
 import json
 
-from distkv.util import yprint, NotGiven, yload, P, Path
+import asyncclick as click
+
+from distkv.util import NotGiven, P, Path, yload, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable

@@ -1,10 +1,11 @@
 # command line interface
 
 import sys
+
 import asyncclick as click
 
-from distkv.util import main_
 from distkv.exceptions import ClientError, ServerError
+from distkv.util import main_
 
 
 def cmd(backend="trio"):

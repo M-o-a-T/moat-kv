@@ -1,21 +1,21 @@
+import copy
+import logging
 import os
-import trio
+import time
+from contextlib import AsyncExitStack, asynccontextmanager
+from functools import partial
+
 import anyio
 import mock
-import copy
-import time
-from functools import partial
-from contextlib import asynccontextmanager, AsyncExitStack
-
+import trio
 from asyncscope import main_scope
-
-from . import CFG
-from distkv.server import Server
-from distkv.util import attrdict, combine_dict, NotGiven
-from distkv.mock import S
 from distmqtt.broker import create_broker
 
-import logging
+from distkv.mock import S
+from distkv.server import Server
+from distkv.util import NotGiven, attrdict, combine_dict
+
+from . import CFG
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
     if ssl:
         import ssl
+
         import trustme
 
         ca = trustme.CA()

@@ -1,15 +1,14 @@
-import pytest
-import trio
-import anyio
-from asyncscope import scope
-
-from distkv.mock.mqtt import stdtest
-
-from distkv.client import ServerError
-from distkv.util import PathLongener, P
+import logging
 from functools import partial
 
-import logging
+import anyio
+import pytest
+import trio
+from asyncscope import scope
+
+from distkv.client import ServerError
+from distkv.mock.mqtt import stdtest
+from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

@@ -7,17 +7,15 @@ TODO: message chains should be refactored to arrays: much lower overhead.
 from __future__ import annotations
 
 import weakref
-from range_set import RangeSet
 from collections import defaultdict
-
-from typing import List, Any
+from logging import getLogger
+from typing import Any, List
 
 from distmqtt.utils import create_queue
+from range_set import RangeSet
 
-from .util import attrdict, NotGiven, Path
 from .exceptions import ACLError
-
-from logging import getLogger
+from .util import NotGiven, Path, attrdict
 
 logger = getLogger(__name__)
 
@@ -390,16 +388,16 @@ class NodeEvent:
         return 1 + len(self.prev)
 
     def _repr_chain(self):
-        tk = self.tick or '-'
+        tk = self.tick or "-"
         pr = f"{self.node.name}:{tk}"
         if self.prev is not None:
-            pr += " "+self.prev._repr_chain()
+            pr += " " + self.prev._repr_chain()
         return pr
 
     def __repr__(self):
         pr = self._repr_chain()
         tk = ("-" if self.tick is None else self.tick,)
-        return f"<{self.__class__.__name__} {pr}>"
+        return f"<{self.__class__.__name__} {pr} {tk}>"
 
     def __iter__(self):
         c = self

@@ -3,14 +3,12 @@ This module implements additional code for the server-side DeleteActor,
 which is used to clean up the list of deleted nodes.
 """
 
-import anyio
 import weakref
 from collections import deque
 
-from asyncactor import Actor
+import anyio
+from asyncactor import Actor, PingEvent, TagEvent
 from asyncactor.backend import get_transport
-from asyncactor import PingEvent, TagEvent
-
 
 TAGS = 4
 

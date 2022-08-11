@@ -1,14 +1,14 @@
-import pytest
-import trio
-import mock
+import logging
 import os
 
-from distkv.mock.mqtt import stdtest
-from distkv.util import P, Path
-from distkv.server import Server
+import mock
+import pytest
+import trio
 from asyncactor.actor import Actor
 
-import logging
+from distkv.mock.mqtt import stdtest
+from distkv.server import Server
+from distkv.util import P, Path
 
 logger = logging.getLogger(__name__)
 

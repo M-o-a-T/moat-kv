@@ -1,12 +1,13 @@
 # from asyncclick.testing import CliRunner
 import io
-import sys
-import attr
 import socket
+import sys
+
+import attr
 
 from distkv.client import open_client
 from distkv.default import CFG
-from distkv.util import attrdict, list_ext, load_ext, combine_dict, wrap_main
+from distkv.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 
 CFG = attrdict(**CFG)  # shallow copy
 for n, _ in list_ext("distkv_ext"):

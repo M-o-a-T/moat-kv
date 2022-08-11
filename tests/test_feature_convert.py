@@ -1,13 +1,12 @@
+import logging
+
 import pytest
 import trio
 
-from distkv.mock.mqtt import stdtest
-
 from distkv.auth import loader
 from distkv.client import ServerError
-from distkv.util import PathLongener, P
-
-import logging
+from distkv.mock.mqtt import stdtest
+from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

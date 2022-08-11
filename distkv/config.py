@@ -8,10 +8,10 @@ try:
 except ImportError:  # pragma: no cover
     from async_generator import asynccontextmanager
 
-from .errors import ServerError
-from .obj import ClientRoot, ClientEntry
-
 import logging
+
+from .errors import ServerError
+from .obj import ClientEntry, ClientRoot
 
 logger = logging.getLogger(__name__)
 

@@ -59,15 +59,17 @@ The server process is:
 
 """
 
-import jsonschema
 import io
 from importlib import import_module
-from ..client import NoData, Client
-from ..model import Entry
-from ..server import StreamCommand, ServerClient
-from ..util import split_arg, attrdict, NotGiven, yload, Path
+
+import jsonschema
+
+from ..client import Client, NoData
 from ..exceptions import NoAuthModuleError
+from ..model import Entry
+from ..server import ServerClient, StreamCommand
 from ..types import ACLFinder, NullACL
+from ..util import NotGiven, Path, attrdict, split_arg, yload
 
 # Empty schema
 null_schema = {"type": "object", "additionalProperties": False}

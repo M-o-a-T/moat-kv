@@ -1,16 +1,15 @@
-import pytest
-import trio
-import anyio
+import logging
 import time
 
-from distkv.mock.mqtt import stdtest
+import anyio
+import pytest
+import trio
 
 from distkv.code import CodeRoot
-from distkv.runner import AnyRunnerRoot
 from distkv.errors import ErrorRoot
+from distkv.mock.mqtt import stdtest
+from distkv.runner import AnyRunnerRoot
 from distkv.util import P
-
-import logging
 
 logger = logging.getLogger(__name__)
 

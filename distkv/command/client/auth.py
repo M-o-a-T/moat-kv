@@ -2,8 +2,8 @@
 
 import asyncclick as click
 
-from distkv.util import split_arg, NotGiven, yprint, Path
-from distkv.auth import loader, gen_auth
+from distkv.auth import gen_auth, loader
+from distkv.util import NotGiven, Path, split_arg, yprint
 
 
 @click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable

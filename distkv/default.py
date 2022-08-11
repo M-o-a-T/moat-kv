@@ -2,7 +2,7 @@
 This module contains the default values for distkv configuration.
 """
 
-from .util import attrdict, NotGiven, P
+from .util import NotGiven, P, attrdict
 
 __all__ = ["PORT", "CFG"]
 

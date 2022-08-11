@@ -4,22 +4,27 @@ This module's job is to run code, resp. to keep it running.
 
 """
 
-import anyio
-from weakref import ref
-from asyncactor import NodeList
-from asyncactor import PingEvent, TagEvent, UntagEvent, AuthPingEvent
-import psutil
 import time
 from collections.abc import Mapping
 from contextlib import AsyncExitStack
+from weakref import ref
 
-from .actor import ClientActor
-from .actor import DetachedState, PartialState, CompleteState, ActorState, BrokenState
-from .util import NotGiven, combine_dict, attrdict, P, Path, logger_for, spawn, digits
+import anyio
+import psutil
+from asyncactor import AuthPingEvent, NodeList, PingEvent, TagEvent, UntagEvent
+from distmqtt.utils import create_queue
 
+from .actor import (
+    ActorState,
+    BrokenState,
+    ClientActor,
+    CompleteState,
+    DetachedState,
+    PartialState,
+)
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
-from distmqtt.utils import create_queue
+from .util import NotGiven, P, Path, attrdict, combine_dict, digits, logger_for, spawn
 
 try:
     ClosedResourceError = anyio.exceptions.ClosedResourceError
@@ -571,7 +576,7 @@ class RunnerEntry(AttrClientEntry):
                 state.stopped = t
 
                 if state.backoff > 0:
-                    self.retry = t + (self.backoff ** state.backoff) * self.delay
+                    self.retry = t + (self.backoff**state.backoff) * self.delay
                 else:
                     self.retry = None
 
@@ -655,7 +660,7 @@ class RunnerEntry(AttrClientEntry):
         elif self.target > state.started:
             return self.target, "target > started"
         elif state.backoff:
-            return state.stopped + self.delay * (self.backoff ** state.backoff), "backoff"
+            return state.stopped + self.delay * (self.backoff**state.backoff), "backoff"
         elif self.repeat:
             return state.stopped + self.repeat, "repeat"
         elif state.started:
@@ -908,8 +913,8 @@ class _BaseRunnerRoot(ClientRoot):
         return await super().as_handler(client, subpath=subpath, _subpath=subpath, cfg=cfg_, **kw)
 
     async def run_starting(self):
-        from .errors import ErrorRoot
         from .code import CodeRoot
+        from .errors import ErrorRoot
 
         if self.err is None:
             self.err = await ErrorRoot.as_handler(self.client)
