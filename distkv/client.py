@@ -962,7 +962,7 @@ class Client:
             raw: If ``True``, will not try to msgpack-decode incoming
                  messages.
 
-        Returns: a dict.
+        Returns: an iterator yielding a dict.
             data: decoded data. Not present when ``raw`` is set or the
                   decoder raised an exception.
             raw: un-decoded data. Not present when '`raw`` is not set and
