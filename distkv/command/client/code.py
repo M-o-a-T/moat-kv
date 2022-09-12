@@ -111,7 +111,7 @@ async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
         vs = set()
     vd = msg.setdefault("default", {})
 
-    vd = process_args(vd, vars_, eval_, path_, vs)
+    vd = process_args(vd, vars_, eval_, path_, vs=vs)
     msg["vars"] = list(vs)
     msg["default"] = vd
 
