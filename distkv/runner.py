@@ -13,6 +13,16 @@ import anyio
 import psutil
 from asyncactor import AuthPingEvent, NodeList, PingEvent, TagEvent, UntagEvent
 from distmqtt.utils import create_queue
+from moat.util import (
+    NotGiven,
+    P,
+    Path,
+    attrdict,
+    combine_dict,
+    digits,
+    logger_for,
+    spawn,
+)
 
 from .actor import (
     ActorState,
@@ -24,7 +34,6 @@ from .actor import (
 )
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
-from .util import NotGiven, P, Path, attrdict, combine_dict, digits, logger_for, spawn
 
 try:
     ClosedResourceError = anyio.exceptions.ClosedResourceError
@@ -261,7 +270,6 @@ class CallAdmin:
                 self.scope = None
 
             async def run(self):
-
                 @asynccontextmanager
                 async def _watch(path, kw):
                     if path.mark == "r":

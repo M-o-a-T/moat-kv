@@ -6,7 +6,7 @@
 
 import anyio
 from distkv.client import open_client
-from distkv.util import P, yload, Path
+from moat.util import P, yload, Path
 import asyncclick as click
 
 def conv(m,s: str) -> bool:

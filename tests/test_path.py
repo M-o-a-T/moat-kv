@@ -1,7 +1,7 @@
 import pytest
+from moat.util import P, Path, yformat, yload
 
 from distkv.codec import packer, unpacker
-from distkv.util import P, Path, yformat, yload
 
 _valid = (
     (("a", "b", "c"), "a.b.c"),
@@ -79,19 +79,21 @@ def test_paths():
     pp = Path.build(("a", "b"))
     assert str(p) == str(pp)
 
+
 def test_tagged():
     p = P("a:mx.b")
-    assert p.mark=='x'
+    assert p.mark == "x"
     p = P(":mx.a.b")
-    assert p.mark=='x'
+    assert p.mark == "x"
     p = P(":mx.a.b:mx")
-    assert p.mark=='x'
+    assert p.mark == "x"
     p = P("a.b:mx")
-    assert p.mark=='x'
+    assert p.mark == "x"
     with pytest.raises(SyntaxError):
         P(":mx.a:my.b")
     with pytest.raises(SyntaxError):
         P(":mx.a:my.b")
+
 
 def test_msgpack():
     d = ("a", 1, "b")

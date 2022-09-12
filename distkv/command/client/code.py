@@ -3,8 +3,7 @@
 import sys
 
 import asyncclick as click
-
-from distkv.util import (
+from moat.util import (
     NotGiven,
     P,
     Path,

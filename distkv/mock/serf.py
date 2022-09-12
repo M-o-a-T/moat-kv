@@ -11,12 +11,12 @@ import trio
 from asyncscope import main_scope
 from asyncserf.stream import SerfEvent
 from distmqtt.utils import create_queue
+from moat.util import NotGiven, ValueEvent, attrdict, combine_dict
 
 from distkv.codec import unpacker
 from distkv.default import CFG
 from distkv.mock import S as _S
 from distkv.server import Server
-from distkv.util import NotGiven, ValueEvent, attrdict, combine_dict
 
 logger = logging.getLogger(__name__)
 

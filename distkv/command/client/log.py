@@ -1,8 +1,7 @@
 # command line interface
 
 import asyncclick as click
-
-from distkv.util import yprint
+from moat.util import yprint
 
 
 @click.group(short_help="Manage logging.")  # pylint: disable=undefined-variable

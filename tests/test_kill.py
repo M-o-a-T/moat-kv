@@ -2,10 +2,10 @@ import logging
 
 import pytest
 import trio
+from moat.util import P
 
 from distkv.client import ServerError
 from distkv.mock.mqtt import stdtest
-from distkv.util import P
 
 logger = logging.getLogger(__name__)
 

@@ -32,6 +32,7 @@ setup(
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
         "distmqtt >= 0.32.1",
+        "moat.util >= 0.23",
     ],
     tests_require=["trustme >= 0.5", "pytest", "pytest-trio", "flake8 >= 3.7", "mock"],
     keywords=["async", "key-values", "distributed"],

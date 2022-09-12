@@ -4,10 +4,10 @@ import datetime
 import time
 
 import asyncclick as click
+from moat.util import MsgReader, NotGiven, P, PathLongener, attr_args, yprint
 
 from distkv.client import StreamedRequest
 from distkv.data import add_dates, data_get, node_attr
-from distkv.util import MsgReader, NotGiven, P, PathLongener, attr_args, yprint
 
 
 @click.group(

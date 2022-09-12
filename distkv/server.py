@@ -8,8 +8,7 @@ import time
 
 import anyio
 from anyio.abc import SocketAttribute
-
-from .util import DelayedRead, DelayedWrite, create_queue
+from moat.util import DelayedRead, DelayedWrite, create_queue
 
 try:
     from contextlib import asynccontextmanager
@@ -32,6 +31,23 @@ from asyncactor import (
     UntagEvent,
 )
 from asyncactor.backend import get_transport
+from moat.util import (
+    MsgReader,
+    MsgWriter,
+    NotGiven,
+    P,
+    Path,
+    PathLongener,
+    PathShortener,
+    ValueEvent,
+    attrdict,
+    byte2num,
+    combine_dict,
+    drop_dict,
+    gen_ssl,
+    num2byte,
+    run_tcp_server,
+)
 from range_set import RangeSet
 
 from . import _version_tuple
@@ -52,23 +68,6 @@ from .exceptions import (
 )
 from .model import Node, NodeEvent, NodeSet, UpdateEvent, Watcher
 from .types import ACLFinder, ACLStepper, ConvNull, NullACL, RootEntry
-from .util import (
-    MsgReader,
-    MsgWriter,
-    NotGiven,
-    P,
-    Path,
-    PathLongener,
-    PathShortener,
-    ValueEvent,
-    attrdict,
-    byte2num,
-    combine_dict,
-    drop_dict,
-    gen_ssl,
-    num2byte,
-    run_tcp_server,
-)
 
 Stream = anyio.abc.ByteStream
 

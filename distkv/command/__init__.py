@@ -3,9 +3,9 @@
 import sys
 
 import asyncclick as click
+from moat.util import main_
 
 from distkv.exceptions import ClientError, ServerError
-from distkv.util import main_
 
 
 def cmd(backend="trio"):

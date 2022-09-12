@@ -4,12 +4,12 @@ import time
 import anyio
 import pytest
 import trio
+from moat.util import P
 
 from distkv.code import CodeRoot
 from distkv.errors import ErrorRoot
 from distkv.mock.mqtt import stdtest
 from distkv.runner import AllRunnerRoot
-from distkv.util import P
 
 logger = logging.getLogger(__name__)
 

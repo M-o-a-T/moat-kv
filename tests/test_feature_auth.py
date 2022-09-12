@@ -3,13 +3,13 @@ from functools import partial
 
 import jsonschema
 import pytest
+from moat.util import P
 
 from distkv.auth import gen_auth
 from distkv.client import ServerError
 from distkv.exceptions import ClientAuthMethodError, ClientAuthRequiredError
 from distkv.mock import run
 from distkv.mock.mqtt import stdtest
-from distkv.util import P
 
 logger = logging.getLogger(__name__)
 

@@ -5,10 +5,10 @@ import anyio
 import pytest
 import trio
 from asyncscope import scope
+from moat.util import P, PathLongener
 
 from distkv.client import ServerError
 from distkv.mock.mqtt import stdtest
-from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

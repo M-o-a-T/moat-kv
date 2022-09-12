@@ -3,11 +3,11 @@
 import logging
 
 import asyncclick as click
+from moat.util import attrdict, combine_dict, load_subgroup
 
 from distkv.auth import gen_auth
 from distkv.client import open_client
 from distkv.default import CFG
-from distkv.util import attrdict, combine_dict, load_subgroup
 
 logger = logging.getLogger(__name__)
 

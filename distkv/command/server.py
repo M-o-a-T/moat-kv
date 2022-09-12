@@ -88,7 +88,7 @@ async def cli(obj, name, load, save, init, incremental, eval_, auth, force, node
     elif init is not None:
         kw["init"] = init
 
-    from distkv.util import as_service
+    from moat.util import as_service
 
     if load and nodes:
         raise click.UsageError("Either read from a file or fetch from a node. Not both.")

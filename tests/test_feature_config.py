@@ -1,9 +1,9 @@
 import logging
 
 import pytest
+from moat.util import P
 
 from distkv.mock.mqtt import stdtest
-from distkv.util import P
 
 logger = logging.getLogger(__name__)
 
