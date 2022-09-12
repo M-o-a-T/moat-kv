@@ -261,9 +261,21 @@ class CallAdmin:
                 self.scope = None
 
             async def run(self):
+
+                @asynccontextmanager
+                async def _watch(path, kw):
+                    if path.mark == "r":
+                        async with self.client.msg_monitor(path, **kw) as watcher:
+                            yield watcher
+                    elif not path.mark:
+                        async with self.client.watch(path, **kw) as watcher:
+                            yield watcher
+                    else:
+                        raise RuntimeError(f"What should I do with a path marked {path.mark !r}?")
+
                 with anyio.CancelScope() as sc:
                     self.scope = sc
-                    async with self.client.watch(path, **kw) as watcher:
+                    async with _watch(path, kw) as watcher:
                         async for msg in watcher:
                             if "path" in msg:
                                 chg = cls(msg)
@@ -321,6 +333,11 @@ class CallAdmin:
         """
         Set a DistKV value.
         """
+        if path.mark == "r":
+            return await self.send(path, value)
+        elif path.mark:
+            raise RuntimeError(f"What should I do with a path marked {path.mark !r}")
+
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
         elif not isinstance(path, Path):

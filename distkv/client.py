@@ -954,15 +954,14 @@ class Client:
     def msg_monitor(self, topic: Tuple[str], raw: bool = False):
         """
         Return an async iterator of tunneled messages. This receives
-        all messages sent using :meth:`msg_send` with the same tag.
+        all messages sent using :meth:`msg_send` with the same topic.
 
         Args:
-            tag: the topic / "user:" tag to monitor.
-                 The first character may not be '+'.
-            raw: If ``True``, will not try to msgpack-decode incoming
-                 messages.
+            topic: the topic to monitor.
+            raw: If ``True``, will not try to msgpack-decode incoming messages.
 
         Returns: an iterator yielding a dict.
+            topic: actual topic the message was received at.
             data: decoded data. Not present when ``raw`` is set or the
                   decoder raised an exception.
             raw: un-decoded data. Not present when '`raw`` is not set and
@@ -981,11 +980,10 @@ class Client:
     def msg_send(self, topic: Tuple[str], data=None, raw: bytes = None):
         """
         Tunnel a user-tagged message. This sends the message
-        to all active callers of :meth:`msg_monitor` which use the same tag.
+        to all active callers of :meth:`msg_monitor` which use the same topic.
 
         Args:
-            tag: the "user:" tag to send to.
-                 The first character may not be '+'.
+            topic: the MQTT topic to send to.
             data: to-be-encoded data (anything ``msgpack`` can process).
             raw: raw binary data to send, mutually exclusive with ``data``.
         """
