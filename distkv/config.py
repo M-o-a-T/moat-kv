@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover
 
 import logging
 
-from .errors import ServerError
+from .exceptions import ServerError,ServerClosedError
 from .obj import ClientEntry, ClientRoot
 
 logger = logging.getLogger(__name__)
@@ -44,5 +44,7 @@ class ConfigRoot(ClientRoot):
         try:
             async with super().run() as x:
                 yield x
+        except ServerClosedError:  # pragma: no cover
+            pass
         except ServerError:  # pragma: no cover
             logger.exception("No config data")
