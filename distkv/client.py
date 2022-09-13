@@ -211,7 +211,7 @@ class StreamedRequest:
             try:
                 with anyio.fail_after(1):
                     await self.qr.put(msg)
-            except anyio.BrokenResourceError:
+            except (anyio.BrokenResourceError,anyio.ClosedResourceError):
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
             if self._reply_stream is False:
                 await self.qr.close_sender()
@@ -642,11 +642,17 @@ class Client:
             yield res
         except BaseException as exc:
             if stream:
-                await res.send(error=repr(exc))
+                try:
+                    await res.send(error=repr(exc))
+                except anyio.ClosedResourceError:
+                    pass
             raise
         finally:
             with anyio.fail_after(2, shield=True):
-                await res.aclose()
+                try:
+                    await res.aclose()
+                except anyio.ClosedResourceError:
+                    pass
 
     async def _run_auth(self, auth=None):
         """
