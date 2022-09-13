@@ -1019,7 +1019,11 @@ class _BaseRunnerRoot(ClientRoot):
                         j.state.computed = d
                         j.state.reason = r
                         if self._tagged:
-                            await j.state.save()
+                            try:
+                                await j.state.save()
+                            except anyio.ClosedResourceError:  # owch
+                                logger.error("Could not update state %r %r", j, j.state)
+                                return
                         if d and t_next > d:
                             t_next = d
                         continue
