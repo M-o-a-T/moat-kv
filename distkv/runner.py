@@ -198,9 +198,9 @@ class CallAdmin:
         """
         await code.reload_event.wait()
         self._restart = True
-        await self.cancel()
+        self.cancel()
 
-    async def cancel(self):
+    def cancel(self):
         """
         Cancel the running task
         """
@@ -308,7 +308,7 @@ class CallAdmin:
                                         ReadyMsg(self.admin._n_watch_seen)
                                     )
 
-            async def cancel(self):
+            def cancel(self):
                 if self.scope is None:
                     return False
                 sc, self.scope = self.scope, None
@@ -452,7 +452,7 @@ class CallAdmin:
                 return True
 
             async def run(self, delay):
-                await self.cancel()
+                self.cancel()
                 self.delay = delay
                 if self.delay > 0:
                     self._taskgroup.spawn(t._run)
@@ -647,10 +647,10 @@ class RunnerEntry(AttrClientEntry):
             if value is NotGiven or c is not self.code:
                 # The code changed.
                 self._comment = "Cancel: Code changed"
-                await self.scope.cancel()
+                self.scope.cancel()
             elif not getattr(self, "target", None):
                 self._comment = "Cancel: target zeroed"
-                await self.scope.cancel()
+                self.scope.cancel()
 
         await self.root.trigger_rescan()
 
@@ -828,7 +828,7 @@ class StateEntry(AttrClientEntry):
         elif self.node is None or n == self.root.runner.name:
             # Owch. Our job got taken away from us.
             run._comment = f"Cancel: Node set to {self.node !r}"
-            await run.scope.cancel()
+            run.scope.cancel()
         elif n is not None:
             logger.warning(
                 "Runner %s at %r: running but node is %s", self.root.name, self.subpath, n
