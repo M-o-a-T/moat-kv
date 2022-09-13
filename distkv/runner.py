@@ -260,32 +260,32 @@ class CallAdmin:
         class Watcher:
             """Helper class for watching an entry"""
 
-            def __init__(self, admin, runner, client, cls, path, kw):
+            def __init__(slf, admin, runner, client, cls, path, kw):
                 kw.setdefault("fetch", True)
 
-                self.admin = admin
-                self.runner = runner
-                self.client = client
-                self.path = path
-                self.kw = kw
-                self.cls = cls
-                self.scope = None
+                slf.admin = admin
+                slf.runner = runner
+                slf.client = client
+                slf.path = path
+                slf.kw = kw
+                slf.cls = cls
+                slf.scope = None
 
-            async def run(self):
+            async def run(slf):
 
                 @asynccontextmanager
                 async def _watch(path, kw):
                     if path.mark == "r":
-                        async with self.client.msg_monitor(path, **kw) as watcher:
+                        async with slf.client.msg_monitor(path, **kw) as watcher:
                             yield watcher
                     elif not path.mark:
-                        async with self.client.watch(path, **kw) as watcher:
+                        async with slf.client.watch(path, **kw) as watcher:
                             yield watcher
                     else:
                         raise RuntimeError(f"What should I do with a path marked {path.mark !r}?")
 
                 with anyio.CancelScope() as sc:
-                    self.scope = sc
+                    slf.scope = sc
                     async with _watch(path, kw) as watcher:
                         async for msg in watcher:
                             if "path" in msg:
@@ -299,19 +299,19 @@ class CallAdmin:
                                 chg.path = (  # pylint:disable=attribute-defined-outside-init
                                     msg.path
                                 )
-                                await self.runner.send_event(chg)
+                                await slf.runner.send_event(chg)
 
                             elif msg.get("state", "") == "uptodate":
-                                self.admin._n_watch_seen += 1
-                                if self.admin._n_watch_seen == self.admin._n_watch:
-                                    await self.runner.send_event(
-                                        ReadyMsg(self.admin._n_watch_seen)
+                                slf.admin._n_watch_seen += 1
+                                if slf.admin._n_watch_seen == slf.admin._n_watch:
+                                    await slf.runner.send_event(
+                                        ReadyMsg(slf.admin._n_watch_seen)
                                     )
 
-            def cancel(self):
-                if self.scope is None:
+            def cancel(slf):
+                if slf.scope is None:
                     return False
-                sc, self.scope = self.scope, None
+                sc, slf.scope = slf.scope, None
                 sc.cancel()
 
         if isinstance(path, (tuple, list)):
