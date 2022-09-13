@@ -130,6 +130,7 @@ class CallAdmin:
 
     _taskgroup = None
     _stack = None
+    _restart = False
 
     def __init__(self, runner, state, data):
         self._runner = runner
@@ -140,11 +141,20 @@ class CallAdmin:
         self._q = runner._q
         self._path = runner._path
         self._subpath = runner.subpath
-        self._n_watch = 0
-        self._n_watch_seen = 0
         self._logger = runner._logger
 
     async def _run(self, code, data):
+        while True:
+            self._n_watch = 0
+            self._n_watch_seen = 0
+
+            res = await self._run2(code, data)
+            if self._restart:
+                self._restart = False
+            else:
+                return res
+
+    async def _run2(self, code, data):
         """Called by the runner to actually execute the code."""
         self._logger.debug("Start %r with %r", self._runner._path, self._runner.code)
         async with anyio.create_task_group() as tg:
@@ -187,6 +197,7 @@ class CallAdmin:
         Kill the job if the underlying code has changed
         """
         await code.reload_event.wait()
+        self._restart = True
         await self.cancel()
 
     async def cancel(self):
