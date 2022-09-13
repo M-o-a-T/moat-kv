@@ -1856,9 +1856,13 @@ class Server:
                     if not msg:  # None, empty, whatever
                         continue
                     self.logger.debug("Recv %s: %r", action, msg)
-                    with anyio.fail_after(10):
-                        await self.tock_seen(msg.get("tock", 0))
-                        await cmd(msg)
+                    try:
+                        with anyio.fail_after(15):
+                            await self.tock_seen(msg.get("tock", 0))
+                            await cmd(msg)
+                    except TimeoutError:
+                        self.logger.error("CmdTimeout! %s: %r", action, msg)
+                        raise
         except CancelledError:
             self.logger.warning("Cancelled %s", action)
             raise
