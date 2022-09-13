@@ -6,7 +6,7 @@ This module's job is to run code, resp. to keep it running.
 
 import time
 from collections.abc import Mapping
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 from weakref import ref
 
 import anyio
