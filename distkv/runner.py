@@ -254,7 +254,7 @@ class CallAdmin:
         ``max_depth`` if you also want child entries.
 
         By default a watcher will not report existing entries. Set
-        ``fetch=False`` if you want them.
+        ``fetch=True`` if you want them.
         """
 
         class Watcher:
