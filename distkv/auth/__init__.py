@@ -64,12 +64,13 @@ from importlib import import_module
 
 import jsonschema
 
+from moat.util import NotGiven, Path, attrdict, split_arg, yload
+
 from ..client import Client, NoData
 from ..exceptions import NoAuthModuleError
 from ..model import Entry
 from ..server import ServerClient, StreamCommand
 from ..types import ACLFinder, NullACL
-from ..util import NotGiven, Path, attrdict, split_arg, yload
 
 # Empty schema
 null_schema = {"type": "object", "additionalProperties": False}

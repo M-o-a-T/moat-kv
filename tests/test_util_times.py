@@ -3,7 +3,7 @@
 import datetime
 import sys
 
-from distkv.util.times import time_until
+from moat.util.times import time_until
 
 lnp = None
 err = False
