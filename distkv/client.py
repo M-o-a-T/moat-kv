@@ -139,7 +139,7 @@ class StreamedRequest:
         self._stream = stream
         self._client = client
         self.seq = seq
-        self._stream = stream
+        self._open = False
         self._client._handlers[seq] = self
         self._reply_stream = None
         self.n_msg = 0
@@ -211,7 +211,7 @@ class StreamedRequest:
             try:
                 with anyio.fail_after(1):
                     await self.qr.put(msg)
-            except anyio.BrokenResourceError:
+            except (anyio.BrokenResourceError,anyio.ClosedResourceError):
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
             if self._reply_stream is False:
                 await self.qr.close_sender()
@@ -244,20 +244,18 @@ class StreamedRequest:
         self._path_long(res)
         return res
 
-    async def send(self, **params):
-        # logger.debug("Send %s", params)
-        if not self._stream:
-            if self._stream is None:
-                raise RuntimeError("You can't send more than one request")
-            self._stream = None
-        elif self._stream is True:
-            self._stream = 2
-            params["state"] = "start"
-        elif self._stream == 2 and params.get("state", "") == "end":
-            self._stream = None
+    async def send(self, **msg):
+        # logger.debug("Send %s", msg)
+        if not self._open:
+            if self._stream:
+                msg["state"] = "start"
+            self._open = True
+        elif msg.get("state", "") == "end":
+            self._open = False
+
         if self.dw is not None:
-            params["wseq"] = await self.dw.next_seq()
-        msg = dict(seq=self.seq, **params)
+            msg["wseq"] = await self.dw.next_seq()
+        msg["seq"] = self.seq
         logger.debug("Send %s", msg)
         await self._client._send(**msg)
 
@@ -270,26 +268,28 @@ class StreamedRequest:
         except (anyio.BrokenResourceError, anyio.ClosedResourceError):
             pass
         else:
-            await self.aclose()
+            try:
+                await self.aclose()
+            except ServerClosedError:
+                pass
 
     async def wait_started(self):
         await self._started.wait()
 
     async def aclose(self, timeout=0.2):
-        await self.qr.close_sender()
-        await self.qr.close_receiver()
-        if self._stream == 2:
-            msg = dict(seq=self.seq, state="end")
-            logger.debug("Send %s", msg)
-            await self._client._send(**msg)
-            if timeout is not None:
-                with anyio.move_on_after(timeout):
-                    try:
-                        await self.recv()
-                    except StopAsyncIteration:
-                        return
-            req = await self._client._request(action="stop", task=self.seq, _async=True)
-            return await req.get()
+        try:
+            if self._stream:
+                msg = dict(seq=self.seq, state="end")
+                # logger.debug("SendE %s", msg)
+                await self._client._send(**msg)
+            if self._open:
+                msg = dict(action="stop", task=self.seq)
+                # logger.debug("SendC %s", msg)
+                await self._client._request(**msg, _async=True)
+                # ignore the reply
+        finally:
+            await self.qr.close_sender()
+            await self.qr.close_receiver()
 
 
 class _SingleReply:
@@ -501,10 +501,12 @@ class Client:
                         # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
-                        except ClosedResourceError:
+                        except ClosedResourceError as exc:
+                            logger.warning("Reader closed in handler", exc_info=exc)
                             return
 
                     if self._socket is None:
+                        logger.warning("Reader socket closed")
                         break
                     try:
                         buf = await self._socket.receive(4096)
@@ -516,6 +518,8 @@ class Client:
                         raise ServerClosedError("Connection closed by peer")
                     unpacker.feed(buf)
 
+            except BaseException as exc:
+                logger.warning("Reader died: %r", exc, exc_info=exc)
             finally:
                 with anyio.fail_after(2, shield=True):
                     hdl, self._handlers = self._handlers, None
@@ -642,11 +646,17 @@ class Client:
             yield res
         except BaseException as exc:
             if stream:
-                await res.send(error=repr(exc))
+                try:
+                    await res.send(error=repr(exc))
+                except anyio.ClosedResourceError:
+                    pass
             raise
         finally:
             with anyio.fail_after(2, shield=True):
-                await res.aclose()
+                try:
+                    await res.aclose()
+                except anyio.ClosedResourceError:
+                    pass
 
     async def _run_auth(self, auth=None):
         """
