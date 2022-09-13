@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 class ConfigEntry(ClientEntry):
     @classmethod
     def child_type(cls, name):  # pragma: no cover
-        """Given a node, return the type which the child with that name should have.
-        The default is "same as this class".
-        """
         logger.warning("Online config sub-entries are ignored")
         return ClientEntry
 
@@ -34,9 +31,6 @@ class ConfigRoot(ClientRoot):
 
     @classmethod
     def child_type(cls, name):
-        """Given a node, return the type which the child with that name should have.
-        The default is "same as this class".
-        """
         return ConfigEntry
 
     @asynccontextmanager
