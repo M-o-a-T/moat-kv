@@ -501,10 +501,12 @@ class Client:
                         # logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
-                        except ClosedResourceError:
+                        except ClosedResourceError as exc:
+                            logger.warning("Reader closed in handler", exc_info=exc)
                             return
 
                     if self._socket is None:
+                        logger.warning("Reader socket closed")
                         break
                     try:
                         buf = await self._socket.receive(4096)
@@ -516,6 +518,8 @@ class Client:
                         raise ServerClosedError("Connection closed by peer")
                     unpacker.feed(buf)
 
+            except BaseException as exc:
+                logger.warning("Reader died: %r", exc, exc_info=exc)
             finally:
                 with anyio.fail_after(2, shield=True):
                     hdl, self._handlers = self._handlers, None
