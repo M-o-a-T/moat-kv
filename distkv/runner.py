@@ -156,7 +156,7 @@ class CallAdmin:
 
     async def _run2(self, code, data):
         """Called by the runner to actually execute the code."""
-        self._logger.debug("Start %r with %r", self._runner._path, self._runner.code)
+        self._logger.debug("Start %s with %s", self._runner._path, self._runner.code)
         async with anyio.create_task_group() as tg:
             self._taskgroup = tg
             async with AsyncExitStack() as stack:
