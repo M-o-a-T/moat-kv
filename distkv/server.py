@@ -739,7 +739,7 @@ class ServerClient:
     async def cmd_diffie_hellman(self, msg):
         if self._dh_key:
             raise RuntimeError("Can't call dh twice")
-        from diffiehellman.diffiehellman import DiffieHellman
+        from moat.lib.diffiehellman import DiffieHellman
 
         def gen_key():
             length = msg.get("length", 1024)

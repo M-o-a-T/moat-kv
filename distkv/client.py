@@ -460,7 +460,7 @@ class Client:
     async def dh_secret(self, length=1024):
         """Exchange a diffie-hellman secret with the server"""
         if self._dh_key is None:
-            from diffiehellman.diffiehellman import DiffieHellman
+            from moat.lib.diffiehellman import DiffieHellman
 
             def gen_key():
                 k = DiffieHellman(key_length=length, group=(5 if length < 32 else 14))

@@ -27,7 +27,7 @@ setup(
         "ruyaml >= 0.89",
         # "argon2 >= 18.3",
         "PyNaCl >= 1.3",
-        "diffiehellman @ git+https://github.com/M-o-a-T/diffiehellman.git",
+        "moat.lib.diffiehellman",
         "psutil",
         "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
