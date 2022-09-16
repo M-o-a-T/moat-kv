@@ -575,7 +575,7 @@ class SCmd_watch(StreamCommand):
                         await entry.walk(worker, acl=acl, **kv)
                         await self.send(state="uptodate")
 
-                    tg.spawn(orig_state)
+                    tg.start_soon(orig_state)
 
                 async for m in watcher:
                     ml = len(m.entry.path) - len(msg.path)
@@ -1199,7 +1199,7 @@ class ServerClient:
                             await send_q.received(msg)
                         else:
                             evt = anyio.Event()
-                            self.tg.spawn(self.process, msg, evt)
+                            self.tg.start_soon(self.process, msg, evt)
                             await evt.wait()
                     except Exception as exc:
                         msg = {"error": str(exc)}
@@ -2646,7 +2646,7 @@ class Server:
                     cfg = combine_dict(cfg, cfg_b, cls=attrdict)
                     evt = anyio.Event()
                     evts.append(evt)
-                    tg.spawn(self._accept_clients, tg, cfg, n, evt)
+                    tg.start_soon(self._accept_clients, tg, cfg, n, evt)
                 for evt in evts:
                     await evt.wait()
 
