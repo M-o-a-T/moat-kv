@@ -716,13 +716,13 @@ class ServerClient:
             try:
                 await fn()
 
-            except BrokenPipeError as exc:
+            except (anyio.BrokenResourceError,BrokenPipeError) as exc:
                 self.logger.info("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
                     self.logger.exception("ERR%d: %s", self._client_nr, repr(msg))
-                await self.send({"error": str(exc), "seq": seq})
+                await self.send({"error": repr(exc), "seq": seq})
 
             finally:
                 del self.tasks[seq]
@@ -1216,7 +1216,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except ConnectionResetError:
+                except (anyio.BrokenResourceError,ConnectionResetError):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
