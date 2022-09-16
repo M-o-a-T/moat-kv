@@ -19,7 +19,7 @@ def cmd(backend="trio"):
     main_.help = """\
 This is DistKV, a distributed master-less key-value storage system.
 """
-    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv"))
+    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv", sub="distkv.command"))
     try:
         main_(obj=obj, _anyio_backend=backend)
     except (ClientError, ServerError) as err:
