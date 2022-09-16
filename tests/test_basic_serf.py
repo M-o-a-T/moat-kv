@@ -4,11 +4,11 @@ from time import time
 import asyncclick as click
 import pytest
 import trio
+from moat.util import P, PathLongener
 
 from distkv.client import ServerError
 from distkv.mock import run
 from distkv.mock.serf import stdtest
-from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

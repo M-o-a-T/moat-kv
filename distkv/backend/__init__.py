@@ -22,7 +22,7 @@ class Backend(metaclass=ABCMeta):
         await self._tg.cancel_scope.cancel()
 
     def spawn(self, *a, **kw):
-        return self._tg.spawn(*a, **kw)
+        return self._tg.start_soon(*a, **kw)
 
     @abstractmethod
     @asynccontextmanager

@@ -7,7 +7,7 @@ import sys
 import time
 from collections.abc import Mapping
 
-from distkv.util import NotGiven, Path, attrdict, process_args, yprint
+from moat.util import NotGiven, Path, attrdict, process_args, yprint
 
 
 def add_dates(d):

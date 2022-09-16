@@ -1,3 +1,0 @@
-[submodule "distkv/util"]
-	path = distkv/util
-	url = git@github.com:smurfix/util-py

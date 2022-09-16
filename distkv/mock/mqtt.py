@@ -10,10 +10,10 @@ import mock
 import trio
 from asyncscope import main_scope
 from distmqtt.broker import create_broker
+from moat.util import NotGiven, attrdict, combine_dict
 
 from distkv.mock import S
 from distkv.server import Server
-from distkv.util import NotGiven, attrdict, combine_dict
 
 from . import CFG
 

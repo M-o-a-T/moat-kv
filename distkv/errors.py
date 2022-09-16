@@ -86,11 +86,11 @@ from time import time  # wall clock, intentionally
 from weakref import WeakValueDictionary
 
 import anyio
+from moat.util import Cache, NotGiven, Path
 
 from .codec import packer
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientEntry, ClientRoot
-from .util import Cache, NotGiven, Path
 
 logger = logging.getLogger(__name__)
 

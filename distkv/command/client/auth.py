@@ -1,9 +1,9 @@
 # command line interface
 
 import asyncclick as click
+from moat.util import NotGiven, Path, split_arg, yprint
 
 from distkv.auth import gen_auth, loader
-from distkv.util import NotGiven, Path, split_arg, yprint
 
 
 @click.group(short_help="Manage authorization")  # pylint: disable=undefined-variable

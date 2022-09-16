@@ -6,9 +6,7 @@ from collections.abc import Mapping
 
 import asyncclick as click
 from distmqtt.codecs import MsgPackCodec
-
-from distkv.codec import unpacker
-from distkv.util import (
+from moat.util import (
     MsgReader,
     MsgWriter,
     P,
@@ -18,6 +16,8 @@ from distkv.util import (
     yload,
     yprint,
 )
+
+from distkv.codec import unpacker
 
 
 @load_subgroup(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable

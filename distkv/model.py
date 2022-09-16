@@ -12,10 +12,10 @@ from logging import getLogger
 from typing import Any, List
 
 from distmqtt.utils import create_queue
+from moat.util import NotGiven, Path, attrdict
 from range_set import RangeSet
 
 from .exceptions import ACLError
-from .util import NotGiven, Path, attrdict
 
 logger = getLogger(__name__)
 

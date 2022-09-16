@@ -6,11 +6,11 @@ from functools import partial
 
 import anyio
 import asyncclick as click
+from moat.util import P, Path, attr_args, attrdict, process_args, yprint
 
 from distkv.code import CodeRoot
 from distkv.data import add_dates, data_get
 from distkv.runner import AllRunnerRoot, AnyRunnerRoot, SingleRunnerRoot
-from distkv.util import P, Path, attr_args, attrdict, process_args, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -121,7 +121,7 @@ async def run(obj, nodes):
 
     This does not return.
     """
-    from distkv.util import as_service
+    from moat.util import as_service
 
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")

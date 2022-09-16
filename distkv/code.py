@@ -11,9 +11,9 @@ import sys
 from functools import partial
 
 import anyio
+from moat.util import NotGiven, P, make_module, make_proc
 
 from .obj import ClientEntry, ClientRoot
-from .util import NotGiven, P, make_module, make_proc
 
 logger = logging.getLogger(__name__)
 

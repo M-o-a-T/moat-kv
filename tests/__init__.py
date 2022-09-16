@@ -3,7 +3,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-from distkv.util import yload
+from moat.util import yload
 
 
 def load_cfg(cfg):  # pylint: disable=redefined-outer-name

@@ -3,10 +3,10 @@ import mock
 import msgpack
 import pytest
 import trio
+from moat.util import P, Path, attrdict
 
 # doesn't work with MQTT because we can't split
 from distkv.mock.serf import stdtest
-from distkv.util import P, Path, attrdict
 
 N = 10
 

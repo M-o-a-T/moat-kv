@@ -13,19 +13,7 @@ from typing import Tuple
 
 import anyio
 from asyncscope import Scope, main_scope, scope
-
-from .codec import packer, stream_unpacker
-from .default import CFG
-from .exceptions import (
-    CancelledError,
-    ClientAuthMethodError,
-    ClientAuthRequiredError,
-    ServerClosedError,
-    ServerConnectionError,
-    ServerError,
-    error_types,
-)
-from .util import (
+from moat.util import (
     DelayedRead,
     DelayedWrite,
     NotGiven,
@@ -38,6 +26,18 @@ from .util import (
     create_queue,
     gen_ssl,
     num2byte,
+)
+
+from .codec import packer, stream_unpacker
+from .default import CFG
+from .exceptions import (
+    CancelledError,
+    ClientAuthMethodError,
+    ClientAuthRequiredError,
+    ServerClosedError,
+    ServerConnectionError,
+    ServerError,
+    error_types,
 )
 
 logger = logging.getLogger(__name__)

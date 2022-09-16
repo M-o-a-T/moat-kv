@@ -8,8 +8,7 @@ import time
 
 import anyio
 from anyio.abc import SocketAttribute
-
-from .util import DelayedRead, DelayedWrite, create_queue
+from moat.util import DelayedRead, DelayedWrite, create_queue
 
 try:
     from contextlib import asynccontextmanager
@@ -32,6 +31,23 @@ from asyncactor import (
     UntagEvent,
 )
 from asyncactor.backend import get_transport
+from moat.util import (
+    MsgReader,
+    MsgWriter,
+    NotGiven,
+    P,
+    Path,
+    PathLongener,
+    PathShortener,
+    ValueEvent,
+    attrdict,
+    byte2num,
+    combine_dict,
+    drop_dict,
+    gen_ssl,
+    num2byte,
+    run_tcp_server,
+)
 from range_set import RangeSet
 
 from . import _version_tuple
@@ -52,23 +68,6 @@ from .exceptions import (
 )
 from .model import Node, NodeEvent, NodeSet, UpdateEvent, Watcher
 from .types import ACLFinder, ACLStepper, ConvNull, NullACL, RootEntry
-from .util import (
-    MsgReader,
-    MsgWriter,
-    NotGiven,
-    P,
-    Path,
-    PathLongener,
-    PathShortener,
-    ValueEvent,
-    attrdict,
-    byte2num,
-    combine_dict,
-    drop_dict,
-    gen_ssl,
-    num2byte,
-    run_tcp_server,
-)
 
 Stream = anyio.abc.ByteStream
 
@@ -576,7 +575,7 @@ class SCmd_watch(StreamCommand):
                         await entry.walk(worker, acl=acl, **kv)
                         await self.send(state="uptodate")
 
-                    tg.spawn(orig_state)
+                    tg.start_soon(orig_state)
 
                 async for m in watcher:
                     ml = len(m.entry.path) - len(msg.path)
@@ -1200,7 +1199,7 @@ class ServerClient:
                             await send_q.received(msg)
                         else:
                             evt = anyio.Event()
-                            self.tg.spawn(self.process, msg, evt)
+                            self.tg.start_soon(self.process, msg, evt)
                             await evt.wait()
                     except Exception as exc:
                         msg = {"error": str(exc)}
@@ -2651,7 +2650,7 @@ class Server:
                     cfg = combine_dict(cfg, cfg_b, cls=attrdict)
                     evt = anyio.Event()
                     evts.append(evt)
-                    tg.spawn(self._accept_clients, tg, cfg, n, evt)
+                    tg.start_soon(self._accept_clients, tg, cfg, n, evt)
                 for evt in evts:
                     await evt.wait()
 

@@ -1,11 +1,11 @@
 import logging
 
 import pytest
+from moat.util import P, PathLongener
 
 from distkv.auth import loader
 from distkv.client import ServerError
 from distkv.mock.mqtt import stdtest
-from distkv.util import P, PathLongener
 
 logger = logging.getLogger(__name__)
 

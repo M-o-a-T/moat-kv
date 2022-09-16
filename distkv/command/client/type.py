@@ -3,8 +3,7 @@
 import json
 
 import asyncclick as click
-
-from distkv.util import NotGiven, P, Path, yload, yprint
+from moat.util import NotGiven, P, Path, yload, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable

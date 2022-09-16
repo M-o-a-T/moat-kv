@@ -4,8 +4,7 @@ import logging
 import sys
 
 import asyncclick as click
-
-from distkv.util import NotGiven
+from moat.util import NotGiven
 
 logger = logging.getLogger(__name__)
 

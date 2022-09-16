@@ -442,7 +442,7 @@ Let's start by simply setting some value::
 
    import anyio
    from distkv.client import open_client
-   from distkv.util import P
+   from moat.util import P
 
    async def dkv_example():
       async with open_client() as client:
@@ -452,7 +452,7 @@ Let's start by simply setting some value::
 
 That was easy. Now we'd like to update that entry::
 
-   from distkv.util import P
+   from moat.util import P
    async def dkv_example():
       async with open_client() as client:
          res = client.get(P("one.two.three"), nchain=2)
@@ -508,7 +508,7 @@ While watching for changes is nice, organizing the resulting objects tends
 to be tedious. DistKV comes with a couple of classes that does this for you::
 
    from distkv.obj import ClientRoot, ClientEntry
-   from distkv.util import NotGiven
+   from moat.util import NotGiven
 
    class OneEntry(ClientEntry):
       async def set(self, value):

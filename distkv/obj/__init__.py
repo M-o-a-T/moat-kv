@@ -15,7 +15,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from ..util import NoLock, NotGiven, PathLongener, combine_dict
+from moat.util import NoLock, NotGiven, PathLongener, combine_dict
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 

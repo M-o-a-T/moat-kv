@@ -5,10 +5,10 @@ import mock
 import pytest
 import trio
 from asyncactor.actor import Actor
+from moat.util import P, Path
 
 from distkv.mock.mqtt import stdtest
 from distkv.server import Server
-from distkv.util import P, Path
 
 logger = logging.getLogger(__name__)
 

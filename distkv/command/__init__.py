@@ -3,9 +3,9 @@
 import sys
 
 import asyncclick as click
+from moat.util import main_, attrdict
 
 from distkv.exceptions import ClientError, ServerError
-from distkv.util import main_
 
 
 def cmd(backend="trio"):
@@ -14,13 +14,14 @@ def cmd(backend="trio"):
     """
     click.anyio_backend = "trio"
 
-    try:
-        # @click.* decorators change the semantics
-        # pylint: disable=no-value-for-parameter
-        main_.help = """\
+    # @click.* decorators change the semantics
+    # pylint: disable=no-value-for-parameter
+    main_.help = """\
 This is DistKV, a distributed master-less key-value storage system.
 """
-        main_(_anyio_backend=backend)
+    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv", sub="distkv.command"))
+    try:
+        main_(obj=obj, _anyio_backend=backend)
     except (ClientError, ServerError) as err:
         print(type(err).__name__ + ":", *err.args, file=sys.stderr)
         sys.exit(1)

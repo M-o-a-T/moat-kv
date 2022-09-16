@@ -4,10 +4,10 @@ import socket
 import sys
 
 import attr
+from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 
 from distkv.client import open_client
 from distkv.default import CFG
-from distkv.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 
 CFG = attrdict(**CFG)  # shallow copy
 for n, _ in list_ext("distkv_ext"):
