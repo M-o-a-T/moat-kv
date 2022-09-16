@@ -19,7 +19,8 @@ use this script::
    cmd()
 
 
-You also need a running `Serf <http://serf.io>` daemon.
+You also need a running `Serf <http://serf.io>` or `MQTT
+<https://mqtt.org>` message broker. (When in doubt, use MQTT.)
 
 Start the server
 ================
@@ -29,10 +30,10 @@ You start an initial server with this command::
    $ distkv server -i Testing $(hostname)
    Running.
 
-By default, your DistKV server will talk to the local Serf process.
+By default, your DistKV server will talk to the local MQTT process.
 You can configure the destination by adapting the config file::
 
-   $ distkv -C server.serf.host=my-serfer server -i Testing $(hostname)
+   $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
 
 You can now retrieve the root value::
 
@@ -43,7 +44,7 @@ You can now retrieve the root value::
 As the purpose of DistKV is to be a *distributed* key-value storage, 
 you can start another server on a different host::
 
-   two $ distkv server $(hostname)
+   two $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
    Running.
 
 
