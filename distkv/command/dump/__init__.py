@@ -5,7 +5,7 @@ import sys
 from collections.abc import Mapping
 
 import asyncclick as click
-from distmqtt.codecs import MsgPackCodec
+from moat.mqtt.codecs import MsgPackCodec
 from moat.util import (
     MsgReader,
     MsgWriter,

@@ -11,8 +11,7 @@ from collections import defaultdict
 from logging import getLogger
 from typing import Any, List
 
-from distmqtt.utils import create_queue
-from moat.util import NotGiven, Path, attrdict
+from moat.util import NotGiven, Path, attrdict, create_queue
 from range_set import RangeSet
 
 from .exceptions import ACLError

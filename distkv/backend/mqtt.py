@@ -2,8 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 
 import anyio
-from distmqtt.client import MQTTClient
-from distmqtt.codecs import NoopCodec
+from moat.mqtt.client import MQTTClient
+from moat.mqtt.codecs import NoopCodec
 
 from . import Backend
 
