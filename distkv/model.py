@@ -438,7 +438,7 @@ class NodeEvent:
             other = other.prev
             if other is None:
                 return False
-        return self.tick < other.tick
+        return self.tick <= other.tick
 
     def __gt__(self, other):
         """Check whether this node succedes ``other``, i.e. this event is
@@ -452,7 +452,7 @@ class NodeEvent:
             self = self.prev  # pylint: disable=self-cls-assignment
             if self is None:
                 return False
-        return self.tick > other.tick
+        return self.tick >= other.tick
 
     def __lte__(self, other):
         return self.__eq__(other) or self.__lt__(other)

@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover
 
 import logging
 
-from .errors import ServerError
+from .exceptions import ServerError,ServerClosedError
 from .obj import ClientEntry, ClientRoot
 
 logger = logging.getLogger(__name__)
@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 class ConfigEntry(ClientEntry):
     @classmethod
     def child_type(cls, name):  # pragma: no cover
-        """Given a node, return the type which the child with that name should have.
-        The default is "same as this class".
-        """
         logger.warning("Online config sub-entries are ignored")
         return ClientEntry
 
@@ -34,9 +31,6 @@ class ConfigRoot(ClientRoot):
 
     @classmethod
     def child_type(cls, name):
-        """Given a node, return the type which the child with that name should have.
-        The default is "same as this class".
-        """
         return ConfigEntry
 
     @asynccontextmanager
@@ -44,5 +38,7 @@ class ConfigRoot(ClientRoot):
         try:
             async with super().run() as x:
                 yield x
+        except ServerClosedError:  # pragma: no cover
+            pass
         except ServerError:  # pragma: no cover
             logger.exception("No config data")

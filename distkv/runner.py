@@ -139,6 +139,7 @@ class CallAdmin:
 
     _taskgroup = None
     _stack = None
+    _restart = False
 
     def __init__(self, runner, state, data):
         self._runner = runner
@@ -149,13 +150,22 @@ class CallAdmin:
         self._q = runner._q
         self._path = runner._path
         self._subpath = runner.subpath
-        self._n_watch = 0
-        self._n_watch_seen = 0
         self._logger = runner._logger
 
     async def _run(self, code, data):
+        while True:
+            self._n_watch = 0
+            self._n_watch_seen = 0
+
+            res = await self._run2(code, data)
+            if self._restart:
+                self._restart = False
+            else:
+                return res
+
+    async def _run2(self, code, data):
         """Called by the runner to actually execute the code."""
-        self._logger.debug("Start %r with %r", self._runner._path, self._runner.code)
+        self._logger.debug("Start %s with %s", self._runner._path, self._runner.code)
         async with anyio.create_task_group() as tg:
             self._taskgroup = tg
             async with AsyncExitStack() as stack:
@@ -196,9 +206,10 @@ class CallAdmin:
         Kill the job if the underlying code has changed
         """
         await code.reload_event.wait()
-        await self.cancel()
+        self._restart = True
+        self.cancel()
 
-    async def cancel(self):
+    def cancel(self):
         """
         Cancel the running task
         """
@@ -252,37 +263,38 @@ class CallAdmin:
         ``max_depth`` if you also want child entries.
 
         By default a watcher will not report existing entries. Set
-        ``fetch=False`` if you want them.
+        ``fetch=True`` if you want them.
         """
 
         class Watcher:
             """Helper class for watching an entry"""
 
-            def __init__(self, admin, runner, client, cls, path, kw):
+            def __init__(slf, admin, runner, client, cls, path, kw):
                 kw.setdefault("fetch", True)
 
-                self.admin = admin
-                self.runner = runner
-                self.client = client
-                self.path = path
-                self.kw = kw
-                self.cls = cls
-                self.scope = None
+                slf.admin = admin
+                slf.runner = runner
+                slf.client = client
+                slf.path = path
+                slf.kw = kw
+                slf.cls = cls
+                slf.scope = None
 
-            async def run(self):
+            async def run(slf):
+
                 @asynccontextmanager
                 async def _watch(path, kw):
                     if path.mark == "r":
-                        async with self.client.msg_monitor(path, **kw) as watcher:
+                        async with slf.client.msg_monitor(path, **kw) as watcher:
                             yield watcher
                     elif not path.mark:
-                        async with self.client.watch(path, **kw) as watcher:
+                        async with slf.client.watch(path, **kw) as watcher:
                             yield watcher
                     else:
                         raise RuntimeError(f"What should I do with a path marked {path.mark !r}?")
 
                 with anyio.CancelScope() as sc:
-                    self.scope = sc
+                    slf.scope = sc
                     async with _watch(path, kw) as watcher:
                         async for msg in watcher:
                             if "path" in msg:
@@ -296,19 +308,19 @@ class CallAdmin:
                                 chg.path = (  # pylint:disable=attribute-defined-outside-init
                                     msg.path
                                 )
-                                await self.runner.send_event(chg)
+                                await slf.runner.send_event(chg)
 
                             elif msg.get("state", "") == "uptodate":
-                                self.admin._n_watch_seen += 1
-                                if self.admin._n_watch_seen == self.admin._n_watch:
-                                    await self.runner.send_event(
-                                        ReadyMsg(self.admin._n_watch_seen)
+                                slf.admin._n_watch_seen += 1
+                                if slf.admin._n_watch_seen == slf.admin._n_watch:
+                                    await slf.runner.send_event(
+                                        ReadyMsg(slf.admin._n_watch_seen)
                                     )
 
-            async def cancel(self):
-                if self.scope is None:
+            def cancel(slf):
+                if slf.scope is None:
                     return False
-                sc, self.scope = self.scope, None
+                sc, slf.scope = slf.scope, None
                 sc.cancel()
 
         if isinstance(path, (tuple, list)):
@@ -449,7 +461,7 @@ class CallAdmin:
                 return True
 
             async def run(self, delay):
-                await self.cancel()
+                self.cancel()
                 self.delay = delay
                 if self.delay > 0:
                     self._taskgroup.spawn(t._run)
@@ -644,10 +656,10 @@ class RunnerEntry(AttrClientEntry):
             if value is NotGiven or c is not self.code:
                 # The code changed.
                 self._comment = "Cancel: Code changed"
-                await self.scope.cancel()
+                self.scope.cancel()
             elif not getattr(self, "target", None):
                 self._comment = "Cancel: target zeroed"
-                await self.scope.cancel()
+                self.scope.cancel()
 
         await self.root.trigger_rescan()
 
@@ -825,7 +837,7 @@ class StateEntry(AttrClientEntry):
         elif self.node is None or n == self.root.runner.name:
             # Owch. Our job got taken away from us.
             run._comment = f"Cancel: Node set to {self.node !r}"
-            await run.scope.cancel()
+            run.scope.cancel()
         elif n is not None:
             logger.warning(
                 "Runner %s at %r: running but node is %s", self.root.name, self.subpath, n
@@ -1016,7 +1028,11 @@ class _BaseRunnerRoot(ClientRoot):
                         j.state.computed = d
                         j.state.reason = r
                         if self._tagged:
-                            await j.state.save()
+                            try:
+                                await j.state.save()
+                            except anyio.ClosedResourceError:  # owch
+                                logger.error("Could not update state %r %r", j, j.state)
+                                return
                         if d and t_next > d:
                             t_next = d
                         continue
