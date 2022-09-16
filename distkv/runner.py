@@ -12,7 +12,6 @@ from weakref import ref
 import anyio
 import psutil
 from asyncactor import AuthPingEvent, NodeList, PingEvent, TagEvent, UntagEvent
-from distmqtt.utils import create_queue
 from moat.util import (
     NotGiven,
     P,
@@ -21,6 +20,7 @@ from moat.util import (
     combine_dict,
     digits,
     logger_for,
+    create_queue,
     spawn,
 )
 

@@ -9,7 +9,7 @@ import anyio
 import mock
 import trio
 from asyncscope import main_scope
-from distmqtt.broker import create_broker
+from moat.mqtt.broker import create_broker
 from moat.util import NotGiven, attrdict, combine_dict
 
 from distkv.mock import S

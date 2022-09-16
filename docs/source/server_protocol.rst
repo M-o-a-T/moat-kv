@@ -2,14 +2,12 @@
 DistKV's server protocol
 ========================
 
-DistKV instances broadcast messages via `Serf <http://serf.io>`.
+DistKV instances broadcast messages via `Serf <http://serf.io>` or
+`MQTT <https://mqtt.org>`.
 The payload is encoded with `msgpack
-<https://github.com/msgpack/msgpack/blob/master/spec.md>` (Serf does not
-pass arbitrary payload objects) and sent as ``user`` events with a
-configurable name that defaults to name of ``distkv.XXX`` ("XXX" being the
-action's type).
+<https://github.com/msgpack/msgpack/blob/master/spec.md>` and sent 
+as user events (Serf) / to topics (MQTT) with a configurable prefix.
 
-All strings are required to be UTF-8 encoded.
 
 ++++++++++
 Data types

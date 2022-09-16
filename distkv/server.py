@@ -618,7 +618,7 @@ class SCmd_msg_monitor(StreamCommand):
         if len(topic) and topic[0][0] == ":":
             topic = P(self.client.server.cfg.root) + topic
 
-        async with self.client.server.serf.monitor(*topic) as stream:
+        async with self.client.server.backend.monitor(*topic) as stream:
             async for resp in stream:
                 if hasattr(resp, "topic"):
                     t = resp.topic
@@ -716,13 +716,13 @@ class ServerClient:
             try:
                 await fn()
 
-            except BrokenPipeError as exc:
+            except (anyio.BrokenResourceError,BrokenPipeError) as exc:
                 self.logger.info("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
                 if not isinstance(exc, ClientError):
                     self.logger.exception("ERR%d: %s", self._client_nr, repr(msg))
-                await self.send({"error": str(exc), "seq": seq})
+                await self.send({"error": repr(exc), "seq": seq})
 
             finally:
                 del self.tasks[seq]
@@ -1041,7 +1041,7 @@ class ServerClient:
             data = msg.raw
         else:
             data = packer(msg.data)
-        await self.server.serf.send(*topic, payload=data)
+        await self.server.backend.send(*topic, payload=data)
 
     async def cmd_delete_tree(self, msg):
         """Delete a node's value.
@@ -1216,7 +1216,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except ConnectionResetError:
+                except (anyio.BrokenResourceError,ConnectionResetError):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
@@ -1317,7 +1317,7 @@ class Server:
     """
 
     # pylint: disable=no-member # mis-categorizing cfg as tuple
-    serf = None
+    backend = None
     _ready = None
     _ready2 = None
     _actor = None
@@ -1498,7 +1498,7 @@ class Server:
 
     async def _send_event(self, action: str, msg: dict):
         """
-        Helper to send a Serf event to the ``action`` endpoint.
+        Helper to send an event to the backend's ``action`` endpoint.
 
         Args:
           action (str): the endpoint to send to. Prefixed by ``cfg.root``.
@@ -1514,7 +1514,7 @@ class Server:
             msg["tick"] = self.node.tick
         self.logger.debug("Send %s: %r", action, msg)
         for m in self._pack_multiple(msg):
-            await self.serf.send(*self.cfg.server.root, action, payload=m)
+            await self.backend.send(*self.cfg.server.root, action, payload=m)
 
     async def watcher(self):
         """
@@ -1835,17 +1835,17 @@ class Server:
 
     async def monitor(self, action: str, delay: anyio.abc.Event = None):
         """
-        The task that hooks to Serf's event stream for receiving messages.
+        The task that hooks to the backend's event stream for receiving messages.
 
         Args:
-          action: The action name, corresponding to a Serf ``user_*`` method.
+          action: The action name
           delay: an optional event to wait for, after starting the
             listener but before actually processing messages. This helps to
             avoid consistency problems on startup.
         """
         cmd = getattr(self, "user_" + action)
         try:
-            async with self.serf.monitor(*self.cfg.server.root, action) as stream:
+            async with self.backend.monitor(*self.cfg.server.root, action) as stream:
                 if delay is not None:
                     await delay.wait()
 
@@ -1892,7 +1892,7 @@ class Server:
         """
         T = get_transport("distkv")
         async with Actor(
-            T(self.serf, *self.cfg.server.root, "ping"),
+            T(self.backend, *self.cfg.server.root, "ping"),
             name=self.node.name,
             cfg=self.cfg.server.ping,
             send_raw=True,
@@ -2565,7 +2565,7 @@ class Server:
             conn = self.cfg.server[self.cfg.server.backend]
         except KeyError:
             conn = self.cfg.server.connect
-        async with back(**conn) as serf:
+        async with back(**conn) as backend:
             # pylint: disable=attribute-defined-outside-init
 
             # Collect all "info/missing" messages seen since the last
@@ -2591,8 +2591,8 @@ class Server:
             # set when we're ready to accept client connections
             self._ready2 = anyio.Event()
 
-            self.serf = serf
-            self.spawn = serf.spawn
+            self.backend = backend
+            self.spawn = backend.spawn
 
             # Sync recovery steps so that only one node per branch answers
             self._recover_event1 = None
@@ -2659,7 +2659,7 @@ class Server:
                     ready_evt.set()
                 pass  # end of server taskgroup
             pass  # end of server
-        pass  # end of serf client
+        pass  # end of backend client
 
     async def _accept_clients(self, tg, cfg, n, evt):
         ssl_ctx = gen_ssl(cfg["ssl"], server=True)

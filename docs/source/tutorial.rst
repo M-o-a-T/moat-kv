@@ -19,7 +19,8 @@ use this script::
    cmd()
 
 
-You also need a running `Serf <http://serf.io>` daemon.
+You also need a running `Serf <http://serf.io>` or `MQTT
+<https://mqtt.org>` message broker. (When in doubt, use MQTT.)
 
 Start the server
 ================
@@ -29,10 +30,10 @@ You start an initial server with this command::
    $ distkv server -i Testing $(hostname)
    Running.
 
-By default, your DistKV server will talk to the local Serf process.
+By default, your DistKV server will talk to the local MQTT process.
 You can configure the destination by adapting the config file::
 
-   $ distkv -C server.serf.host=my-serfer server -i Testing $(hostname)
+   $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
 
 You can now retrieve the root value::
 
@@ -43,7 +44,7 @@ You can now retrieve the root value::
 As the purpose of DistKV is to be a *distributed* key-value storage, 
 you can start another server on a different host::
 
-   two $ distkv server $(hostname)
+   two $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
    Running.
 
 
@@ -54,8 +55,8 @@ You can verify that the second server has successfully synced up::
    "Testing"
    two $
 
-(NB: The root value is not special; by convention, it identifies the DistKV
-network.)
+The root value is not special; by convention, it contains some data about the current
+DistKV network.
 
 You can now kill the first server and restart it::
 
@@ -81,18 +82,28 @@ have to type so much. In ``bash``::
 
 Then, you can store arbitrary data at random DistKV nodes::
 
-   $ dkd set -ev 123 one.two.three
-   $ dkd set -ev 1234 one.two.three.four
-   $ dkd set -v Duh one.two.three.four.five
-   $ dkd get one.two.three
+   $ dkd one.two.three set -e : 123
+   $ dkd one.two.three.four set -e : 1234
+   $ dkd one.two.three.four.five set -v one XXX -e two 2
+   $ dkd one.two.three
    123
-   $ dkd get one.two.three.four.five
-   "Duh"
+   $ dkd one.two.three.four.five
+   one: XXX
+   two: 2
    $
 
 The ``-e`` flag tells the ``set`` command to evaluate the given data as a
 Python expression. You can store numbers, True/False/None, binary and
-Unicode strings, lists/tuples, and hashes composed of these.
+Unicode strings, and lists/tuples/hashes composed of these.
+
+Stored values may be data structures, and you can selectively change them::
+
+   $ dkd one.two.three.four.five set -e one 1
+   $ dkd one.two.three.four.five
+   one: 1
+   two: 2
+
+The colon we used after ``-e`` is the empty path. More about paths below.
 
 All entries' values are independent. DistKV's storage is organized
 hierarchically, (among other reasons) for ease of retrieval::
@@ -104,40 +115,39 @@ hierarchically, (among other reasons) for ease of retrieval::
         four:
           _: 1234
           five:
-            _: Duh
+            _: 
+              one: 1
+              two: 2
     $
 
-DistKV's internal data are stored under a special ``null`` root key.
-You can use ``distkv client internal dump :`` to display them. This command
-behaves like ``distkv client data : get -rd_``.
+DistKV also stores some internal data, under a special ``null`` root key.
+You can use ``distkv client internal dump :`` to display them.
 
 Path specification
 ------------------
 
-You might wonder what to do when a path element contains a dot. Our
-solution is to prefix it with an escape character: a colon (``:``).
-Thus, a path consisting of 'a', 'b.c' and 'd' is written as ``a.b:.c.d``.
-We choose a colon because it is easy to type and doesn't occur often.
+DistKV uses "paths" to access entries (and the partial values in them).
+We chose the dot as a path separator because it's more visually distinctive
+than a slash.
 
-In contrast, the traditional Unix escape character (backslash ``\\``) is
-not easy to type and must be duplicated almost everywhere you want to
-actually use it, thus we don't like to use it.
-
-Of course, you now need to escape colons too: the path 'a' 'b:c' 'd' is
-written as ``a.b::c.d``.
-
-Colons have other uses because ``True``, ``False``, ``None``, arbitrary
-numbers, or even lists can be path elements. Also, DistKV codes the empty
-string as ``:e`` – otherwise it'd be too easy to leave a stray or duplicate
-dot at the end of a path and then wonder why your data are missing.
+In DistKV, paths elements are not limited to strings; integers can
+also be path elements, as can ``True``, ``False``, ``None``, and tuples
+composed from them. We use colons instead of dots to mark those.
+The colon is also used as an escape characters for path elements that
+contain dots or colons; it is easy to type and doesn't occur often,
+while the traditional Unix escape character (backslash ``\\``) is
+hard to type in some locales and must be duplicated almost everywhere you
+want to actually use it.
 
 A space is encoded as ``:_``. While a literal space is not a problem, it
 needs to be escaped on the command line. Experience shows that people tend
-to skip that.
+to forget that. A "real" underscore ``_`` is not escaped.
 
 There's also the empty path (i.e. the top of DistKV's entry hierarchy,
 not the same as a path that consists of an empty-string element!) which is
 coded as a stand-alone ``:`` for much the same reason.
+
+Anything else that follows a colon is evaluated as a Python expression.
 
 Thus:
 
@@ -156,18 +166,16 @@ Code   Meaning
  :b  binary integer
  :y  hex bytestring
  :v  literal bytestring
+ :XX eval(XX)
 
 ==== ==========
 
 The first three are inline escape sequences while the others start a new
 element.
 
-If anything else follows your colon, it's evaluated as a Python expression.
-
 Hex number input is purely a convenience; integers in paths are always
 printed in decimal form. While you also could use ``:0x…`` in place of
-``:x…``, the latter reduces visual clutter and ensures that the input is in
-fact a hex number.
+``:x…``, the latter reduces visual clutter:
 
 .. warning::
 
@@ -183,12 +191,15 @@ fact a hex number.
    the corresponding integers.)
 
    Floating point numbers are also dangerous for a different reason: floats 
-   that are not a fractional power of two, such as 1/3, cannot be stored
-   exactly. Thus you might have problems entering them.
+   that are not a fractional power of two, such as 1/3, are inexact.
+   Thus you might end up with five different entries for what was meant to
+   be ``1/3``.
 
    Bottom line:
 
-   * Don't use inexact fractions. 1/2 and 1/4 is fine, 1/3 or 1/5 is not.
+   * If you do need paths elements with sub-integer numbers, consider
+     scaling them up using using ``int(num*1000)``, or fractional numbers
+     (stored as a numerator,denominator tuple), or ``str(Decimal(…))``.
 
    * Don't use multiple numeric types as child nodes of a single parent.
 

@@ -1,12 +1,16 @@
 from abc import ABCMeta, abstractmethod
 from contextlib import asynccontextmanager
 
+import anyio
+
 __all__ = ["get_backend", "Backend"]
 
 
 class Backend(metaclass=ABCMeta):
     def __init__(self, tg):
         self._tg = tg
+        self._njobs = 0
+        self._ended = None
 
     @abstractmethod
     @asynccontextmanager
@@ -19,10 +23,25 @@ class Backend(metaclass=ABCMeta):
         """
         Force-close the connection.
         """
-        await self._tg.cancel_scope.cancel()
+        self._tg.cancel_scope.cancel()
+        if self._njobs > 0:
+            with anyio.fail_after(2):
+                await self._ended.wait()
 
-    def spawn(self, *a, **kw):
-        return self._tg.start_soon(*a, **kw)
+    def spawn(self, p, *a, **kw):
+        async def _run(p, a,kw):
+            if self._ended is None:
+                self._ended = anyio.Event()
+            self._njobs += 1
+            try:
+                return await p(*a, **kw)
+            finally:
+                self._njobs -= 1
+                if not self._njobs:
+                    self._ended.set()
+                    self._ended = None
+
+        return self._tg.start_soon(_run, p, a, kw)
 
     @abstractmethod
     @asynccontextmanager

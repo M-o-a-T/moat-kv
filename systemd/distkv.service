@@ -1,7 +1,7 @@
 [Unit]
 Description=DistKV main server
-After=serf.service
-Wants=serf.service
+After=serf.service, mosquitto.service
+Wants=serf.service, mosquitto.service
 Conflicts=distkv-recover.service
 OnFailure=distkv-recover.service
 

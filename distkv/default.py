@@ -68,12 +68,15 @@ CFG = attrdict(
     ),
     server=attrdict(
         # server-side configuration
-        backend=NotGiven,  # must be specified
+        backend="mqtt",  # default
         buffer=10,  # per-stream buffer
         serf=attrdict(
             # how to connect to Serf
             host="localhost",
             port=7373,
+        ),
+        mqtt=attrdict(
+            uri="mqtt://localhost:1883"
         ),
         root=(":distkv",),  # event message name prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
