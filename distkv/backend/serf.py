@@ -19,6 +19,8 @@ class SerfBackend(Backend):
             try:
                 yield self
             finally:
+                with anyio.CancelScope(shield=True):
+                    await self.aclose()
                 self.client = None
 
     def monitor(self, *topic):  # pylint: disable=invalid-overridden-method

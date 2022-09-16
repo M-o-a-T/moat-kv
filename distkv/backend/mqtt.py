@@ -35,6 +35,7 @@ class MqttBackend(Backend):
         finally:
             self.client = None
             with anyio.CancelScope(shield=True):
+                await self.aclose()
                 await C.disconnect()
 
     @asynccontextmanager
