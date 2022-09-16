@@ -93,7 +93,7 @@ class DeleteActor:
         try:
             T = get_transport("distkv")
             async with Actor(
-                T(self.server.serf, *self.server.cfg.server.root, "del"),
+                T(self.server.backend, *self.server.cfg.server.root, "del"),
                 name=self.server.node.name,
                 cfg=self.server.cfg.server.delete,
                 enabled=False,
