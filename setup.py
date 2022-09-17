@@ -29,7 +29,6 @@ setup(
         "PyNaCl >= 1.3",
         "moat.lib.diffiehellman",
         "psutil",
-        "systemd-python",  # OWCH NO
         "simpleeval >= 0.9.10",
         "moat.mqtt >= 0.32.1",
         "moat.util >= 0.23",
