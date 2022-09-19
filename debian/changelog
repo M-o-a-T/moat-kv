@@ -1,3 +1,9 @@
+distkv (0.62.1-2) unstable; urgency=medium
+
+  * depend on moat-util
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Mon, 19 Sep 2022 17:22:43 +0200
+
 distkv (0.62.1-1) unstable; urgency=medium
 
   * Merge
