@@ -5,7 +5,15 @@ Password-based auth method.
 Does not limit anything, allows everything.
 """
 
-import nacl.secret
+try:
+    import nacl.secret as nacl_secret
+except ImportError:
+    nacl_secret = None
+
+try:
+    from Cryptodome.Cipher import AES as crypto_aes
+except ImportError:
+    crypto_aes = None
 
 from ..client import Client, NoData
 from ..exceptions import AuthFailedError
@@ -41,23 +49,45 @@ def load(typ: str, *, make: bool = False, server: bool):
             return ClientUser
 
 
-async def pack_pwd(client, password, length):
+async def pack_pwd_nacl(client, password, length):
     """Client side: encrypt password"""
+    if nacl_secret is None:
+        raise NotImplementedError
     secret = await client.dh_secret(length=length)
     from hashlib import sha256
 
     pwd = sha256(password).digest()
-    box = nacl.secret.SecretBox(secret)
+    box = nacl_secret.SecretBox(secret)
     pwd = box.encrypt(pwd)
     return pwd
 
 
-async def unpack_pwd(client, password):
+async def unpack_pwd_nacl(client, password):
     """Server side: extract password"""
+    if nacl_secret is None:
+        raise NotImplementedError
     box = nacl.secret.SecretBox(client.dh_key)
     pwd = box.decrypt(password)
     return pwd
-    # TODO check with Argon2
+
+
+async def pack_pwd_crypto(client, password, length):
+    """Client side: encrypt password"""
+    if crypto_aes is None:
+        raise NotImplementedError
+    secret = await client.dh_secret(length=length)
+    box = crypto_aes.new(secret)
+    pwd = sha256(password).digest()
+    return box.encrypt(pwd)
+
+
+async def unpack_pwd_crypto(client, password):
+    """Server side: extract password"""
+    if crypto_aes is None:
+        raise NotImplementedError
+    box = crypto_aes.new(client.dh_key)
+    pwd = box.decrypt(password)
+    return pwd
 
 
 class ServerUserMaker(BaseServerAuthMaker):
@@ -74,10 +104,15 @@ class ServerUserMaker(BaseServerAuthMaker):
         self = cls()
         self._name = data["ident"]
         self._aux = data.get("aux")
-        pwd = data.get("password")
-        pwd = await unpack_pwd(cmd.client, pwd)
+        if 'password' in data:
+            pwd = data["password"]
+            pwd = await unpack_pwd_nacl(cmd.client, pwd)
+        elif 'passwd2' in data:
+            pwd = data["passwd2"]
+            pwd = await unpack_pwd_crpto(cmd.client, pwd)
+        else:
+            pwd = None
 
-        # TODO use Argon2 to re-hash this
         self.password = pwd
         return self
 
@@ -108,7 +143,13 @@ class ServerUser(RootServerUser):
         """Verify that @data authenticates this user."""
         await super().auth(cmd, data)
 
-        pwd = await unpack_pwd(cmd.client, data.password)
+        try:
+            pwd = await unpack_pwd_nacl(cmd.client, data.password)
+        except (AttributeError,NotImplementedError):
+            try:
+                pwd = await unpack_pwd_crypto(cmd.client, data.passwd2)
+            except (AttributeError,NotImplementedError):
+                raise NotImplementedError("no crypt method found") from None
         if pwd != self.password:  # pylint: disable=no-member
             # pylint: disable=no-member
             raise AuthFailedError("Password hashes do not match", self._name)
@@ -173,7 +214,19 @@ class ClientUserMaker(BaseClientAuthMaker):
     ):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
         if self._pass is not None:
-            msg["password"] = await pack_pwd(client, self._pass, self._length)
+            ok = 0
+            try:
+                msg["password"] = await pack_pwd_nacl(client, self._pass, self._length)
+                ok += 1
+            except NotImplementedError:
+                pass
+            try:
+                ok += 1
+                msg["passwd2"] = await pack_pwd_crypto(client, self._pass, self._length)
+            except NotImplementedError:
+                pass
+            if not ok:
+                raise NotImplementedError("no crypt method found")
 
         await client._request(
             action="auth_set",
@@ -221,13 +274,23 @@ class ClientUser(BaseClientAuth):
         Authorizes this user with the server.
         """
         try:
-            pw = await pack_pwd(client, self._pass, self._length)
+            pw_data = {}
+            try:
+                pw_data['password'] = await pack_pwd_nacl(client, self._pass, self._length)
+            except NotImplementedError:
+                pass
+            try:
+                pw_data['passwd2'] = await pack_pwd_crypto(client, self._pass, self._length)
+            except NotImplementedError:
+                pass
+            if not pw_data:
+                raise NotImplementedError("no crypt method found")
             await client._request(
                 action="auth",
                 typ=self._auth_method,
                 iter=False,
                 ident=self.ident,
-                password=pw,
+                **pw_data,
                 **self.auth_data()
             )
         except NoData:

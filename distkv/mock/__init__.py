@@ -30,7 +30,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
         CFG["_stdout"] = out = io.StringIO()
     try:
         print("*****", args)
-        res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False)
+        res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False, name="distkv")
         if res is None:
             res = attrdict()
         return res
