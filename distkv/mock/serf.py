@@ -10,8 +10,7 @@ import mock
 import trio
 from asyncscope import main_scope
 from asyncserf.stream import SerfEvent
-from moat.mqtt.utils import create_queue
-from moat.util import NotGiven, ValueEvent, attrdict, combine_dict
+from moat.util import NotGiven, ValueEvent, attrdict, combine_dict, create_queue
 
 from distkv.codec import unpacker
 from distkv.default import CFG
@@ -130,7 +129,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             for i in range(n):
                 if kw.get("run_" + str(i), run):
                     evt = anyio.Event()
-                    tg.spawn(partial(st.s[i].serve, ready_evt=evt))
+                    tg.start_soon(partial(st.s[i].serve, ready_evt=evt))
                     evts.append(evt)
             for e in evts:
                 await e.wait()

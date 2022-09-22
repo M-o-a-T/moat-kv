@@ -15,7 +15,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from moat.util import NoLock, NotGiven, PathLongener, combine_dict
+from moat.util import NoLock, NotGiven, PathLongener, combine_dict, Path
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
@@ -417,7 +417,7 @@ class ClientRoot(ClientEntry):
             self._seen = dict()
 
     @classmethod
-    async def as_handler(cls, client, cfg=None, key="prefix", subpath=(), **kw):
+    async def as_handler(cls, client, cfg=None, key="prefix", subpath=(), name=None, **kw):
         """Return an (or "the") instance of this class.
 
         The handler is created if it doesn't exist.
@@ -428,6 +428,7 @@ class ClientRoot(ClientEntry):
         d = []
         if cfg is not None:
             d.append(cfg)
+
         defcfg = client._cfg.get(cls.CFG)
         if cfg:
             if defcfg:
@@ -437,10 +438,16 @@ class ClientRoot(ClientEntry):
                 raise RuntimeError("no config for " + repr(cls))
             cfg = defcfg
 
+        if name is None:
+            name = cls.CFG
+            if key != "prefix":
+                name = f"{name}_{key}"
+            name = str(Path("_"+name, *subpath))
+
         def make():
             return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)
 
-        return await client.unique_helper(cfg[key] + subpath, factory=make)
+        return await client.unique_helper(name, factory=make)
 
     @classmethod
     def child_type(cls, name):
@@ -588,4 +595,4 @@ class ClientRoot(ClientEntry):
         await e.wait()
 
     def spawn(self, *a, **kw):
-        return self._tg.spawn(*a, **kw)
+        self._tg.start_soon(*a, **kw)

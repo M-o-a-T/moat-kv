@@ -887,11 +887,11 @@ class Entry:
         else:
             evt_val = evt.value
 
-        if self.chain > evt.event:  # already superseded
-            logger.warning("*** superseded ***")
-            logger.warning("Node: %s", self.path)
-            logger.warning("Current: %s :%s: %r", self.chain, self.tock, self._data)
-            logger.warning("New: %s :%s: %r", evt.event, evt.tock, evt_val)
+        if self.chain > evt.event:  # already superseded.
+            logger.info("*** superseded ***")
+            logger.info("Node: %s", self.path)
+            logger.info("Current: %s :%s: %r", self.chain, self.tock, self._data)
+            logger.info("New: %s :%s: %r", evt.event, evt.tock, evt_val)
             return
 
         if self._data is not NotGiven:

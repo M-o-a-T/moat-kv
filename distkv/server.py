@@ -739,7 +739,7 @@ class ServerClient:
     async def cmd_diffie_hellman(self, msg):
         if self._dh_key:
             raise RuntimeError("Can't call dh twice")
-        from diffiehellman.diffiehellman import DiffieHellman
+        from moat.lib.diffiehellman import DiffieHellman
 
         def gen_key():
             length = msg.get("length", 1024)
@@ -1209,7 +1209,6 @@ class ServerClient:
                             self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
                             )
-                        msg = {"error": str(exc)}
                         if seq is not None:
                             msg["seq"] = seq
                         await self.send(msg)
@@ -1862,8 +1861,8 @@ class Server:
                     except TimeoutError:
                         self.logger.error("CmdTimeout! %s: %r", action, msg)
                         raise
-        except CancelledError:
-            self.logger.warning("Cancelled %s", action)
+        except (CancelledError,anyio.get_cancelled_exc_class()):
+            # self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:
             self.logger.exception("Died %s: %r", action, exc)
@@ -2691,6 +2690,8 @@ class Server:
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)
+            if exc is None:
+                exc = "Cancelled"
             try:
                 with anyio.move_on_after(2) as cs:
                     cs.shield = True

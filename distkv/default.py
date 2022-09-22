@@ -34,7 +34,7 @@ CFG = attrdict(
         },
         "formatters": {
             "std": {
-                "class": "distkv.util.TimeOnlyFormatter",
+                "class": "moat.util.TimeOnlyFormatter",
                 "format": "%(asctime)s %(levelname)s:%(name)s:%(message)s",
             }
         },

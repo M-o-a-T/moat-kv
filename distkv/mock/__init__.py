@@ -9,6 +9,9 @@ from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 from distkv.client import open_client
 from distkv.default import CFG
 
+import logging
+logger = logging.getLogger(__name__)
+
 CFG = attrdict(**CFG)  # shallow copy
 for n, _ in list_ext("distkv_ext"):
     try:
@@ -29,8 +32,8 @@ async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
     try:
-        print("*****", args)
-        res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False)
+        logger.debug("***** %s", args)
+        res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False, name="distkv", sub="distkv.command")
         if res is None:
             res = attrdict()
         return res
@@ -102,4 +105,4 @@ class S:
             args = args[0]
             if isinstance(args, str):
                 args = args.split(" ")
-        return await run("client", "-h", h, "-p", p, *args, do_stdout=do_stdout)
+        return await run("-v", "-v", "client", "-h", h, "-p", p, *args, do_stdout=do_stdout)
