@@ -135,7 +135,7 @@ async def data_get(
 
                 y = simplex(y)
             yprint(y, stream=obj.stdout)
-        return
+        return  # end "if recursive"
 
     res = await obj.client.get(path, nchain=obj.meta)
     if not obj.meta:
@@ -152,6 +152,7 @@ async def data_get(
         os.write(obj.stdout.fileno(), res)
     else:
         obj.stdout.write(str(res))
+    pass # end get
 
 
 def res_get(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name
