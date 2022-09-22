@@ -110,7 +110,7 @@ async def client_scope(**cfg):
 
     name = cfg["connect"].get("name", None)
     if name is None:
-        name = "_distkv_conn"  # MUST NOT be the same as in open_client
+        name = "_conn"  # MUST NOT be the same as in open_client
     res = await scope.service(name, _mgr, cfg)
     return res
 
@@ -421,18 +421,16 @@ class Client:
         m = await self._request("get_tock")
         return m.tock
 
-    async def unique_helper(self, path, factory):
+    async def unique_helper(self, name, factory):
         """
-        Run a (single) async context manager on that path.
+        Run a (single) async context manager as a service.
         """
-        p = str(Path.build(path))
-
         async def with_factory(f):
             async with f() as r:
                 await scope.register(r)
                 await scope.no_more_dependents()
 
-        return await scope.service(p, with_factory, factory)
+        return await scope.service(name, with_factory, factory)
 
     async def _handle_msg(self, msg):
         try:
@@ -724,7 +722,6 @@ class Client:
                         await self._run_auth(auth)
 
                     from .config import ConfigRoot
-
                     self._config = await ConfigRoot.as_handler(self, require_client=False)
 
                 except TimeoutError:
