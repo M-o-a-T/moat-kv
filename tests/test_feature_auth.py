@@ -66,7 +66,7 @@ typ: root
 
 @pytest.mark.trio
 async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
-    async with stdtest(args={"init": 123}, tocks=80) as st:
+    async with stdtest(args={"init": 123}, tocks=120) as st:
         (s,) = st.s
         h = p = None
         for h, p, *_ in s.ports:
