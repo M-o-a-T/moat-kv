@@ -1209,7 +1209,6 @@ class ServerClient:
                             self.logger.exception(
                                 "ERR %d: Client error on %s", self._client_nr, repr(msg)
                             )
-                        msg = {"error": str(exc)}
                         if seq is not None:
                             msg["seq"] = seq
                         await self.send(msg)
