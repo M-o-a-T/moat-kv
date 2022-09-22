@@ -183,8 +183,8 @@ class CallAdmin:
                         await anyio.sleep(oka)
                         await self.setup_done()
 
-                    tg.spawn(is_ok, oka)
-                tg.spawn(self._changed_code, code)
+                    tg.start_soon(is_ok, oka)
+                tg.start_soon(self._changed_code, code)
 
                 await self._runner.send_event(ReadyMsg(0))
                 res = code(**data)
@@ -333,7 +333,7 @@ class CallAdmin:
             self._n_watch += 1
 
         w = Watcher(self, self._runner, self._client, cls, path, kw)
-        self._taskgroup.spawn(w.run)
+        self._taskgroup.start_soon(w.run)
         return w
 
     async def send(self, path, value=NotGiven, raw=None):
@@ -434,7 +434,7 @@ class CallAdmin:
             raise RuntimeError(f"You didn't pass in a path: {path!r}")
 
         w = Monitor(self, self._runner, self._client, cls, path, kw)
-        self._taskgroup.spawn(w.run)
+        self._taskgroup.start_soon(w.run)
         return w
 
     async def timer(self, delay, cls=TimerMsg):
@@ -464,7 +464,7 @@ class CallAdmin:
                 self.cancel()
                 self.delay = delay
                 if self.delay > 0:
-                    self._taskgroup.spawn(t._run)
+                    self._taskgroup.start_soon(t._run)
 
         t = Timer(self._runner, cls, self._taskgroup)
         await t.run(delay)
@@ -983,7 +983,7 @@ class _BaseRunnerRoot(ClientRoot):
         return None
 
     async def running(self):
-        self._tg.spawn(self._run_actor)
+        self._tg.start_soon(self._run_actor)
 
         # the next block needs to be atomic
         self.ready = True
@@ -1036,7 +1036,7 @@ class _BaseRunnerRoot(ClientRoot):
                         if d and t_next > d:
                             t_next = d
                         continue
-                    self._tg.spawn(j.run)
+                    self._tg.start_soon(j.run)
                     await anyio.sleep(self._start_delay)
 
     async def notify_actor_state(self, msg=None):
@@ -1262,7 +1262,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
             async with ClientActor(self.client, self.name, topic=self.group, cfg=self._cfg) as act:
                 self._act = act
-                tg.spawn(self._age_notifier, age_q)
+                tg.start_soon(self._age_notifier, age_q)
                 self.spawn(self._run_now)
                 await act.set_value(0)
 

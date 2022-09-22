@@ -588,4 +588,4 @@ class ClientRoot(ClientEntry):
         await e.wait()
 
     def spawn(self, *a, **kw):
-        return self._tg.spawn(*a, **kw)
+        self._tg.start_soon(*a, **kw)
