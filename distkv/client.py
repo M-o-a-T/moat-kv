@@ -439,8 +439,8 @@ class Client:
             seq = msg.seq
         except AttributeError:
             if "error" in msg:
-                raise RuntimeError("Server error", msg.error)
-            raise RuntimeError("Reader got out of sync: " + str(msg))
+                raise RuntimeError("Server error", msg.error) from None
+            raise RuntimeError("Reader got out of sync: " + str(msg)) from None
         try:
             hdl = self._handlers[seq]
         except KeyError:
