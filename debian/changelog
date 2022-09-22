@@ -1,3 +1,9 @@
+distkv (0.62.7-2) unstable; urgency=medium
+
+  * requires moat-lib-diffiehellman
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Thu, 22 Sep 2022 15:52:52 +0200
+
 distkv (0.62.7-1) unstable; urgency=medium
 
   * Merge

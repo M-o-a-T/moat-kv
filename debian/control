@@ -37,6 +37,7 @@ Depends: ${misc:Depends}, ${python3:Depends},
   python3-simpleeval (>= 0.9.10),
   python3-moat-util,
   python3-moat-mqtt,
+  python3-moat-lib-diffiehellman,
   systemd (>= 241),
   distmqtt (>= 0.32.1),
 Recommends:
