@@ -10,8 +10,7 @@ import mock
 import trio
 from asyncscope import main_scope
 from asyncserf.stream import SerfEvent
-from moat.mqtt.utils import create_queue
-from moat.util import NotGiven, ValueEvent, attrdict, combine_dict
+from moat.util import NotGiven, ValueEvent, attrdict, combine_dict, create_queue
 
 from distkv.codec import unpacker
 from distkv.default import CFG
