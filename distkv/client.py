@@ -285,7 +285,10 @@ class StreamedRequest:
             if self._open:
                 msg = dict(action="stop", task=self.seq)
                 # logger.debug("SendC %s", msg)
-                await self._client._request(**msg, _async=True)
+                try:
+                    await self._client._request(**msg, _async=True)
+                except ServerClosedError:
+                    pass
                 # ignore the reply
         finally:
             await self.qr.close_sender()
