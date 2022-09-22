@@ -25,7 +25,7 @@ class Backend(metaclass=ABCMeta):
         """
         self._tg.cancel_scope.cancel()
         if self._njobs > 0:
-            with anyio.fail_after(2):
+            with anyio.move_on_after(2):
                 await self._ended.wait()
 
     def spawn(self, p, *a, **kw):
