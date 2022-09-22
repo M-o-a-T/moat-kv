@@ -65,7 +65,3 @@ coverage.xml
 /.pybuild/
 
 # devel stuff
-/T
-/init.dkv
-/packdump.py
-/x
