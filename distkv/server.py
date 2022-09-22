@@ -1861,8 +1861,8 @@ class Server:
                     except TimeoutError:
                         self.logger.error("CmdTimeout! %s: %r", action, msg)
                         raise
-        except CancelledError:
-            self.logger.warning("Cancelled %s", action)
+        except (CancelledError,anyio.get_cancelled_exc_class()):
+            # self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:
             self.logger.exception("Died %s: %r", action, exc)
@@ -2690,6 +2690,8 @@ class Server:
                     self.logger.debug("XX %d closed", c._client_nr)
                 else:
                     self.logger.exception("Client connection killed", exc_info=exc)
+            if exc is None:
+                exc = "Cancelled"
             try:
                 with anyio.move_on_after(2) as cs:
                     cs.shield = True
