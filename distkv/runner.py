@@ -453,7 +453,7 @@ class CallAdmin:
                     self.scope = None
                     await self.runner.send_event(self.cls(self))
 
-            async def cancel(self):
+            def cancel(self):
                 if self.scope is None:
                     return False
                 sc, self.scope = self.scope, None
