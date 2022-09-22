@@ -110,7 +110,7 @@ async def test_11_split1(autojump_clock, tocky):  # pylint: disable=unused-argum
 
                     i.s()
 
-        st.tg.spawn(watch)
+        st.tg.start_soon(watch)
         async with st.client(1) as ci:
             assert (await ci.get(P(":"))).value == 420
             r = await ci.set(P("ping"), value="pong")

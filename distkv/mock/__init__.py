@@ -32,7 +32,6 @@ async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
     try:
-        logger.debug("***** %s", args)
         res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False, name="distkv", sub="distkv.command")
         if res is None:
             res = attrdict()

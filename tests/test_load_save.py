@@ -74,7 +74,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         logger.debug("LOADED")
 
         evt = anyio.Event()
-        st.tg.spawn(partial(st.s[0].serve, ready_evt=evt))
+        await scope.spawn(partial(st.s[0].serve, ready_evt=evt))
         await evt.wait()
 
         logger.debug("RUNNING")
