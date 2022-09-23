@@ -6,6 +6,7 @@ import asyncclick as click
 from moat.util import main_, attrdict
 
 from distkv.exceptions import ClientError, ServerError
+from distkv.default import CFG
 
 
 def cmd(backend="trio"):
@@ -19,7 +20,7 @@ def cmd(backend="trio"):
     main_.help = """\
 This is DistKV, a distributed master-less key-value storage system.
 """
-    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv", sub="distkv.command"))
+    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv", sub="distkv.command", CFG=CFG))
     try:
         main_(obj=obj, _anyio_backend=backend)
     except (ClientError, ServerError) as err:
