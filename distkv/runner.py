@@ -18,20 +18,13 @@ from moat.util import (
     Path,
     attrdict,
     combine_dict,
+    create_queue,
     digits,
     logger_for,
-    create_queue,
     spawn,
 )
 
-from .actor import (
-    ActorState,
-    BrokenState,
-    ClientActor,
-    CompleteState,
-    DetachedState,
-    PartialState,
-)
+from .actor import ActorState, BrokenState, ClientActor, CompleteState, DetachedState, PartialState
 from .exceptions import ServerError
 from .obj import AttrClientEntry, ClientRoot
 
@@ -140,6 +133,8 @@ class CallAdmin:
     _taskgroup = None
     _stack = None
     _restart = False
+    _n_watch: int = None
+    _n_watch_seen: int = None
 
     def __init__(self, runner, state, data):
         self._runner = runner
@@ -269,6 +264,8 @@ class CallAdmin:
         class Watcher:
             """Helper class for watching an entry"""
 
+            # pylint: disable=no-self-argument
+
             def __init__(slf, admin, runner, client, cls, path, kw):
                 kw.setdefault("fetch", True)
 
@@ -281,7 +278,6 @@ class CallAdmin:
                 slf.scope = None
 
             async def run(slf):
-
                 @asynccontextmanager
                 async def _watch(path, kw):
                     if path.mark == "r":
@@ -313,9 +309,7 @@ class CallAdmin:
                             elif msg.get("state", "") == "uptodate":
                                 slf.admin._n_watch_seen += 1
                                 if slf.admin._n_watch_seen == slf.admin._n_watch:
-                                    await slf.runner.send_event(
-                                        ReadyMsg(slf.admin._n_watch_seen)
-                                    )
+                                    await slf.runner.send_event(ReadyMsg(slf.admin._n_watch_seen))
 
             def cancel(slf):
                 if slf.scope is None:

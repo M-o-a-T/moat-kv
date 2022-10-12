@@ -29,7 +29,7 @@ class Backend(metaclass=ABCMeta):
                 await self._ended.wait()
 
     def spawn(self, p, *a, **kw):
-        async def _run(p, a,kw):
+        async def _run(p, a, kw):
             if self._ended is None:
                 self._ended = anyio.Event()
             self._njobs += 1

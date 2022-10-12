@@ -63,7 +63,6 @@ import io
 from importlib import import_module
 
 import jsonschema
-
 from moat.util import NotGiven, Path, attrdict, split_arg, yload
 
 from ..client import Client, NoData
@@ -112,7 +111,7 @@ def gen_auth(s: str):
 
     m, *p = s.split()
     if len(p) == 0 and m[0] == "=":
-        with io.open(m[1:], "r") as f:
+        with io.open(m[1:], "r", encoding="utf-8") as f:
             kw = yload(f)
             m = kw.pop("type")
     else:

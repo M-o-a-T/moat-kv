@@ -3,10 +3,10 @@
 import sys
 
 import asyncclick as click
-from moat.util import main_, attrdict
+from moat.util import attrdict, main_
 
-from distkv.exceptions import ClientError, ServerError
 from distkv.default import CFG
+from distkv.exceptions import ClientError, ServerError
 
 
 def cmd(backend="trio"):
@@ -42,7 +42,7 @@ This is DistKV, a distributed master-less key-value storage system.
 )
 @click.argument("args", nargs=-1)
 async def pdb(args):  # safe
-    breakpoint()  # safe
+    breakpoint()  # pylint: disable=forgotten-debug-statement
     if not args:
         return
     return await main_.main(args)

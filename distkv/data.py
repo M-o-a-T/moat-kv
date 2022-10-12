@@ -152,7 +152,7 @@ async def data_get(
         os.write(obj.stdout.fileno(), res)
     else:
         obj.stdout.write(str(res))
-    pass # end get
+    pass  # end get
 
 
 def res_get(res, attr: Path, **kw):  # pylint: disable=redefined-outer-name

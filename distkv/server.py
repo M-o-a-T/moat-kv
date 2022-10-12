@@ -716,7 +716,7 @@ class ServerClient:
             try:
                 await fn()
 
-            except (anyio.BrokenResourceError,BrokenPipeError) as exc:
+            except (anyio.BrokenResourceError, BrokenPipeError) as exc:
                 self.logger.info("ERR%d: %s", self._client_nr, repr(exc))
 
             except Exception as exc:
@@ -1215,7 +1215,7 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except (anyio.BrokenResourceError,ConnectionResetError):
+                except (anyio.BrokenResourceError, ConnectionResetError):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
@@ -1425,7 +1425,9 @@ class Server:
             except BaseException as exc:
                 if n is not None:
                     self.logger.warning("Deletion %s %d due to %r", self.node, n.tick, exc)
-                    self.node.report_deleted(RangeSet((nt,)), self)
+                    self.node.report_deleted(
+                        RangeSet((nt,)), self  # pylint: disable=used-before-assignment
+                    )
                     with anyio.move_on_after(2, shield=True):
                         await self._send_event(
                             "info", dict(node="", tick=0, deleted={self.node.name: (nt,)})
@@ -1537,7 +1539,18 @@ class Server:
         of the Delete nodes.
         """
 
-        for n in nodes:
+        nodes: NodeSet = None
+        n_nodes: int = None
+
+        async def send_nodes():
+            nonlocal nodes, n_nodes
+            await client._request(  # pylint: disable=cell-var-from-loop
+                "check_deleted", iter=False, nchain=-1, nodes=nodes.serialize()
+            )
+            nodes.clear()
+            n_nodes = 0
+
+        for n in nodes:  # pylint: disable=not-an-iterable  # YES IT IS
             try:
                 host, port = await self._get_host_port(n)
                 cfg = combine_dict(
@@ -1555,14 +1568,6 @@ class Server:
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
-
-                    async def send_nodes():
-                        nonlocal nodes, n_nodes
-                        await client._request(  # pylint: disable=cell-var-from-loop
-                            "check_deleted", iter=False, nchain=-1, nodes=nodes.serialize()
-                        )
-                        nodes.clear()
-                        n_nodes = 0
 
                     async def add(event):
                         nonlocal nodes, n_nodes
@@ -1861,7 +1866,7 @@ class Server:
                     except TimeoutError:
                         self.logger.error("CmdTimeout! %s: %r", action, msg)
                         raise
-        except (CancelledError,anyio.get_cancelled_exc_class()):
+        except (CancelledError, anyio.get_cancelled_exc_class()):
             # self.logger.warning("Cancelled %s", action)
             raise
         except BaseException as exc:

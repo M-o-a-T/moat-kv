@@ -1,5 +1,6 @@
 # from asyncclick.testing import CliRunner
 import io
+import logging
 import socket
 import sys
 
@@ -9,7 +10,6 @@ from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 from distkv.client import open_client
 from distkv.default import CFG
 
-import logging
 logger = logging.getLogger(__name__)
 
 CFG = attrdict(**CFG)  # shallow copy
@@ -32,7 +32,15 @@ async def run(*args, expect_exit=0, do_stdout=True):
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
     try:
-        res = await wrap_main(args=args, wrap=True, CFG=CFG, cfg=False, name="distkv", sub="distkv.command")
+        res = await wrap_main(
+            args=args,
+            wrap=True,
+            CFG=CFG,
+            cfg=False,
+            name="distkv",
+            sub_pre="distkv.command",
+            sub_post="cli",
+        )
         if res is None:
             res = attrdict()
         return res

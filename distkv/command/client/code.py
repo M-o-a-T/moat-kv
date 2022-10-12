@@ -3,16 +3,7 @@
 import sys
 
 import asyncclick as click
-from moat.util import (
-    NotGiven,
-    P,
-    Path,
-    PathLongener,
-    attr_args,
-    process_args,
-    yload,
-    yprint,
-)
+from moat.util import NotGiven, P, Path, PathLongener, attr_args, process_args, yload, yprint
 
 
 @click.group(invoke_without_command=True)  # pylint: disable=undefined-variable

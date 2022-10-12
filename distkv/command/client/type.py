@@ -1,10 +1,9 @@
 # command line interface
 
-import sys
 import json
 
 import asyncclick as click
-from moat.util import NotGiven, P, Path, yload, yprint, PathLongener
+from moat.util import NotGiven, P, Path, PathLongener, yload, yprint
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -101,7 +100,7 @@ async def set_(obj, path, good, bad, script, schema, yaml_, data):
         path=Path("type") + path,
         iter=False,
         nchain=obj.meta,
-        **({} if chain is NotGiven else {"chain": chain})
+        **({} if chain is NotGiven else {"chain": chain}),
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)
@@ -120,7 +119,9 @@ async def match(obj, path, type_, delete, raw):  # pylint: disable=redefined-bui
             raise click.UsageError("No options allowed when dumping the match tree..")
         y = {}
         pl = PathLongener()
-        async for r in await obj.client._request("get_tree_internal", path=Path("match")+path, iter=True, nchain=0):
+        async for r in await obj.client._request(
+            "get_tree_internal", path=Path("match") + path, iter=True, nchain=0
+        ):
             pl(r)
             path = r["path"]
             yy = y
@@ -171,7 +172,9 @@ async def list(obj, path):  # pylint: disable=redefined-builtin
 
     y = {}
     pl = PathLongener()
-    async for r in await obj.client._request("get_tree_internal", path=Path("type")+path, iter=True, nchain=0):
+    async for r in await obj.client._request(
+        "get_tree_internal", path=Path("type") + path, iter=True, nchain=0
+    ):
         pl(r)
         path = r["path"]
         yy = y

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-LONG_DESC = open("README.rst").read()
+LONG_DESC = open("README.rst", "r", encoding="utf-8").read()
 
 setup(
     name="distkv",

@@ -15,7 +15,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from moat.util import NoLock, NotGiven, PathLongener, combine_dict, Path
+from moat.util import NoLock, NotGiven, Path, PathLongener, combine_dict
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
@@ -270,7 +270,7 @@ class ClientEntry:
                 self._path,
                 nchain=nchain,
                 recursive=recursive,
-                **({"chain": self.chain} if chain else {})
+                **({"chain": self.chain} if chain else {}),
             )
             if wait:
                 await self.root.wait_chain(r.chain)
@@ -442,7 +442,7 @@ class ClientRoot(ClientEntry):
             name = cls.CFG
             if key != "prefix":
                 name = f"{name}_{key}"
-            name = str(Path("_"+name, *subpath))
+            name = str(Path("_" + name, *subpath))
 
         def make():
             return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)

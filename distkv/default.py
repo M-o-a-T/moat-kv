@@ -2,7 +2,7 @@
 This module contains the default values for distkv configuration.
 """
 
-from moat.util import NotGiven, P, attrdict
+from moat.util import P, attrdict
 
 __all__ = ["PORT", "CFG"]
 
@@ -75,9 +75,7 @@ CFG = attrdict(
             host="localhost",
             port=7373,
         ),
-        mqtt=attrdict(
-            uri="mqtt://localhost:1883"
-        ),
+        mqtt=attrdict(uri="mqtt://localhost:1883"),
         root=(":distkv",),  # event message name prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
         # which addresses/ports to accept DistKV connections on
