@@ -161,3 +161,24 @@ async def match(obj, path, type_, delete, raw):  # pylint: disable=redefined-bui
         pass
     else:
         print(" ".join(str(x) for x in res.type), file=obj.stdout)
+
+
+@cli.command()
+@click.argument("path", type=P, nargs=1)
+@click.pass_obj
+async def list(obj, path):  # pylint: disable=redefined-builtin
+    """Dump type data"""
+
+    y = {}
+    pl = PathLongener()
+    async for r in await obj.client._request("get_tree_internal", path=Path("type")+path, iter=True, nchain=0):
+        pl(r)
+        path = r["path"]
+        yy = y
+        for p in path:
+            yy = yy.setdefault(p, {})
+        try:
+            yy["_"] = r["value"]
+        except KeyError:
+            pass
+    yprint(y, stream=obj.stdout)
