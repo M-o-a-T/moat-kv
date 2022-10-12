@@ -20,7 +20,7 @@ from moat.util import (
 from distkv.codec import unpacker
 
 
-@load_subgroup(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable
+@load_subgroup(short_help="Manage data.", sub_pre="dump")  # pylint: disable=undefined-variable
 async def cli():
     """
     Low-level tools that don't depend on a running DistKV server.
