@@ -1,9 +1,10 @@
 # command line interface
 
+import sys
 import json
 
 import asyncclick as click
-from moat.util import NotGiven, P, Path, yload, yprint
+from moat.util import NotGiven, P, Path, yload, yprint, PathLongener
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -16,17 +17,20 @@ async def cli():
 @click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the script here")
 @click.option("-S", "--schema", type=click.File(mode="w", lazy=True), help="Save the schema here")
 @click.option("-y", "--yaml", "yaml_", is_flag=True, help="Write schema as YAML. Default: JSON.")
-@click.argument("path", nargs=1)
+@click.argument("path", type=P, nargs=1)
 @click.pass_obj
 async def get(obj, path, script, schema, yaml_):
     """Read type checker information"""
-    path = P(path)
-    if not path:
+    if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
         action="get_internal", path=Path("type") + path, iter=False, nchain=obj.meta
     )
-    r = res.value
+    try:
+        r = res.value
+    except AttributeError:
+        raise click.UsageError(f"No data at {Path('type') + path}") from None
+
     if not obj.meta:
         res = res.value
     if script:
@@ -46,11 +50,10 @@ async def get(obj, path, script, schema, yaml_):
 @click.option("-s", "--script", type=click.File(mode="r"), help="File with the checking script")
 @click.option("-S", "--schema", type=click.File(mode="r"), help="File with the JSON schema")
 @click.option("-y", "--yaml", "yaml_", is_flag=True, help="load the schema as YAML. Default: JSON")
-@click.argument("path", nargs=1)
+@click.argument("path", type=P, nargs=1)
 @click.pass_obj
 async def set_(obj, path, good, bad, script, schema, yaml_, data):
     """Write type checker information."""
-    path = P(path)
     if not len(path):
         raise click.UsageError("You need a non-empty path.")
 
@@ -108,13 +111,28 @@ async def set_(obj, path, good, bad, script, schema, yaml_, data):
 @click.option("-R", "--raw", is_flag=True, help="Print just the path.")
 @click.option("-t", "--type", "type_", help="Type path to link to.")
 @click.option("-d", "--delete", help="Use to delete this mapping.")
-@click.argument("path", nargs=1)
+@click.argument("path", type=P, nargs=1)
 @click.pass_obj
 async def match(obj, path, type_, delete, raw):  # pylint: disable=redefined-builtin
-    """Match a type to a path (read, if no type given)"""
-    path = P(path)
+    """Match a type to a path (read, if no type given; list if empty path)"""
     if not len(path):
-        raise click.UsageError("You need a non-empty path.")
+        if raw or type_ or delete:
+            raise click.UsageError("No options allowed when dumping the match tree..")
+        y = {}
+        pl = PathLongener()
+        async for r in await obj.client._request("get_tree_internal", path=Path("match")+path, iter=True, nchain=0):
+            pl(r)
+            path = r["path"]
+            yy = y
+            for p in path:
+                yy = yy.setdefault(p, {})
+            try:
+                yy["_"] = r["value"]
+            except KeyError:
+                pass
+        yprint(y, stream=obj.stdout)
+        return
+
     if type_ and delete:
         raise click.UsageError("You can't both set and delete a path.")
     if raw and (type_ or delete):
