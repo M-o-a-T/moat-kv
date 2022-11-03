@@ -108,7 +108,7 @@ class ErrorSubEntry(AttrClientEntry):
 
     ATTRS = "seen tock trace str data comment message".split()
 
-    def child_type(self, name):
+    def child_type(self, name):  # pylint: disable=arguments-differ
         logger.warning("Unknown entry type at %r: %s", self._path, name)
         return ClientEntry
 
@@ -182,29 +182,31 @@ class ErrorEntry(AttrClientEntry):
           exc (Exception): The actual exception
           data (dict): any relevant data to reproduce the problem.
         """
-        res = self.get(node)
+        res: ErrorSubEntry = self.get(node)
         if res is None:
             res = self.allocate(node)
-        res.seen = time()
-        res.tock = await self.root.client.get_tock()
-        res.comment = comment or repr(exc)
+        if True:  # pylint: disable=using-constant-test  # just for the pylint block
+            # pylint: disable=attribute-defined-outside-init
+            res.seen = time()
+            res.tock = await self.root.client.get_tock()
+            res.comment = comment or repr(exc)
 
         if exc is not None:
             t = traceback.format_exception(type(exc), exc, exc.__traceback__)
             if len(t) > 40:
                 t = t[:10] + ["…\n"] + t[:30]
-            res.trace = "".join(t)
+            res.trace = "".join(t)  # pylint: disable=attribute-defined-outside-init
         if message is not None:
-            res.message = message
+            res.message = message  # pylint: disable=attribute-defined-outside-init
         if data is not None:
-            res.data = data
+            res.data = data  # pylint: disable=attribute-defined-outside-init
 
         if message:
             if data:
                 try:
                     m = message.format(exc=exc, **data)
-                except Exception as exc:
-                    m = message + f" (FORMAT {exc!r})"
+                except Exception as exc:  # pylint: disable=unused-argument  # OH COME ON
+                    m = message + f" (FORMAT {exc !r})"
             else:
                 m = message
             if m:

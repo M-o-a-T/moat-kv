@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover
 
 import logging
 
-from .exceptions import ServerError,ServerClosedError
+from .exceptions import ServerClosedError, ServerError
 from .obj import ClientEntry, ClientRoot
 
 logger = logging.getLogger(__name__)

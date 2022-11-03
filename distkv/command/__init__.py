@@ -3,8 +3,9 @@
 import sys
 
 import asyncclick as click
-from moat.util import main_, attrdict
+from moat.util import attrdict, main_
 
+from distkv.default import CFG
 from distkv.exceptions import ClientError, ServerError
 
 
@@ -19,7 +20,16 @@ def cmd(backend="trio"):
     main_.help = """\
 This is DistKV, a distributed master-less key-value storage system.
 """
-    obj=attrdict(moat=attrdict(ext="distkv_ext", name="distkv", sub="distkv.command"))
+    obj = attrdict(
+        moat=attrdict(
+            ext_pre="distkv_ext",
+            name="distkv",
+            sub_pre="distkv.command",
+            sub_post="cli",
+            ext_post="main.cli",
+            CFG=CFG,
+        )
+    )
     try:
         main_(obj=obj, _anyio_backend=backend)
     except (ClientError, ServerError) as err:
@@ -32,7 +42,7 @@ This is DistKV, a distributed master-less key-value storage system.
 )
 @click.argument("args", nargs=-1)
 async def pdb(args):  # safe
-    breakpoint()  # safe
+    breakpoint()  # pylint: disable=forgotten-debug-statement
     if not args:
         return
     return await main_.main(args)

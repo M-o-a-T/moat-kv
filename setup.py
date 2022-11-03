@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-LONG_DESC = open("README.rst").read()
+LONG_DESC = open("README.rst", "r", encoding="utf-8").read()
 
 setup(
     name="distkv",
@@ -31,7 +31,7 @@ setup(
         "psutil",
         "simpleeval >= 0.9.10",
         "moat-mqtt >= 0.32.1",
-        "moat-util >= 0.23",
+        "moat-util >= 0.25.2",
     ],
     tests_require=["trustme >= 0.5", "pytest", "pytest-trio", "flake8 >= 3.7", "mock"],
     keywords=["async", "key-values", "distributed"],

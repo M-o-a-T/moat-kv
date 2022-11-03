@@ -33,7 +33,9 @@ class NullObj:
         raise self._exc
 
 
-@load_subgroup(plugin="client")  # pylint: disable=undefined-variable
+@load_subgroup(
+    sub_pre="distkv.command.client", sub_post="cli", ext_pre="distkv_ext", ext_post="client.cli"
+)
 @click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
 @click.option(
     "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.connect.port}"

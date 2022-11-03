@@ -16,7 +16,7 @@ def load_cfg(cfg):  # pylint: disable=redefined-outer-name
     else:  # pragma: no cover
         raise RuntimeError(f"Config file {cfg!r} not found")
 
-    with open(cfg) as f:
+    with open(cfg, "r", encoding="utf-8") as f:
         cfg = yload(f)
 
     from logging.config import dictConfig

@@ -147,14 +147,9 @@ async def convert(obj, path, codec, name, delete, list_this):
             async for r in res:
                 pl(r)
                 try:
-                    print(
-                        " ".join(str(x) for x in r.path),
-                        ":",
-                        " ".join(r.value["codec"]),
-                        file=obj.stdout,
-                    )
+                    print(f"{r.path} : {Path.build(r.value['codec'])}", file=obj.stdout)
                 except Exception as e:
-                    print(" ".join(str(x) for x in r.path), ":", e)
+                    print(f"{Path(r.path)} {e !r}", file=obj.stdout)
 
         return
     if delete:

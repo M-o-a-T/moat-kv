@@ -17,7 +17,6 @@ from moat.util import (
     DelayedRead,
     DelayedWrite,
     NotGiven,
-    Path,
     PathLongener,
     ValueEvent,
     attrdict,
@@ -211,7 +210,7 @@ class StreamedRequest:
             try:
                 with anyio.fail_after(1):
                     await self.qr.put(msg)
-            except (anyio.BrokenResourceError,anyio.ClosedResourceError):
+            except (anyio.BrokenResourceError, anyio.ClosedResourceError):
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
             if self._reply_stream is False:
                 await self.qr.close_sender()
@@ -276,7 +275,7 @@ class StreamedRequest:
     async def wait_started(self):
         await self._started.wait()
 
-    async def aclose(self, timeout=0.2):
+    async def aclose(self):
         try:
             if self._stream:
                 msg = dict(seq=self.seq, state="end")
@@ -428,6 +427,7 @@ class Client:
         """
         Run a (single) async context manager as a service.
         """
+
         async def with_factory(f):
             async with f() as r:
                 await scope.register(r)
@@ -704,7 +704,8 @@ class Client:
         except socket.gaierror:
             raise ServerConnectionError(host, port)
         if ssl:
-            ctx = await anyio.streams.tls.TLSStream(ctx, ssl_context=ssl, server_side=False)
+            raise NotImplementedError("XXX TODO fix SSL")
+            # ctx = await anyio.streams.tls.TLSStream(ctx, ssl_context=ssl, server_side=False)
         try:
             async with ctx as stream, AsyncExitStack() as ex:
                 self.scope = scope.get()
@@ -725,6 +726,7 @@ class Client:
                         await self._run_auth(auth)
 
                     from .config import ConfigRoot
+
                     self._config = await ConfigRoot.as_handler(self, require_client=False)
 
                 except TimeoutError:

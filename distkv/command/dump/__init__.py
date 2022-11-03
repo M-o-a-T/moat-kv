@@ -6,21 +6,12 @@ from collections.abc import Mapping
 
 import asyncclick as click
 from moat.mqtt.codecs import MsgPackCodec
-from moat.util import (
-    MsgReader,
-    MsgWriter,
-    P,
-    Path,
-    PathLongener,
-    load_subgroup,
-    yload,
-    yprint,
-)
+from moat.util import MsgReader, MsgWriter, P, Path, PathLongener, load_subgroup, yload, yprint
 
 from distkv.codec import unpacker
 
 
-@load_subgroup(short_help="Manage data.", plugin="dump")  # pylint: disable=undefined-variable
+@load_subgroup(short_help="Manage data.", sub_pre="dump")  # pylint: disable=undefined-variable
 async def cli():
     """
     Low-level tools that don't depend on a running DistKV server.
@@ -148,7 +139,7 @@ async def msg_(obj, path):
     path = P(path)
     if len(path) == 0:
         path = P(obj.cfg.server.root) | "update"
-    elif len(path) == 1 and path[0].startswith("+"):
+    elif len(path) == 1 and path[0].startswith("+"):  # pylint: disable=no-member  # owch
         p = path[0][1:]
         path = P(obj.cfg.server.root)
         path |= p or "#"
