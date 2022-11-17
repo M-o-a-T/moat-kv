@@ -1531,7 +1531,7 @@ class Server:
                 p = msg.serialize(nchain=self.cfg.server.change.length)
                 await self._send_event("update", p)
 
-    async def resync_deleted(self, nodes):
+    async def resync_deleted(self, nodelist):
         """
         Owch. We need to re-sync.
 
@@ -1550,7 +1550,7 @@ class Server:
             nodes.clear()
             n_nodes = 0
 
-        for n in nodes:  # pylint: disable=not-an-iterable  # YES IT IS
+        for n in nodelist:
             try:
                 host, port = await self._get_host_port(n)
                 cfg = combine_dict(
