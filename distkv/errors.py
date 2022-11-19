@@ -134,6 +134,8 @@ class ErrorEntry(AttrClientEntry):
     created = None
     count = 0
     subsystem = None
+    first_seen = None
+    last_seen = None
     path = ()
     _real_entry = None
 
@@ -420,9 +422,12 @@ class ErrorRoot(ClientRoot):
         if other is None or other is entry:
             return None, None
 
-        if entry.first_seen < other.first_seen:
+        def _n(x):
+            return 99999999999999 if x is None else x
+
+        if _n(entry.first_seen) < _n(other.first_seen):
             return other, entry
-        elif other.first_seen < entry.first_seen:
+        elif _n(other.first_seen) < _n(entry.first_seen):
             return entry, other
 
         if entry.node < other.node:
