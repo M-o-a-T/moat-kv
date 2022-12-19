@@ -103,7 +103,7 @@ async def client_scope(**cfg):
     async def _mgr(cfg):
         client = Client(cfg)
         async with client._connected() as client:
-            await scope.register(client)
+            scope.register(client)
             await scope.no_more_dependents()
             pass  # end _connected
 
@@ -430,7 +430,7 @@ class Client:
 
         async def with_factory(f):
             async with f() as r:
-                await scope.register(r)
+                scope.register(r)
                 await scope.no_more_dependents()
 
         return await scope.service(name, with_factory, factory)
