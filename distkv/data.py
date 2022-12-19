@@ -144,7 +144,7 @@ async def data_get(
         except AttributeError:
             if obj.debug:
                 print("No data at", path, file=sys.stderr)
-            sys.exit(1)
+            return
 
     if not raw:
         yprint(res, stream=obj.stdout)
