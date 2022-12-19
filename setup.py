@@ -19,7 +19,7 @@ setup(
         "trio >= 0.18",
         "anyio >= 3",
         "range_set >= 0.2",
-        "attrs >= 19",
+        "attrs >= 20",
         "asyncserf >= 0.16",
         "asyncactor >= 0.21",
         "asyncscope >= 0.7",
