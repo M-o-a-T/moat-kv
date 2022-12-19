@@ -6,6 +6,7 @@ import os
 import signal
 import time
 
+import sys
 import anyio
 from anyio.abc import SocketAttribute
 from moat.util import DelayedRead, DelayedWrite, create_queue
