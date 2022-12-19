@@ -32,10 +32,11 @@ setup(
         "simpleeval >= 0.9.10",
         "moat-mqtt >= 0.32.1",
         "moat-util >= 0.26.1",
+        "exceptiongroup; python_version<'3.11'"
     ],
     tests_require=["trustme >= 0.5", "pytest", "pytest-trio", "flake8 >= 3.7", "mock"],
     keywords=["async", "key-values", "distributed"],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Information Technology",
