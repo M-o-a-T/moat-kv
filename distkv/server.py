@@ -72,7 +72,12 @@ from .types import ACLFinder, ACLStepper, ConvNull, NullACL, RootEntry
 Stream = anyio.abc.ByteStream
 
 ClosedResourceError = anyio.ClosedResourceError
-ExceptionGroup = anyio.ExceptionGroup
+
+if sys.version_info < (3, 11):
+    try:
+        ExceptionGroup = anyio.ExceptionGroup
+    except AttributeError:
+        from exceptiongroup import ExceptionGroup
 
 _client_nr = 0
 
