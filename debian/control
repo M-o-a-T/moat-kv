@@ -16,7 +16,7 @@ Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
   python3-simpleeval (>= 0.9.10),
   python3-trio (>= 0.17),
   python3-moat-util,
-  distmqtt (>= 0.32.1),
+  python3-moat-mqtt (>= 0.38),
   python3-asyncserf (>= 0.16),
   serf,
 Standards-Version: 3.9.6
@@ -25,7 +25,7 @@ Homepage: https://github.com/smurfix/distkv
 Package: distkv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
-  distmqtt (>= 0.32.1) | python3-asyncserf (>= 0.16),
+  moat-mqtt (>= 0.38) | python3-asyncserf (>= 0.16),
   python3-anyio (>= 2),
   python3-asyncclick (>= 1:8),
   python3-asyncactor (>= 0.20),
@@ -39,7 +39,6 @@ Depends: ${misc:Depends}, ${python3:Depends},
   python3-moat-mqtt,
   python3-moat-lib-diffiehellman,
   systemd (>= 241),
-  distmqtt (>= 0.32.1),
 Recommends:
   python3-trio (>= 0.17),
 Replaces: python3-distkv

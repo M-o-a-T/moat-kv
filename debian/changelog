@@ -1,3 +1,9 @@
+distkv (0.63.2-2) unstable; urgency=medium
+
+  * Replace outdated distmqtt dependency with moat-mqtt
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Mon, 19 Dec 2022 16:24:49 +0100
+
 distkv (0.63.2-1) unstable; urgency=medium
 
   * Merge
