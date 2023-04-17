@@ -90,7 +90,7 @@ async def open_client(_main_name="_dkv_client", **cfg):
     pass  # end client
 
 
-async def client_scope(**cfg):
+async def client_scope(_name=None, **cfg):
     """
     Return the opened client connection, by way of an asyncscope service.
 
@@ -107,10 +107,11 @@ async def client_scope(**cfg):
             await scope.no_more_dependents()
             pass  # end _connected
 
-    name = cfg["connect"].get("name", None)
-    if name is None:
-        name = "_dkv_client_conn"  # MUST NOT be the same as in open_client
-    res = await scope.service(name, _mgr, cfg)
+    if _name is None:
+        _name = cfg["connect"].get("name", None)
+    if _name is None:
+        _name = "_dkv_client_conn"  # MUST NOT be the same as in open_client
+    res = await scope.service(_name, _mgr, cfg)
     return res
 
 
