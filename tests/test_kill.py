@@ -16,7 +16,6 @@ async def test_11_kill(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 234}, n=3, tocks=2000) as st:
         assert st is not None
         async with st.client(1) as c:
-
             await c.set(P("foo"), value="hello")
             await c.set(P("foo.bar"), value="baz")
         await trio.sleep(1)

@@ -888,7 +888,6 @@ class StateRoot(ClientRoot):
     _last_t = 0
 
     async def ping(self):
-
         t = time.time()
         if t - self._last_t >= abs(self._cfg["ping"]):
             self._last_t = t

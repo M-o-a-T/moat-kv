@@ -322,7 +322,6 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
 
             # This waits for test_0 to be fully up and running.
             async with st.client(0) as c:
-
                 # At this point ci shall be fully integrated, and test_1 shall know this (mostly).
                 r = await ci._request(
                     "get_state",
