@@ -2707,7 +2707,7 @@ class Server:
                 with anyio.move_on_after(2, shield=True) as cs:
                     if c is not None:
                         await c.send({"error": str(exc)})
-            except Exception:
+            except (anyio.BrokenResourceError,anyio.ClosedResourceError):
                 pass
         finally:
             with anyio.move_on_after(2, shield=True):
