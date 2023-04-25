@@ -7,7 +7,7 @@ import sys
 import attr
 from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
 
-from distkv.client import open_client
+from distkv.client import client_scope
 from distkv.default import CFG
 
 logger = logging.getLogger(__name__)
@@ -92,9 +92,9 @@ class S:
                 cfg = combine_dict(
                     dict(connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)), CFG
                 )
-                async with open_client(_main_name="_client_%d_%d" % (i, self._seq), **cfg) as c:
-                    yield c
-                    return
+                c = await client_scope(_main_name="_client_%d_%d" % (i, self._seq), **cfg)
+                yield c
+                return
             except socket.gaierror:
                 pass
         raise RuntimeError("Duh? no connection")

@@ -4,11 +4,12 @@ from __future__ import annotations
 import io
 import os
 import signal
+import sys
 import time
 
-import sys
 import anyio
 from anyio.abc import SocketAttribute
+from asyncscope import scope
 from moat.util import DelayedRead, DelayedWrite, create_queue
 
 try:
@@ -1570,7 +1571,9 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
-                async with distkv_client.open_client(connect=cfg) as client:
+                async with scope.using_service(
+                    f"_distkv_sync_{self.node.name}", distkv_client.client_scope, connect=cfg
+                ) as client:
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -2056,7 +2059,9 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.info("Sync: connecting: %s", cfg)
-                async with distkv_client.open_client(connect=cfg) as client:
+                async with scope.using_service(
+                    f"_distkv_sync_{self.node.name}", distkv_client.client_scope, connect=cfg
+                ) as client:
                     # TODO auth this client
 
                     pl = PathLongener(())

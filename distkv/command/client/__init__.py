@@ -6,7 +6,7 @@ import asyncclick as click
 from moat.util import attrdict, combine_dict, load_subgroup
 
 from distkv.auth import gen_auth
-from distkv.client import open_client
+from distkv.client import client_scope
 from distkv.default import CFG
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ async def cli(ctx, host, port, auth, metadata):
     obj.meta = 3 if metadata else False
 
     try:
-        obj.client = await ctx.with_async_resource(open_client(**cfg))
+        obj.client = await client_scope(**cfg)
     except OSError as exc:
         obj.client = NullObj(exc)
     else:
