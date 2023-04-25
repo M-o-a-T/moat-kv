@@ -73,7 +73,7 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(_main_name="_dkv_client", **cfg):
+async def open_client(_main_name="_distkv_client", **cfg):
     """
     This async context manager returns an opened client connection.
 
@@ -108,10 +108,8 @@ async def client_scope(_name=None, **cfg):
             pass  # end _connected
 
     if _name is None:
-        _name = cfg["connect"].get("name", None)
-    if _name is None:
-        _name = "_dkv_client_conn"  # MUST NOT be the same as in open_client
-    res = await scope.service(_name, _mgr, cfg)
+        _name = cfg["connect"].get("name", "conn")
+    res = await scope.service(f"_distkv_client_{_name}", _mgr, cfg)
     return res
 
 
