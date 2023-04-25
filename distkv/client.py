@@ -193,7 +193,7 @@ class StreamedRequest:
             self._reply_stream = None
             self.end_msg = msg
             if self.qr is not None:
-                await self.qr.close_sender()
+                self.qr.close_sender()
             return False
 
         elif state == "ack":
@@ -214,7 +214,7 @@ class StreamedRequest:
             except (anyio.BrokenResourceError, anyio.ClosedResourceError):
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
             if self._reply_stream is False:
-                await self.qr.close_sender()
+                self.qr.close_sender()
 
     async def get(self):
         """Receive a single reply"""
@@ -291,8 +291,8 @@ class StreamedRequest:
                     pass
                 # ignore the reply
         finally:
-            await self.qr.close_sender()
-            await self.qr.close_receiver()
+            self.qr.close_sender()
+            self.qr.close_receiver()
 
 
 class _SingleReply:

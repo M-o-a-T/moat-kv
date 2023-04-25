@@ -31,7 +31,7 @@ setup(
         "psutil",
         "simpleeval >= 0.9.10",
         "moat-mqtt >= 0.32.1",
-        "moat-util >= 0.26.1",
+        "moat-util >= 0.34.0",
         "exceptiongroup; python_version<'3.11'"
     ],
     tests_require=["trustme >= 0.5", "pytest", "pytest-trio", "flake8 >= 3.7", "mock"],

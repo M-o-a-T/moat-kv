@@ -189,7 +189,7 @@ class StreamCommand:
 
     async def aclose(self):
         self.client.in_stream.pop(self.seq, None)
-        await self.qr.close_sender()
+        self.qr.close_sender()
 
     async def recv(self):
         msg = await self.qr.get()
@@ -218,7 +218,7 @@ class StreamCommand:
         msg = self.msg
         if msg.get("state") != "start":
             # single message
-            await self.qr.close_sender()
+            self.qr.close_sender()
 
         qlen = msg.get("qlen", 0)
         if qlen > 0:
