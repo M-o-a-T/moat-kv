@@ -9,6 +9,7 @@ from distkv.mock.serf import stdtest
 @pytest.mark.trio
 async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             recv = []
@@ -37,6 +38,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             recv = []

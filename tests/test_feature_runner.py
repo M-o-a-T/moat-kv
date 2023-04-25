@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=200) as st:
+        assert st is not None
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
@@ -70,6 +71,7 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
 async def test_84_mqtt(autojump_clock):  # pylint: disable=unused-argument
     autojump_clock.autojump_threshold = 0.01
     async with stdtest(args={"init": 123}, tocks=200) as st:
+        assert st is not None
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)

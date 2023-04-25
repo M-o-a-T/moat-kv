@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 async def test_11_kill(autojump_clock):  # pylint: disable=unused-argument
     """also used to check watching"""
     async with stdtest(args={"init": 234}, n=3, tocks=2000) as st:
+        assert st is not None
         async with st.client(1) as c:
 
             await c.set(P("foo"), value="hello")

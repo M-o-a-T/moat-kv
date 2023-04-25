@@ -24,6 +24,7 @@ async def collect(i, path=()):
 @pytest.mark.trio
 async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
+        assert st is not None
         async with st.client() as c:
             # TODO control what happens when stepping to where's no ACL
             # await c._request("set_internal", path=("acl", "foo"), value="x")

@@ -80,6 +80,7 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
     dropping random messages ultimately recovers.
     """
     async with stdtest(test_1={"init": 420}, n=N, tocks=15000) as st:
+        assert st is not None
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg))
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg))
         st.ex.enter_context(mock.patch("distkv.server.Server._send_event", new=send_evt))

@@ -82,6 +82,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
         await old()
 
+    done = False
     async with main_scope("_distkv_test_mqtt") as scp:
         tg = scp._tg
         st = S(tg, client_ctx)
@@ -134,6 +135,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             for e in evts:
                 await e.wait()
             try:
+                done = True
                 yield st
             finally:
                 with anyio.fail_after(2, shield=True):
@@ -141,3 +143,5 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                     tg.cancel_scope.cancel()
         logger.info("End")
         pass  # unwinding AsyncExitStack
+    if not done:
+        yield None

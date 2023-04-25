@@ -26,6 +26,7 @@ async def collect(i, path=()):
 @pytest.mark.trio
 async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
+        assert st is not None
         async with st.client() as c:
             with pytest.raises(ServerError):
                 await c._request(
@@ -138,6 +139,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_72_cmd(autojump_clock, tmpdir):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=80) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             h = p = None  # pylint

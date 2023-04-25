@@ -33,6 +33,7 @@ async def test_10_many(autojump_clock):  # pylint: disable=unused-argument
     final object deletion works.
     """
     async with stdtest(test_1={"init": 420}, n=N, tocks=1500) as st:
+        assert st is not None
         st.ex.enter_context(mock.patch("asyncactor.Actor._skip_check", new=_skip_check))
 
         s = st.s[1]
@@ -95,6 +96,7 @@ async def test_11_split1(autojump_clock, tocky):  # pylint: disable=unused-argum
     n_two = 0
 
     async with stdtest(test_1={"init": 420}, n=N, tocks=1000) as st:
+        assert st is not None
 
         async def watch(*, task_status=trio.TASK_STATUS_IGNORED):
             nonlocal n_two

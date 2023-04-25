@@ -32,6 +32,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
                     msgs.append(m)
 
     async with stdtest(args={"init": 234}, tocks=30) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 234
@@ -68,6 +69,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 
     msgs = []
     async with stdtest(run=False, tocks=40) as st:
+        assert st is not None
         (s,) = st.s
         logger.debug("LOAD %s", path)
         await s.load(path, local=True)
@@ -114,6 +116,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 @pytest.mark.trio
 async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
+        assert st is not None
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
             r = await st.run("data foo set -v : hello")
@@ -189,6 +192,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
+        assert st is not None
         async with st.client(1) as ci:
             assert (await ci.get(P(":"))).value == 125
 
