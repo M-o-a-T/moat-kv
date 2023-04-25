@@ -439,10 +439,9 @@ class ClientRoot(ClientEntry):
             cfg = defcfg
 
         if name is None:
-            name = cls.CFG
             if key != "prefix":
-                name = f"{name}_{key}"
-            name = str(Path("_" + name, *subpath))
+                subpath=(key,)+subpath
+            name = str(Path("_distkv", client.name, cls.CFG, *subpath))
 
         def make():
             return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)
