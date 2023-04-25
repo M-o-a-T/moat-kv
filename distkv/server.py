@@ -2693,7 +2693,7 @@ class Server:
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
-            if isinstance(exc, ExceptionGroup):
+            if hasattr(exc, "filter"):
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
