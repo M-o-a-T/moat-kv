@@ -2704,8 +2704,7 @@ class Server:
             if exc is None:
                 exc = "Cancelled"
             try:
-                with anyio.move_on_after(2) as cs:
-                    cs.shield = True
+                with anyio.move_on_after(2, shield=True) as cs:
                     if c is not None:
                         await c.send({"error": str(exc)})
             except Exception:
