@@ -3,6 +3,7 @@ import io
 import logging
 import socket
 import sys
+import shlex
 
 import attr
 from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
@@ -31,6 +32,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
     args = ("-c", "/dev/null", *args)
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
+    logger.debug(" distkv %s", " ".join(shlex.quote(str(x)) for x in args))
     try:
         res = await wrap_main(
             args=args,
