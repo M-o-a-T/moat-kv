@@ -73,7 +73,7 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(_main_name="_distkv_client", **cfg):
+async def open_client(_main_name="distkv.client", **cfg):
     """
     This async context manager returns an opened client connection.
 
@@ -116,7 +116,7 @@ async def client_scope(_name=None, **cfg):
             _name = f"_{_cid}"
             # uniqueness required for testing.
             # TODO replace with a dependency on the test server.
-    res = await scope.service(f"_distkv_client_{_name}", _mgr, cfg)
+    res = await scope.service(f"distkv.client.{_name}", _mgr, cfg)
     return res
 
 

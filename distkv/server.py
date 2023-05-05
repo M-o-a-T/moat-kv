@@ -1572,7 +1572,7 @@ class Server:
 
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with scope.using_service(
-                    f"_distkv_sync_{self.node.name}", distkv_client.client_scope, connect=cfg
+                    f"distkv.sync.{self.node.name}", distkv_client.client_scope, connect=cfg
                 ) as client:
                     # TODO auth this client
                     nodes = NodeSet()
@@ -2060,7 +2060,7 @@ class Server:
 
                 self.logger.info("Sync: connecting: %s", cfg)
                 async with scope.using_service(
-                    f"_distkv_sync_{self.node.name}", distkv_client.client_scope, connect=cfg
+                    f"distkv.sync.{self.node.name}", distkv_client.client_scope, connect=cfg
                 ) as client:
                     # TODO auth this client
 
