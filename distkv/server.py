@@ -1222,11 +1222,11 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except (anyio.BrokenResourceError, ConnectionResetError):
+                except (anyio.EndOfStream, anyio.ClosedResourceError, anyio.BrokenResourceError, ConnectionResetError):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
-                    self.logger.debug("CLOSED %d", self._client_nr)
+                    self.logger.debug("EOF %d", self._client_nr)
                     break
                 unpacker_.feed(buf)
 
