@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 import anyio
 import pytest
@@ -32,6 +31,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
                     msgs.append(m)
 
     async with stdtest(args={"init": 234}, tocks=30) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 234
@@ -51,7 +51,6 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         logger.debug("SAVED")
         pass  # server end
 
-    logger.debug("NEXT")
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
@@ -68,13 +67,14 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 
     msgs = []
     async with stdtest(run=False, tocks=40) as st:
+        assert st is not None
         (s,) = st.s
         logger.debug("LOAD %s", path)
         await s.load(path, local=True)
         logger.debug("LOADED")
 
         evt = anyio.Event()
-        await scope.spawn(partial(st.s[0].serve, ready_evt=evt))
+        await st.run_0(ready_evt=evt)
         await evt.wait()
 
         logger.debug("RUNNING")
@@ -114,6 +114,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
 @pytest.mark.trio
 async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
+        assert st is not None
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
             r = await st.run("data foo set -v : hello")
@@ -189,6 +190,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
+        assert st is not None
         async with st.client(1) as ci:
             assert (await ci.get(P(":"))).value == 125
 
@@ -254,7 +256,6 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
 
             # This waits for test_0 to be fully up and running.
             async with st.client(0) as c:
-
                 # At this point ci shall be fully integrated, and test_1 shall know this (mostly).
                 r = await ci._request(
                     "get_state",

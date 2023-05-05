@@ -8,7 +8,7 @@ import anyio
 import attr
 import mock
 import trio
-from asyncscope import main_scope
+from asyncscope import main_scope, scope
 from asyncserf.stream import SerfEvent
 from moat.util import NotGiven, ValueEvent, attrdict, combine_dict, create_queue
 
@@ -85,7 +85,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
         await old()
 
-    async with main_scope("_distkv_test_serf") as scp:
+    async with main_scope("distkv.test.serf") as scp:
         tg = scp._tg
         st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:
@@ -125,11 +125,15 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 )
                 st.s.append(s)
 
+            async def with_serf(s, *a, **k):
+                s._scope = scope.get()
+                return await s._scoped_serve(*a, **k)
+
             evts = []
             for i in range(n):
                 if kw.get("run_" + str(i), run):
                     evt = anyio.Event()
-                    tg.start_soon(partial(st.s[i].serve, ready_evt=evt))
+                    await scp.spawn_service(with_serf, st.s[i], ready_evt=evt)
                     evts.append(evt)
             for e in evts:
                 await e.wait()
@@ -145,9 +149,10 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
-    async with anyio.create_task_group() as tg:
-        ms = MockServ(tg, master, **cfg)
+    async with scope.using_scope():
+        ms = MockServ(master, **cfg)
         master.serfs.add(ms)
+        ms._scope = scope.get()  # pylint:disable=attribute-defined-outside-init
         try:
             yield ms
         finally:
@@ -156,9 +161,9 @@ async def mock_serf_client(master, **cfg):
 
 
 class MockServ:
-    def __init__(self, tg, master, **cfg):
+    def __init__(self, master, **cfg):
         self.cfg = cfg
-        self._tg = tg
+        self._tg = scope._tg
         self.streams = {}
         self._master = master
 

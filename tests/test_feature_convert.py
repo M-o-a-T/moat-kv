@@ -2,6 +2,7 @@ import logging
 
 import pytest
 import trio
+from asyncscope import scope
 from moat.util import P, PathLongener
 
 from distkv.auth import loader
@@ -25,7 +26,7 @@ async def collect(i, path=()):
 @pytest.mark.trio
 async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=100) as st:
-        (s,) = st.s
+        assert st is not None
         async with st.client() as c:
             await c._request(
                 "set_internal",
@@ -66,7 +67,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
                         recv.append(m)
 
         evt = trio.Event()
-        s.spawn(mon, evt)
+        await scope.spawn(mon, evt)
         await evt.wait()
         async with st.client(auth=um.build({"name": "con"})) as c:
             await c.set(P("inty.ten"), value="10")

@@ -8,7 +8,7 @@ from functools import partial
 import anyio
 import mock
 import trio
-from asyncscope import main_scope
+from asyncscope import main_scope, scope
 from moat.mqtt.broker import create_broker
 from moat.util import NotGiven, attrdict, combine_dict
 
@@ -82,7 +82,8 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
         await old()
 
-    async with main_scope("_distkv_test_mqtt") as scp:
+    done = False
+    async with main_scope("distkv.test.mqtt") as scp:
         tg = scp._tg
         st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:
@@ -90,7 +91,17 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
             ex.enter_context(mock.patch("time.time", new=tm))
             ex.enter_context(mock.patch("time.monotonic", new=tm))
             logging._startTime = tm()
-            await ex.enter_async_context(create_broker(config=broker_cfg))
+
+            async def run_broker(cfg):
+                async with create_broker(config=cfg) as srv:
+                    # NB: some services use "async with await …"
+                    scope.register(srv)
+                    await scope.no_more_dependents()
+
+            async def with_broker(s, *a, **k):
+                await scope.service("moat.mqtt.broker", run_broker, broker_cfg)
+                s._scope = scope.get()
+                return await s._scoped_serve(*a, **k)
 
             args_def = kw.get("args", attrdict())
             for i in range(n):
@@ -127,17 +138,21 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
             evts = []
             for i in range(n):
-                if kw.get("run_" + str(i), run):
+                if kw.get(f"run_{i}", run):
                     evt = anyio.Event()
-                    tg.start_soon(partial(st.s[i].serve, ready_evt=evt))
+                    await scp.spawn_service(with_broker, st.s[i], ready_evt=evt)
                     evts.append(evt)
+                else:
+                    setattr(st, f"run_{i}", partial(scp.spawn_service, with_broker, st.s[i]))
+
             for e in evts:
                 await e.wait()
             try:
+                done = True
                 yield st
             finally:
                 with anyio.fail_after(2, shield=True):
                     logger.info("Runtime: %s", clock.current_time())
                     tg.cancel_scope.cancel()
-        logger.info("End")
-        pass  # unwinding AsyncExitStack
+    if not done:
+        yield None

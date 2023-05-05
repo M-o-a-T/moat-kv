@@ -888,7 +888,6 @@ class StateRoot(ClientRoot):
     _last_t = 0
 
     async def ping(self):
-
         t = time.time()
         if t - self._last_t >= abs(self._cfg["ping"]):
             self._last_t = t
@@ -1097,7 +1096,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
             self._act = act
 
             age_q = create_queue(10)
-            self.spawn(self._age_killer, age_q)
+            await self.spawn(self._age_killer, age_q)
 
             psutil.cpu_percent(interval=None)
             await act.set_value(0)
@@ -1125,7 +1124,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
                     self.get_node(self.name).seen = time.time()
                     self.node_history += self.name
                     evt = anyio.Event()
-                    self.spawn(self._run_now, evt)
+                    await self.spawn(self._run_now, evt)
                     await age_q.put(None)
                     await evt.wait()
 
@@ -1257,7 +1256,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
             async with ClientActor(self.client, self.name, topic=self.group, cfg=self._cfg) as act:
                 self._act = act
                 tg.start_soon(self._age_notifier, age_q)
-                self.spawn(self._run_now)
+                await self.spawn(self._run_now)
                 await act.set_value(0)
 
                 async for msg in act:

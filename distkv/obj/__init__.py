@@ -6,6 +6,7 @@ Object interface to distkv data
 import heapq
 import weakref
 from collections.abc import Mapping
+from functools import partial
 
 import anyio
 from asyncscope import scope
@@ -439,10 +440,9 @@ class ClientRoot(ClientEntry):
             cfg = defcfg
 
         if name is None:
-            name = cls.CFG
             if key != "prefix":
-                name = f"{name}_{key}"
-            name = str(Path("_" + name, *subpath))
+                subpath = (key,) + subpath
+            name = str(Path("_distkv", client.name, cls.CFG, *subpath))
 
         def make():
             return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)
@@ -594,5 +594,6 @@ class ClientRoot(ClientEntry):
         heapq.heappush(w, (chain.tick, e))
         await e.wait()
 
-    def spawn(self, *a, **kw):
-        self._tg.start_soon(*a, **kw)
+    async def spawn(self, p, *a, **kw):
+        p = partial(p, *a, **kw)
+        self._tg.start_soon(p)

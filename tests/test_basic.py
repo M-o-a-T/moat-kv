@@ -53,6 +53,7 @@ async def collect(i, path=()):
 @pytest.mark.trio
 async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
+        assert st is not None
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
 
@@ -178,6 +179,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=50) as st:
+        assert st is not None
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
 
@@ -254,6 +256,7 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(test_1={"init": 125}, n=2, tocks=30) as st:
+        assert st is not None
         async with st.client(1) as ci:
             assert (await ci._request("get_value", path=())).value == 125
 
@@ -319,7 +322,6 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
 
             # This waits for test_0 to be fully up and running.
             async with st.client(0) as c:
-
                 # At this point ci shall be fully integrated, and test_1 shall know this (mostly).
                 r = await ci._request(
                     "get_state",
@@ -429,6 +431,7 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_03_lots(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=1000) as st:
+        assert st is not None
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
 

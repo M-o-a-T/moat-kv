@@ -28,11 +28,12 @@ class Backend(metaclass=ABCMeta):
             with anyio.move_on_after(2):
                 await self._ended.wait()
 
-    def spawn(self, p, *a, **kw):
-        async def _run(p, a, kw):
+    async def spawn(self, p, *a, **kw):
+        async def _run(p, a, kw, *, task_status):
             if self._ended is None:
                 self._ended = anyio.Event()
             self._njobs += 1
+            task_status.started()
             try:
                 return await p(*a, **kw)
             finally:
@@ -41,7 +42,7 @@ class Backend(metaclass=ABCMeta):
                     self._ended.set()
                     self._ended = None
 
-        return self._tg.start_soon(_run, p, a, kw)
+        return await self._tg.start(_run, p, a, kw)
 
     @abstractmethod
     @asynccontextmanager

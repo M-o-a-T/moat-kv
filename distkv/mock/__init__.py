@@ -1,13 +1,15 @@
 # from asyncclick.testing import CliRunner
 import io
 import logging
+import shlex
 import socket
 import sys
 
 import attr
-from moat.util import attrdict, combine_dict, list_ext, load_ext, wrap_main
+from asyncscope import main_scope, scope
+from moat.util import OptCtx, attrdict, combine_dict, list_ext, load_ext, wrap_main
 
-from distkv.client import open_client
+from distkv.client import _scoped_client, client_scope
 from distkv.default import CFG
 
 logger = logging.getLogger(__name__)
@@ -31,16 +33,21 @@ async def run(*args, expect_exit=0, do_stdout=True):
     args = ("-c", "/dev/null", *args)
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
+    logger.debug(" distkv %s", " ".join(shlex.quote(str(x)) for x in args))
     try:
-        res = await wrap_main(
-            args=args,
-            wrap=True,
-            CFG=CFG,
-            cfg=False,
-            name="distkv",
-            sub_pre="distkv.command",
-            sub_post="cli",
-        )
+        res = None
+        async with OptCtx(
+            main_scope(name="run") if scope.get() is None else None
+        ), scope.using_scope():
+            res = await wrap_main(
+                args=args,
+                wrap=True,
+                CFG=CFG,
+                cfg=False,
+                name="distkv",
+                sub_pre="distkv.command",
+                sub_post="cli",
+            )
         if res is None:
             res = attrdict()
         return res
@@ -82,7 +89,7 @@ class S:
 
     @asynccontextmanager
     async def client(self, i: int = 0, **kv):
-        """Get a client for the i'th server."""
+        """Get a (new) client for the i'th server."""
         await self.s[i].is_serving
         self._seq += 1
         for host, port, *_ in self.s[i].ports:
@@ -92,9 +99,17 @@ class S:
                 cfg = combine_dict(
                     dict(connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)), CFG
                 )
-                async with open_client(_main_name="_client_%d_%d" % (i, self._seq), **cfg) as c:
+
+                async def scc(s, **cfg):
+                    scope.requires(s._scope)
+                    return await _scoped_client(scope.name, **cfg)
+
+                async with scope.using_scope():
+                    c = await scope.service(
+                        f"distkv.client.{i}.{self._seq}", scc, self.s[i], **cfg
+                    )
                     yield c
-                    return
+                return
             except socket.gaierror:
                 pass
         raise RuntimeError("Duh? no connection")
@@ -112,4 +127,5 @@ class S:
             args = args[0]
             if isinstance(args, str):
                 args = args.split(" ")
-        return await run("-v", "-v", "client", "-h", h, "-p", p, *args, do_stdout=do_stdout)
+        async with scope.using_scope():
+            return await run("-v", "-v", "client", "-h", h, "-p", p, *args, do_stdout=do_stdout)

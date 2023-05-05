@@ -9,6 +9,7 @@ from distkv.mock.serf import stdtest
 @pytest.mark.trio
 async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             recv = []
@@ -24,7 +25,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
                 except CancelledError:
                     pass
 
-            s.spawn(mon)
+            await s.spawn(mon)
             await trio.sleep(0.2)
             await c._request("msg_send", topic=P("foo.bar"), data=["Hello", 42])
             await c._request("msg_send", topic=("foo", "baz"), data=b"duh")
@@ -37,6 +38,7 @@ async def test_51_passthru(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}) as st:
+        assert st is not None
         (s,) = st.s
         async with st.client() as c:
             recv = []
@@ -50,7 +52,7 @@ async def test_52_passthru_bin(autojump_clock):  # pylint: disable=unused-argume
                 except CancelledError:
                     pass
 
-            s.spawn(mon)
+            await s.spawn(mon)
             await trio.sleep(0.2)
             await c._request("msg_send", topic=("foo",), data=["Hello", 42])
             await c._request("msg_send", topic=P("foo"), raw=b"duh")

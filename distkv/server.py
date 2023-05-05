@@ -4,11 +4,12 @@ from __future__ import annotations
 import io
 import os
 import signal
+import sys
 import time
 
-import sys
 import anyio
 from anyio.abc import SocketAttribute
+from asyncscope import scope
 from moat.util import DelayedRead, DelayedWrite, create_queue
 
 try:
@@ -189,7 +190,7 @@ class StreamCommand:
 
     async def aclose(self):
         self.client.in_stream.pop(self.seq, None)
-        await self.qr.close_sender()
+        self.qr.close_sender()
 
     async def recv(self):
         msg = await self.qr.get()
@@ -218,7 +219,7 @@ class StreamCommand:
         msg = self.msg
         if msg.get("state") != "start":
             # single message
-            await self.qr.close_sender()
+            self.qr.close_sender()
 
         qlen = msg.get("qlen", 0)
         if qlen > 0:
@@ -1221,11 +1222,16 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except (anyio.BrokenResourceError, ConnectionResetError):
+                except (
+                    anyio.EndOfStream,
+                    anyio.ClosedResourceError,
+                    anyio.BrokenResourceError,
+                    ConnectionResetError,
+                ):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
-                    self.logger.debug("CLOSED %d", self._client_nr)
+                    self.logger.debug("EOF %d", self._client_nr)
                     break
                 unpacker_.feed(buf)
 
@@ -1241,7 +1247,9 @@ class ServerClient:
 class _RecoverControl:
     _id = 0
 
-    def __init__(self, server, scope, prio, local_history, sources):
+    def __init__(
+        self, server, scope, prio, local_history, sources  # pylint:disable=redefined-outer-name
+    ):
         self.server = server
         self.scope = scope
         self.prio = prio
@@ -1570,7 +1578,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
-                async with distkv_client.open_client(connect=cfg) as client:
+                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
+                    client = await distkv_client.client_scope(connect=cfg)
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -1914,7 +1923,7 @@ class Server:
                 # self.logger.debug("IN %r",msg)
 
                 if isinstance(msg, RecoverEvent):
-                    self.spawn(
+                    await self.spawn(
                         self.recover_split,
                         msg.prio,
                         msg.replace,
@@ -1923,7 +1932,7 @@ class Server:
                     )
 
                 elif isinstance(msg, GoodNodeEvent):
-                    self.spawn(self.fetch_data, msg.nodes)
+                    await self.spawn(self.fetch_data, msg.nodes)
 
                 elif isinstance(msg, RawMsgEvent):
                     msg = msg.msg
@@ -2056,7 +2065,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.info("Sync: connecting: %s", cfg)
-                async with distkv_client.open_client(connect=cfg) as client:
+                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
+                    client = await distkv_client.client_scope(connect=cfg)
                     # TODO auth this client
 
                     pl = PathLongener(())
@@ -2116,7 +2126,7 @@ class Server:
                     self.fetch_running = False
                     for nm in self.fetch_missing:
                         self.logger.error("Sync: missing: %s %s", nm.name, nm.local_missing)
-                    self.spawn(self.do_send_missing)
+                    await self.spawn(self.do_send_missing)
                 if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
                         self.node.tick = 0
@@ -2193,13 +2203,13 @@ class Server:
         """
         Recover from a network split.
         """
-        with anyio.CancelScope() as scope:
+        with anyio.CancelScope() as cs:
             for node in sources:
                 if node not in self._recover_tasks:
                     break
             else:
                 return
-            t = _RecoverControl(self, scope, prio, local_history, sources)
+            t = _RecoverControl(self, cs, prio, local_history, sources)
             self.logger.debug(
                 "SplitRecover %d: start %d %s local=%r remote=%r",
                 t._id,
@@ -2279,7 +2289,7 @@ class Server:
 
         if self.sending_missing is None:
             self.sending_missing = True
-            self.spawn(self._send_missing_data, prio)
+            await self.spawn(self._send_missing_data, prio)
         elif not self.sending_missing:
             self.sending_missing = True
 
@@ -2492,7 +2502,6 @@ class Server:
     async def _saver(
         self, path: str = None, stream=None, done: ValueEvent = None, save_state=False
     ):
-
         with anyio.CancelScope() as s:
             sd = anyio.Event()
             state = (s, sd)
@@ -2529,7 +2538,7 @@ class Server:
         done = ValueEvent() if wait else None
         res = None
         if path is not None:
-            self.spawn(
+            await self.spawn(
                 partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
             )
             if wait:
@@ -2559,6 +2568,19 @@ class Server:
     async def is_serving(self):
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
+
+    async def _scoped_serve(self, *a, **kw):
+        """Like `serve`, but can be run via `scope.spawn_service`."""
+        t = await scope.spawn(self.serve, *a, **kw)
+        scope.register(self)
+        await scope.wait_no_users()
+        t.cancel()
+
+    async def spawn(self, p, *a, **k):
+        """
+        Start a task. We recycle the backend's taskgroup for convenience.
+        """
+        self.backend._tg.start_soon(p, *a, **k)
 
     async def serve(self, log_path=None, log_inc=False, force=False, ready_evt=None):
         """Task that opens a backend connection and actually runs the server.
@@ -2602,7 +2624,6 @@ class Server:
             self._ready2 = anyio.Event()
 
             self.backend = backend
-            self.spawn = backend.spawn
 
             # Sync recovery steps so that only one node per branch answers
             self._recover_event1 = None
@@ -2621,8 +2642,8 @@ class Server:
             delay2 = anyio.Event()
             delay3 = anyio.Event()
 
-            self.spawn(self._run_del, delay3)
-            self.spawn(self._delete_also)
+            await self.spawn(self._run_del, delay3)
+            await self.spawn(self._delete_also)
 
             if log_path is not None:
                 await self.run_saver(path=log_path, save_state=not log_inc, wait=False)
@@ -2630,10 +2651,10 @@ class Server:
             # Link up our "user_*" code
             for d in dir(self):
                 if d.startswith("user_"):
-                    self.spawn(self.monitor, d[5:], delay)
+                    await self.spawn(self.monitor, d[5:], delay)
 
             await delay3.wait()
-            self.spawn(self.watcher)
+            await self.spawn(self.watcher)
 
             if self._init is not NotGiven:
                 assert self.node.tick is None
@@ -2641,10 +2662,10 @@ class Server:
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init, tock=self.tock, server=self)
 
-            self.spawn(self._sigterm)
+            await self.spawn(self._sigterm)
 
             # send initial ping
-            self.spawn(self._pinger, delay2)
+            await self.spawn(self._pinger, delay2)
 
             await anyio.sleep(0.1)
             delay.set()
@@ -2693,7 +2714,9 @@ class Server:
             self.logger.debug("XX %d closed", c._client_nr)
         except BaseException as exc:
             CancelExc = anyio.get_cancelled_exc_class()
-            if isinstance(exc, ExceptionGroup):
+            if hasattr(exc, "split"):
+                exc = exc.split(CancelExc)[1]
+            elif hasattr(exc, "filter"):
                 # pylint: disable=no-member
                 exc = exc.filter(lambda e: None if isinstance(e, CancelExc) else e, exc)
             if exc is not None and not isinstance(exc, CancelExc):
@@ -2704,11 +2727,10 @@ class Server:
             if exc is None:
                 exc = "Cancelled"
             try:
-                with anyio.move_on_after(2) as cs:
-                    cs.shield = True
+                with anyio.move_on_after(2, shield=True):
                     if c is not None:
                         await c.send({"error": str(exc)})
-            except Exception:
+            except (anyio.BrokenResourceError, anyio.ClosedResourceError):
                 pass
         finally:
             with anyio.move_on_after(2, shield=True):

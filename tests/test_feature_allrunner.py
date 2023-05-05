@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.trio
 async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=200) as st:
+        assert st is not None
         async with st.client() as c:
             await ErrorRoot.as_handler(c)
             cr = await CodeRoot.as_handler(c)
@@ -41,7 +42,9 @@ async def test_83_run(autojump_clock):  # pylint: disable=unused-argument
                 with trio.fail_after(200):
                     await c._test_evt.wait()
             finally:
-                await st.run("data : get -rd_", do_stdout=False)
+                # this might block due to previous error
+                with anyio.fail_after(2):
+                    await st.run("data : get -rd_", do_stdout=False)
             await trio.sleep(11)
 
             logger.info("End sleep")

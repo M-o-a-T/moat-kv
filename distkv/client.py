@@ -17,6 +17,7 @@ from moat.util import (
     DelayedRead,
     DelayedWrite,
     NotGiven,
+    OptCtx,
     PathLongener,
     ValueEvent,
     attrdict,
@@ -73,45 +74,49 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(_main_name="_distkv_client", **cfg):
+async def open_client(_main_name="distkv.client", **cfg):
     """
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the connection should fail.
-
-    The client connection is run within a separate `asyncscope.ScopeSet`.
-    If you're already using asyncscope in your code, you should use
-    `client_scope` instead.
     """
-    async with main_scope(name=_main_name):
-        client = await client_scope(**cfg)
-        yield client
-        pass  # end _connected
-    pass  # end client
+
+    async with OptCtx(main_scope(name=_main_name) if scope.get() is None else None):
+        yield await client_scope(**cfg)
 
 
-async def client_scope(**cfg):
+async def _scoped_client(_name=None, **cfg):
     """
-    Return the opened client connection, by way of an asyncscope service.
+    AsyncScope service for a client connection.
+    """
+    client = Client(cfg)
+    async with client._connected() as client:
+        scope.register(client)
+        await scope.wait_no_users()
+
+
+_cid = 0
+
+
+async def client_scope(_name=None, **cfg):
+    """
+    Returns an opened client connection, by way of an asyncscope service.
 
     The configuration's 'connect' dict may include a name to disambiguate
-    multiple connections. This name must not be equal to your main code's.
+    multiple connections.
 
     There is no attempt to reconnect if the connection should fail.
     """
 
-    async def _mgr(cfg):
-        client = Client(cfg)
-        async with client._connected() as client:
-            scope.register(client)
-            await scope.no_more_dependents()
-            pass  # end _connected
-
-    name = cfg["connect"].get("name", None)
-    if name is None:
-        name = "_conn"  # MUST NOT be the same as in open_client
-    res = await scope.service(name, _mgr, cfg)
-    return res
+    if _name is None:
+        _name = cfg["connect"].get("name", "conn")
+        if _name is None:
+            global _cid
+            _cid += 1
+            _name = f"_{_cid}"
+            # uniqueness required for testing.
+            # TODO replace with a dependency on the test server.
+    return await scope.service(f"distkv.client.{_name}", _scoped_client, _name=_name, **cfg)
 
 
 class StreamedRequest:
@@ -157,7 +162,7 @@ class StreamedRequest:
 
     async def _send_ack(self, seq):
         msg = dict(seq=self.seq, state="ack", ack=seq)
-        logger.debug("Send %s", msg)
+        self._client.logger.debug("Send %s", msg)
         await self._client._send(**msg)
 
     async def set(self, msg):
@@ -174,7 +179,7 @@ class StreamedRequest:
             except anyio.BrokenResourceError:
                 raise cls(msg.error)
             return
-        logger.debug("Reply %s", msg)
+        self._client.logger.debug("Reply %s", msg)
         state = msg.get("state", "")
 
         if state == "start":
@@ -192,7 +197,7 @@ class StreamedRequest:
             self._reply_stream = None
             self.end_msg = msg
             if self.qr is not None:
-                await self.qr.close_sender()
+                self.qr.close_sender()
             return False
 
         elif state == "ack":
@@ -213,7 +218,7 @@ class StreamedRequest:
             except (anyio.BrokenResourceError, anyio.ClosedResourceError):
                 logger.warning("Reader for %s closed: %s", self.seq, msg)
             if self._reply_stream is False:
-                await self.qr.close_sender()
+                self.qr.close_sender()
 
     async def get(self):
         """Receive a single reply"""
@@ -244,7 +249,7 @@ class StreamedRequest:
         return res
 
     async def send(self, **msg):
-        # logger.debug("Send %s", msg)
+        # self._client.logger.debug("Send %s", msg)
         if not self._open:
             if self._stream:
                 msg["state"] = "start"
@@ -255,7 +260,7 @@ class StreamedRequest:
         if self.dw is not None:
             msg["wseq"] = await self.dw.next_seq()
         msg["seq"] = self.seq
-        logger.debug("Send %s", msg)
+        self._client.logger.debug("Send %s", msg)
         await self._client._send(**msg)
 
     async def recv(self):
@@ -279,19 +284,19 @@ class StreamedRequest:
         try:
             if self._stream:
                 msg = dict(seq=self.seq, state="end")
-                # logger.debug("SendE %s", msg)
+                # self._client.logger.debug("SendE %s", msg)
                 await self._client._send(**msg)
             if self._open:
                 msg = dict(action="stop", task=self.seq)
-                # logger.debug("SendC %s", msg)
+                # self._client.logger.debug("SendC %s", msg)
                 try:
                     await self._client._request(**msg, _async=True)
                 except ServerClosedError:
                     pass
                 # ignore the reply
         finally:
-            await self.qr.close_sender()
-            await self.qr.close_receiver()
+            self.qr.close_sender()
+            self.qr.close_receiver()
 
 
 class _SingleReply:
@@ -409,6 +414,7 @@ class Client:
         self._send_lock = anyio.Lock()
         self._helpers = {}
         self._name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
+        self.logger = logging.getLogger(f"distkv.client.{self._name}")
 
     @property
     def name(self):
@@ -499,7 +505,7 @@ class Client:
             try:
                 while True:
                     for msg in unpacker:
-                        # logger.debug("Recv %s", msg)
+                        # self.logger.debug("Recv %s", msg)
                         try:
                             await self._handle_msg(msg)
                         except ClosedResourceError as exc:
@@ -568,14 +574,14 @@ class Client:
         res = _SingleReply(self, seq, params)
         self._handlers[seq] = res
 
-        logger.debug("Send %s", params)
+        self.logger.debug("Send %s", params)
         await self._send(**params)
         if _async:
             return res
 
         res = await res.get()
         if isinstance(res, dict):
-            logger.debug("Result %s", res)
+            self.logger.debug("Result %s", res)
 
         if iter is True and not isinstance(res, StreamedRequest):
 
@@ -635,7 +641,7 @@ class Client:
         self._seq += 1
         seq = self._seq
 
-        # logger.debug("Send %s", params)
+        # self.logger.debug("Send %s", params)
         if self._handlers is None:
             raise ClosedResourceError("Closed already")
         res = StreamedRequest(self, seq, stream=stream)
@@ -698,7 +704,7 @@ class Client:
         init_timeout = cfg["init_timeout"]
         ssl = gen_ssl(cfg["ssl"], server=False)
 
-        # logger.debug("Conn %s %s",self.host,self.port)
+        # self.logger.debug("Conn %s %s",self.host,self.port)
         try:
             ctx = await anyio.connect_tcp(host, port)
         except socket.gaierror:
@@ -717,7 +723,7 @@ class Client:
                     await self.scope.spawn(self._reader)
                     with anyio.fail_after(init_timeout):
                         self._server_init = msg = await hello.get()
-                        logger.debug("Hello %s", msg)
+                        self.logger.debug("Hello %s", msg)
                         self.server_name = msg.node
                         self.client_name = cfg["name"] or socket.gethostname() or self.server_name
                         if "qlen" in msg:
