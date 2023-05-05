@@ -98,7 +98,6 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 mock.patch("asyncserf.serf_client", new=partial(mock_serf_client, st))
             )
 
-
             for i in range(n):
                 name = "test_" + str(i)
                 args = kw.get(name, kw.get("args", attrdict()))
@@ -128,7 +127,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
             async def with_serf(s, *a, **k):
                 s._scope = scope.get()
-                return await s._scoped_serve(*a,**k)
+                return await s._scoped_serve(*a, **k)
 
             evts = []
             for i in range(n):
@@ -150,10 +149,10 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
 
 @asynccontextmanager
 async def mock_serf_client(master, **cfg):
-    async with scope.using_scope() as sc:
+    async with scope.using_scope():
         ms = MockServ(master, **cfg)
         master.serfs.add(ms)
-        ms._scope = scope.get()
+        ms._scope = scope.get()  # pylint:disable=attribute-defined-outside-init
         try:
             yield ms
         finally:

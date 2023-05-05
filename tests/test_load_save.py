@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 import anyio
 import pytest

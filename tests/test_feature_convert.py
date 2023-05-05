@@ -2,8 +2,8 @@ import logging
 
 import pytest
 import trio
-from moat.util import P, PathLongener
 from asyncscope import scope
+from moat.util import P, PathLongener
 
 from distkv.auth import loader
 from distkv.client import ServerError
@@ -27,7 +27,6 @@ async def collect(i, path=()):
 async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
     async with stdtest(args={"init": 123}, tocks=100) as st:
         assert st is not None
-        (s,) = st.s
         async with st.client() as c:
             await c._request(
                 "set_internal",

@@ -1222,7 +1222,12 @@ class ServerClient:
 
                 try:
                     buf = await self.stream.receive(4096)
-                except (anyio.EndOfStream, anyio.ClosedResourceError, anyio.BrokenResourceError, ConnectionResetError):
+                except (
+                    anyio.EndOfStream,
+                    anyio.ClosedResourceError,
+                    anyio.BrokenResourceError,
+                    ConnectionResetError,
+                ):
                     self.logger.info("DEAD %d", self._client_nr)
                     break
                 if len(buf) == 0:  # Connection was closed.
@@ -1242,7 +1247,9 @@ class ServerClient:
 class _RecoverControl:
     _id = 0
 
-    def __init__(self, server, scope, prio, local_history, sources):
+    def __init__(
+        self, server, scope, prio, local_history, sources  # pylint:disable=redefined-outer-name
+    ):
         self.server = server
         self.scope = scope
         self.prio = prio
@@ -2196,13 +2203,13 @@ class Server:
         """
         Recover from a network split.
         """
-        with anyio.CancelScope() as scope:
+        with anyio.CancelScope() as cs:
             for node in sources:
                 if node not in self._recover_tasks:
                     break
             else:
                 return
-            t = _RecoverControl(self, scope, prio, local_history, sources)
+            t = _RecoverControl(self, cs, prio, local_history, sources)
             self.logger.debug(
                 "SplitRecover %d: start %d %s local=%r remote=%r",
                 t._id,
@@ -2720,7 +2727,7 @@ class Server:
             if exc is None:
                 exc = "Cancelled"
             try:
-                with anyio.move_on_after(2, shield=True) as cs:
+                with anyio.move_on_after(2, shield=True):
                     if c is not None:
                         await c.send({"error": str(exc)})
             except (anyio.BrokenResourceError, anyio.ClosedResourceError):

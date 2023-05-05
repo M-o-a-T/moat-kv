@@ -180,7 +180,7 @@ async def _state_fix(obj, state, state_only, path, r):
 async def list_(obj, state, state_only, table, as_dict):
     """List run entries."""
     if table and state:
-        click.UsageError("'--table' and '--state' are mutually exclusive")
+        raise click.UsageError("'--table' and '--state' are mutually exclusive")
 
     path = obj.jobpath
 

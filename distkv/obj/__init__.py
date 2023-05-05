@@ -441,7 +441,7 @@ class ClientRoot(ClientEntry):
 
         if name is None:
             if key != "prefix":
-                subpath=(key,)+subpath
+                subpath = (key,) + subpath
             name = str(Path("_distkv", client.name, cls.CFG, *subpath))
 
         def make():
@@ -595,5 +595,5 @@ class ClientRoot(ClientEntry):
         await e.wait()
 
     async def spawn(self, p, *a, **kw):
-        p = partial(p,*a,**kw)
+        p = partial(p, *a, **kw)
         self._tg.start_soon(p)

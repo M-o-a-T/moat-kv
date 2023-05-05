@@ -97,6 +97,7 @@ async def _scoped_client(_name=None, **cfg):
 
 _cid = 0
 
+
 async def client_scope(_name=None, **cfg):
     """
     Returns an opened client connection, by way of an asyncscope service.

@@ -98,10 +98,10 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                     scope.register(srv)
                     await scope.no_more_dependents()
 
-            async def with_broker(s,*a,**k):
+            async def with_broker(s, *a, **k):
                 await scope.service("moat.mqtt.broker", run_broker, broker_cfg)
                 s._scope = scope.get()
-                return await s._scoped_serve(*a,**k)
+                return await s._scoped_serve(*a, **k)
 
             args_def = kw.get("args", attrdict())
             for i in range(n):
