@@ -22,7 +22,7 @@ setup(
         "attrs >= 20",
         "asyncserf >= 0.16",
         "asyncactor >= 0.21",
-        "asyncscope >= 0.7",
+        "asyncscope >= 0.10.4",
         "jsonschema >= 2.5",
         "ruyaml >= 0.89",
         # "argon2 >= 18.3",

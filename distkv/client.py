@@ -17,6 +17,7 @@ from moat.util import (
     DelayedRead,
     DelayedWrite,
     NotGiven,
+    OptCtx,
     PathLongener,
     ValueEvent,
     attrdict,
@@ -78,35 +79,33 @@ async def open_client(_main_name="distkv.client", **cfg):
     This async context manager returns an opened client connection.
 
     There is no attempt to reconnect if the connection should fail.
-
-    The client connection is run within a separate `asyncscope.ScopeSet`.
-    If you're already using asyncscope in your code, you should use
-    `client_scope` instead.
     """
-    async with main_scope(name=_main_name):
-        client = await client_scope(**cfg)
-        yield client
-        pass  # end _connected
-    pass  # end client
+
+    async with OptCtx(main_scope(name=_main_name) if scope.get() is None else None):
+        yield await client_scope(**cfg)
+
+
+async def _scoped_client(_name=None, **cfg):
+    """
+    AsyncScope service for a client connection.
+    """
+    client = Client(cfg)
+    async with client._connected() as client:
+        scope.register(client)
+        await scope.wait_no_users()
+
 
 _cid = 0
 
 async def client_scope(_name=None, **cfg):
     """
-    Return the opened client connection, by way of an asyncscope service.
+    Returns an opened client connection, by way of an asyncscope service.
 
     The configuration's 'connect' dict may include a name to disambiguate
-    multiple connections. This name must not be equal to your main code's.
+    multiple connections.
 
     There is no attempt to reconnect if the connection should fail.
     """
-
-    async def _mgr(cfg):
-        client = Client(cfg)
-        async with client._connected() as client:
-            scope.register(client)
-            await scope.no_more_dependents()
-            pass  # end _connected
 
     if _name is None:
         _name = cfg["connect"].get("name", "conn")
@@ -116,8 +115,7 @@ async def client_scope(_name=None, **cfg):
             _name = f"_{_cid}"
             # uniqueness required for testing.
             # TODO replace with a dependency on the test server.
-    res = await scope.service(f"distkv.client.{_name}", _mgr, cfg)
-    return res
+    return await scope.service(f"distkv.client.{_name}", _scoped_client, _name=_name, **cfg)
 
 
 class StreamedRequest:

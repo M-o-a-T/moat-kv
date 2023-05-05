@@ -1571,9 +1571,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
-                async with scope.using_service(
-                    f"distkv.sync.{self.node.name}", distkv_client.client_scope, connect=cfg
-                ) as client:
+                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
+                    client = await distkv_client.client_scope(connect=cfg)
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -2059,9 +2058,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.info("Sync: connecting: %s", cfg)
-                async with scope.using_service(
-                    f"distkv.sync.{self.node.name}", distkv_client.client_scope, connect=cfg
-                ) as client:
+                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
+                    client = await distkv_client.client_scope(connect=cfg)
                     # TODO auth this client
 
                     pl = PathLongener(())
@@ -2564,6 +2562,12 @@ class Server:
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
 
+    async def _scoped_serve(self, *a, **kw):
+        """Like `serve`, but can be run via `scope.spawn_service`."""
+        t = await scope.spawn(self.serve, *a, **kw)
+        scope.register(self)
+        await scope.wait_no_users()
+        t.cancel()
 
     async def spawn(self, p, *a, **k):
         """

@@ -52,7 +52,6 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         logger.debug("SAVED")
         pass  # server end
 
-    logger.debug("NEXT")
     for m in msgs:
         m.pop("tock", None)
         m.pop("seq", None)
@@ -76,7 +75,7 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         logger.debug("LOADED")
 
         evt = anyio.Event()
-        await scope.spawn(partial(st.s[0].serve, ready_evt=evt))
+        await st.run_0(ready_evt=evt)
         await evt.wait()
 
         logger.debug("RUNNING")
