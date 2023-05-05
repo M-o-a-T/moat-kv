@@ -89,6 +89,7 @@ async def open_client(_main_name="_distkv_client", **cfg):
         pass  # end _connected
     pass  # end client
 
+_cid = 0
 
 async def client_scope(_name=None, **cfg):
     """
@@ -109,6 +110,12 @@ async def client_scope(_name=None, **cfg):
 
     if _name is None:
         _name = cfg["connect"].get("name", "conn")
+        if _name is None:
+            global _cid
+            _cid += 1
+            _name = f"_{_cid}"
+            # uniqueness required for testing.
+            # TODO replace with a dependency on the test server.
     res = await scope.service(f"_distkv_client_{_name}", _mgr, cfg)
     return res
 

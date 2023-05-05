@@ -48,7 +48,7 @@ CFG = attrdict(
         # ssl=attrdict(cert='/path/to/cert.pem',key='/path/to/cert.key'),
         init_timeout=5,  # time to wait for connection plus greeting
         auth=None,  # no auth used by default
-        name=None,  # defaults to the server's name
+        name=None,  # defaults to a seqnum
     ),
     config=attrdict(prefix=P(":.distkv.config")),
     errors=attrdict(prefix=P(":.distkv.error")),
