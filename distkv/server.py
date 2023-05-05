@@ -1917,7 +1917,7 @@ class Server:
                 # self.logger.debug("IN %r",msg)
 
                 if isinstance(msg, RecoverEvent):
-                    self.spawn(
+                    await self.spawn(
                         self.recover_split,
                         msg.prio,
                         msg.replace,
@@ -1926,7 +1926,7 @@ class Server:
                     )
 
                 elif isinstance(msg, GoodNodeEvent):
-                    self.spawn(self.fetch_data, msg.nodes)
+                    await self.spawn(self.fetch_data, msg.nodes)
 
                 elif isinstance(msg, RawMsgEvent):
                     msg = msg.msg
@@ -2121,7 +2121,7 @@ class Server:
                     self.fetch_running = False
                     for nm in self.fetch_missing:
                         self.logger.error("Sync: missing: %s %s", nm.name, nm.local_missing)
-                    self.spawn(self.do_send_missing)
+                    await self.spawn(self.do_send_missing)
                 if self.force_startup or not len(self.fetch_missing):
                     if self.node.tick is None:
                         self.node.tick = 0
@@ -2284,7 +2284,7 @@ class Server:
 
         if self.sending_missing is None:
             self.sending_missing = True
-            self.spawn(self._send_missing_data, prio)
+            await self.spawn(self._send_missing_data, prio)
         elif not self.sending_missing:
             self.sending_missing = True
 
@@ -2533,7 +2533,7 @@ class Server:
         done = ValueEvent() if wait else None
         res = None
         if path is not None:
-            self.spawn(
+            await self.spawn(
                 partial(self._saver, path=path, stream=stream, save_state=save_state, done=done)
             )
             if wait:
@@ -2563,6 +2563,13 @@ class Server:
     async def is_serving(self):
         """Await this to determine if/when the server is serving clients."""
         await self._ready2.wait()
+
+
+    async def spawn(self, p, *a, **k):
+        """
+        Start a task. We recycle the backend's taskgroup for convenience.
+        """
+        self.backend._tg.start_soon(p, *a, **k)
 
     async def serve(self, log_path=None, log_inc=False, force=False, ready_evt=None):
         """Task that opens a backend connection and actually runs the server.
@@ -2606,7 +2613,6 @@ class Server:
             self._ready2 = anyio.Event()
 
             self.backend = backend
-            self.spawn = backend.spawn
 
             # Sync recovery steps so that only one node per branch answers
             self._recover_event1 = None
@@ -2625,8 +2631,8 @@ class Server:
             delay2 = anyio.Event()
             delay3 = anyio.Event()
 
-            self.spawn(self._run_del, delay3)
-            self.spawn(self._delete_also)
+            await self.spawn(self._run_del, delay3)
+            await self.spawn(self._delete_also)
 
             if log_path is not None:
                 await self.run_saver(path=log_path, save_state=not log_inc, wait=False)
@@ -2634,10 +2640,10 @@ class Server:
             # Link up our "user_*" code
             for d in dir(self):
                 if d.startswith("user_"):
-                    self.spawn(self.monitor, d[5:], delay)
+                    await self.spawn(self.monitor, d[5:], delay)
 
             await delay3.wait()
-            self.spawn(self.watcher)
+            await self.spawn(self.watcher)
 
             if self._init is not NotGiven:
                 assert self.node.tick is None
@@ -2645,10 +2651,10 @@ class Server:
                 async with self.next_event() as event:
                     await self.root.set_data(event, self._init, tock=self.tock, server=self)
 
-            self.spawn(self._sigterm)
+            await self.spawn(self._sigterm)
 
             # send initial ping
-            self.spawn(self._pinger, delay2)
+            await self.spawn(self._pinger, delay2)
 
             await anyio.sleep(0.1)
             delay.set()

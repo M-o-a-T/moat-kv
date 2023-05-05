@@ -3,6 +3,7 @@ import logging
 import pytest
 import trio
 from moat.util import P, PathLongener
+from asyncscope import scope
 
 from distkv.auth import loader
 from distkv.client import ServerError
@@ -67,7 +68,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
                         recv.append(m)
 
         evt = trio.Event()
-        s.spawn(mon, evt)
+        await scope.spawn(mon, evt)
         await evt.wait()
         async with st.client(auth=um.build({"name": "con"})) as c:
             await c.set(P("inty.ten"), value="10")
