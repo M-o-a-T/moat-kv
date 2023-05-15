@@ -53,7 +53,7 @@ from moat.util import (
 from range_set import RangeSet
 
 from . import _version_tuple
-from . import client as moat.kv_client  # needs to be mock-able
+from . import client as moatkv_client  # needs to be mock-able
 from .actor.deletor import DeleteActor
 from .backend import get_backend
 from .codec import packer, stream_unpacker, unpacker
@@ -1579,7 +1579,7 @@ class Server:
 
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
-                    client = await moat.kv_client.client_scope(connect=cfg)
+                    client = await moat_kv_client.client_scope(connect=cfg)
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -2066,7 +2066,7 @@ class Server:
 
                 self.logger.info("Sync: connecting: %s", cfg)
                 async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
-                    client = await moat.kv_client.client_scope(connect=cfg)
+                    client = await moat_kv_client.client_scope(connect=cfg)
                     # TODO auth this client
 
                     pl = PathLongener(())
