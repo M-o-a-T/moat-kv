@@ -393,7 +393,7 @@ will always be missing.
 Examples
 ========
 
-You can turn on message debugging with 'moat.kv -vvv'.
+You can turn on message debugging with 'moat -vvv kv'.
 
 Get and set a value
 -------------------
@@ -442,7 +442,7 @@ you can retrieve the whole subtree::
     Recv {'value': 1, 'path': ('bar', 'baz'), 'depth': 1, 'seq': 1}
     Recv {'seq': 1, 'state': 'end'}
 
-Retrieving this tree with ``moat.kv client get -rd ':val' test`` would print::
+Retrieving this tree with ``moat kv test get -rd ':val'`` would print::
 
     test:
       :val: 1

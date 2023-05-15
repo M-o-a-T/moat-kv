@@ -11,64 +11,13 @@ be used directly after the (sub)command affected by them.
 moat.kv
 ======
 
-.. program:: moat.kv
+.. program:: moat kv
 
 The main entry point for all commands.
 
 Use the option ``--help`` to show that (sub)command's detailed information.
 
 Options used only for testing are not shown in the commands' help text.
-
-.. option:: -v, --verbose
-
-   Increase debugging verbosity. Broadly speaking, the default is
-   ``ERROR``; this option selects ``WARNING``, ``INFO`` or ``DEBUG``
-   depending on how often you use it.
-
-.. option:: -q, --quiet
-
-   Decrease debugging verbosity: the opposite of :option:`moat.kv -v`,
-   reducing the verbosity to ``FATAL``.
-
-.. option:: -l, --log <source=LEVEL>
-
-   You can selectively adjust debugging verbosity if you need to print, or
-   ignore, some types of messages. Example: ``moat.kv -vvv --log
-   asyncactor=ERROR server NAME`` would suppress most chattiness of the
-   Actor that's responsible for inter-server synchronization.
-
-.. option:: -D, --debug
-
-   Some MoaT-KV methods, in particular cryptographic operations, are not
-   noted for their speed. This option reduces the bit count of these
-   options in order to speed them up significantly.
-
-   It also reduces their security unacceptably. Thus, this option should
-   only used while debugging.
-
-.. option:: -c, --cfg <FILE>
-
-   Specify a YAML configuration file.
-
-   Data in this file override the corresponding entries in the
-   ``moat.kv.defaults.CFG`` directory.
-
-   The config will be loaded from the first of these files, assuming it's
-   readable:
-
-   * ~/config/moat.kv.cfg
-   * ~/.config/moat.kv.cfg
-   * ~/.moat.kv.cfg
-   * /etc/moat.kv/moat.kv.cfg
-   * /etc/moat.kv.cfg
-
-   If you don't want to read any config file, use ``/dev/null``.
-
-.. option:: -C, --conf <location=value>
-   
-   Set a specific configuration value.
-   This option takes precedence over :option:`moat.kv -c`.
-
 
 .. program:: moat.kv server
 
@@ -92,7 +41,7 @@ it from the default of ``27589``, or use a configuration file.
 
    Log all changes to this file. This includes the initial data.
 
-   This option is only used for testing. Use ``moat.kv client log dest`` in
+   This option is only used for testing. Use ``moat kv log dest`` in
    production use.
 
 .. option:: -i, --incremental
@@ -100,7 +49,7 @@ it from the default of ``27589``, or use a configuration file.
    Don't write the complete state to the save file.
 
    This option is of limited usefulness and only used for testing.
-   Use ``moat.kv client log dest -i`` in production.
+   Use ``moat kv log dest -i`` in production.
 
 A network of servers needs to contain some data before it becomes
 operational. When starting the first server, you can use an initial 
@@ -118,7 +67,7 @@ operational. When starting the first server, you can use an initial
 
    This option is only used for testing.
 
-You can also use :program:`moat.kv client data set` to update this value
+You can also use :program:`moat kv data set` to update this value
 later.
 
 .. option:: name
@@ -160,7 +109,7 @@ This subcommand collects all sub-subcommand which talk to a MoaT-KV server.
    entry or entries in question. This allows you to safely modify a value.
 
 
-.. program:: moat.kv client data
+.. program:: moat kv data
 
 Basic data access.
 
@@ -169,7 +118,7 @@ Basic data access.
    Access the entry at this location.
 
 
-.. program:: moat.kv client data get
+.. program:: moat kv data get
 
 Read a MoaT-KV value.
 
@@ -212,11 +161,11 @@ for incremental output.
    and its immediate children.
 
 
-.. program:: moat.kv client data list
+.. program:: moat kv data list
 
 List MoaT-KV values.
 
-This command is basically like ``moat.kv client data ‹path› get``, except that
+This command is basically like ``moat kv data ‹path› get``, except that
 ``--recursive`` and ``empty`` are always set. ``mindepth`` and ``maxdepth``
 default to 1.
 
@@ -251,7 +200,7 @@ default to 1.
    and its immediate children.
 
 
-.. program:: moat.kv client data set
+.. program:: moat kv data set
 
 Store a value at some MoaT-KV position.
 
@@ -289,7 +238,7 @@ accidentally overwrite something.
    This value is also affected by ``--eval``.
 
 
-.. program:: moat.kv client data delete
+.. program:: moat kv data delete
 
 Delete the value at some MoaT-KV position.
 
@@ -317,7 +266,7 @@ Recursive changes only check the entry you mention on the command line.
    This value is also affected by ``--eval``.
 
 
-.. program:: moat.kv client data monitor
+.. program:: moat kv data monitor
 
 Monitor changes to the state of an entry, or rather its subtree.
 
@@ -348,7 +297,7 @@ Monitor changes to the state of an entry, or rather its subtree.
    The default is to use YAML.
 
 
-.. program:: moat.kv client data update
+.. program:: moat kv data update
 
 Stream a list of changes from standard input to MoaT-KV. Paths in the data
 set are interpreted relative to the path given.
@@ -360,18 +309,18 @@ set are interpreted relative to the path given.
    The default is to use YAML. XXX TODO
 
 
-.. program:: moat.kv client control
+.. program:: moat kv control
 
 Control your server.  XXX TODO
 
 
-.. program:: moat.kv client log
+.. program:: moat kv log
 
 
 Control logging of changes on the server.
 
 
-.. program:: moat.kv client log dest
+.. program:: moat kv log dest
 
 Set the file to log to. The old file is closed as soon as the new file is
 ready (i.e. the current state is saved).
@@ -385,7 +334,7 @@ ready (i.e. the current state is saved).
    The file to write to. Note that this file is on the server.
 
 
-.. program:: moat.kv client log save
+.. program:: moat kv log save
 
 Save the current state of the server to this file.
 
@@ -394,12 +343,12 @@ Save the current state of the server to this file.
    The file to write to. Note that this file is on the server.
 
 
-.. program:: moat.kv client log stop
+.. program:: moat kv log stop
 
 Stop logging.
 
 
-.. program:: moat.kv client auth
+.. program:: moat kv auth
 
 Set up and change client authorization.
 
@@ -411,7 +360,7 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
    Affect the named method.
 
    MoaT-KV supports multiple authorization methods. The default is the one
-   that has been changed to with ``moat.kv client auth init``.
+   that has been changed to with ``moat kv auth init``.
    
    If you want to do anything with authorization, you'll need to use this
    flag to set up the initial users.
@@ -419,7 +368,7 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
    See `Auth`.
 
 
-.. program:: moat.kv client auth init
+.. program:: moat kv auth init
 
 Set up this method.
 
@@ -429,25 +378,25 @@ Set up this method.
    set-up.
 
 
-.. program:: moat.kv client auth list
+.. program:: moat kv auth list
 
 List configured auth methods.
 
 XXX TODO
 
 
-.. program:: moat.kv client auth user
+.. program:: moat kv auth user
 
 Manage MoaT-KV users.
 
 Each authorization method has its own schema for validating users.
 
 
-.. program:: moat.kv client auth user add <key>=<value>…
+.. program:: moat kv auth user add <key>=<value>…
 
 Add a new user.
 
-Example: ``moat.kv client -a root auth -m password user add name=foo password=barbaz``
+Example: ``moat kv -a root auth -m password user add name=foo password=barbaz``
 
 The identifier which you'd use to subsequently refer to that user is
 printed when this command completes.
@@ -459,7 +408,7 @@ printed when this command completes.
    terminal (without echo) so that it won't show up in your history.
 
 
-.. program:: moat.kv client auth user mod <ident> <key>=<value>…
+.. program:: moat kv auth user mod <ident> <key>=<value>…
 
 Modify a user.
 
@@ -471,7 +420,7 @@ Modify a user.
    Set an auth-specific parameter.
 
 
-.. program:: moat.kv client auth user param <ident> <type> <key>
+.. program:: moat kv auth user param <ident> <type> <key>
 
 Modify a user's setting.
 
@@ -486,11 +435,11 @@ Modify a user's setting.
 .. option:: <key>
 
    The type-dependent setting to use as stored in MoaT-KV. For ACLs the
-   relevant record is added with ``moat.kv client acl set <key> …``, for data
-   conversion ``moat.kv client codec convert <key> …``.
+   relevant record is added with ``moat kv acl set <key> …``, for data
+   conversion ``moat kv codec convert <key> …``.
 
 
-.. program:: moat.kv client auth user auth
+.. program:: moat kv auth user auth
 
 Check that authorizing a user works.
 
@@ -498,10 +447,10 @@ XXX TODO seems broken
 
 .. option:: options…
 
-   Whichever auth options you'd normally use in ``moat.kv client -a TYPE …``.
+   Whichever auth options you'd normally use in ``moat kv -a TYPE …``.
 
 
-.. program:: moat.kv client auth user get
+.. program:: moat kv auth user get
 
 Dump data of a user.
 
@@ -514,21 +463,21 @@ The chain length to return, for subsequent modification.
    The user identifier, as reported by ``add``.
 
 
-.. program:: moat.kv client auth user list
+.. program:: moat kv auth user list
 
 List users.
 
 XXX TODO add verbosity
 
 
-.. program:: moat.kv client type
+.. program:: moat kv type
 
 Set up MoaT-KV's type control: verify the data that clients write.
 
 See :doc:`translator` for details.
 
 
-.. program:: moat.kv client type get
+.. program:: moat kv type get
 
 Retrieve a type entry.
 
@@ -549,7 +498,7 @@ Retrieve a type entry.
    The type data to retrieve.
 
 
-.. program:: moat.kv client type set
+.. program:: moat kv type set
 
 Add or modify a type entry.
 
@@ -563,8 +512,8 @@ percent" must be accepted by "int".
 Tests can use Python code, a JSON schema, or both. In the latter case the
 schema is tested first.
 
-To modify a record, use ``moat.kv client type get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``moat.kv client type set -d <tempfile> <path>…``.
+To modify a record, use ``moat kv type get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv type set -d <tempfile> <path>…``.
 
 .. option:: -y, --yaml
 
@@ -595,7 +544,7 @@ the tempfile, then restore with ``moat.kv client type set -d <tempfile> <path>�
    The type data to set.
 
 
-.. program:: moat.kv client type match
+.. program:: moat kv type match
 
 Read, set or delete type matches, i.e. which part of your MoaT-KV tree is
 constricted by which type.
@@ -615,7 +564,7 @@ constricted by which type.
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: moat.kv client codec
+.. program:: moat kv codec
 
 Set up codecs: manipulate the data that clients see, sort of like a
 database view.
@@ -630,7 +579,7 @@ assembling an entry's new value).
 Unlike types, the codec hierarchy is strictly for convenience.
 
 
-.. program:: moat.kv client codec get
+.. program:: moat kv codec get
 
 Retrieve information about a codec, including its scripts.
 
@@ -662,12 +611,12 @@ Retrieve information about a codec, including its scripts.
    exactly-one and one-or-more subpaths. The most specific path wins.
    
 
-.. program:: moat.kv client codec set
+.. program:: moat kv codec set
 
 Add or modify a codec.
 
-To modify a codec, use ``moat.kv client codec get <path>… > <tempfile>``, edit the
-tempfile, then restore with ``moat.kv client codec set -d <tempfile> <path>…``.
+To modify a codec, use ``moat kv codec get <path>… > <tempfile>``, edit the
+tempfile, then restore with ``moat kv codec set -d <tempfile> <path>…``.
 
 .. option:: -e, --encode <file>
 
@@ -707,7 +656,7 @@ tempfile, then restore with ``moat.kv client codec set -d <tempfile> <path>…``
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: moat.kv client codec convert
+.. program:: moat kv codec convert
 
 Read, set or delete codec matches, i.e. which part of your MoaT-KV tree is
 managed by which codec. To this effect, matches are tagged by a group name.
@@ -732,17 +681,17 @@ data are not converted.
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: moat.kv client acl
+.. program:: moat kv acl
 
 Manipulate access control lists stored in MoaT-KV.
 
 
-.. program:: moat.kv client acl list
+.. program:: moat kv acl list
 
 Generate a list of known ACLs.
 
 
-.. program:: moat.kv client acl get
+.. program:: moat kv acl get
 
 Retrieve the flags at a specific ACL path.
 
@@ -757,7 +706,7 @@ If the path does not contain any flags, print ``-``.
    The ACL path from which to retrieve the flags.
 
 
-.. program:: moat.kv client acl set
+.. program:: moat kv acl set
 
 Set the flags at a specific ACL path.
 
@@ -776,7 +725,7 @@ Set the flags at a specific ACL path.
    The ACL path to add or modify.
 
 
-.. program:: moat.kv client acl test
+.. program:: moat kv acl test
 
 Check whether an ACL allows access.
 
@@ -795,7 +744,7 @@ Check whether an ACL allows access.
    The path to check.
 
 
-.. program:: moat.kv client acl dump
+.. program:: moat kv acl dump
 
 Dump an ACL's content.
 
@@ -817,12 +766,12 @@ Dump an ACL's content.
    The path to start dumping at. Default: the root.
 
 
-.. program:: moat.kv client code
+.. program:: moat kv code
 
 Manipulate code stored in MoaT-KV.
 
 
-.. program:: moat.kv client code list
+.. program:: moat kv code list
 
 List code snippets stored in MoaT-KV.
 
@@ -870,7 +819,7 @@ List code snippets stored in MoaT-KV.
    List the code below this location.
 
 
-.. program:: moat.kv client code get
+.. program:: moat kv code get
 
 Retrieve Python code stored in the server.
 
@@ -883,15 +832,15 @@ Retrieve Python code stored in the server.
    Path to the code in question.
 
 
-.. program:: moat.kv client code set
+.. program:: moat kv code set
 
 Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
 
-To modify some code, use ``moat.kv client code get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``moat.kv client code set -d <tempfile> <path>…``.
+To modify some code, use ``moat kv code get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv code set -d <tempfile> <path>…``.
 
 .. option:: -d, --data <filename>
 
@@ -920,7 +869,7 @@ the tempfile, then restore with ``moat.kv client code set -d <tempfile> <path>�
 TODO: Old versions of the code continue to run; MoaT-KV does not yet restart users.
 
 
-.. program:: moat.kv client code module
+.. program:: moat kv code module
 
 Manipulate modules stored in MoaT-KV.
 
@@ -932,7 +881,7 @@ not deferred until "import" time. This code needs sever refactoring. For now, pl
 in the file system.
 
 
-.. program:: moat.kv client code module get
+.. program:: moat kv code module get
 
 Retrieve Python module stored in the server.
 
@@ -945,15 +894,15 @@ Retrieve Python module stored in the server.
    Path to the code in question.
 
 
-.. program:: moat.kv client code module set
+.. program:: moat kv code module set
 
 Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
 
-To modify a module, use ``moat.kv client code module get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``moat.kv client code module set -d <tempfile> <path>…``.
+To modify a module, use ``moat kv code module get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv code module set -d <tempfile> <path>…``.
 
 .. option:: -d, --data <filename>
 
@@ -965,14 +914,14 @@ the tempfile, then restore with ``moat.kv client code module set -d <tempfile> <
 
 .. option:: name…
 
-   The path to the code to set, below ``.moat.kv code proc`` or whatever
+   The path to the code to set, below ``.moat kv code proc`` or whatever
    else is configured under ``codes``.
 
 TODO: Old versions of the code continue to run; MoaT-KV does not yet restart users.
 
 
 
-.. program:: moat.kv client job
+.. program:: moat kv job
 
 Subcommand for controlling and executing code stored in MoaT-KV.
 
@@ -990,19 +939,19 @@ Subcommand for controlling and executing code stored in MoaT-KV.
    The default group is "all".
 
 
-.. program:: moat.kv client job run
+.. program:: moat kv job run
 
 This is the actual runner, i.e. the program that runs stored tasks.
 
 This program does not terminate.
 
 
-.. program:: moat.kv client job info
+.. program:: moat kv job info
 
 List available groups (or nodes, if ``-g -`` is used).
 
 
-.. program:: moat.kv client job list
+.. program:: moat kv job list
 
 List available run entries.
 
@@ -1030,12 +979,12 @@ The output is YAML-formatted unless ``-t`` is used.
    Limit listing to this prefix.
 
 
-.. program:: moat.kv client run get
+.. program:: moat kv run get
 
 Read a runner entry.
 
 
-.. program:: moat.kv client run set
+.. program:: moat kv run set
 
 Create or change a runner entry.
 
@@ -1072,16 +1021,16 @@ Create or change a runner entry.
    To retry a failure immediately, simply use ``--time now``.
 
 
-.. program:: moat.kv client internal
+.. program:: moat kv internal
 
 Subcommand for viewing and modifying the internal state of a MoaT-KV server.
 
 
-.. program:: moat.kv client internal dump
+.. program:: moat kv internal dump
 
 This command emits MoaT-KV's internal state.
 
-The output is comparable to ``moat.kv client data dump -rd_``, but for internal
+The output is comparable to ``moat kv data dump -rd_``, but for internal
 data.
 
 .. option:: <path> …
@@ -1089,7 +1038,7 @@ data.
    Path prefix for MoaT-KV's internal data structure.
 
 
-.. program:: moat.kv client internal state
+.. program:: moat kv internal state
 
 This command queries the internal state of a MoaT-KV server.
 
@@ -1133,7 +1082,7 @@ range but the end is not.
 See `Server protocol <server_protocol>` for details.
 
 
-.. program:: moat.kv client internal mark
+.. program:: moat kv internal mark
 
 Mark ticks as known or deleted. This is used to clean up the ``missing``
 range(s) when there's a consistency problem.
@@ -1160,7 +1109,7 @@ range(s) when there's a consistency problem.
    take the whole list, not just the ones for ``node``.
 
 
-.. program:: moat.kv client internal deleter
+.. program:: moat kv internal deleter
 
 Manage the list of nodes that collectively manage cleaning deleted entries from
 the MoaT-KV tree.
@@ -1180,17 +1129,17 @@ All of these nodes must be online for clean-up to work.
    nonexistent node to the list.
 
 
-.. program:: moat.kv client error
+.. program:: moat kv error
 
 Manage errors.
 
 
-.. program:: moat.kv clent error dump
+.. program:: moat kv error dump
 
 Show currently-logged errors.
 
 
-.. program:: moat.kv clent error resolve
+.. program:: moat kv error resolve
 
 Mark an error as handled.
 
@@ -1198,17 +1147,17 @@ MoaT-KV does this itself, usually, but not if the node which caused the
 problem is deleted.
 
 
-.. program:: moat.kv dump
+.. program:: moat kv dump
 
 Various low-level data handling commands.
 
 
-.. program:: moat.kv dump cfg
+.. program:: moat kv dump cfg
 
 Display the current configuration data.
 
 
-.. program:: moat.kv dump file
+.. program:: moat kv dump file
 
 Unpack a file and show its contents as YAML.
 
@@ -1217,7 +1166,7 @@ Unpack a file and show its contents as YAML.
    The name of the file to decode.
 
 
-.. program:: moat.kv dump init
+.. program:: moat kv dump init
 
 Create an initial data file.
 
@@ -1227,10 +1176,10 @@ Create an initial data file.
 
 .. option:: <file>
 
-   The file to write. Typically ``/var/lib/moat.kv/%Y-%m-%d/0.dkv``.
+   The file to write. Typically ``/var/lib/moat/kv/%Y-%m-%d/0.dkv``.
 
 
-.. program:: moat.kv dump msg NAME…
+.. program:: moat kv dump msg NAME…
 
 Monitor all back-end messages. (I.e. not just those from MoaT-KV.)
 Decodes MsgPack messages. Display as YAML.
@@ -1245,18 +1194,4 @@ Decodes MsgPack messages. Display as YAML.
    * ``+NAME``, to monitor this sub-stream instead
    * ``+`` to monitor all sub-streams (recursively; does not work with the
      Serf backend)
-
-
-.. program:: moat.kv pdb
-
-This subcommand imports the debugger and then continues to process arguments.
-
-This can be used to drop into the debugger when an exception occurs, set
-breakpoints, or whatever.
-
-.. note::
-
-   Stepping over async function calls may or may not work. If not, your
-   best bet is to set a breakpoint on the next line.
-
 

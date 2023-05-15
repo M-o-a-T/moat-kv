@@ -5,9 +5,9 @@ The MoaT-KV tutorial
 Installation
 ============
 
-This part is easy. ``pip install moat.kv``.
+This part is easy. ``pip install moat-kv``.
 
-You now have, or should have, a ``moat.kv`` command-line utility. If not,
+You now have, or should have, a ``moat`` command-line utility. If not,
 use this script::
 
    #!/usr/bin/env python3
@@ -15,43 +15,42 @@ use this script::
    import sys
    # sys.path[0:0] = (".", "../asyncserf")  # for development
 
-   from moat.kv.command import cmd
-   cmd()
+   import moat.__main__
 
 
 You also need a running `Serf <http://serf.io>` or `MQTT
-<https://mqtt.org>` message broker. (When in doubt, use MQTT.)
+<https://mqtt.org>` message broker.  When in doubt, use MQTT.)
 
 Start the server
 ================
 
 You start an initial server with this command::
 
-   $ moat.kv server -i Testing $(hostname)
+   $ moat kv server -i Testing $(hostname)
    Running.
 
 By default, your MoaT-KV server will talk to the local MQTT process.
 You can configure the destination by adapting the config file::
 
-   $ moat.kv -C server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
+   $ moat kv -C kv.server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
 
 You can now retrieve the root value::
 
-   $ moat.kv client data :
+   $ moat kv data :
    "Testing"
    $
 
 As the purpose of MoaT-KV is to be a *distributed* key-value storage, 
 you can start another server on a different host::
 
-   two $ moat.kv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
+   two $ moat kv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
    Running.
 
 
 This will take a few seconds for the servers to sync up with each other.
 You can verify that the second server has successfully synced up::
 
-   two $ moat.kv client data :
+   two $ moat kv data :
    "Testing"
    two $
 
@@ -60,8 +59,7 @@ MoaT-KV network.
 
 You can now kill the first server and restart it::
 
-   $ killall moat.kv
-   $ moat.kv server $(hostname)
+   $ moat kv server $(hostname)
    Running.
 
 You must **never** start a server with the ``-i`` option unless you're
@@ -75,19 +73,19 @@ Serf gossip bandwidth.
 Data commands
 =============
 
-You might want to add an alias for "moat.kv client data" so that you don't
+You might want to add an alias for "moat kv data" so that you don't
 have to type so much. In ``bash``::
 
-   $ dkd() { moat.kv client data "$@"; }
+   $ mkd() { moat kv data "$@"; }
 
 Then, you can store arbitrary data at random MoaT-KV nodes::
 
-   $ dkd one.two.three set -e : 123
-   $ dkd one.two.three.four set -e : 1234
-   $ dkd one.two.three.four.five set -v one XXX -e two 2
-   $ dkd one.two.three
+   $ mkd one.two.three set -e : 123
+   $ mkd one.two.three.four set -e : 1234
+   $ mkd one.two.three.four.five set -v one XXX -e two 2
+   $ mkd one.two.three
    123
-   $ dkd one.two.three.four.five
+   $ mkd one.two.three.four.five
    one: XXX
    two: 2
    $
@@ -98,8 +96,8 @@ Unicode strings, and lists/tuples/hashes composed of these.
 
 Stored values may be data structures, and you can selectively change them::
 
-   $ dkd one.two.three.four.five set -e one 1
-   $ dkd one.two.three.four.five
+   $ mkd one.two.three.four.five set -e one 1
+   $ mkd one.two.three.four.five
    one: 1
    two: 2
 
@@ -108,7 +106,7 @@ The colon we used after ``-e`` is the empty path. More about paths below.
 All entries' values are independent. MoaT-KV's storage is organized
 hierarchically, (among other reasons) for ease of retrieval::
 
-    $ dkd get -rd_ one
+    $ mkd one get -rd_
     two:
       three:
         _: 123
@@ -121,7 +119,7 @@ hierarchically, (among other reasons) for ease of retrieval::
     $
 
 MoaT-KV also stores some internal data, under a special ``null`` root key.
-You can use ``moat.kv client internal dump :`` to display them.
+You can use ``moat kv internal dump :`` to display them.
 
 Path specification
 ------------------
@@ -207,30 +205,53 @@ printed in decimal form. While you also could use ``:0x…`` in place of
 Persistent storage
 ==================
 
-MoaT-KV keeps everything in memory (for now). If you want your data to
-survive a power outage, you might want to tell your server to save them::
+MoaT-KV keeps everything in memory.
 
-   $ moat.kv client log dest /var/local/lib/moat.kv.$(date +%Y%m%d).state
+As this is not optimal if there is a power failure (or, for single-node
+systems, a server crash or OS update or …), MoaT-KV has a built-in
+mechanism to save its state to disk.
 
-This command writes the current state to this file. The server keeps the
+Automatic state save+restore
+----------------------------
+
+Do this::
+
+    $ echo MODE=hybrid >>/etc/moat/kv.env
+    $ /usr/lib/moat/kv/rotate
+    $ systemctl restart moat-kv
+
+The MoaT-KV server will now auto-save the current state every 15 minutes,
+log all changes, and load the most-recent state from disk when it's
+restarted.
+
+Use ``MODE=master`` if you use a stand-alone MoaT server.
+
+Manual state save+restore
+-------------------------
+
+You can also save state manually::
+
+   $ moat kv log dest /var/local/lib/moat/kv/$(date +%Y%m%d).state
+
+This command writes the current state to the given file. The server keeps the
 file open and appends new records to it. The ``log dest`` has options to
-either write an incremental change record, or to just write a one-shot
-dump. Subsequent incremental files are guaranteed to not have missing or
-duplicate records.
+write an incremental change record or to create a one-shot dump.
 
-When you need to restart your MoaT-KV system from scratch, simply pass the
+Incremental records are guaranteed to not have missing or duplicate records.
+
+When you need to restart your MoaT-KV system from scratch, tell it to use the
 newest saved state file::
 
-    $ moat.kv server -l $(ls -t /var/local/lib/moat.kv.*.state | head -1) $(hostname)
+    $ moat kv server -l $(ls -t /var/local/lib/moat/kv/*.state | head -1) $(hostname)
     Running.
 
 If your state dump files are incremental, you should instead do
 something like this::
 
-    $ moat.kv server -l <(cat /var/local/lib/moat.kv.*.state) $(hostname)
+    $ moat kv server -l <(cat /var/local/lib/moat/kv/*.state) $(hostname)
     Running.
 
-These commands are somewhat safe to use on a network that's already
+These commands are mostly-safe to use on a network that's already
 running; your node may run with old state for a few seconds until it
 retrieves the updates that happened while it was down. An option to delay
 startup until that process has completed is somewhere on the TODO list.
@@ -243,16 +264,16 @@ are restarted.
 Authorization
 =============
 
-MoaT-KV initially doesn't come up with any authorization scheme. However,
+MoaT-KV initially doesn't use an authorization scheme. However,
 advanced uses require the ability to distinguish between users.
 
 Let's set up a "root" user::
 
-    $ moat.kv client auth -m password user add name=joe password?=Code
+    $ moat kv auth -m password user add name=joe password?=Code
     Code: ******
-    $ moat.kv client auth -m password user list
+    $ moat kv auth -m password user list
     joe
-    $ moat.kv client auth -m password init -s
+    $ moat kv auth -m password init -s
     Authorization switched to password
     $
 
@@ -260,11 +281,11 @@ Let's set up a "root" user::
 
 After this point, you can no longer use MoaT-KV without a password::
 
-    $ dkd get
+    $ mkd :
     ClientAuthRequiredError: You need to log in using: password
     $
 
-    $ moat.kv client -a "password name=joe password?=Code" data :
+    $ moat kv -a "password name=joe password?=Code" data :
     Code: ******
     "Root"
     $
@@ -272,7 +293,7 @@ After this point, you can no longer use MoaT-KV without a password::
 Internal data are stored in a separate MoaT-KV subtree that starts with a ``None`` value.
 You can display it::
 
-    $ moat.kv client -a "password name=joe password=test123" data internal dump :
+    $ moat kv -a "password name=joe password=test123" data internal dump :
     null:
       auth:
         _:
@@ -291,8 +312,8 @@ scheme depends on the auth method.
 NB: nothing prevents you from using the string ``"null"`` as an ordinary
 key name::
 
-   $ moat.kv client -a "password name=joe password=test123" data null.foo set -v : bar
-   $ moat.kv client -a "password name=joe password=test123" data : get -rd_
+   $ moat kv -a "password name=joe password=test123" data null.foo set -v : bar
+   $ moat kv -a "password name=joe password=test123" data : get -rd_
    …
    'null':
      foo:
@@ -301,17 +322,17 @@ key name::
 For experimentation, there's also a ``_test`` authorization method which
 only exposes a user name::
 
-   $ moat.kv client auth -m _test user add name=joe
-   $ moat.kv client auth -m _test user add name=root
-   $ moat.kv client auth -m _test init
-   $ moat.kv client data :
+   $ moat kv auth -m _test user add name=joe
+   $ moat kv auth -m _test user add name=root
+   $ moat kv auth -m _test init
+   $ moat kv data :
    ClientAuthRequiredError: You need to log in using: _test
-   $ dkv() { moat.kv client -a "_test name=joe" "$@"; }
-   $ dkv data :
+   $ mkv() { moat kv -a "_test name=joe" "$@"; }
+   $ mkv data :
    123
    $
 
-We'll use that user and alias in the following sections.
+We'll use this user, and the shell alias, in the following sections.
 
 ACLs and distributed servers
 ----------------------------
@@ -320,16 +341,17 @@ MoaT-KV servers actually use the client protocol when they sync up. Thus, when y
 set up authorization, you must teach your servers to authenticate to their
 peer::
 
-   $ moat.kv -C connect.auth="_test name=joe" server $(hostname)
+   $ moat kv -C connect.auth="_test name=joe" server $(hostname)
 
 You typically store that in a configuration file::
 
-    connect:
+    kv:
+      conn:
         auth: "_test name=joe"
         host: 127.0.0.1
 
-``moat.kv`` auto-reads the configuration from a few paths, or you can use
-the ``-c test.cfg`` flag.
+``moat`` auto-reads the configuration from a few paths, or you can use
+the ``moat -c test.cfg`` flag.
 
 Access restrictions
 ===================
@@ -338,12 +360,12 @@ A user can be restricted from accessing or modifying MoaT-KV data.
 
 Let's say that we'd like to create a "write-only" data storage::
 
-   $ moat.kv client -a "_test name=root" acl set writeonly -a xc 'wom.#'
-   $ moat.kv client -a "_test name=root" auth user set param joe acl writeonly
-   $ dkv data wom.foo.bar set -e : 42
-   $ dkv data wom.foo.bar set -e : 43
+   $ moat kv -a "_test name=root" acl set writeonly -a xc 'wom.#'
+   $ moat kv -a "_test name=root" auth user set param joe acl writeonly
+   $ mkv data wom.foo.bar set -e : 42
+   $ mkv data wom.foo.bar set -e : 43
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'w')
-   $ dkv data wom.foo
+   $ mkv data wom.foo
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'r')
    $
 
@@ -370,20 +392,20 @@ actual computing. We'll demonstrate that here.
 
 First we feed some interesting code into MoaT-KV::
 
-    $ dkv code set the.answer <<END
+    $ mkv code set the.answer <<END
     > print("Forty-Two!")
     > return 42
     > END
 
 Then we set up a one-shot run-anywhere instance::
 
-   $ dkv run set -c the.answer -t 0 a.question
+   $ mkv run set -c the.answer -t 0 a.question
 
 This doesn't actually execute any code because the executor is not part of
 the MoaT-KV server. (The server may gain an option to do that too, but
 not yet.) So we run it::
 
-   $ dkv run all
+   $ mkv run all
    Forty-Two!
 
 (Initially this takes some time, because the ``run`` command needs to
@@ -406,12 +428,12 @@ be:
 This method will run the code in question on any node. You can also run
 code on one specific node; simply do::
 
-   $ dkv run -n $(hostname) set -c "same answer" -t 0 a.question
-   $ dkv run -n $(hostname) all
+   $ mkv run -n $(hostname) set -c "same answer" -t 0 a.question
+   $ mkv run -n $(hostname) all
 
 The one-node-only runner and the any-node runner are distinct. There's also
 a way to designate a subgroup of hosts (like "all with a 1wire interface")
-and to run a job on any / all of them. See ``dkv run --help`` for details.
+and to run a job on any / all of them. See ``moat kv run --help`` for details.
 
 
 Errors
@@ -420,22 +442,22 @@ Errors
 Nobody is perfect, and neither is code. Sometimes things break.
 MoaT-KV remembers errors. To demonstrate, let's first provoke one::
 
-    $ dkv code set the.error <<END
+    $ mkv code set the.error <<END
     > raise RuntimeError("Owch")
     > END
-    $ dkv run set -c the.error -t 0 what.me.worry
-    $ dkv run all  # if it's not still running
-    20:24:13.935 WARNING:moat.kv.errors:Error ('.moat.kv', 'error', 'test1', 16373) test1: Exception: Owch
+    $ mkv run set -c the.error -t 0 what.me.worry
+    $ mkv run all  # if it's not still running
+    20:24:13.935 WARNING:moat.kv.errors:Error ('.moat', 'kv', 'error', 'test1', 16373) test1: Exception: Owch
 
 The list of errors is now no longer empty::
 
-   $ dkv error list -d_
+   $ mkv error list -d_
    [ some YAML ]
 
 You can limit the error list to specific subtrees. This command has the
 same effect::
 
-   $ dkv error list -d_ :.moat.kv.run.any
+   $ mkv error list -d_ :.moat.kv.run.any
 
 except that the path is shortened for improved useability.
 
@@ -570,7 +592,7 @@ both "good" and "bad" examples.
 
 You can also declare subtypes::
 
-    $ dkv type set -g 0 -g 99 -g 100 -b -1 -b 101 int.percent <<END
+    $ mkv type set -g 0 -g 99 -g 100 -b -1 -b 101 int.percent <<END
     > if not (0 <= value <= 100): raise ValueError("not a percentage")
     > END
     $
@@ -579,18 +601,18 @@ The example values, both good and bad, must pass the supertype's checks.
 
 Now we associate the test with our data::
 
-    $ dkv type match -t int.percent 'stats.#.quota'
+    $ mkv type match -t int.percent 'stats.#.quota'
 
 Then we store some value::
 
-    $ dkv data stats.foo.bar.quota set -v : 123
+    $ mkv data stats.foo.bar.quota set -v : 123
     ServerError: ValueError("not an integer")
 
 Oops: non-string values need to be evaluated. Better::
 
-    $ dkv data stats.foo.bar.quota set -e : 123
+    $ mkv data stats.foo.bar.quota set -e : 123
     ServerError: ValueError('not a percentage')
-    $ dkv data stats.foo.bar.quota set -e : 12
+    $ mkv data stats.foo.bar.quota set -e : 12
     $
 
 MoaT-KV does not test that existing values match your restrictions.
@@ -607,7 +629,7 @@ a ``turn off after 15 minutes`` rule will actually work.
 
 Let's write a simple number codec::
 
-    $ dkv codec set -i '"12.5"' 12.5 -o 13.25 '"13.25"' float.str
+    $ mkv codec set -i '"12.5"' 12.5 -o 13.25 '"13.25"' float.str
     Enter the Python script to encode 'value'.
     return str(value)
     Enter the Python script to decode 'value'.
@@ -621,7 +643,7 @@ home automation system could accept a wide range of ``true``-ish or
 
 Associating this codec with a path is slightly more involved::
 
-    $ dkv codec convert -c float.str floatval 'monitor.#.value'
+    $ mkv codec convert -c float.str floatval 'monitor.#.value'
 
 This associates
 
@@ -632,13 +654,13 @@ This associates
 with the codec list named ``floatval``. As not every user needs stringified
 numbers, we also need to tell MoaT-KV which users to apply this codec to::
 
-    $ dkv auth user modify --aux codec=floatval name=joe
+    $ mkv auth user modify --aux codec=floatval name=joe
 	
 Thus, Joe will read and write ``value`` entries as strings::
 
-    $ dkv data monitor.a.b.c.value set -v : 99.5
-    $ dkv data monitor.a.b.c.thing set -v : 12.3
-    $ dkv data monitor get -rd_
+    $ mkv data monitor.a.b.c.value set -v : 99.5
+    $ mkv data monitor.a.b.c.thing set -v : 12.3
+    $ mkv data monitor get -rd_
     a:
       b:
         c:
@@ -684,7 +706,7 @@ sections are imported once. Also, options used for connecting to another
 MoaT-KV server cannot be set dynamically because you need them before the
 data are available.
 
-Other options may be overridden by storing a new values at ``.moat.kv config
+Other options may be overridden by storing a new values at ``.moat kv config
 <name>``. It is not possible to be more specific. (TODO)
 
 If a client's ACLs do not allow reading a config entry, it will be silently

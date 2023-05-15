@@ -20,7 +20,7 @@ problem is that stale data causes difficult-to-resolve inconsistencies
 when written to. TODO: allow the server to be in maintainer-only mode when
 that happens.
 
-First, run ``moat.kv client internal state -ndmrk``. Your output will look
+First, run ``moat kv internal state -ndmrk``. Your output will look
 somewhat like this::
 
     deleted:  # Ticks known to be deleted
@@ -46,7 +46,7 @@ somewhat like this::
 This is not healthy: The ``missing`` element contains data. You can
 manually mark the offending data as stale::
 
-   one $ moat.kv client internal mark test1 2
+   one $ moat kv internal mark test1 2
    known:
       test1:
       - - 1
@@ -58,7 +58,7 @@ manually mark the offending data as stale::
     one $
 
 This shows that the offending ``tick`` has been successfully added to the
-``known`` list. Calling ``moat.kv client internal state -m`` verifies that
+``known`` list. Calling ``moat kv internal state -m`` verifies that
 the list is now empty.
 
 Use the ``--broadcast`` flag to send this message to all MoaT-KV servers,

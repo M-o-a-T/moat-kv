@@ -23,7 +23,7 @@ Storage
 =======
 
 The location for executable scripts is configurable and defaults to
-".moat.kv code proc". Scripts are stored as a dict with these attributes:
+".moat.kv.code.proc". Scripts are stored as a dict with these attributes:
 
 * ``code``: the actual text
 
@@ -92,10 +92,10 @@ Runner types
 ============
 
 MoaT-KV has three built-in types of code runners. All are organized by a "group"
-tag. The "moat.kv client run all" command starts all jobs of a type, in a
+tag. The "moat kv run all" command starts all jobs of a type, in a
 specific group.
 
-``moat.kv client run`` accepts a ``-g ‹group›`` option that tells the
+``moat kv run`` accepts a ``-g ‹group›`` option that tells the
 system which group to use. If you don't use this option, the default group
 is named ``default``.
 
@@ -111,7 +111,7 @@ This runner executes code on a specific node. This is useful e.g. if you
 need to access non-redundant hardware, e.g. a 1wire bus connected to a
 specific computer.
 
-On the command line you access this runner with ``moat.kv client run -n
+On the command line you access this runner with ``moat kv run -n
 NAME``.
 
 
@@ -126,7 +126,7 @@ interface.
 
 TODO: Load balancing is not yet implemented.
 
-On the command line you access this runner with ``moat.kv client run``, i.e.
+On the command line you access this runner with ``moat kv run``, i.e.
 without using the ``-n ‹node›`` option.
 
 +++++++++++++++
@@ -134,7 +134,7 @@ All-node runner
 +++++++++++++++
 
 This runner executes code on all members of a group of nodes. You access it
-with ``moat.kv client run -n -``.
+with ``moat kv run -n -``.
 
 ====================
 Runner configuration

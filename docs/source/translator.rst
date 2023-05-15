@@ -95,16 +95,16 @@ must be integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_typecheck.py::test_72_cmd``, when
-dumped with the commands ``moat.kv client internal dump`` and
-``moat.kv client get -rd_``.
+dumped with the commands ``moat kv internal dump`` and
+``moat kv «path» get -rd_``.
 
 On the command line, you can do the same thing thus::
 
     $ echo "if not isinstance(value,int): raise ValueError('not an int')" | \
-      moat.kv client type set -b None -b  '"foo"' -g 0 -g 2 -s - int
+      moat kv type set -b None -b  '"foo"' -g 0 -g 2 -s - int
     $ echo "if not 0<=value<=100: raise ValueError('not a percentage')" | \
-      moat.kv client type set -b -1 -b  555 -g 0 -g 100 -g 50 -s - int percent
-    $ moat.kv client type match -t int -t percent foo + bar
+      moat kv type set -b -1 -b  555 -g 0 -g 100 -g 50 -s - int percent
+    $ moat kv type match -t int -t percent foo + bar
 
 +++++++++++
 Translation
@@ -221,8 +221,8 @@ stored as integers::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_convert.py::test_71_basic``, when
-dumped with the commands ``moat.kv client internal dump`` and
-``moat.kv client get -rd_``.
+dumped with the commands ``moat kv internal dump`` and
+``moat kv «path» get -rd_``.
 
 Paths
 =====
