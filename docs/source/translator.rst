@@ -143,7 +143,7 @@ bodies of procedures that rewrite external data to MoaT-KV values and vice
 versa, respectively, using the ``value`` parameter as input. The ``decode``
 procedure gets an additional ``prev`` variable which contains the old
 value. That value **must not** be modified; create a copy or (preferably)
-use :func:`moat.kv.util.combine_dict` to assemble the result.
+use :func:`moat.util.combine_dict` to assemble the result.
 
 Codecs may be named hierarchically for convenience; if you want to
 call the "parent" codec, put the common code in a module and import that.

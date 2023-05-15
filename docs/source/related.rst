@@ -44,18 +44,17 @@ systems to talk to 1wire.
 `asyncowfs <https://github.com/M-o-a-T/asyncowfs>`__ is a Python package
 that provides a high-level object-oriented async interface to OWFS.
 
-`moat.kv-owfs <https://github.com/M-o-a-T/distknx>`__ uses ``asyncowfs`` to
+`moat-kv-owfs <https://github.com/M-o-a-T/distknx>`__ uses ``asyncowfs`` to
 connect values stored in ``moat.kv`` to attributes if 1wire devices.
 
 
 Inventory Management
 ====================
 
-`moat.kv-inv <https://github.com/M-o-a-T/distinv>`__ is a command-line
-extension that simplifies storage of hosts, networks and
-cables in ``moat.kv``. It contains templating code so you can auto-create
-the configuration for your router (if it's text instead of some binary
-format).
+`moat-kv-inv <https://github.com/M-o-a-T/moat-kv-inv>`__ is a command-line
+extension that stores of hosts, networks and cables. It contains templating
+code so you can auto-create the configuration for your router (if it's text
+instead of some binary format).
 
 
 Akumuli

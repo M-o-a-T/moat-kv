@@ -81,7 +81,7 @@ author = 'The MoaT-KV authors'
 #
 # The short X.Y version.
 import pkg_resources
-version = pkg_resources.get_distribution("moat.kv").version
+version = pkg_resources.get_distribution("moat.kv")._version
 
 # The full version, including alpha/beta/rc tags.
 release = version

@@ -1,31 +1,52 @@
-==================
+===================
 The MoaT-KV command
-==================
+===================
 
-MoaT-KV uses one command line tool, appropriately named ``moat.kv``. It
-provides various sub- and sub-sub-commands to run and control your server.
-
-Each command and sub-command accepts a distinct set of options which must
-be used directly after the (sub)command affected by them.
+MoaT-KV extends the MoaT command line tool with the ``moat kv`` subcommand
+which provides various sub- and sub-sub-commands to run and control your
+server.
 
 moat.kv
-======
+=======
 
 .. program:: moat kv
 
 The main entry point for all commands.
 
-Use the option ``--help`` to show that (sub)command's detailed information.
+.. option:: -h, --host <address>
 
-Options used only for testing are not shown in the commands' help text.
+   The address to connect to. Defaults to ``localhost``.
 
-.. program:: moat.kv server
+   This setting is also available as the ``connect.host`` configuration
+   setting.
+
+.. option:: -p, --port <port>
+
+   The port to connect to. Defaults to 27586.
+
+   This setting is also available as the ``connect.port`` configuration
+   setting.
+
+.. option:: -a, --auth <params>
+
+   Parameters for authorizing this client. Use ``=file`` to load the data
+   from a file, or ``method data=value…`` to provide them inline.
+
+   The default is ``_anon``, i.e. no authorization.
+
+.. option:: -m, --metadata
+
+   The results of many commands will include the metadata associated with the
+   entry or entries in question. This allows you to safely modify a value.
+
+
+.. program:: moat kv server
 
 Run the MoaT-KV server.
 
 A MoaT-KV server holds all data and syncs with all other MoaT-KV servers.
-You can't run :program:`moat.kv client` unless you have at least one running
-server.
+You can't run :program:`moat kv` unless you have at least one running
+server (except for the "server" and "dump" subcommands).
 
 There is no separate option to set the address for clients to connect to;
 use ``server.bind_default.port=57589`` (or your own port number) to change
@@ -59,7 +80,7 @@ operational. When starting the first server, you can use an initial
    Initialize the server by storing this value in the root entry.
 
    This option is only used for testing. Create initial content with
-   ``moat.kv dump init`` for production use.
+   ``moat kv dump init`` for production use.
 
 .. option:: -e, --eval
 
@@ -76,37 +97,6 @@ Each MoaT-KV server requires a unique name. If you recycle a name, the old
 server using it will die (unless your network is segmented – in that case,
 one or both will terminate some random time after the networks are
 reconnecting, and you'll get inconsistent data). So don't do that.
-
-
-.. program:: moat.kv client
-
-This subcommand collects all sub-subcommand which talk to a MoaT-KV server.
-
-.. option:: -h, --host <address>
-
-   The address to connect to. Defaults to ``localhost``.
-
-   This setting is also available as the ``connect.host`` configuration
-   setting.
-
-.. option:: -p, --port <port>
-
-   The port to connect to. Defaults to 27586.
-
-   This setting is also available as the ``connect.port`` configuration
-   setting.
-
-.. option:: -a, --auth <params>
-
-   Parameters for authorizing this client. Use ``=file`` to load the data
-   from a file, or ``method data=value…`` to provide them inline.
-
-   The default is ``_anon``, i.e. no authorization.
-
-.. option:: -m, --metadata
-
-   The results of many commands will include the metadata associated with the
-   entry or entries in question. This allows you to safely modify a value.
 
 
 .. program:: moat kv data

@@ -23,7 +23,7 @@ Storage
 =======
 
 The location for executable scripts is configurable and defaults to
-".moat.kv.code.proc". Scripts are stored as a dict with these attributes:
+":.moat.kv.code.proc". Scripts are stored as a dict with these attributes:
 
 * ``code``: the actual text
 
@@ -48,7 +48,7 @@ possible, but MoaT-KV does not try to keep them up-to-date for you.
 If you want to run user code in your MoaT-KV module, call
 ``cr = await CodeRoot.as_handler(client)``. Then, run some code by
 simply naming it: ``cr("forty.two")`` or ``cr(("forty","two"))`` will run
-the code stored at ``.moat.kv code proc forty two``. All arguments will be
+the code stored at ``:.moat.kv.code.proc.forty.two``. All arguments will be
 passed to the stored code.
 
 
@@ -64,7 +64,7 @@ Storage
 =======
 
 The location for Python modules is configurable and defaults to
-".moat.kv code module". Modules are stored as a dict with these attributes:
+":.moat.kv.code.module". Modules are stored as a dict with these attributes:
 
 * ``code``: the actual program text
 
@@ -100,7 +100,7 @@ system which group to use. If you don't use this option, the default group
 is named ``default``.
 
 All groups and all runners are distinct. Which nodes actually execute the
-code you enter into MoaT-KV is determined solely by running ``moat.kv client
+code you enter into MoaT-KV is determined solely by running ``moat kv 
 run all`` on them, with the appropriate options.
 
 ++++++++++++++++++
@@ -224,7 +224,7 @@ these scopes for you. Thus, instead of writing boilerplate code like
 this::
 
    import anyio
-   inport moat.kv.runner
+   import moat.kv.runner
    """
    Assume we want to process changes from these two subtrees
    for 100 seconds
