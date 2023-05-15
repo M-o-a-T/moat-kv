@@ -1,5 +1,6 @@
-"""Top-level package for MoaT-KV."""
 # pylint: disable=W0703,C0103
+
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 try:
     import pkg_resources  # part of setuptools
