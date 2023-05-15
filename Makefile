@@ -1,25 +1,22 @@
-#!/usr/bin/make -f
-
-.PHONY: doc test update all tag pypi upload
+PACKAGE = moat-kv
+MAKEINCL ?= $(shell python3 -mmoat src path)/make/py
 
 install:
 	mkdir -p $(PREFIX)/lib/systemd/system
-	mkdir -p $(PREFIX)/usr/bin
-	mkdir -p $(PREFIX)/usr/lib/moat.kv
+	mkdir -p $(PREFIX)/usr/lib/moat/kv
 	mkdir -p $(PREFIX)/usr/lib/sysusers.d
 	cp systemd/*.service $(PREFIX)/lib/systemd/system/
 	cp systemd/*.timer $(PREFIX)/lib/systemd/system/
-	cp systemd/sysusers $(PREFIX)/usr/lib/sysusers.d/moat.kv.conf
-	cp scripts/* $(PREFIX)/usr/lib/moat.kv/
+	cp systemd/sysusers $(PREFIX)/usr/lib/sysusers.d/moat-kv.conf
+	cp scripts/* $(PREFIX)/usr/lib/moat/kv/
 	cp bin/* $(PREFIX)/usr/bin/
 
-PACKAGE=moat.kv
-ifneq ($(wildcard /usr/share/sourcemgr/make/py),)
-include /usr/share/sourcemgr/make/py
-# availabe via http://github.com/smurfix/sourcemgr
+ifneq ($(wildcard $(MAKEINCL)),)
+include $(MAKEINCL)
 
 else
 %:
-		@echo "Please use 'python setup.py'."
-		@exit 1
+	@echo "Please fix 'python3 -mmoat src path'."
+	@exit 1
 endif
+
