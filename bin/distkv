@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-__requires__ = 'distkv'
+__requires__ = 'moat.kv'
 import re
 import sys
 import os
@@ -11,8 +11,8 @@ except Exception as exc:
     pass
 else:
     sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
-    sys.exit(load_entry_point('distkv', 'console_scripts', 'distkv')())
+    sys.exit(load_entry_point('moat.kv', 'console_scripts', 'moat.kv')())
 
-from distkv.command import cmd
+from moat.kv.command import cmd
 cmd()
 

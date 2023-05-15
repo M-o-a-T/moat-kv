@@ -1,5 +1,5 @@
 """
-This module affords all DistKV exceptions.
+This module affords all MoaT-KV exceptions.
 """
 
 # pylint: disable=unnecessary-pass
@@ -13,8 +13,8 @@ def _typed(cls):
     return cls
 
 
-class DistKVError(RuntimeError):
-    """Superclass of all DistKV errors.
+class MoaT-KVError(RuntimeError):
+    """Superclass of all MoaT-KV errors.
 
     Abstract class.
     """
@@ -22,7 +22,7 @@ class DistKVError(RuntimeError):
     pass
 
 
-class ServerError(DistKVError):
+class ServerError(MoaT-KVError):
     """Generic server error.
 
     This class includes errors forwarded to the client.
@@ -31,7 +31,7 @@ class ServerError(DistKVError):
     pass
 
 
-class ClientError(DistKVError):
+class ClientError(MoaT-KVError):
     """Generic client error.
 
     Abstract class.
@@ -105,7 +105,7 @@ class ClientAuthMethodError(ClientAuthError):
     pass
 
 
-class DistKVauthError(ClientError):
+class MoaT-KVauthError(ClientError):
     """Auth error.
 
     Abstract class.
@@ -114,19 +114,19 @@ class DistKVauthError(ClientError):
     pass
 
 
-class NoAuthError(DistKVauthError):
+class NoAuthError(MoaT-KVauthError):
     """Server-side error: auth required"""
 
     pass
 
 
-class NoAuthModuleError(DistKVauthError):
+class NoAuthModuleError(MoaT-KVauthError):
     """Server-side error: auth module doesn't exist"""
 
     pass
 
 
-class AuthFailedError(DistKVauthError):
+class AuthFailedError(MoaT-KVauthError):
     """Server-side error: auth failed"""
 
     pass

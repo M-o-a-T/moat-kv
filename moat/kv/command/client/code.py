@@ -10,7 +10,7 @@ from moat.util import NotGiven, P, Path, PathLongener, attr_args, process_args, 
 @click.argument("path", nargs=1, type=P)
 @click.pass_context
 async def cli(ctx, path):
-    """Manage code stored in DistKV."""
+    """Manage code stored in MoaT-KV."""
     obj = ctx.obj
     obj.path = obj.cfg["codes"]["prefix"] + path
     obj.codepath = path
@@ -63,7 +63,7 @@ async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
     """Save Python code.
 
     The code may have inputs. You specify the inputs and their default
-    values with '-v VAR VALUE' (string), '-p VAR PATH' (DistKV path), or
+    values with '-v VAR VALUE' (string), '-p VAR PATH' (MoaT-KV path), or
     '-e VAR EXPR' (simple Python expression). Use '-e VAR -' to state that
     VAR shall not have a default value, and '-e VAR /' to delete VAR from
     the list of inputs entirely.
@@ -119,7 +119,7 @@ async def set_(obj, thread, script, data, vars_, eval_, path_, async_, info):
 @cli.group("module", hidden=True)
 async def mod():
     """
-    Change the code of a module stored in DistKV
+    Change the code of a module stored in MoaT-KV
     """
 
 
@@ -155,7 +155,7 @@ async def get_mod(obj, path, script):
 @click.argument("path", nargs=1)  # pylint: disable=function-redefined
 @click.pass_obj
 async def set_mod(obj, path, script, data):
-    """Save a Python module to DistKV."""
+    """Save a Python module to MoaT-KV."""
     path = P(path)
     if not len(path):
         raise click.UsageError("You need a non-empty path.")

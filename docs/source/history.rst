@@ -1,6 +1,6 @@
 Release history
 ===============
 
-.. currentmodule:: distkv
+.. currentmodule:: moat.kv
 
 .. towncrier release notes start

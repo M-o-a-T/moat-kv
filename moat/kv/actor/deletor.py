@@ -91,7 +91,7 @@ class DeleteActor:
         The task that monitors the Delete actor.
         """
         try:
-            T = get_transport("distkv")
+            T = get_transport("moat.kv")
             async with Actor(
                 T(self.server.backend, *self.server.cfg.server.root, "del"),
                 name=self.server.node.name,

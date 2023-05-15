@@ -1,5 +1,5 @@
 """
-This module contains the default values for distkv configuration.
+This module contains the default values for moat.kv configuration.
 """
 
 from moat.util import P, attrdict
@@ -10,7 +10,7 @@ PORT = 27586  # 20000 + 100*ord('K') + ord('V')
 
 # This default configuration will be used to supplement whatever
 # configuration you use.
-# It is "complete" in the sense that DistKV will never die
+# It is "complete" in the sense that MoaT-KV will never die
 # due to a KeyError caused by a missing config value.
 
 CFG = attrdict(
@@ -41,7 +41,7 @@ CFG = attrdict(
         "disable_existing_loggers": False,
     },
     connect=attrdict(
-        # client: controls how to talk to the DistKV server
+        # client: controls how to talk to the MoaT-KV server
         host="localhost",
         port=PORT,
         ssl=False,
@@ -50,17 +50,17 @@ CFG = attrdict(
         auth=None,  # no auth used by default
         name=None,  # defaults to a seqnum
     ),
-    config=attrdict(prefix=P(":.distkv.config")),
-    errors=attrdict(prefix=P(":.distkv.error")),
-    codes=attrdict(prefix=P(":.distkv.code.proc")),
-    modules=attrdict(prefix=P(":.distkv.code.module")),
-    runner=attrdict(  # for distkv.runner.RunnerRoot
-        prefix=P(":.distkv.run"),  # storage for runnable commands
-        state=P(":.distkv.state"),  # storage for runner states
+    config=attrdict(prefix=P(":.moat.kv.config")),
+    errors=attrdict(prefix=P(":.moat.kv.error")),
+    codes=attrdict(prefix=P(":.moat.kv.code.proc")),
+    modules=attrdict(prefix=P(":.moat.kv.code.module")),
+    runner=attrdict(  # for moat.kv.runner.RunnerRoot
+        prefix=P(":.moat.kv.run"),  # storage for runnable commands
+        state=P(":.moat.kv.state"),  # storage for runner states
         name="run",  # Serf event name, suffixed by subpath
         start_delay=1,  # time to wait between job starts. Not optional.
         ping=-15,  # set an I-am-running message every those-many seconds
-        # positive: set in distkv, negative: broadcast to :distkv:run tag
+        # positive: set in moat.kv, negative: broadcast to :moat.kv:run tag
         actor=attrdict(
             cycle=20, nodes=-1, splits=5, n_hosts=3, version=1
         ),  # Actor config  # required for Runner
@@ -76,9 +76,9 @@ CFG = attrdict(
             port=7373,
         ),
         mqtt=attrdict(uri="mqtt://localhost:1883"),
-        root=(":distkv",),  # event message name prefix. Should start with a colon.
+        root=(":moat.kv",),  # event message name prefix. Should start with a colon.
         paranoia=False,  # typecheck server-to-server updates?
-        # which addresses/ports to accept DistKV connections on
+        # which addresses/ports to accept MoaT-KV connections on
         bind=[attrdict()],
         bind_default=attrdict(  # default values for all elements of "bind"
             host="localhost", port=PORT, ssl=False
@@ -93,7 +93,7 @@ CFG = attrdict(
     paranoia=False,  # typecheck server>server updates?
     # how does a new server reach existing nodes, to download state?
     domain=None,  # domain in which to look up node names, if not in hostmap
-    hostmap={  # map DistKV server names to connect destinations
+    hostmap={  # map MoaT-KV server names to connect destinations
         "test1": ("localhost", PORT),
         "test2": ("does-not-exist.invalid", PORT),
     },

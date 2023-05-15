@@ -2,7 +2,7 @@
 Access control
 ==============
 
-DistKV employs a two-step access control scheme.
+MoaT-KV employs a two-step access control scheme.
 
 First, you define an ACL hierarchy which controls which items may be
 accessed using a particular named ACL. Then you associate that ACL
@@ -23,7 +23,7 @@ An ACL entry controls these access modes:
 * e: enumerate: list sub-nodes of this one
 * n: new: create new nodes below this one
 
-In the DistKV sources you'll also encounter these modes in calls to
+In the MoaT-KV sources you'll also encounter these modes in calls to
 ``follow_acl`` (i.e. these flags can be checked for but you cannot set
 them):
 
@@ -76,5 +76,5 @@ back. However, any other access is not possible::
 
 The above is the server content at the end of the testcase
 ``tests/test_feature_acls.py::test_81_basic``, when
-dumped with the command ``distkv client get -rd_``.
+dumped with the command ``moat.kv client get -rd_``.
 

@@ -1,22 +1,22 @@
 [Unit]
-Description=DistKV all-nodes runner for %i
-After=distkv.service
-Requires=distkv.service
+Description=MoaT-KV all-nodes runner for %i
+After=moat.kv.service
+Requires=moat.kv.service
 
-ConditionFileNotEmpty=/etc/distkv.cfg
+ConditionFileNotEmpty=/etc/moat.kv.cfg
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
 Type=notify
-ExecStart=/usr/lib/distkv/run-all %i
+ExecStart=/usr/lib/moat.kv/run-all %i
 
-User=distkv
-Group=distkv
+User=moat.kv
+Group=moat.kv
 
-EnvironmentFile=/usr/lib/distkv/env
-EnvironmentFile=-/etc/distkv.env
+EnvironmentFile=/usr/lib/moat.kv/env
+EnvironmentFile=-/etc/moat.kv.env
 
 TimeoutSec=300
 WatchdogSec=10

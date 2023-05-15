@@ -21,6 +21,6 @@ test_script:
   - "mkdir empty"
   - "cd empty"
   # Make sure it's being imported from where we expect
-  - "python -c \"import os, distkv; print(os.path.dirname(distkv.__file__))\""
-  - "python -u -m pytest -W error -ra -v -s --pyargs distkv --cov=distkv --cov-config=../.coveragerc"
+  - "python -c \"import os, moat.kv; print(os.path.dirname(moat.kv.__file__))\""
+  - "python -u -m pytest -W error -ra -v -s --pyargs moat.kv --cov=moat.kv --cov-config=../.coveragerc"
   - "codecov"

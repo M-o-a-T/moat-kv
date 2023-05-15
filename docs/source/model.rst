@@ -2,16 +2,16 @@
 Data Model
 ==========
 
-This section documents some of DistKV's server-internal classes.
+This section documents some of MoaT-KV's server-internal classes.
 
 
-.. automodule:: distkv.model
+.. automodule:: moat.kv.model
    :members:
 
 ACLs
 ----
 
-ACL checks are performed by :class:`~distkv.types.ACLFinder`. This class
+ACL checks are performed by :class:`~moat.kv.types.ACLFinder`. This class
 collects all relevant ACL entries for any given (sub)path, sorted by
 depth-first specificty. This basically means that you collect all ACLs
 that could possibly match a path and sort them; the ``+`` and ``#``
@@ -24,19 +24,19 @@ more specific than ``#``, even though the second ACL is longer and thus
 could be regarded as being more specific. However, the current rule is more
 stable when used with complex ACLs and thus more secure.
 
-.. autoclass:: distkv.types.ACLFinder
+.. autoclass:: moat.kv.types.ACLFinder
    :members:
 
 Helper methods and classes
 --------------------------
 
-.. autoclass:: distkv.util.MsgWriter
+.. autoclass:: moat.kv.util.MsgWriter
    :members:
 
-.. automodule:: distkv.util
+.. automodule:: moat.kv.util
    :members:
 
-.. py:data:: distkv.util.NotGiven
+.. py:data:: moat.kv.util.NotGiven
 
    This object marks the absence of information where simply not using the
    data element or keyword at all would be inconvenient.
@@ -47,8 +47,8 @@ Helper methods and classes
 
    With ``NotGiven`` you can simply test ``value is`` (or ``is not``) ``NotGiven``.
 
-.. automodule:: distkv.runner
+.. automodule:: moat.kv.runner
    :members:
 
-.. automodule:: distkv.actor
+.. automodule:: moat.kv.actor
    :members:

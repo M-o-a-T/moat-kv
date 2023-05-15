@@ -1,6 +1,6 @@
 """
 This module implements a :class:`asyncactor.Actor` which works on top of
-a DistKV client.
+a MoaT-KV client.
 """
 
 from asyncactor import Actor  # noqa

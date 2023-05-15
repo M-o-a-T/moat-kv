@@ -1,13 +1,13 @@
 ================
-Extending DistKV
+Extending MoaT-KV
 ================
 
-DistKV comes with a built-in extension mechanism for its command line,
+MoaT-KV comes with a built-in extension mechanism for its command line,
 based on Python namespaces and import hackery.
 
-Yor extension needs to ship a ``distkv_ext.NAME`` module with a
+Yor extension needs to ship a ``moat.kv_ext.NAME`` module with a
 ``command.py`` or a ``client.py`` module (or both, if required). This adds
-the command ``NAME`` to ``distkv`` or ``distkv client``, respectively.
+the command ``NAME`` to ``moat.kv`` or ``moat.kv client``, respectively.
 
 This method is **not** zip-safe because it injects a ``main`` global into
 the code. Fixing this is TODO.
@@ -15,7 +15,7 @@ the code. Fixing this is TODO.
 Command line helper
 ===================
 
-DistKV commands follow a standard scheme (TODO some don't yet):
+MoaT-KV commands follow a standard scheme (TODO some don't yet):
 
 * what kind of object do you want to affect
 * the name of the object to affect (or create)
@@ -26,13 +26,13 @@ DistKV commands follow a standard scheme (TODO some don't yet):
 
 In order to simplify implementing that, there's a couple of helper methods.
 
-`distkv.obj.command.std_command` takes a ``click.Group`` command and
+`moat.kv.obj.command.std_command` takes a ``click.Group`` command and
 attaches a subgroup with standard add/set/delete commands to it. The
 new group is returned so you can attach more commands to it if you want.
 
-`distkv.util.attr_args` attaches DistKV's generic parameter+value options.
+`moat.kv.util.attr_args` attaches MoaT-KV's generic parameter+value options.
 
-`distkv.util.process_args` takes a dict (usually) and the generic options'
+`moat.kv.util.process_args` takes a dict (usually) and the generic options'
 variables (``vars_``, ``eval_``, ``path_``) and applies them.
 
 It's the caller's job to verify that the result is sane. TODO: support

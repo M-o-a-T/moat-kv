@@ -1,15 +1,15 @@
 =================
-DistKV's protocol
+MoaT-KV's protocol
 =================
 
-DistKV's native protocol (both client/server and server/server) is based on
+MoaT-KV's native protocol (both client/server and server/server) is based on
 MsgPack. Strings must be valid UTF-8 and are distinct from binary buffers.
 
 ++++++++++++++++++
 MsgPack Extensions
 ++++++++++++++++++
 
-DistKV is expected to be a transparent protocol. Unknown extensions
+MoaT-KV is expected to be a transparent protocol. Unknown extensions
 must not cause the reader to crash, and should be round-trip-safe: a client
 which reads an object and modifies attribute A should not modify attribute
 B even if B contains an element with an unknown extension.
@@ -34,7 +34,7 @@ Paths
 
 Extension 3 packages a MsgPack path.
 
-DistKV uses Path objects to refer to its nodes. Paths are lists which may
+MoaT-KV uses Path objects to refer to its nodes. Paths are lists which may
 contain arbitrary msgpack data structures but should be limited to UTF-8
 strings and non-negative integers.
 

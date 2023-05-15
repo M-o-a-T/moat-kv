@@ -12,10 +12,10 @@ from asyncscope import main_scope, scope
 from asyncserf.stream import SerfEvent
 from moat.util import NotGiven, ValueEvent, attrdict, combine_dict, create_queue
 
-from distkv.codec import unpacker
-from distkv.default import CFG
-from distkv.mock import S as _S
-from distkv.server import Server
+from moat.kv.codec import unpacker
+from moat.kv.default import CFG
+from moat.kv.mock import S as _S
+from moat.kv.server import Server
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         assert self._tock < tocks, "Test didn't terminate. Limit:" + str(tocks)
         await old()
 
-    async with main_scope("distkv.test.serf") as scp:
+    async with main_scope("moat.kv.test.serf") as scp:
         tg = scp._tg
         st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:

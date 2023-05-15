@@ -1,10 +1,10 @@
-"""Top-level package for DistKV."""
+"""Top-level package for MoaT-KV."""
 # pylint: disable=W0703,C0103
 
 try:
     import pkg_resources  # part of setuptools
 
-    _version = pkg_resources.require("distkv")[0].version
+    _version = pkg_resources.require("moat.kv")[0].version
     del pkg_resources
 
     _version_tuple = tuple(int(x) for x in _version.split("."))

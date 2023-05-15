@@ -9,16 +9,16 @@ import attr
 from asyncscope import main_scope, scope
 from moat.util import OptCtx, attrdict, combine_dict, list_ext, load_ext, wrap_main
 
-from distkv.client import _scoped_client, client_scope
-from distkv.default import CFG
+from moat.kv.client import _scoped_client, client_scope
+from moat.kv.default import CFG
 
 logger = logging.getLogger(__name__)
 
 CFG = attrdict(**CFG)  # shallow copy
-for n, _ in list_ext("distkv_ext"):
+for n, _ in list_ext("moat.kv_ext"):
     try:
         CFG[n] = combine_dict(
-            load_ext("distkv_ext", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict
+            load_ext("moat.kv_ext", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict
         )
     except ModuleNotFoundError:
         pass
@@ -33,7 +33,7 @@ async def run(*args, expect_exit=0, do_stdout=True):
     args = ("-c", "/dev/null", *args)
     if do_stdout:
         CFG["_stdout"] = out = io.StringIO()
-    logger.debug(" distkv %s", " ".join(shlex.quote(str(x)) for x in args))
+    logger.debug(" moat.kv %s", " ".join(shlex.quote(str(x)) for x in args))
     try:
         res = None
         async with OptCtx(
@@ -44,8 +44,8 @@ async def run(*args, expect_exit=0, do_stdout=True):
                 wrap=True,
                 CFG=CFG,
                 cfg=False,
-                name="distkv",
-                sub_pre="distkv.command",
+                name="moat.kv",
+                sub_pre="moat.kv.command",
                 sub_post="cli",
             )
         if res is None:
@@ -106,7 +106,7 @@ class S:
 
                 async with scope.using_scope():
                     c = await scope.service(
-                        f"distkv.client.{i}.{self._seq}", scc, self.s[i], **cfg
+                        f"moat.kv.client.{i}.{self._seq}", scc, self.s[i], **cfg
                     )
                     yield c
                 return

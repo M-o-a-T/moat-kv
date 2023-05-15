@@ -1,10 +1,10 @@
 [Unit]
-Description=The DistKV server state save timer
-Requires=distkv.service
+Description=The MoaT-KV server state save timer
+Requires=moat.kv.service
 
 [Timer]
 OnUnitActiveSec=900
 OnActiveSec=100
 
 [Install]
-WantedBy=distkv.service
+WantedBy=moat.kv.service

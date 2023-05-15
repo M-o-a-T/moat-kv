@@ -5,11 +5,11 @@ import jsonschema
 import pytest
 from moat.util import P
 
-from distkv.auth import gen_auth
-from distkv.client import ServerError
-from distkv.exceptions import ClientAuthMethodError, ClientAuthRequiredError
-from distkv.mock import run
-from distkv.mock.mqtt import stdtest
+from moat.kv.auth import gen_auth
+from moat.kv.client import ServerError
+from moat.kv.exceptions import ClientAuthMethodError, ClientAuthRequiredError
+from moat.kv.mock import run
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 

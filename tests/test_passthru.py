@@ -2,8 +2,8 @@ import pytest
 import trio
 from moat.util import P
 
-from distkv.exceptions import CancelledError
-from distkv.mock.serf import stdtest
+from moat.kv.exceptions import CancelledError
+from moat.kv.mock.serf import stdtest
 
 
 @pytest.mark.trio

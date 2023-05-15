@@ -1,8 +1,8 @@
 ========================
-DistKV's client protocol
+MoaT-KV's client protocol
 ========================
 
-DistKV's native client protocol is based on MsgPack. The client sends
+MoaT-KV's native client protocol is based on MsgPack. The client sends
 requests; the server sends one or more responses. You may (and indeed
 should) run concurrent requests on the same connection.
 
@@ -36,9 +36,9 @@ described below.
 nchain
 ------
 
-This field tells the DistKV server how many change entries to return.
+This field tells the MoaT-KV server how many change entries to return.
 The default is zero. If you want to update a value, retrieve the
-original with ``nchain`` set to one. Synchronization between DistKV servers
+original with ``nchain`` set to one. Synchronization between MoaT-KV servers
 requires the number of possible partitions plus one, in order to protect
 against spurious conflict reports.
 
@@ -74,7 +74,7 @@ this field is present.
 value
 -----
 
-The value of the DistKV entry, assuming one was requested.
+The value of the MoaT-KV entry, assuming one was requested.
 
 state
 -----
@@ -94,7 +94,7 @@ The change chain resulting from, or retrieved by, a command.
 
 Change chains track which server last modified a value, so that replayed
 updates can be ignored and conflicting updates can be recognized. A chain
-never contains any one DistKV server more than once.
+never contains any one MoaT-KV server more than once.
 
 See the server protocol for a detailed description.
 
@@ -108,7 +108,7 @@ tock
 ----
 
 An always-increasing integer that's (supposed to be) shared within the
-whole DistKV system. You can use it when you need to reconnect to a server,
+whole MoaT-KV system. You can use it when you need to reconnect to a server,
 to make sure that the system is (mostly) up-to-date.
 
 path
@@ -211,7 +211,7 @@ Set a single value. The ``path`` to that ``value`` needs to be sent as a list.
 
 If you are updating a known value, you should send a ``chain`` entry
 to help ensure that no other node has changed it unexpectedly. (Of course,
-due to the distributed nature of DistKV, this may happen anyway.) You can
+due to the distributed nature of MoaT-KV, this may happen anyway.) You can
 also use ``prev`` to send an expected old value, but you really shouldn't.
 
 This action returns the node's new change ``chain``. If you did not send a
@@ -255,7 +255,7 @@ protocol. The resulting lists can become somewhat long on a busy system.
 * nodes
 
 A dict of server ⇒ tick. Each server's known Tick values must be
-consecutive; when they are not, DistKV tries to retrieve the missing
+consecutive; when they are not, MoaT-KV tries to retrieve the missing
 entries.
 
 * deleted
@@ -393,7 +393,7 @@ will always be missing.
 Examples
 ========
 
-You can turn on message debugging with 'distkv -vvv'.
+You can turn on message debugging with 'moat.kv -vvv'.
 
 Get and set a value
 -------------------
@@ -442,7 +442,7 @@ you can retrieve the whole subtree::
     Recv {'value': 1, 'path': ('bar', 'baz'), 'depth': 1, 'seq': 1}
     Recv {'seq': 1, 'state': 'end'}
 
-Retrieving this tree with ``distkv client get -rd ':val' test`` would print::
+Retrieving this tree with ``moat.kv client get -rd ':val' test`` would print::
 
     test:
       :val: 1

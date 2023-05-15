@@ -1,10 +1,10 @@
 #!/bin/bash
 set -ex
 
-# This script file starts up a DistKV any-node runner.
+# This script file starts up a MoaT-KV any-node runner.
 
 if test $# = 1 ; then
-    exec distkv -c /etc/distkv.cfg client job -n - -g "$1" run
+    exec moat.kv -c /etc/moat.kv.cfg client job -n - -g "$1" run
 else
-    exec distkv -c /etc/distkv.cfg client job -n - run
+    exec moat.kv -c /etc/moat.kv.cfg client job -n - run
 fi

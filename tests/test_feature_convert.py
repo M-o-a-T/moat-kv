@@ -5,9 +5,9 @@ import trio
 from asyncscope import scope
 from moat.util import P, PathLongener
 
-from distkv.auth import loader
-from distkv.client import ServerError
-from distkv.mock.mqtt import stdtest
+from moat.kv.auth import loader
+from moat.kv.client import ServerError
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 

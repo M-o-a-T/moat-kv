@@ -1,5 +1,5 @@
 """
-Object interface to distkv data
+Object interface to moat.kv data
 
 """
 
@@ -442,7 +442,7 @@ class ClientRoot(ClientEntry):
         if name is None:
             if key != "prefix":
                 subpath = (key,) + subpath
-            name = str(Path("_distkv", client.name, cls.CFG, *subpath))
+            name = str(Path("_moat.kv", client.name, cls.CFG, *subpath))
 
         def make():
             return client.mirror(cfg[key] + subpath, root_type=cls, need_wait=True, cfg=cfg, **kw)

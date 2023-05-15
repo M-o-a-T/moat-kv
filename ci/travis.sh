@@ -55,7 +55,7 @@ pip install -U pip setuptools wheel
 
 if [ "$CHECK_FORMATTING" = "1" ]; then
     pip install black
-    if ! black setup.py distkv tests ; then
+    if ! black setup.py moat.kv tests ; then
         git diff
         cat <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -64,7 +64,7 @@ if [ "$CHECK_FORMATTING" = "1" ]; then
 Formatting problems were found (listed above). To fix them, run
 
    pip install black
-   black setup.py distkv
+   black setup.py moat.kv
 
 in your local checkout.
 
@@ -90,7 +90,7 @@ else
     # Actual tests
     pip install -Ur ci/test-requirements.txt
 
-    pytest -W error -ra -v --pyargs tests --cov=distkv --cov-config=.coveragerc --verbose
+    pytest -W error -ra -v --pyargs tests --cov=moat.kv --cov-config=.coveragerc --verbose
 
     bash <(curl -s https://codecov.io/bash)
 fi

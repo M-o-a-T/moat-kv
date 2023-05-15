@@ -1,7 +1,7 @@
 #!/bin/sh
 set -ex
 
-# This script tells DistKV to continue with the next log file.
+# This script tells MoaT-KV to continue with the next log file.
 # By default it writes a full dump daily.
 
 cd "$DEST"
@@ -19,7 +19,7 @@ else
 fi
 
 export PYTHONPATH
-distkv -c /etc/distkv.cfg client log dest $I "$DEST/$D/$x.dkv"
+moat.kv -c /etc/moat.kv.cfg client log dest $I "$DEST/$D/$x.dkv"
 if test $x -eq 0 ; then
 	# Now, delete some old backups
 	cd "$DEST"

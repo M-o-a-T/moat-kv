@@ -1,5 +1,5 @@
 """
-This module contains DistKV's basic data model.
+This module contains MoaT-KV's basic data model.
 
 TODO: message chains should be refactored to arrays: much lower overhead.
 """
@@ -33,7 +33,7 @@ NullACL = None  # imported later, if/when needed
 
 
 class Node:
-    """Represents one DistKV participant."""
+    """Represents one MoaT-KV participant."""
 
     name: str = None
     tick: int = None
@@ -686,7 +686,7 @@ class Entry:
         element.
 
         If ``acl`` is not ``None``, then ``acl_key`` is the ACL letter to
-        check for. ``acl`` must be an :class:`~distkv.types.ACLFinder`
+        check for. ``acl`` must be an :class:`~moat.kv.types.ACLFinder`
         created from the root of the ACL in question.
 
         The ACL key 'W' is special: it checks 'c' if the node is new, else
@@ -850,7 +850,7 @@ class Entry:
 
         Args:
           event: The :class:`NodeEvent` to base the update on.
-          data (Any): whatever the node should contains. Use :any:`distkv.util.NotGiven`
+          data (Any): whatever the node should contains. Use :any:`moat.kv.util.NotGiven`
             to delete.
 
         Returns:
@@ -985,15 +985,15 @@ class Entry:
         while True:
             bad = set()
             for q in list(node.monitors):
-                if q._distkv__free is None or q._distkv__free > 1:
-                    if q._distkv__free is not None:
-                        q._distkv__free -= 1
+                if q._moat.kv__free is None or q._moat.kv__free > 1:
+                    if q._moat.kv__free is not None:
+                        q._moat.kv__free -= 1
                     await q.put(event)
                 else:
                     bad.add(q)
             for q in bad:
                 try:
-                    if q._distkv__free > 0:
+                    if q._moat.kv__free > 0:
                         await q.put(None)
                     node.monitors.remove(q)
                 except KeyError:
@@ -1039,7 +1039,7 @@ class Watcher:
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
         self.q = create_queue(self.q_len)
-        self.q._distkv__free = self.q_len or None
+        self.q._moat.kv__free = self.q_len or None
         self.root.monitors.add(self.q)
         return self
 
@@ -1057,8 +1057,8 @@ class Watcher:
             raise RuntimeError("Aborted. Queue filled?")
         while True:
             res = await self.q.get()
-            if self.q._distkv__free is not None:
-                self.q._distkv__free += 1
+            if self.q._moat.kv__free is not None:
+                self.q._moat.kv__free += 1
             if res is None:
                 raise RuntimeError("Aborted. Queue filled?")
             if len(res.entry.path) and res.entry.path[0] is None and not self.full:

@@ -12,8 +12,8 @@ from asyncscope import main_scope, scope
 from moat.mqtt.broker import create_broker
 from moat.util import NotGiven, attrdict, combine_dict
 
-from distkv.mock import S
-from distkv.server import Server
+from moat.kv.mock import S
+from moat.kv.server import Server
 
 from . import CFG
 
@@ -83,7 +83,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
         await old()
 
     done = False
-    async with main_scope("distkv.test.mqtt") as scp:
+    async with main_scope("moat.kv.test.mqtt") as scp:
         tg = scp._tg
         st = S(tg, client_ctx)
         async with AsyncExitStack() as ex:

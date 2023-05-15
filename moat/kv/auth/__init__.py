@@ -1,4 +1,4 @@
-# distkv.auth
+# moat.kv.auth
 # template for authorization
 
 """
@@ -94,7 +94,7 @@ add_schema = {
 def loader(method: str, typ: str, *a, **k):
     m = method
     if "." not in m:
-        m = "distkv.auth." + m
+        m = "moat.kv.auth." + m
     cls = import_module(m).load(typ, *a, **k)
     cls._auth_method = method
     cls._auth_typ = typ
@@ -394,7 +394,7 @@ class RootServerUser(BaseServerAuth):
 class BaseServerAuthMaker(_AuthLoaded):
     """
     This class is used on the server to verify the transmitted user record
-    and to store it in DistKV.
+    and to store it in MoaT-KV.
 
     The schema verifies the data from the client.
     """
@@ -410,7 +410,7 @@ class BaseServerAuthMaker(_AuthLoaded):
 
     @classmethod
     def load(cls, data: Entry):
-        """Read the user data from DistKV"""
+        """Read the user data from MoaT-KV"""
         return cls(chain=data.chain, data=data.data)
 
     @classmethod
@@ -429,7 +429,7 @@ class BaseServerAuthMaker(_AuthLoaded):
         return "*"
 
     def save(self):
-        """Return a record to represent this user, suitable for saving to DistKV"""
+        """Return a record to represent this user, suitable for saving to MoaT-KV"""
         # does NOT contain "ident" or "chain"!
         return {}
 

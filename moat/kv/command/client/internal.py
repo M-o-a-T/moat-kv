@@ -104,7 +104,7 @@ async def deleter(obj, delete, nodes):
     Manage the Deleter list
 
     This is the set of nodes that must be online for removal of deleted
-    entries from DistKV's data.
+    entries from MoaT-KV's data.
 
     There should be one such node in every possible network partition.
     Also, all nodes with permanent storage should be on the list.
@@ -152,7 +152,7 @@ async def dump(obj, path):
     """
     Dump internal state.
 
-    This displays DistKV's internal state.
+    This displays MoaT-KV's internal state.
     """
 
     path = P(path)

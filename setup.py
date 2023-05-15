@@ -3,16 +3,16 @@ from setuptools import find_packages, setup
 LONG_DESC = open("README.rst", "r", encoding="utf-8").read()
 
 setup(
-    name="distkv",
+    name="moat.kv",
     use_scm_version={"version_scheme": "guess-next-dev", "local_scheme": "dirty-tag"},
     description="A distributed no-master key-value store",
-    url="https://github.com/smurfix/distkv",
+    url="https://github.com/smurfix/moat.kv",
     long_description=LONG_DESC,
     author="Matthias Urlichs",
     author_email="matthias@urlichs.de",
     license="MIT -or- Apache License 2.0",
-    packages=find_packages() + ["distkv_ext.dummy"],
-    # namespace_packages=["distkv_ext.dummy"],
+    packages=find_packages() + ["moat.kv_ext.dummy"],
+    # namespace_packages=["moat.kv_ext.dummy"],
     setup_requires=["setuptools_scm", "pytest-runner", "trustme >= 0.5"],
     install_requires=[
         "asyncclick > 7.99",
@@ -56,7 +56,7 @@ setup(
     ],
     entry_points="""
     [console_scripts]
-    distkv = distkv.command:cmd
+    moat.kv = moat.kv.command:cmd
     """,
     zip_safe=True,
 )

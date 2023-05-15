@@ -1,13 +1,13 @@
 ===================
-The DistKV tutorial
+The MoaT-KV tutorial
 ===================
 
 Installation
 ============
 
-This part is easy. ``pip install distkv``.
+This part is easy. ``pip install moat.kv``.
 
-You now have, or should have, a ``distkv`` command-line utility. If not,
+You now have, or should have, a ``moat.kv`` command-line utility. If not,
 use this script::
 
    #!/usr/bin/env python3
@@ -15,7 +15,7 @@ use this script::
    import sys
    # sys.path[0:0] = (".", "../asyncserf")  # for development
 
-   from distkv.command import cmd
+   from moat.kv.command import cmd
    cmd()
 
 
@@ -27,45 +27,45 @@ Start the server
 
 You start an initial server with this command::
 
-   $ distkv server -i Testing $(hostname)
+   $ moat.kv server -i Testing $(hostname)
    Running.
 
-By default, your DistKV server will talk to the local MQTT process.
+By default, your MoaT-KV server will talk to the local MQTT process.
 You can configure the destination by adapting the config file::
 
-   $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
+   $ moat.kv -C server.mqtt.uri=mqtt://your-server:1883 server -i Testing $(hostname)
 
 You can now retrieve the root value::
 
-   $ distkv client data :
+   $ moat.kv client data :
    "Testing"
    $
 
-As the purpose of DistKV is to be a *distributed* key-value storage, 
+As the purpose of MoaT-KV is to be a *distributed* key-value storage, 
 you can start another server on a different host::
 
-   two $ distkv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
+   two $ moat.kv -C server.mqtt.uri=mqtt://your-server:1883 server $(hostname)
    Running.
 
 
 This will take a few seconds for the servers to sync up with each other.
 You can verify that the second server has successfully synced up::
 
-   two $ distkv client data :
+   two $ moat.kv client data :
    "Testing"
    two $
 
 The root value is not special; by convention, it contains some data about the current
-DistKV network.
+MoaT-KV network.
 
 You can now kill the first server and restart it::
 
-   $ killall distkv
-   $ distkv server $(hostname)
+   $ killall moat.kv
+   $ moat.kv server $(hostname)
    Running.
 
 You must **never** start a server with the ``-i`` option unless you're
-creating a new and separate DistKV network.
+creating a new and separate MoaT-KV network.
 
 You can create separate networks by changing the ``server.root`` config
 variable. Such networks do not collide with each other, other than sharing
@@ -75,12 +75,12 @@ Serf gossip bandwidth.
 Data commands
 =============
 
-You might want to add an alias for "distkv client data" so that you don't
+You might want to add an alias for "moat.kv client data" so that you don't
 have to type so much. In ``bash``::
 
-   $ dkd() { distkv client data "$@"; }
+   $ dkd() { moat.kv client data "$@"; }
 
-Then, you can store arbitrary data at random DistKV nodes::
+Then, you can store arbitrary data at random MoaT-KV nodes::
 
    $ dkd one.two.three set -e : 123
    $ dkd one.two.three.four set -e : 1234
@@ -105,7 +105,7 @@ Stored values may be data structures, and you can selectively change them::
 
 The colon we used after ``-e`` is the empty path. More about paths below.
 
-All entries' values are independent. DistKV's storage is organized
+All entries' values are independent. MoaT-KV's storage is organized
 hierarchically, (among other reasons) for ease of retrieval::
 
     $ dkd get -rd_ one
@@ -120,17 +120,17 @@ hierarchically, (among other reasons) for ease of retrieval::
               two: 2
     $
 
-DistKV also stores some internal data, under a special ``null`` root key.
-You can use ``distkv client internal dump :`` to display them.
+MoaT-KV also stores some internal data, under a special ``null`` root key.
+You can use ``moat.kv client internal dump :`` to display them.
 
 Path specification
 ------------------
 
-DistKV uses "paths" to access entries (and the partial values in them).
+MoaT-KV uses "paths" to access entries (and the partial values in them).
 We chose the dot as a path separator because it's more visually distinctive
 than a slash.
 
-In DistKV, paths elements are not limited to strings; integers can
+In MoaT-KV, paths elements are not limited to strings; integers can
 also be path elements, as can ``True``, ``False``, ``None``, and tuples
 composed from them. We use colons instead of dots to mark those.
 The colon is also used as an escape characters for path elements that
@@ -143,7 +143,7 @@ A space is encoded as ``:_``. While a literal space is not a problem, it
 needs to be escaped on the command line. Experience shows that people tend
 to forget that. A "real" underscore ``_`` is not escaped.
 
-There's also the empty path (i.e. the top of DistKV's entry hierarchy,
+There's also the empty path (i.e. the top of MoaT-KV's entry hierarchy,
 not the same as a path that consists of an empty-string element!) which is
 coded as a stand-alone ``:`` for much the same reason.
 
@@ -179,12 +179,12 @@ printed in decimal form. While you also could use ``:0x…`` in place of
 
 .. warning::
 
-   Yes, DistKV supports tuples as part of paths. You probably should not use
+   Yes, MoaT-KV supports tuples as part of paths. You probably should not use
    this feature without a very good reason. "My key consists of three
    random integers and I want to avoid the overhead of storing a lot of
    intermediate entries" would be an example of a good reason.
    
-   DistKV also allows you to use both ``False``, an integer zero, and a
+   MoaT-KV also allows you to use both ``False``, an integer zero, and a
    floating-point zero as path elements. This is dangerous because Python's
    comparison and hashing operators treat them as being equal. (Same for
    ``True`` and 1; same for floating point numbers without fractions and
@@ -207,10 +207,10 @@ printed in decimal form. While you also could use ``:0x…`` in place of
 Persistent storage
 ==================
 
-DistKV keeps everything in memory (for now). If you want your data to
+MoaT-KV keeps everything in memory (for now). If you want your data to
 survive a power outage, you might want to tell your server to save them::
 
-   $ distkv client log dest /var/local/lib/distkv.$(date +%Y%m%d).state
+   $ moat.kv client log dest /var/local/lib/moat.kv.$(date +%Y%m%d).state
 
 This command writes the current state to this file. The server keeps the
 file open and appends new records to it. The ``log dest`` has options to
@@ -218,16 +218,16 @@ either write an incremental change record, or to just write a one-shot
 dump. Subsequent incremental files are guaranteed to not have missing or
 duplicate records.
 
-When you need to restart your DistKV system from scratch, simply pass the
+When you need to restart your MoaT-KV system from scratch, simply pass the
 newest saved state file::
 
-    $ distkv server -l $(ls -t /var/local/lib/distkv.*.state | head -1) $(hostname)
+    $ moat.kv server -l $(ls -t /var/local/lib/moat.kv.*.state | head -1) $(hostname)
     Running.
 
 If your state dump files are incremental, you should instead do
 something like this::
 
-    $ distkv server -l <(cat /var/local/lib/distkv.*.state) $(hostname)
+    $ moat.kv server -l <(cat /var/local/lib/moat.kv.*.state) $(hostname)
     Running.
 
 These commands are somewhat safe to use on a network that's already
@@ -235,7 +235,7 @@ running; your node may run with old state for a few seconds until it
 retrieves the updates that happened while it was down. An option to delay
 startup until that process has completed is somewhere on the TODO list.
 
-In a typical DistKV network, at most two or three nodes will use persistent
+In a typical MoaT-KV network, at most two or three nodes will use persistent
 storage; all others simply sync up with one of their peers whenever they
 are restarted.
 
@@ -243,36 +243,36 @@ are restarted.
 Authorization
 =============
 
-DistKV initially doesn't come up with any authorization scheme. However,
+MoaT-KV initially doesn't come up with any authorization scheme. However,
 advanced uses require the ability to distinguish between users.
 
 Let's set up a "root" user::
 
-    $ distkv client auth -m password user add name=joe password?=Code
+    $ moat.kv client auth -m password user add name=joe password?=Code
     Code: ******
-    $ distkv client auth -m password user list
+    $ moat.kv client auth -m password user list
     joe
-    $ distkv client auth -m password init -s
+    $ moat.kv client auth -m password init -s
     Authorization switched to password
     $
 
 (The input at the "Code:" prompt is not echoed.)
 
-After this point, you can no longer use DistKV without a password::
+After this point, you can no longer use MoaT-KV without a password::
 
     $ dkd get
     ClientAuthRequiredError: You need to log in using: password
     $
 
-    $ distkv client -a "password name=joe password?=Code" data :
+    $ moat.kv client -a "password name=joe password?=Code" data :
     Code: ******
     "Root"
     $
 
-Internal data are stored in a separate DistKV subtree that starts with a ``None`` value.
+Internal data are stored in a separate MoaT-KV subtree that starts with a ``None`` value.
 You can display it::
 
-    $ distkv client -a "password name=joe password=test123" data internal dump :
+    $ moat.kv client -a "password name=joe password=test123" data internal dump :
     null:
       auth:
         _:
@@ -291,8 +291,8 @@ scheme depends on the auth method.
 NB: nothing prevents you from using the string ``"null"`` as an ordinary
 key name::
 
-   $ distkv client -a "password name=joe password=test123" data null.foo set -v : bar
-   $ distkv client -a "password name=joe password=test123" data : get -rd_
+   $ moat.kv client -a "password name=joe password=test123" data null.foo set -v : bar
+   $ moat.kv client -a "password name=joe password=test123" data : get -rd_
    …
    'null':
      foo:
@@ -301,12 +301,12 @@ key name::
 For experimentation, there's also a ``_test`` authorization method which
 only exposes a user name::
 
-   $ distkv client auth -m _test user add name=joe
-   $ distkv client auth -m _test user add name=root
-   $ distkv client auth -m _test init
-   $ distkv client data :
+   $ moat.kv client auth -m _test user add name=joe
+   $ moat.kv client auth -m _test user add name=root
+   $ moat.kv client auth -m _test init
+   $ moat.kv client data :
    ClientAuthRequiredError: You need to log in using: _test
-   $ dkv() { distkv client -a "_test name=joe" "$@"; }
+   $ dkv() { moat.kv client -a "_test name=joe" "$@"; }
    $ dkv data :
    123
    $
@@ -316,11 +316,11 @@ We'll use that user and alias in the following sections.
 ACLs and distributed servers
 ----------------------------
 
-DistKV servers actually use the client protocol when they sync up. Thus, when you
+MoaT-KV servers actually use the client protocol when they sync up. Thus, when you
 set up authorization, you must teach your servers to authenticate to their
 peer::
 
-   $ distkv -C connect.auth="_test name=joe" server $(hostname)
+   $ moat.kv -C connect.auth="_test name=joe" server $(hostname)
 
 You typically store that in a configuration file::
 
@@ -328,18 +328,18 @@ You typically store that in a configuration file::
         auth: "_test name=joe"
         host: 127.0.0.1
 
-``distkv`` auto-reads the configuration from a few paths, or you can use
+``moat.kv`` auto-reads the configuration from a few paths, or you can use
 the ``-c test.cfg`` flag.
 
 Access restrictions
 ===================
 
-A user can be restricted from accessing or modifying DistKV data.
+A user can be restricted from accessing or modifying MoaT-KV data.
 
 Let's say that we'd like to create a "write-only" data storage::
 
-   $ distkv client -a "_test name=root" acl set writeonly -a xc 'wom.#'
-   $ distkv client -a "_test name=root" auth user set param joe acl writeonly
+   $ moat.kv client -a "_test name=root" acl set writeonly -a xc 'wom.#'
+   $ moat.kv client -a "_test name=root" auth user set param joe acl writeonly
    $ dkv data wom.foo.bar set -e : 42
    $ dkv data wom.foo.bar set -e : 43
    ServerError: (<AclEntry:[None, 'acl', 'writeonly', 'wom', '#']@<NodeEvent:<Node: test1 @10> @4 1> ='cx'>, 'w')
@@ -352,7 +352,7 @@ As you can see, this allows the user to write to arbitrary values to the
 which he wrote.
 
 Note that we also created a "root" user who doesn't have ACL restrictions.
-If we had not, we'd now be locked out of our DistKV storage because "no
+If we had not, we'd now be locked out of our MoaT-KV storage because "no
 matching ACL" means "no access".
 
 A user who has an ACL set can no longer modify the system, because the
@@ -365,10 +365,10 @@ or roles or whatever. Code welcome.
 Code execution
 ==============
 
-DistKV doesn't just store passive data: you can also use it to distribute
+MoaT-KV doesn't just store passive data: you can also use it to distribute
 actual computing. We'll demonstrate that here.
 
-First we feed some interesting code into DistKV::
+First we feed some interesting code into MoaT-KV::
 
     $ dkv code set the.answer <<END
     > print("Forty-Two!")
@@ -380,7 +380,7 @@ Then we set up a one-shot run-anywhere instance::
    $ dkv run set -c the.answer -t 0 a.question
 
 This doesn't actually execute any code because the executor is not part of
-the DistKV server. (The server may gain an option to do that too, but
+the MoaT-KV server. (The server may gain an option to do that too, but
 not yet.) So we run it::
 
    $ dkv run all
@@ -388,7 +388,7 @@ not yet.) So we run it::
 
 (Initially this takes some time, because the ``run`` command needs to
 co-ordinate with other runners. There aren't any, others, of course, but
-DistKV can't know that.)
+MoaT-KV can't know that.)
 
 The code will not run again unless we either re-set ``--time``, or set a
 repeat timer with ``--repeat``.
@@ -418,14 +418,14 @@ Errors
 ======
 
 Nobody is perfect, and neither is code. Sometimes things break.
-DistKV remembers errors. To demonstrate, let's first provoke one::
+MoaT-KV remembers errors. To demonstrate, let's first provoke one::
 
     $ dkv code set the.error <<END
     > raise RuntimeError("Owch")
     > END
     $ dkv run set -c the.error -t 0 what.me.worry
     $ dkv run all  # if it's not still running
-    20:24:13.935 WARNING:distkv.errors:Error ('.distkv', 'error', 'test1', 16373) test1: Exception: Owch
+    20:24:13.935 WARNING:moat.kv.errors:Error ('.moat.kv', 'error', 'test1', 16373) test1: Exception: Owch
 
 The list of errors is now no longer empty::
 
@@ -435,7 +435,7 @@ The list of errors is now no longer empty::
 You can limit the error list to specific subtrees. This command has the
 same effect::
 
-   $ dkv error list -d_ :.distkv.run.any
+   $ dkv error list -d_ :.moat.kv.run.any
 
 except that the path is shortened for improved useability.
 
@@ -446,13 +446,13 @@ errors on a specific node, which only includes that node's details.
 The Python API
 ==============
 
-Command lines are all well and good, but DistKV gets really interesting
+Command lines are all well and good, but MoaT-KV gets really interesting
 when you use it from Python.
 
 Let's start by simply setting some value::
 
    import anyio
-   from distkv.client import open_client
+   from moat.kv.client import open_client
    from moat.util import P
 
    async def dkv_example():
@@ -470,7 +470,7 @@ That was easy. Now we'd like to update that entry::
          ret = client.set(P("one.two.three"), value=("Test",v[1]+1,False), chain=res.chain)
          assert res.chain != ret.chain
 
-The ``chain`` parameter is important: it tells DistKV which change caused
+The ``chain`` parameter is important: it tells MoaT-KV which change caused
 the old value. So if somebody else changes your ``one.two.three`` entry
 while your program was running, you get a collision and the ``set`` fails.
 
@@ -480,8 +480,8 @@ Deleting an entry clears the chain because the source of a non-existing value
 doesn't matter.
 
 .. warning::
-   DistKV is an asynchronous distributed system. Thus, asuming that you
-   have more than one DistKV server, this does not prevent your ``set``
+   MoaT-KV is an asynchronous distributed system. Thus, asuming that you
+   have more than one MoaT-KV server, this does not prevent your ``set``
    command from being ignored; it just reduces the window when this could
    happen from the time since the last ``get`` to a couple of milliseconds.
 
@@ -516,9 +516,9 @@ Active objects
 --------------
 
 While watching for changes is nice, organizing the resulting objects tends
-to be tedious. DistKV comes with a couple of classes that does this for you::
+to be tedious. MoaT-KV comes with a couple of classes that does this for you::
 
-   from distkv.obj import ClientRoot, ClientEntry
+   from moat.kv.obj import ClientRoot, ClientEntry
    from moat.util import NotGiven
 
    class OneEntry(ClientEntry):
@@ -593,7 +593,7 @@ Oops: non-string values need to be evaluated. Better::
     $ dkv data stats.foo.bar.quota set -e : 12
     $
 
-DistKV does not test that existing values match your restrictions.
+MoaT-KV does not test that existing values match your restrictions.
 
 
 Data mangling
@@ -630,7 +630,7 @@ This associates
 * all paths that start with ``monitor`` and end with ``value``
 
 with the codec list named ``floatval``. As not every user needs stringified
-numbers, we also need to tell DistKV which users to apply this codec to::
+numbers, we also need to tell MoaT-KV which users to apply this codec to::
 
     $ dkv auth user modify --aux codec=floatval name=joe
 	
@@ -657,7 +657,7 @@ binary strings, not Unicode strings.
 Limitations
 -----------
 
-DistKV currently can't translate paths, or merge many values to one entry's attributes.
+MoaT-KV currently can't translate paths, or merge many values to one entry's attributes.
 
 You can use either active objects (add some code to their ``set_value``
 methods) or code objects (listen to A and write to B) to effect such
@@ -676,15 +676,15 @@ translations. There are some caveats:
 Dynamic configuration
 =====================
 
-For some use cases, you might want to configure DistKV dynamically instead
+For some use cases, you might want to configure MoaT-KV dynamically instead
 of by a static configuration file.
 
 This is not always feasible; in particular, the "logging" and "server"
 sections are imported once. Also, options used for connecting to another
-DistKV server cannot be set dynamically because you need them before the
+MoaT-KV server cannot be set dynamically because you need them before the
 data are available.
 
-Other options may be overridden by storing a new values at ``.distkv config
+Other options may be overridden by storing a new values at ``.moat.kv config
 <name>``. It is not possible to be more specific. (TODO)
 
 If a client's ACLs do not allow reading a config entry, it will be silently

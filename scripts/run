@@ -1,20 +1,20 @@
 #!/bin/bash
 set -ex
 
-# This script starts up DistKV.
+# This script starts up MoaT-KV.
 
-# Normally, starting DistKV on a host where clients don't connect locally is
+# Normally, starting MoaT-KV on a host where clients don't connect locally is
 # a bad idea. However, on a system that has more than one network namespace
 # you need to use a specific address. So set LOCAL=yes to force starting
 # anyway.
 
-if test "$LOCAL" != "yes" && test "$(distkv dump cfg connect.host)" != "127.0.0.1"; then
+if test "$LOCAL" != "yes" && test "$(moat.kv dump cfg connect.host)" != "127.0.0.1"; then
     echo "Server is not localhost: not starting."
     exit 42  # mark as succeeded
 fi
 
 if test "$MODE" = "master" ; then
-    /usr/lib/distkv/current "$TEMP"
+    /usr/lib/moat.kv/current "$TEMP"
 fi
 
 if test ! -v NAME ; then
@@ -23,7 +23,7 @@ if test ! -v NAME ; then
 fi
 
 if test -v TEMP && test -s "$TEMP" ; then
-    exec distkv -c /etc/distkv.cfg server -a -l "$TEMP" "$NAME"
+    exec moat.kv -c /etc/moat.kv.cfg server -a -l "$TEMP" "$NAME"
 else
-    exec distkv -c /etc/distkv.cfg server "$NAME"
+    exec moat.kv -c /etc/moat.kv.cfg server "$NAME"
 fi

@@ -81,7 +81,7 @@ TypeEntry.SUBTYPE = TypeEntry
 
 
 class TypeRoot(Entry):
-    """I am the root of DistKV's type hierarchy."""
+    """I am the root of MoaT-KV's type hierarchy."""
 
     SUBTYPE = TypeEntry
 
@@ -249,7 +249,7 @@ class MetaPathEntry(MetaEntry):
 
 
 class MatchRoot(MetaPathEntry):
-    """I am the root of DistKV's type hierarchy."""
+    """I am the root of MoaT-KV's type hierarchy."""
 
     SUBTYPE = MatchEntry
 
@@ -332,7 +332,7 @@ CodecEntry.SUBTYPE = CodecEntry
 
 
 class CodecRoot(Entry):
-    """I am the root of DistKV's codec hierarchy."""
+    """I am the root of MoaT-KV's codec hierarchy."""
 
     SUBTYPE = CodecEntry
 
@@ -479,7 +479,7 @@ class ActorRoot(Entry):
 
 
 class MetaRootEntry(Entry):  # not MetaEntry
-    """I am the special node off the DistKV root that's named ``None``."""
+    """I am the special node off the MoaT-KV root that's named ``None``."""
 
     SUBTYPES = {
         "type": TypeRoot,
@@ -499,7 +499,7 @@ Entry.SUBTYPES[None] = MetaRootEntry
 
 
 class RootEntry(Entry):
-    """I am the root of the DistKV data tree."""
+    """I am the root of the MoaT-KV data tree."""
 
     def __init__(self, server, *a, **k):
         super().__init__("ROOT", None, *a, **k)

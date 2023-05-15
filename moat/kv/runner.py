@@ -126,7 +126,7 @@ for _c in (
 
 class CallAdmin:
     """
-    This class collects some standard tasks which async DistKV-embedded
+    This class collects some standard tasks which async MoaT-KV-embedded
     code might want to do.
     """
 
@@ -235,7 +235,7 @@ class CallAdmin:
         error data, then raises `ErrorRecorded` which the code is not
         supposed to catch.
 
-        See `distkv.errors.ErrorRoot.record_error` for keyword details. The
+        See `moat.kv.errors.ErrorRoot.record_error` for keyword details. The
         ``path`` argument is auto-filled to point to the current task.
         """
         if path is None:
@@ -249,7 +249,7 @@ class CallAdmin:
 
     async def watch(self, path, cls=ChangeMsg, **kw):
         """
-        Create a watcher. This path is monitored as per `distkv.client.Client.watch`;
+        Create a watcher. This path is monitored as per `moat.kv.client.Client.watch`;
         messages are encapsulated in `ChangeMsg` objects.
         A `ReadyMsg` will be sent when all watchers have transmitted their
         initial state.
@@ -345,7 +345,7 @@ class CallAdmin:
 
     async def set(self, path, value, chain=NotGiven):
         """
-        Set a DistKV value.
+        Set a MoaT-KV value.
         """
         if path.mark == "r":
             return await self.send(path, value)
@@ -361,7 +361,7 @@ class CallAdmin:
 
     async def get(self, path, value):
         """
-        Get a DistKV value.
+        Get a MoaT-KV value.
         """
         if isinstance(path, (tuple, list)):
             path = Path.build(path)
@@ -490,7 +490,7 @@ class RunnerEntry(AttrClientEntry):
     The code runs with these additional keywords::
 
         _self: the `CallEnv` object, which the task can use to actually do things.
-        _client: the DistKV client connection.
+        _client: the MoaT-KV client connection.
         _info: a queue which the task can use to receive events. A message of
             ``None`` signals that the queue was overflowing and no further
             messages will be delivered. Your task should use that as its
@@ -498,7 +498,7 @@ class RunnerEntry(AttrClientEntry):
         _P: build a path from a string
         _Path: build a path from its arguments
 
-    Some possible messages are defined in :mod:`distkv.actor`.
+    Some possible messages are defined in :mod:`moat.kv.actor`.
     """
 
     ATTRS = "code data delay ok_after repeat backoff target".split()
@@ -1208,7 +1208,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     Arguments:
       path (tuple): the location this entry is stored at. Defaults to
-        ``('.distkv', 'process')``.
+        ``('.moat.kv', 'process')``.
       name (str): this runner's name. Defaults to the client's name plus
         the name stored in the root node, if any.
       actor (dict): the configuration for the underlying actor. See

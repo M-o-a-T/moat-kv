@@ -9,7 +9,7 @@ if "%SPHINXBUILD%" == "" (
 )
 set SOURCEDIR=source
 set BUILDDIR=build
-set SPHINXPROJ=DistKV
+set SPHINXPROJ=MoaT-KV
 
 if "%1" == "" goto help
 

@@ -1,19 +1,19 @@
 [Unit]
-Description=DistKV log rotate
-Requires=distkv.service
-After=distkv.service
+Description=MoaT-KV log rotate
+Requires=moat.kv.service
+After=moat.kv.service
 
-ConditionFileNotEmpty=/etc/distkv.cfg
-ConditionPathIsDirectory=/var/lib/distkv
+ConditionFileNotEmpty=/etc/moat.kv.cfg
+ConditionPathIsDirectory=/var/lib/moat.kv
 
 [Install]
 
 [Service]
-ExecStart=/usr/lib/distkv/rotate
+ExecStart=/usr/lib/moat.kv/rotate
 
-EnvironmentFile=/usr/lib/distkv/env
-EnvironmentFile=-/etc/distkv.env
+EnvironmentFile=/usr/lib/moat.kv/env
+EnvironmentFile=-/etc/moat.kv.env
 
-User=distkv
-Group=distkv
+User=moat.kv
+Group=moat.kv
 

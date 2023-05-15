@@ -2,19 +2,19 @@
 Principles of operation
 =======================
 
-DistKV relies on the fact that on most KV storage systems, any given record
+MoaT-KV relies on the fact that on most KV storage systems, any given record
 is rarely (if ever) changed by more than one entity at the same time. Thus,
 a simple gossip protocol is sufficient for distributing data.
 
-To recover from missed changes, each node in a DistKV network maintains a
-change counter ("tick"). All data records (:class:`distkv.model.Entry`) are
-tagged with a chain of events (:class:`distkv.model.NodeEvent`), consisting
+To recover from missed changes, each node in a MoaT-KV network maintains a
+change counter ("tick"). All data records (:class:`moat.kv.model.Entry`) are
+tagged with a chain of events (:class:`moat.kv.model.NodeEvent`), consisting
 of the ``n`` most recent ``(node, tick)`` values which changed this
 entry. Nodes do not appear in a chain more than once. Dropped ticks
 are added to a per-node list of "known"(-to-have-been-superseded) counter
 values.
 
-The maximum chain length is determined by the number of partitions a DistKV
+The maximum chain length is determined by the number of partitions a MoaT-KV
 network might split into. Thus the network guarantees that it is possible
 which side of a split modified a record when the split is healed.
 
@@ -32,8 +32,8 @@ participants:
 
 * broadcast the missed data
 
-DistKV does not have a master node, much less a consensus-based election
-system (Raft, Paxos, …). Instead, DistKV uses an ``asyncserf Actor`` to
+MoaT-KV does not have a master node, much less a consensus-based election
+system (Raft, Paxos, …). Instead, MoaT-KV uses an ``asyncserf Actor`` to
 compile a short list of available servers that's broadcast every few
 seconds.
 
@@ -44,13 +44,13 @@ responsible for driving and monitoring the re-sync protocol.
 Storage
 =======
 
-DistKV is intended to be used in a mostly-RAM architecture. There is no
+MoaT-KV is intended to be used in a mostly-RAM architecture. There is no
 disk-based storage backend; snapshots and event logs are used to restore a
 system, if necessary. Feeding old snapshots to a running system is mostly
 benign, but see below.
 
 
-DistKV is based on the gossip system provided by Hashicorp's Serf.
+MoaT-KV is based on the gossip system provided by Hashicorp's Serf.
 It supports all data types that can be transmitted by
 `MsgPack <https://github.com/msgpack/msgpack/blob/master/spec.md>`.
 
@@ -59,10 +59,10 @@ TODO: MsgPack has extension types, so constructing Python objects is possible.
 Record Deletion
 ===============
 
-Deleting data records is when DistKV's synchronization protocol breaks
-down, because DistKV can't attach chains to records which no longer exist.
+Deleting data records is when MoaT-KV's synchronization protocol breaks
+down, because MoaT-KV can't attach chains to records which no longer exist.
 
-DistKV fixes this by keeping a separate record of deleted entries, or
+MoaT-KV fixes this by keeping a separate record of deleted entries, or
 rather their chain links. This works well for mostly-static storages but
 becomes a problem on more dynamic systems.
 

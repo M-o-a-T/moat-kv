@@ -1,5 +1,5 @@
 """
-This module locally stores code that's been uploaded to DistKV
+This module locally stores code that's been uploaded to MoaT-KV
 so that it can be called easily.
 
 "Code" consists of either Python modules or single procedures.
@@ -117,8 +117,8 @@ class CodeRoot(ClientRoot):
     Configuration:
 
     Arguments:
-      prefix (list): Where to store the code in DistKV.
-        The default is ``('.distkv','code','proc')``.
+      prefix (list): Where to store the code in MoaT-KV.
+        The default is ``('.moat.kv','code','proc')``.
 
     The code is stored as a dict.
 

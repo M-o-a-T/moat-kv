@@ -1,15 +1,15 @@
 ======
-DistKV
+MoaT-KV
 ======
 
-Welcome to `DistKV <https://github.com/smurfix/distkv>`__!
+Welcome to `MoaT-KV <https://github.com/smurfix/moat.kv>`__!
 
-DistKV is a master-less distributed key-value storage system. It
+MoaT-KV is a master-less distributed key-value storage system. It
 circumvents the CAP theorem by assuming that keys are usually only changed
 by one node. It is resistant to partitioning and intended to be always-on;
 it might delay – but will not lose – updates even in a partitioned network.
 
-DistKV comes with several batteries included:
+MoaT-KV comes with several batteries included:
 
 * Basic user management, pattern-based ACLs
 
@@ -21,14 +21,14 @@ DistKV comes with several batteries included:
 
 * Seamless recovery even if only one master is running
 
-* a MQTT 3.1 back-end that stores persistent data in DistKV,
+* a MQTT 3.1 back-end that stores persistent data in MoaT-KV,
   based on hbmqtt
 
 API
 ===
 
-DistKV offers an efficient msgpack-based interface to access data and to
-change internal settings. Most configuration is stored inside DistKV
+MoaT-KV offers an efficient msgpack-based interface to access data and to
+change internal settings. Most configuration is stored inside MoaT-KV
 itself.
 
 Stored data are **not** forced to be strings or binary sequences, but can
@@ -39,16 +39,16 @@ support string, integer/float, and list keys.
 Non-Features
 ============
 
-DistKV does not support data partitioning. Every node stores the whole
+MoaT-KV does not support data partitioning. Every node stores the whole
 data set and can instantly deliver mostly-uptodate data.
 
-DistKV does not have a disk-based storage backend; periodic snapshots and
+MoaT-KV does not have a disk-based storage backend; periodic snapshots and
 event logs can be used to quickly restore a system, if necessary.
 
 Status
 ======
 
-DistKV is mostly stable. There are a lot of corner cases that don't
+MoaT-KV is mostly stable. There are a lot of corner cases that don't
 have tests yet
 
 TODOs:

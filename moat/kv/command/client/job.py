@@ -8,9 +8,9 @@ import anyio
 import asyncclick as click
 from moat.util import P, Path, attr_args, attrdict, process_args, yprint
 
-from distkv.code import CodeRoot
-from distkv.data import add_dates, data_get
-from distkv.runner import AllRunnerRoot, AnyRunnerRoot, SingleRunnerRoot
+from moat.kv.code import CodeRoot
+from moat.kv.data import add_dates, data_get
+from moat.kv.runner import AllRunnerRoot, AnyRunnerRoot, SingleRunnerRoot
 
 
 @click.group()  # pylint: disable=undefined-variable
@@ -18,7 +18,7 @@ from distkv.runner import AllRunnerRoot, AnyRunnerRoot, SingleRunnerRoot
 @click.option("-g", "--group", help="group to run this code on. Empty: default")
 @click.pass_context
 async def cli(ctx, node, group):
-    """Run code stored in DistKV.
+    """Run code stored in MoaT-KV.
 
     \b
     The option '-n' is somewhat special:
@@ -188,7 +188,7 @@ async def list_(obj, state, state_only, table, as_dict):
         state = obj.statepath + path
 
     if table:
-        from distkv.errors import ErrorRoot
+        from moat.kv.errors import ErrorRoot
 
         err = await ErrorRoot.as_handler(obj.client)
 
@@ -405,7 +405,7 @@ async def monitor(obj):
     Runners periodically send a keepalive message. Show them.
     """
 
-    # TODO this does not watch changes in DistKV.
+    # TODO this does not watch changes in MoaT-KV.
     # It also should watch individual jobs' state changes.
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")

@@ -74,7 +74,7 @@ class ManyData(ValueError):
 
 
 @asynccontextmanager
-async def open_client(_main_name="distkv.client", **cfg):
+async def open_client(_main_name="moat.kv.client", **cfg):
     """
     This async context manager returns an opened client connection.
 
@@ -116,7 +116,7 @@ async def client_scope(_name=None, **cfg):
             _name = f"_{_cid}"
             # uniqueness required for testing.
             # TODO replace with a dependency on the test server.
-    return await scope.service(f"distkv.client.{_name}", _scoped_client, _name=_name, **cfg)
+    return await scope.service(f"moat.kv.client.{_name}", _scoped_client, _name=_name, **cfg)
 
 
 class StreamedRequest:
@@ -339,7 +339,7 @@ class _SingleReply:
 
 
 class ClientConfig:
-    """Accessor for configuration, possibly stored in DistKV."""
+    """Accessor for configuration, possibly stored in MoaT-KV."""
 
     _changed = None  # pylint
 
@@ -387,7 +387,7 @@ class ClientConfig:
 
 class Client:
     """
-    The client side of a DistKV connection.
+    The client side of a MoaT-KV connection.
 
     Use `open_client` or `client_scope` to use this class.
     """
@@ -414,7 +414,7 @@ class Client:
         self._send_lock = anyio.Lock()
         self._helpers = {}
         self._name = "".join(random.choices("abcdefghjkmnopqrstuvwxyz23456789", k=9))
-        self.logger = logging.getLogger(f"distkv.client.{self._name}")
+        self.logger = logging.getLogger(f"moat.kv.client.{self._name}")
 
     @property
     def name(self):
@@ -688,7 +688,7 @@ class Client:
     async def _connected(self):
         """
         This async context manager handles the actual TCP connection to
-        the DistKV server.
+        the MoaT-KV server.
         """
         hello = AsyncValueEvent()
         self._handlers[0] = hello
@@ -862,7 +862,7 @@ class Client:
 
     async def get_tree(self, path, *, long_path=True, **kw):
         """
-        Retrieve a complete DistKV subtree.
+        Retrieve a complete MoaT-KV subtree.
 
         This call results in a stream of tree nodes. Storage of these nodes,
         if required, is up to the caller. Also, the server does not
@@ -908,7 +908,7 @@ class Client:
         Args:
             seq: the sequence number of the request in question.
 
-        TODO: DistKV doesn't do per-command flow control yet, so you should
+        TODO: MoaT-KV doesn't do per-command flow control yet, so you should
         call this method from a different task if you don't want to risk a
         deadlock.
         """
@@ -927,12 +927,12 @@ class Client:
           min_depth (int): min level of nodes to retrieve.
           max_depth (int): max level of nodes to retrieve.
 
-        The result should be passed through a :class:`distkv.util.PathLongener`.
+        The result should be passed through a :class:`moat.kv.util.PathLongener`.
 
         If ``fetch`` is set, a ``state="uptodate"`` message will be sent
         as soon as sending the current state is completed.
 
-        DistKV will not send stale data, so you may always replace a path's
+        MoaT-KV will not send stale data, so you may always replace a path's
         old cached state with the newly-arrived data.
         """
         if isinstance(path, str):
@@ -941,7 +941,7 @@ class Client:
 
     def mirror(self, path, *, root_type=None, **kw):
         """An async context manager that affords an update-able mirror
-        of part of a DistKV store.
+        of part of a MoaT-KV store.
 
         Arguments:
           root_type (type): The class to use for the root. Must be
@@ -950,7 +950,7 @@ class Client:
         Returns: the root of this tree.
 
         Usage::
-            async with distkv.open_client() as c:
+            async with moat.kv.open_client() as c:
                 async with c.mirror("foo", "bar", need_wait=True) as foobar:
                     r = await c.set_value("foo", "bar", "baz", value="test")
                     await foobar.wait_chain(r.chain)

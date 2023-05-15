@@ -4,8 +4,8 @@ import pytest
 import trio
 from moat.util import P, PathLongener
 
-from distkv.errors import ErrorRoot
-from distkv.mock.mqtt import stdtest
+from moat.kv.errors import ErrorRoot
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 

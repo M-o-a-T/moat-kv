@@ -5,9 +5,9 @@ import logging
 import asyncclick as click
 from moat.util import attrdict, combine_dict, load_subgroup
 
-from distkv.auth import gen_auth
-from distkv.client import client_scope
-from distkv.default import CFG
+from moat.kv.auth import gen_auth
+from moat.kv.client import client_scope
+from moat.kv.default import CFG
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class NullObj:
 
 
 @load_subgroup(
-    sub_pre="distkv.command.client", sub_post="cli", ext_pre="distkv_ext", ext_post="client.cli"
+    sub_pre="moat.kv.command.client", sub_post="cli", ext_pre="moat.kv_ext", ext_post="client.cli"
 )
 @click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
 @click.option(
@@ -50,7 +50,7 @@ class NullObj:
 @click.option("-m", "--metadata", is_flag=True, help="Include/print metadata.")
 @click.pass_context
 async def cli(ctx, host, port, auth, metadata):
-    """Talk to a DistKV server."""
+    """Talk to a MoaT-KV server."""
     obj = ctx.obj
     cfg = attrdict()
     if host is not None:

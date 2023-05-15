@@ -53,7 +53,7 @@ from moat.util import (
 from range_set import RangeSet
 
 from . import _version_tuple
-from . import client as distkv_client  # needs to be mock-able
+from . import client as moat.kv_client  # needs to be mock-able
 from .actor.deletor import DeleteActor
 from .backend import get_backend
 from .codec import packer, stream_unpacker, unpacker
@@ -1315,18 +1315,18 @@ class _RecoverControl:
 
 class Server:
     """
-    This is the DistKV server. It manages connections to the Serf/MQTT server,
-    the DistKV clients, and (optionally) logs all changes to a file.
+    This is the MoaT-KV server. It manages connections to the Serf/MQTT server,
+    the MoaT-KV clients, and (optionally) logs all changes to a file.
 
     Args:
-      name (str): the name of this DistKV server instance.
+      name (str): the name of this MoaT-KV server instance.
         It **must** be unique.
       cfg: configuration.
-        See :attr:`distkv.default.CFG` for default values.
+        See :attr:`moat.kv.default.CFG` for default values.
         Relevant is the ``server`` sub-dict (mostly).
       init (Any):
         The initial content of the root entry. **Do not use this**, except
-          when setting up an entirely new DistKV network.
+          when setting up an entirely new MoaT-KV network.
     """
 
     # pylint: disable=no-member # mis-categorizing cfg as tuple
@@ -1361,7 +1361,7 @@ class Server:
 
         self._init = init
         self.crypto_limiter = anyio.Semaphore(3)
-        self.logger = logging.getLogger("distkv.server." + name)
+        self.logger = logging.getLogger("moat.kv.server." + name)
         self._delete_also_nodes = NodeSet()
 
         # Lock for generating a new node event
@@ -1578,8 +1578,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.debug("DelSync: connecting %s", cfg)
-                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
-                    client = await distkv_client.client_scope(connect=cfg)
+                async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
+                    client = await moat.kv_client.client_scope(connect=cfg)
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -1909,7 +1909,7 @@ class Server:
           delay: an event to set after the initial ping message has been
             sent.
         """
-        T = get_transport("distkv")
+        T = get_transport("moat.kv")
         async with Actor(
             T(self.backend, *self.cfg.server.root, "ping"),
             name=self.node.name,
@@ -2065,8 +2065,8 @@ class Server:
                 cfg["auth"] = gen_auth(auth)
 
                 self.logger.info("Sync: connecting: %s", cfg)
-                async with scope.using_scope(f"distkv.sync.{self.node.name}"):
-                    client = await distkv_client.client_scope(connect=cfg)
+                async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
+                    client = await moat.kv_client.client_scope(connect=cfg)
                     # TODO auth this client
 
                     pl = PathLongener(())

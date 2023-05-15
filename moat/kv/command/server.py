@@ -2,10 +2,10 @@
 
 import asyncclick as click
 
-from distkv.server import Server
+from moat.kv.server import Server
 
 
-@click.command(short_help="Run the DistKV server.")  # pylint: disable=undefined-variable
+@click.command(short_help="Run the MoaT-KV server.")  # pylint: disable=undefined-variable
 @click.option(
     "-l",
     "--load",
@@ -54,15 +54,15 @@ from distkv.server import Server
 @click.pass_obj
 async def cli(obj, name, load, save, init, incremental, eval_, auth, force, nodes):
     """
-    This command starts a DistKV server. It defaults to connecting to the local Serf
+    This command starts a MoaT-KV server. It defaults to connecting to the local Serf
     agent.
 
-    All DistKV servers must have a unique name. Its uniqueness cannot be
+    All MoaT-KV servers must have a unique name. Its uniqueness cannot be
     verified reliably.
 
     One server in your network needs either an initial datum, or a copy of
-    a previously-saved DistKV state. Otherwise, no client connections will
-    be accepted until synchronization with the other servers in your DistKV
+    a previously-saved MoaT-KV state. Otherwise, no client connections will
+    be accepted until synchronization with the other servers in your MoaT-KV
     network is complete.
 
     This command requires a unique NAME argument. The name identifies this

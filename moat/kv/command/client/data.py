@@ -6,8 +6,8 @@ import time
 import asyncclick as click
 from moat.util import MsgReader, NotGiven, P, PathLongener, attr_args, yprint
 
-from distkv.client import StreamedRequest
-from distkv.data import add_dates, data_get, node_attr
+from moat.kv.client import StreamedRequest
+from moat.kv.data import add_dates, data_get, node_attr
 
 
 @click.group(
@@ -17,7 +17,7 @@ from distkv.data import add_dates, data_get, node_attr
 @click.pass_context
 async def cli(ctx, path):
     """
-    This subcommand accesses the actual user data stored in your DistKV tree.
+    This subcommand accesses the actual user data stored in your MoaT-KV tree.
     """
     if ctx.invoked_subcommand is None:
         await data_get(ctx.obj, path, recursive=False)
@@ -46,7 +46,7 @@ async def cli(ctx, path):
 @click.pass_obj
 async def get(obj, **k):
     """
-    Read a DistKV value.
+    Read a MoaT-KV value.
 
     If you read a sub-tree recursively, be aware that the whole subtree
     will be read before anything is printed. Use the "watch --state" subcommand
@@ -77,7 +77,7 @@ async def get(obj, **k):
 @click.pass_obj
 async def list_(obj, **k):
     """
-    List DistKV values.
+    List MoaT-KV values.
 
     This is like "get" but with "--mindepth=1 --maxdepth=1 --recursive --empty"
 
@@ -99,7 +99,7 @@ async def list_(obj, **k):
 @click.pass_obj
 async def set_(obj, vars_, eval_, path_, last, new):
     """
-    Store a value at some DistKV position.
+    Store a value at some MoaT-KV position.
 
     If you update a value you can use "--last" to ensure that no other
     change arrived between reading and writing the entry. (This is not
@@ -108,7 +108,7 @@ async def set_(obj, vars_, eval_, path_, last, new):
     When adding a new entry use "--new" to ensure that you don't
     accidentally overwrite something.
 
-    DistKV entries typically are mappings. Use a colon as the path if you
+    MoaT-KV entries typically are mappings. Use a colon as the path if you
     want to replace the top level.
     """
     args = {}
@@ -190,7 +190,7 @@ async def delete(obj, prev, last, recursive, eval_, internal):
 @click.option("-i", "--ignore", multiple=True, type=P, help="Skip this (sub)tree")
 @click.pass_obj
 async def monitor(obj, state, only, add_date, ignore):
-    """Monitor a DistKV subtree"""
+    """Monitor a MoaT-KV subtree"""
 
     flushing = not state
     seen = False
@@ -231,7 +231,7 @@ async def monitor(obj, state, only, add_date, ignore):
 @click.option("-i", "--infile", type=click.Path(), help="File to read (msgpack).")
 @click.pass_obj
 async def update(obj, infile):
-    """Send a list of updates to a DistKV subtree"""
+    """Send a list of updates to a MoaT-KV subtree"""
     async with MsgReader(path=infile) as reader:
         async for msg in reader:
             if not hasattr(msg, "path"):

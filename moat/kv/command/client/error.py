@@ -5,14 +5,14 @@ import sys
 import asyncclick as click
 from moat.util import P, Path, yprint
 
-from distkv.data import add_dates
-from distkv.errors import ErrorRoot
+from moat.kv.data import add_dates
+from moat.kv.errors import ErrorRoot
 
 
 @click.group()  # pylint: disable=undefined-variable
 @click.pass_obj
 async def cli(obj):
-    """Manage error records in DistKV."""
+    """Manage error records in MoaT-KV."""
     obj.err = await ErrorRoot.as_handler(obj.client)
 
 

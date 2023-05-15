@@ -13,5 +13,5 @@ if test -f "$TEMP" ; then
     echo "$TEMP exists, not restarting" >&2
     exit 1
 fi
-/usr/lib/distkv/current "$TEMP"
+/usr/lib/moat.kv/current "$TEMP"
 

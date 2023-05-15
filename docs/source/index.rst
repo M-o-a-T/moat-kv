@@ -5,7 +5,7 @@
 
 
 ===============================================
-DistKV: A distributed no-master key-value store
+MoaT-KV: A distributed no-master key-value store
 ===============================================
 
 Rationale
@@ -21,26 +21,26 @@ systems, any given record is rarely (if ever) changed by more than one
 entity at the same time. Thus, a simple gossip protocol is sufficient
 for distributing data.
 
-DistKV is intended to be used in a mostly-RAM architecture. There is no
+MoaT-KV is intended to be used in a mostly-RAM architecture. There is no
 disk-based storage backend; snapshots and event logs are used to restore a
 system, if necessary.
 
-See `Protocol Overview <overview.html>` for details about DistKV's
+See `Protocol Overview <overview.html>` for details about MoaT-KV's
 choices.
 
 API
 ===
 
-DistKV offers an efficient interface to access and change data.
+MoaT-KV offers an efficient interface to access and change data.
 
 
 Status
 ======
 
-DistKV is in production use as the backbone of the author's home and office
+MoaT-KV is in production use as the backbone of the author's home and office
 automation setup.
 
-Note that as of DistKV 0.30, multi-word paths were replaced with dotted
+Note that as of MoaT-KV 0.30, multi-word paths were replaced with dotted
 strings. Some pieces of documentation might still reflect the old style.
 
 .. toctree::

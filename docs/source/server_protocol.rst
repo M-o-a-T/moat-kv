@@ -1,8 +1,8 @@
 ========================
-DistKV's server protocol
+MoaT-KV's server protocol
 ========================
 
-DistKV instances broadcast messages via `Serf <http://serf.io>` or
+MoaT-KV instances broadcast messages via `Serf <http://serf.io>` or
 `MQTT <https://mqtt.org>`.
 The payload is encoded with `msgpack
 <https://github.com/msgpack/msgpack/blob/master/spec.md>` and sent 
@@ -25,13 +25,13 @@ node starts with 1.
 Entry
 +++++
 
-An entry is some data stored in DistKV. The entry has a name, or (more
+An entry is some data stored in MoaT-KV. The entry has a name, or (more
 correctly) a path, i.e. a sequence of names leading from the server's root
 to the entry. An entry can store one chunk of data, or it can be empty.
 
 Path members may be UTF-8 strings, byte strings, or numbers. The empty
 UTF-8 and byte strings are considered equivalent, any other values are not.
-If you want to use the DistKV command line to access data, you should limit
+If you want to use the MoaT-KV command line to access data, you should limit
 yourself to UTF-8 strings.
 
 For ensuring consistency, each entry also has an associated chain, which
@@ -40,7 +40,7 @@ documents which node(s) last changed that entry.
 Chain
 +++++
 
-A chain, in DistKV, is a bounded list of ordered ``(node, tick)`` pairs.
+A chain, in MoaT-KV, is a bounded list of ordered ``(node, tick)`` pairs.
 
 * ``node`` is the node that effected a change.
   
@@ -78,7 +78,7 @@ sacrificing reliability.
 
 The default chain length should be two larger than the maximum of
 
-* the number of partitions a DistKV system might break up into,
+* the number of partitions a MoaT-KV system might break up into,
   
 * the number of hosts within one partition that might change any single entry.
   Ideally, this number should be two: one for the host that does it as a
@@ -94,7 +94,7 @@ range.
 
 Tick values are 63-bit unsigned integers. As this space requires 20 mio
 years to wrap around, assuming ten messages per millisecond (which is way
-above the capacity of a typical Serf network), the DistKV protocol does not
+above the capacity of a typical Serf network), the MoaT-KV protocol does not
 specify what shall happen if this value overflows.
 
 tock
@@ -103,7 +103,7 @@ tock
 The ``tock`` counter is a system-wide number that's incremented whenever
 something interesting happens on a node (most important: some entry is
 changed). All messages carry the current ``tock`` value; entries store the
-``tock`` from their last change. Whenever a DistKV server receives a
+``tock`` from their last change. Whenever a MoaT-KV server receives a
 message with a ``tock`` higher than its own, the local ``tock`` is set to
 the incoming message's ``tock`` value.
 
@@ -139,7 +139,7 @@ Deletion of entries
 +++++++++++++++++++
 
 The entries' change chains determine that no entry gets lost, but that
-mechanism depends on the entries themselves to exist. In a DistKV system
+mechanism depends on the entries themselves to exist. In a MoaT-KV system
 that's highly dynamic, this is undesireable and would cause a lot of stale
 entries to accumulate. Removing these entries must be coordinated: if a
 removal is lost for any reason, the system cannot recover without manual
@@ -166,7 +166,7 @@ that list may be anything hashable, i.e. strings, integers,
 
 .. note:
 
-    ``None`` is DistKV's special name for its meta hierarchy, i.e. data
+    ``None`` is MoaT-KV's special name for its meta hierarchy, i.e. data
     about itself (user IDs, file conversion code, …). As such it is not
     directly accessible.
 
@@ -175,7 +175,7 @@ value
 
 A node's value. This can be anything that ``msgpack`` can work with: you do
 not need to encode your values to binary strings, and in fact you should
-not because some of DistKV's features (like type checking) would no longer
+not because some of MoaT-KV's features (like type checking) would no longer
 work, or be much more awkward to use.
 
 Replies
@@ -418,10 +418,10 @@ TODO.
 MsgPack encoding
 ++++++++++++++++
 
-DistKV encodes its messages with MsgPack. It's fast, compact,
+MoaT-KV encodes its messages with MsgPack. It's fast, compact,
 self-delimiting, and easily translated from/to human-readable YAML.
 
-DistKV uses the following MsgPack extensions:
+MoaT-KV uses the following MsgPack extensions:
 
 2: big unsigned integer
 +++++++++++++++++++++++
@@ -442,10 +442,10 @@ is the sequence of encoded path elements.
 YAML encoding
 +++++++++++++
 
-DistKV uses clean, "safe" YAML with no frills, resulting in a simple
+MoaT-KV uses clean, "safe" YAML with no frills, resulting in a simple
 human-readable data format.
 
-DistKV's YAML supports two extensions: ``!P`` and ``!bin``.
+MoaT-KV's YAML supports two extensions: ``!P`` and ``!bin``.
 
 ``!P`` marks a `Path`, which makes the resulting YAML more compact and
 readable.

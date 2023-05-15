@@ -1,5 +1,5 @@
 """
-This module implements a way to store error messages in DistKV,
+This module implements a way to store error messages in MoaT-KV,
 and of course to remove or disable them when the error is gone.
 
 Errors are implemented by storing relevant information at ``(*PREFIX,node,tock)``.
@@ -344,8 +344,8 @@ class ErrorRoot(ClientRoot):
     Configuration:
 
     Arguments:
-      prefix (list): Where to store the error data in DistKV.
-        The default is ``('.distkv','error')``.
+      prefix (list): Where to store the error data in MoaT-KV.
+        The default is ``('.moat.kv','error')``.
     """
 
     CFG = "errors"

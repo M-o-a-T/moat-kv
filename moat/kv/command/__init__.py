@@ -5,8 +5,8 @@ import sys
 import asyncclick as click
 from moat.util import attrdict, main_
 
-from distkv.default import CFG
-from distkv.exceptions import ClientError, ServerError
+from moat.kv.default import CFG
+from moat.kv.exceptions import ClientError, ServerError
 
 
 def cmd(backend="trio"):
@@ -18,13 +18,13 @@ def cmd(backend="trio"):
     # @click.* decorators change the semantics
     # pylint: disable=no-value-for-parameter
     main_.help = """\
-This is DistKV, a distributed master-less key-value storage system.
+This is MoaT-KV, a distributed master-less key-value storage system.
 """
     obj = attrdict(
         moat=attrdict(
-            ext_pre="distkv_ext",
-            name="distkv",
-            sub_pre="distkv.command",
+            ext_pre="moat.kv_ext",
+            name="moat.kv",
+            sub_pre="moat.kv.command",
             sub_post="cli",
             ext_post="main.cli",
             CFG=CFG,
