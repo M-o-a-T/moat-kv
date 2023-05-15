@@ -22,7 +22,7 @@ This is MoaT-KV, a distributed master-less key-value storage system.
 """
     obj = attrdict(
         moat=attrdict(
-            ext_pre="moat.kv_ext",
+            ext_pre="moat.kv",
             name="moat.kv",
             sub_pre="moat.kv.command",
             sub_post="cli",

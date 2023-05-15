@@ -34,7 +34,7 @@ class NullObj:
 
 
 @load_subgroup(
-    sub_pre="moat.kv.command.client", sub_post="cli", ext_pre="moat.kv_ext", ext_post="client.cli"
+    sub_pre="moat.kv.command.client", sub_post="cli", ext_pre="moat.kv", ext_post="client.cli"
 )
 @click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
 @click.option(

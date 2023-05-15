@@ -5,12 +5,9 @@ Extending MoaT-KV
 MoaT-KV comes with a built-in extension mechanism for its command line,
 based on Python namespaces and import hackery.
 
-Yor extension needs to ship a ``moat.kv_ext.NAME`` module with a
-``command.py`` or a ``client.py`` module (or both, if required). This adds
-the command ``NAME`` to ``moat.kv`` or ``moat.kv client``, respectively.
-
-This method is **not** zip-safe because it injects a ``main`` global into
-the code. Fixing this is TODO.
+Yor extension needs to ship a ``moat.kv.NAME`` module, with a
+``_main.py`` file that exports a ``cli`` command (usually used as an
+`asyncclick.group`). This adds the subcommand ``NAME`` to ``moat kv``.
 
 Command line helper
 ===================
@@ -30,9 +27,9 @@ In order to simplify implementing that, there's a couple of helper methods.
 attaches a subgroup with standard add/set/delete commands to it. The
 new group is returned so you can attach more commands to it if you want.
 
-`moat.kv.util.attr_args` attaches MoaT-KV's generic parameter+value options.
+`moat.util.attr_args` attaches MoaT-KV's generic parameter+value options.
 
-`moat.kv.util.process_args` takes a dict (usually) and the generic options'
+`moat.util.process_args` takes a dict (usually) and the generic options'
 variables (``vars_``, ``eval_``, ``path_``) and applies them.
 
 It's the caller's job to verify that the result is sane. TODO: support

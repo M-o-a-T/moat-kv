@@ -15,10 +15,10 @@ from moat.kv.default import CFG
 logger = logging.getLogger(__name__)
 
 CFG = attrdict(**CFG)  # shallow copy
-for n, _ in list_ext("moat.kv_ext"):
+for n, _ in list_ext("moat.kv"):
     try:
         CFG[n] = combine_dict(
-            load_ext("moat.kv_ext", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict
+            load_ext("moat.kv", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict
         )
     except ModuleNotFoundError:
         pass

@@ -13,7 +13,7 @@ def _typed(cls):
     return cls
 
 
-class MoaT-KVError(RuntimeError):
+class MoaTKVError(RuntimeError):
     """Superclass of all MoaT-KV errors.
 
     Abstract class.
@@ -22,7 +22,7 @@ class MoaT-KVError(RuntimeError):
     pass
 
 
-class ServerError(MoaT-KVError):
+class ServerError(MoaTKVError):
     """Generic server error.
 
     This class includes errors forwarded to the client.
@@ -31,7 +31,7 @@ class ServerError(MoaT-KVError):
     pass
 
 
-class ClientError(MoaT-KVError):
+class ClientError(MoaTKVError):
     """Generic client error.
 
     Abstract class.
@@ -105,7 +105,7 @@ class ClientAuthMethodError(ClientAuthError):
     pass
 
 
-class MoaT-KVauthError(ClientError):
+class MoaTKVauthError(ClientError):
     """Auth error.
 
     Abstract class.
@@ -114,19 +114,19 @@ class MoaT-KVauthError(ClientError):
     pass
 
 
-class NoAuthError(MoaT-KVauthError):
+class NoAuthError(MoaTKVauthError):
     """Server-side error: auth required"""
 
     pass
 
 
-class NoAuthModuleError(MoaT-KVauthError):
+class NoAuthModuleError(MoaTKVauthError):
     """Server-side error: auth module doesn't exist"""
 
     pass
 
 
-class AuthFailedError(MoaT-KVauthError):
+class AuthFailedError(MoaTKVauthError):
     """Server-side error: auth failed"""
 
     pass
