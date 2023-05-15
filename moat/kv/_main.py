@@ -7,13 +7,16 @@ Basic DistKV support
 import logging
 
 import asyncclick as click
-from moat.util import attrdict, combine_dict, load_subgroup
+from moat.util import attrdict, combine_dict, load_subgroup, yload
+from pathlib import Path
 
 from moat.kv.auth import gen_auth
 from moat.kv.client import client_scope
-from moat.kv.default import CFG
 
 logger = logging.getLogger(__name__)
+
+
+CFG = yload(Path(__file__).parent / "_config.yaml", attr=True)
 
 
 class NullObj:
@@ -38,11 +41,11 @@ class NullObj:
 
 
 @load_subgroup(
-    sub_pre="moat.kv.command", sub_post="cli", ext_pre="moat.kv", ext_post="client.cli"
+    sub_pre="moat.kv.command", sub_post="cli", ext_pre="moat.kv", ext_post="_main.cli"
 )
-@click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.connect.host}")
+@click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.kv.conn.host}")
 @click.option(
-    "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.connect.port}"
+    "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.kv.conn.port}"
 )
 @click.option(
     "-a",
@@ -78,7 +81,7 @@ async def cli(ctx, host, port, auth, metadata):
         if ctx.invoked_subcommand in {None, "server", "dump"}:
             obj.client = NullObj(RuntimeError("Not a client command"))
         else:
-            obj.client = await client_scope(**cfg)
+            obj.client = await client_scope(**cfg.kv)
     except OSError as exc:
         obj.client = NullObj(exc)
     else:

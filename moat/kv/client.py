@@ -10,6 +10,7 @@ import socket
 from contextlib import AsyncExitStack, asynccontextmanager
 from inspect import iscoroutine
 from typing import Tuple
+from pathlib import Path
 
 import anyio
 from asyncscope import Scope, main_scope, scope
@@ -26,10 +27,10 @@ from moat.util import (
     create_queue,
     gen_ssl,
     num2byte,
+    yload,
 )
 
 from .codec import packer, stream_unpacker
-from .default import CFG
 from .exceptions import (
     CancelledError,
     ClientAuthMethodError,
@@ -109,7 +110,7 @@ async def client_scope(_name=None, **cfg):
     """
 
     if _name is None:
-        _name = cfg["kv"]["conn"].get("name", "conn")
+        _name = cfg["conn"].get("name", "conn")
         if _name is None:
             global _cid
             _cid += 1
@@ -406,7 +407,8 @@ class Client:
     qlen: int = 0
 
     def __init__(self, cfg: dict):
-        self._cfg = combine_dict(cfg, CFG, cls=attrdict)
+        CFG = yload(Path(__file__).parent / "_config.yaml")
+        self._cfg = combine_dict(cfg, CFG["kv"], cls=attrdict)
         self.config = ClientConfig(self)
 
         self._seq = 0
@@ -693,7 +695,7 @@ class Client:
         hello = AsyncValueEvent()
         self._handlers[0] = hello
 
-        cfg = self._cfg["kv"]["conn"]
+        cfg = self._cfg["conn"]
         host = cfg["host"]
         port = cfg["port"]
         auth = cfg["auth"]
@@ -727,7 +729,7 @@ class Client:
                         self.server_name = msg.node
                         self.client_name = cfg["name"] or socket.gethostname() or self.server_name
                         if "qlen" in msg:
-                            self.qlen = min(msg.qlen, self.config.server.buffer)
+                            self.qlen = min(msg.qlen, 99)  # self.config.server.buffer
                             await self._send(seq=0, qlen=self.qlen)
                         await self._run_auth(auth)
 

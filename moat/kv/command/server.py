@@ -96,7 +96,7 @@ async def cli(obj, name, load, save, init, incremental, eval_, auth, force, node
         raise click.UsageError("Using both '-a' and '-f' is redundant. Choose one.")
 
     async with as_service(obj) as evt:
-        s = Server(name, cfg=obj.cfg, **kw)
+        s = Server(name, cfg=obj.cfg["kv"], **kw)
         if load is not None:
             await s.load(path=load, local=True, authoritative=auth)
         if nodes:

@@ -1,0 +1,98 @@
+kv:
+  conn:
+    # client: controls how to talk to the MoaT-KV server
+    host: localhost
+    port: 27586
+    ssl: false
+    # ssl:
+    #   cert: '/path/to/cert.pem',key='/path/to/cert.key'
+    init_timeout: 5
+    # time to wait for connection plus greeting
+    auth: null
+    # no auth used by default
+    name: null
+    # defaults to a seqnum
+  config:
+    prefix: !P :.moat.kv.config
+  errors:
+    prefix: !P :.moat.kv.error
+  codes:
+    prefix: !P :.moat.kv.code.proc
+  modules:
+    prefix: !P :.moat.kv.code.module
+  runner: # for moat.kv.runner.RunnerRoot
+    # storage for runnable commands
+    prefix: !P :.moat.kv.run"
+    # storage for runner states
+    state: !P :.moat.kv.state"
+
+    name: "run"
+    # Serf event name, suffixed by subpath
+
+    start_delay: 1
+    # time to wait between job starts. Not optional.
+
+    ping: -15
+    # set an I-am-running message every those-many seconds
+    # positive: set in moat.kv, negative: broadcast to :moat.kv.run tag
+
+    actor:
+      # Actor config, required for Runner
+      cycle: 20
+      nodes: -1
+      splits: 5
+      n_hosts: 3
+      version: 1
+    sub:
+      # tags for various runner modes
+      group: "any"
+      single: "at"
+      all: "all"
+  server:
+    # server-side configuration
+    buffer: 10
+    # per-stream buffer
+
+    backend: "mqtt"
+    # default
+    mqtt:
+      uri: "mqtt://localhost:1883"
+    serf:
+      host: "localhost"
+      port: 7373
+
+    # event message path/topic prefix
+    root: !P moat.kv
+
+    paranoia: False
+    # typecheck server-to-server updates?
+    #
+    # which addresses/ports to accept MoaT-KV connections on
+    bind: [{}]
+    bind_default:
+      # default values for all elements of "bind"
+      host: "localhost"
+      port: PORT
+      ssl: False
+    change:
+      length: 5
+      # chain length: use max nr of network sections +1
+    ping:
+      cycle: 10
+      gap: 2
+      # asyncserf.Actor config timing for server sync
+    # ping also controls minimum server startup time
+    delete:
+      # asyncserf.Actor config timing for deletion
+      cycle: 100
+      gap: 10
+      version: 1
+  paranoia: false
+  # typecheck server>server updates?
+
+  # how does a new server reach existing nodes, to download state?
+  domain: null
+  # domain in which to look up node names, if not in hostmap
+  hostmap:   # map MoaT-KV server names to connect destinations
+    test1: ["localhost", 27586]
+    test2: ["does-not-exist.invalid", 27586]

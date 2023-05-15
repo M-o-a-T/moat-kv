@@ -10,18 +10,6 @@ from asyncscope import main_scope, scope
 from moat.util import OptCtx, attrdict, combine_dict, list_ext, load_ext, wrap_main
 
 from moat.kv.client import _scoped_client, client_scope
-from moat.kv.default import CFG
-
-logger = logging.getLogger(__name__)
-
-CFG = attrdict(**CFG)  # shallow copy
-for n, _ in list_ext("moat.kv"):
-    try:
-        CFG[n] = combine_dict(
-            load_ext("moat.kv", n, "config", "CFG"), CFG.get(n, {}), cls=attrdict
-        )
-    except ModuleNotFoundError:
-        pass
 
 try:
     from contextlib import asynccontextmanager

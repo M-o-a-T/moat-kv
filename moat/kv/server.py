@@ -10,7 +10,8 @@ import time
 import anyio
 from anyio.abc import SocketAttribute
 from asyncscope import scope
-from moat.util import DelayedRead, DelayedWrite, create_queue
+from moat.util import DelayedRead, DelayedWrite, create_queue, yload
+from pathlib import Path
 
 try:
     from contextlib import asynccontextmanager
@@ -57,7 +58,6 @@ from . import client as moatkv_client  # needs to be mock-able
 from .actor.deletor import DeleteActor
 from .backend import get_backend
 from .codec import packer, stream_unpacker, unpacker
-from .default import CFG
 from .exceptions import (
     ACLError,
     CancelledError,
@@ -1322,8 +1322,8 @@ class Server:
       name (str): the name of this MoaT-KV server instance.
         It **must** be unique.
       cfg: configuration.
-        See :attr:`moat.kv.default.CFG` for default values.
-        Relevant is the ``server`` sub-dict (mostly).
+        See ``_config.yaml`` for default values.
+        Relevant is the ``kv.server`` sub-dict (mostly).
       init (Any):
         The initial content of the root entry. **Do not use this**, except
           when setting up an entirely new MoaT-KV network.
@@ -1346,6 +1346,7 @@ class Server:
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self.root = RootEntry(self, tock=self.tock)
+        CFG = yload(Path(__file__).parent / "_config.yaml")
 
         self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
         if isinstance(self.cfg.server.root, str):
