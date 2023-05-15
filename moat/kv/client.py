@@ -109,7 +109,7 @@ async def client_scope(_name=None, **cfg):
     """
 
     if _name is None:
-        _name = cfg["connect"].get("name", "conn")
+        _name = cfg["kv"]["conn"].get("name", "conn")
         if _name is None:
             global _cid
             _cid += 1
@@ -693,7 +693,7 @@ class Client:
         hello = AsyncValueEvent()
         self._handlers[0] = hello
 
-        cfg = self._cfg["connect"]
+        cfg = self._cfg["kv"]["conn"]
         host = cfg["host"]
         port = cfg["port"]
         auth = cfg["auth"]
