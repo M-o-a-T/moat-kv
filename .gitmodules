@@ -1,0 +1,3 @@
+[submodule "ext/inv"]
+	path = ext/inv
+	url = git://git.smurf.noris.de/moat-kv-inv.git
