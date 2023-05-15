@@ -26,6 +26,8 @@ MoaT-KV comes with several batteries included:
 The underlying communication is based on MQTT. A Serf back-end is also
 available. Others are easy to implement.
 
+MoaT-KV was originally called "distkv".
+
 API
 ===
 
