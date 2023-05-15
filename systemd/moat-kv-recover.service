@@ -1,0 +1,21 @@
+[Unit]
+Description=MoaT-KV state recovery
+Conflicts=moat-kv.service
+Conflicts=distkv.service
+
+AssertFileNotEmpty=/etc/moat/moat.cfg
+
+[Install]
+
+[Service]
+Type=oneshot
+
+ExecStart=/usr/lib/moat/kv/recover
+ExecStartPost=!/bin/systemctl restart moat-kv.service
+
+EnvironmentFile=/usr/lib/moat/kv/env
+EnvironmentFile=-/etc/moat/kv.env
+
+User=MoaT-KV
+Group=MoaT
+

@@ -1,1 +1,3 @@
-u   moat.kv   -  "MoaT-KV owner"   /var/lib/moat.kv
+g   MoaT   -  "The MoaT"
+u   MoaT-KV   -  "MoaT-KV"   /var/lib/moat/kv
+m   MoaT-KV   MoaT

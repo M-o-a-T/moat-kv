@@ -1,0 +1,25 @@
+[Unit]
+Description=MoaT-KV single-node runner for %i
+After=moat-kv.service
+Requires=moat-kv.service
+
+ConditionFileNotEmpty=/etc/moat/moat.cfg
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=notify
+ExecStart=/usr/lib/moat/kv/run-single %i
+
+User=MoaT-KV
+Group=MoaT
+
+EnvironmentFile=/usr/lib/moat/kv/env
+EnvironmentFile=-/etc/moat/kv.env
+
+TimeoutSec=300
+WatchdogSec=10
+
+Restart=always
+RestartSec=10

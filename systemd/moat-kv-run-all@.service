@@ -3,20 +3,20 @@ Description=MoaT-KV all-nodes runner for %i
 After=moat.kv.service
 Requires=moat.kv.service
 
-ConditionFileNotEmpty=/etc/moat.kv.cfg
+ConditionFileNotEmpty=/etc/moat/moat.cfg
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
 Type=notify
-ExecStart=/usr/lib/moat.kv/run-all %i
+ExecStart=/usr/lib/moat/kv/run-all %i
 
-User=moat.kv
-Group=moat.kv
+User=MoaT-KV
+Group=MoaT
 
-EnvironmentFile=/usr/lib/moat.kv/env
-EnvironmentFile=-/etc/moat.kv.env
+EnvironmentFile=/usr/lib/moat/kv/env
+EnvironmentFile=-/etc/moat/kv.env
 
 TimeoutSec=300
 WatchdogSec=10
