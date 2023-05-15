@@ -75,7 +75,7 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
                 {"path": P("foo.baz"), "value": "quux"},
             ]
             r = await c.list(P(":"))
-            assert r == (None, ".moat.kv", "foo")
+            assert r == (None, ".moat", "kv", "foo")
             r = await c.list(P("foo"))
             assert r == ("bar", "baz")
             r = await c.list(P("foo"), with_data=True)

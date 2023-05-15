@@ -345,7 +345,7 @@ class ErrorRoot(ClientRoot):
 
     Arguments:
       prefix (list): Where to store the error data in MoaT-KV.
-        The default is ``('.moat.kv','error')``.
+        The default is ``('.moat','kv','error')``.
     """
 
     CFG = "errors"

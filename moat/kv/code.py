@@ -118,7 +118,7 @@ class CodeRoot(ClientRoot):
 
     Arguments:
       prefix (list): Where to store the code in MoaT-KV.
-        The default is ``('.moat.kv','code','proc')``.
+        The default is ``('.moat','kv','code','proc')``.
 
     The code is stored as a dict.
 

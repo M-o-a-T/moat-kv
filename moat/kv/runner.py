@@ -1208,7 +1208,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
 
     Arguments:
       path (tuple): the location this entry is stored at. Defaults to
-        ``('.moat.kv', 'process')``.
+        ``('.moat', 'kv', 'process')``.
       name (str): this runner's name. Defaults to the client's name plus
         the name stored in the root node, if any.
       actor (dict): the configuration for the underlying actor. See
