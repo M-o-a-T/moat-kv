@@ -1909,7 +1909,7 @@ class Server:
           delay: an event to set after the initial ping message has been
             sent.
         """
-        T = get_transport("moat.kv")
+        T = get_transport("moat_kv")
         async with Actor(
             T(self.backend, *self.cfg.server.root, "ping"),
             name=self.node.name,
