@@ -54,7 +54,7 @@ from moat.util import (
 from range_set import RangeSet
 
 from . import _version_tuple
-from . import client as moatkv_client  # needs to be mock-able
+from . import client as moat_kv_client  # needs to be mock-able
 from .actor.deletor import DeleteActor
 from .backend import get_backend
 from .codec import packer, stream_unpacker, unpacker
