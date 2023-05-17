@@ -9,12 +9,12 @@ import os
 import socket
 from contextlib import AsyncExitStack, asynccontextmanager
 from inspect import iscoroutine
-from typing import Tuple
 from pathlib import Path
+from typing import Tuple
 
 import anyio
 from asyncscope import Scope, main_scope, scope
-from moat.util import (
+from moat.util import (  # pylint: disable=no-name-in-module
     DelayedRead,
     DelayedWrite,
     NotGiven,

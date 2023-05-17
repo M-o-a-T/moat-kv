@@ -11,7 +11,7 @@ from moat.util import MsgReader, MsgWriter, P, Path, PathLongener, load_subgroup
 from moat.kv.codec import unpacker
 
 
-@load_subgroup(short_help="Local data mangling", sub_pre="dump")  # pylint: disable=undefined-variable
+@load_subgroup(short_help="Local data mangling", sub_pre="dump")
 async def cli():
     """
     Low-level tools that don't depend on a running MoaT-KV server.

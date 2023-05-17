@@ -181,7 +181,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             typ=type(self)._auth_method,
             kind=_kind,
             chain=self._chain,
-            **msg
+            **msg,
         )
 
     def export(self):
@@ -228,7 +228,7 @@ class ClientUser(BaseClientAuth):
                 iter=False,
                 ident=self.ident,
                 password=pw,
-                **self.auth_data()
+                **self.auth_data(),
             )
         except NoData:
             pass

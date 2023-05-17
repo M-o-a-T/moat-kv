@@ -1039,7 +1039,7 @@ class Watcher:
         if self.q is not None:
             raise RuntimeError("You cannot enter this context more than once")
         self.q = create_queue(self.q_len)
-        self.q._moat.kv__free = self.q_len or None
+        self.q._moat.kv__free = self.q_len or None  # pylint:disable=no-member
         self.root.monitors.add(self.q)
         return self
 
@@ -1057,8 +1057,8 @@ class Watcher:
             raise RuntimeError("Aborted. Queue filled?")
         while True:
             res = await self.q.get()
-            if self.q._moat.kv__free is not None:
-                self.q._moat.kv__free += 1
+            if self.q._moat.kv__free is not None:  # pylint:disable=no-member
+                self.q._moat.kv__free += 1  # pylint:disable=no-member
             if res is None:
                 raise RuntimeError("Aborted. Queue filled?")
             if len(res.entry.path) and res.entry.path[0] is None and not self.full:

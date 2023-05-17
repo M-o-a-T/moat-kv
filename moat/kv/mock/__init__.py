@@ -8,12 +8,19 @@ from pathlib import Path
 
 import attr
 from asyncscope import main_scope, scope
-from moat.util import OptCtx, attrdict, combine_dict, list_ext, load_ext, wrap_main, yload
-from moat.src.test import run
+from moat.src.test import run  # pylint:disable=import-error,no-name-in-module
+from moat.util import (  # pylint:disable=no-name-in-module
+    OptCtx,
+    attrdict,
+    combine_dict,
+    list_ext,
+    load_ext,
+    wrap_main,
+    yload,
+)
 
 from moat.kv.client import _scoped_client, client_scope
 
-import logging
 logger = logging.getLogger(__name__)
 try:
     from contextlib import asynccontextmanager

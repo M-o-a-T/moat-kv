@@ -22,6 +22,7 @@ otm = time.time
 
 from . import CFG
 
+
 @asynccontextmanager
 async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
@@ -104,7 +105,9 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 args["cfg"] = combine_dict(
                     args.get("cfg", {}),
                     {
-                        "kv": { "conn": {"ssl": client_ctx},},
+                        "kv": {
+                            "conn": {"ssl": client_ctx},
+                        },
                         "server": {
                             "bind_default": {
                                 "host": "127.0.0.1",

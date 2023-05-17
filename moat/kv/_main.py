@@ -5,10 +5,10 @@ Basic DistKV support
 """
 
 import logging
+from pathlib import Path
 
 import asyncclick as click
 from moat.util import attrdict, combine_dict, load_subgroup, yload
-from pathlib import Path
 
 from moat.kv.auth import gen_auth
 from moat.kv.client import client_scope
@@ -40,9 +40,7 @@ class NullObj:
         raise self._exc
 
 
-@load_subgroup(
-    sub_pre="moat.kv.command", sub_post="cli", ext_pre="moat.kv", ext_post="_main.cli"
-)
+@load_subgroup(sub_pre="moat.kv.command", sub_post="cli", ext_pre="moat.kv", ext_post="_main.cli")
 @click.option("-h", "--host", default=None, help=f"Host to use. Default: {CFG.kv.conn.host}")
 @click.option(
     "-p", "--port", type=int, default=None, help=f"Port to use. Default: {CFG.kv.conn.port}"
@@ -58,7 +56,7 @@ class NullObj:
 @click.pass_context
 async def cli(ctx, host, port, auth, metadata):
     """The MoaT Key-Value subsystem.
-    
+
     All commands (except 'server' and 'dump') connect to a MoaT-KV server.
     """
     obj = ctx.obj

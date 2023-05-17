@@ -4,14 +4,13 @@ from __future__ import annotations
 import io
 import os
 import signal
-import sys
 import time
+from pathlib import Path as FPath
 
 import anyio
 from anyio.abc import SocketAttribute
 from asyncscope import scope
 from moat.util import DelayedRead, DelayedWrite, create_queue, yload
-from pathlib import Path as FPath
 
 try:
     from contextlib import asynccontextmanager
@@ -74,12 +73,6 @@ from .types import ACLFinder, ACLStepper, ConvNull, NullACL, RootEntry
 Stream = anyio.abc.ByteStream
 
 ClosedResourceError = anyio.ClosedResourceError
-
-if sys.version_info < (3, 11):
-    try:
-        ExceptionGroup = anyio.ExceptionGroup
-    except AttributeError:
-        from exceptiongroup import ExceptionGroup
 
 _client_nr = 0
 

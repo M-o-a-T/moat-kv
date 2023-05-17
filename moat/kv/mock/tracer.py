@@ -1,8 +1,9 @@
 import traceback
 
-import moat
 import trio
 from outcome import Error
+
+import moat
 
 moat.kill = False
 
