@@ -107,13 +107,14 @@ deps =
 
 """
 
-[tool:pytest]
-filterwarnings =                                     
-    error                                      
+[tool.pytest]
+filterwarnings = [
+    "error",
     # This is a Heisenbug, triggered by some garbage collection problem  
     # that defies analysis.
-    ignore:unclosed:ResourceWarning 
-addopts = --verbose    
+    "ignore:unclosed:ResourceWarning",
+]
+addopts = "--verbose"
 
 [tool.pylint]
 [tool.pylint.messages_control]
