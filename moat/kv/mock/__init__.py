@@ -85,7 +85,7 @@ class S:
                 continue
             try:
                 cfg = combine_dict(
-                    dict(connect=dict(host=host, port=port, ssl=self.client_ctx, **kv)), CFG
+                    dict(conn=dict(host=host, port=port, ssl=self.client_ctx, **kv)), CFG
                 )
 
                 async def scc(s, **cfg):

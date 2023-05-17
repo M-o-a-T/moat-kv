@@ -37,7 +37,7 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
         del CFG["_stdout"]
-    TESTCFG = copy.deepcopy(CFG)
+    TESTCFG = copy.deepcopy(CFG["kv"])
     TESTCFG.server.port = None
     TESTCFG.root = "test"
     if C_OUT is not NotGiven:

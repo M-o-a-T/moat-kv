@@ -11,7 +11,7 @@ import anyio
 from anyio.abc import SocketAttribute
 from asyncscope import scope
 from moat.util import DelayedRead, DelayedWrite, create_queue, yload
-from pathlib import Path
+from pathlib import Path as FPath
 
 try:
     from contextlib import asynccontextmanager
@@ -1346,7 +1346,7 @@ class Server:
 
     def __init__(self, name: str, cfg: dict = None, init: Any = NotGiven):
         self.root = RootEntry(self, tock=self.tock)
-        CFG = yload(Path(__file__).parent / "_config.yaml")
+        CFG = yload(FPath(__file__).parent / "_config.yaml")["kv"]
 
         self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
         csr = self.cfg.server["root"]
@@ -1569,7 +1569,7 @@ class Server:
                 host, port = await self._get_host_port(n)
                 cfg = combine_dict(
                     {"host": host, "port": port, "name": self.node.name},
-                    self.cfg.connect,
+                    self.cfg.conn,
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
@@ -1579,7 +1579,7 @@ class Server:
 
                 self.logger.debug("DelSync: connecting %s", cfg)
                 async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
-                    client = await moat_kv_client.client_scope(connect=cfg)
+                    client = await moat_kv_client.client_scope(conn=cfg)
                     # TODO auth this client
                     nodes = NodeSet()
                     n_nodes = 0
@@ -1969,7 +1969,7 @@ class Server:
 
         # this is async because the test mock needs that
 
-        port = self.cfg.connect.port
+        port = self.cfg.conn.port
         domain = self.cfg.domain
         try:
             # First try to read the host name from the meta-root's
@@ -2056,7 +2056,7 @@ class Server:
                 host, port = await self._get_host_port(n)
                 cfg = combine_dict(
                     {"host": host, "port": port, "name": self.node.name},
-                    self.cfg.connect,
+                    self.cfg.conn,
                     cls=attrdict,
                 )
                 auth = cfg.get("auth", None)
@@ -2066,7 +2066,7 @@ class Server:
 
                 self.logger.info("Sync: connecting: %s", cfg)
                 async with scope.using_scope(f"moat.kv.sync.{self.node.name}"):
-                    client = await moat_kv_client.client_scope(connect=cfg)
+                    client = await moat_kv_client.client_scope(conn=cfg)
                     # TODO auth this client
 
                     pl = PathLongener(())

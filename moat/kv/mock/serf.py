@@ -13,7 +13,6 @@ from asyncserf.stream import SerfEvent
 from moat.util import NotGiven, ValueEvent, attrdict, combine_dict, create_queue
 
 from moat.kv.codec import unpacker
-from moat.kv.default import CFG
 from moat.kv.mock import S as _S
 from moat.kv.server import Server
 
@@ -21,13 +20,14 @@ logger = logging.getLogger(__name__)
 
 otm = time.time
 
+from . import CFG
 
 @asynccontextmanager
 async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
     C_OUT = CFG.get("_stdout", NotGiven)
     if C_OUT is not NotGiven:
         del CFG["_stdout"]
-    TESTCFG = copy.deepcopy(CFG)
+    TESTCFG = copy.deepcopy(CFG["kv"])
     TESTCFG.server.port = None
     TESTCFG.server.backend = "serf"
     TESTCFG.root = "test"
