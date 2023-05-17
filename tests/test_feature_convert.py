@@ -86,7 +86,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             r = await c.get(P("inty.yep.yepyepyep"))
             assert r.value == "13"
 
-            # run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+            # run_c = partial(run, "-D", "kv", "-h", s.ports[0][0], "-p", s.ports[0][1])
             # await run_c("-a","_test name=std", "get", "-rd_", do_stdout=False)
 
         assert recv == [

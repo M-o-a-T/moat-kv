@@ -23,7 +23,7 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
 
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
@@ -74,7 +74,7 @@ async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
         await run_c("data", "hello", "set", "-v", ":", "there")
 
         await run_c("auth", "-m", "root", "user", "add")
@@ -118,7 +118,7 @@ async def test_24_auth_password(autojump_clock):
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
         await run_c("data", "answers.life etc:.", "set", "-e", ":", "42")
 
         await run_c("auth", "-m", "root", "user", "add")

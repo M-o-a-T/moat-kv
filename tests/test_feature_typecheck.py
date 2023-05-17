@@ -146,7 +146,7 @@ async def test_72_cmd(autojump_clock, tmpdir):  # pylint: disable=unused-argumen
             for h, p, *_ in s.ports:
                 if h[0] != ":":
                     break
-            rr = partial(run, "client", "-h", h, "-p", p, do_stdout=False)
+            rr = partial(run, "kv", "-h", h, "-p", p, do_stdout=False)
             path = tmpdir.join("foo")
             with io.open(path, "w", encoding="utf-8") as f:
                 f.write(
