@@ -1349,10 +1349,9 @@ class Server:
         CFG = yload(Path(__file__).parent / "_config.yaml")
 
         self.cfg = combine_dict(cfg or {}, CFG, cls=attrdict)
-        if isinstance(self.cfg.server.root, str):
-            self.cfg.server.root = P(self.cfg.server.root)
-        else:
-            self.cfg.server.root = Path.build(self.cfg.server.root)
+        csr = self.cfg.server["root"]
+        csr = P(csr) if isinstance(csr, str) else Path.build(csr)
+        self.cfg.server["root"] = csr
 
         self.paranoid_root = self.root if self.cfg.server.paranoia else None
 

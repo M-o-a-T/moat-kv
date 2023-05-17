@@ -138,10 +138,10 @@ async def msg_(obj, path):
 
     path = P(path)
     if len(path) == 0:
-        path = P(obj.cfg.server.root) | "update"
+        path = P(obj.cfg.server["root"]) | "update"
     elif len(path) == 1 and path[0].startswith("+"):  # pylint: disable=no-member  # owch
         p = path[0][1:]
-        path = P(obj.cfg.server.root)
+        path = P(obj.cfg.server["root"])
         path |= p or "#"
     be = obj.cfg.server.backend
     kw = obj.cfg.server[be]

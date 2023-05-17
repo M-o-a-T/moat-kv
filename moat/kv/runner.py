@@ -1073,7 +1073,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.group = (
-            P(self.client.config.server.root) + P(self._cfg["name"]) | "any" | self._path[-1]
+            P(self.client.config.server["root"]) + P(self._cfg["name"]) | "any" | self._path[-1]
         )
 
     def get_node(self, name):
@@ -1225,7 +1225,7 @@ class SingleRunnerRoot(_BaseRunnerRoot):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.group = (
-            P(self.client.config.server.root) + P(self._cfg["name"])
+            P(self.client.config.server["root"]) + P(self._cfg["name"])
             | "single"
             | self._path[-2]
             | self._path[-1]
@@ -1303,7 +1303,7 @@ class AllRunnerRoot(SingleRunnerRoot):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.group = (
-            P(self.client.config.server.root) + P(self._cfg["name"]) | "all" | self._path[-1]
+            P(self.client.config.server["root"]) + P(self._cfg["name"]) | "all" | self._path[-1]
         )
 
     async def _state_runner(self):
