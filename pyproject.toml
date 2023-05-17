@@ -48,6 +48,11 @@ readme = "README.rst"
 email = "matthias@urlichs.de"
 name = "Matthias Urlichs"
 
+[project.optional-dependencies]
+dev = [
+    "moat-src >= 0.3.0"
+]
+
 [project.license]
 file = "LICENSE.txt"
 
