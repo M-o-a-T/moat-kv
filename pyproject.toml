@@ -34,8 +34,8 @@ dependencies = [
 	"moat-lib-diffiehellman",                                           
 	"psutil",
 	"simpleeval >= 0.9.10",                                            
-	"moat-mqtt >= 0.32.1",
-	"moat-util >= 0.34.0",
+	"moat-mqtt ~= 0.39.4",
+	"moat-util ~= 0.35.0",
 	"exceptiongroup; python_version<'3.11'",
 ]
 dynamic = [ "version",]
