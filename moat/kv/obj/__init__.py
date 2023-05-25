@@ -385,6 +385,7 @@ class AttrClientEntry(ClientEntry):
                 await self.root.wait_chain(r.chain)
             return r
 
+
 class MirrorRoot(ClientEntry):
     """
     This class represents the root of a subsystem's storage, used for
@@ -438,8 +439,8 @@ class MirrorRoot(ClientEntry):
             cfg = defcfg
 
         if name is None:
-#           if key != "prefix":
-#               subpath = Path(key) + subpath
+            # if key != "prefix":
+            #     subpath = Path(key) + subpath
             name = str(Path("_moat.kv", client.name, cls.CFG, *subpath))
 
         def make():
@@ -607,8 +608,8 @@ class ClientRoot(MirrorRoot):
     ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
 
     """
+
     def __init__(self, *a, **kw):
         if self.CFG is None:
             raise TypeError(f"You need to override .CFG in {type(self).__name__}")
         super().__init__(*a, **kw)
-
