@@ -135,8 +135,7 @@ async def run(obj, nodes):
             c, subpath=obj.subpath, code=cr, **({"nodes": nodes} if nodes else {})
         )
         evt.set()
-        while True:
-            await anyio.sleep(99999)
+        await anyio.sleep_forever()
 
 
 async def _state_fix(obj, state, state_only, path, r):

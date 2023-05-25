@@ -563,8 +563,7 @@ to be tedious. MoaT-KV comes with a couple of classes that does this for you::
             # At this point you have the sub-tree in memory
             assert root['two']['three'].value[1] >= 42
 
-            while True:
-               await anyio.sleep(99999)
+            await anyio.sleep_forever()
          pass
          # at this point the sub-tree is still there, but won't be updated
 
