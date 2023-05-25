@@ -125,7 +125,7 @@ async def run(obj, nodes):
 
     if obj.subpath[-1] == "-":
         raise click.UsageError("Group '-' can only be used for listing.")
-    if nodes and obj.runner_root == SingleRunnerRoot:
+    if nodes and obj.runner_root is SingleRunnerRoot:
         raise click.UsageError("A single-site runner doesn't have a size.")
 
     async with as_service(obj) as evt:
