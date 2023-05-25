@@ -947,7 +947,7 @@ class Client:
 
         Arguments:
           root_type (type): The class to use for the root. Must be
-            :class:`ClientRoot` or a subclass.
+            :class:`MirrorRoot` or a :class:`ClientRoot` subclass.
 
         Returns: the root of this tree.
 
@@ -965,9 +965,9 @@ class Client:
         if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
         if root_type is None:
-            from .obj import ClientRoot
+            from .obj import MirrorRoot
 
-            root_type = ClientRoot
+            root_type = MirrorRoot
         root = root_type(self, path, **kw)
         return root.run()
 

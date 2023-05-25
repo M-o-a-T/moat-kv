@@ -385,19 +385,17 @@ class AttrClientEntry(ClientEntry):
                 await self.root.wait_chain(r.chain)
             return r
 
+class MirrorRoot(ClientEntry):
+    """
+    This class represents the root of a subsystem's storage, used for
+    object-agnostic data mirroring.
 
-class ClientRoot(ClientEntry):
-    """This class represents the root of a subsystem's storage.
-
-    To use this class, create a subclass that, at minimum, overrides
-    ``CFG`` and ``child_type``. ``CFG`` must be a dict with at least a
-    ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
-
+    Used internally.
     """
 
     _tg = None
 
-    CFG = "You need to override this with a dict(prefix=('where','ever'))"
+    CFG = None  # You need to override this with a dict(prefix=('where','ever'))
 
     def __init__(self, client, path, *, need_wait=False, cfg=None, require_client=True):
         # pylint: disable=super-init-not-called
@@ -597,3 +595,20 @@ class ClientRoot(ClientEntry):
     async def spawn(self, p, *a, **kw):
         p = partial(p, *a, **kw)
         self._tg.start_soon(p)
+
+
+class ClientRoot(MirrorRoot):
+
+    """
+    This class represents the root of a subsystem's storage.
+
+    To use this class, create a subclass that, at minimum, overrides
+    ``CFG`` and ``child_type``. ``CFG`` must be a dict with at least a
+    ``prefix`` tuple. You instantiate the entry using :meth:`as_handler`.
+
+    """
+    def __init__(self, *a, **kw):
+        if self.CFG is None:
+            raise TypeError(f"You need to override .CFG in {type(self).__name__}")
+        super().__init__(*a, **kw)
+

@@ -26,7 +26,7 @@ from moat.util import (
 
 from .actor import ActorState, BrokenState, ClientActor, CompleteState, DetachedState, PartialState
 from .exceptions import ServerError
-from .obj import AttrClientEntry, ClientRoot
+from .obj import AttrClientEntry, ClientRoot, MirrorRoot
 
 try:
     ClosedResourceError = anyio.exceptions.ClosedResourceError
@@ -840,7 +840,7 @@ class StateEntry(AttrClientEntry):
         await run.root.trigger_rescan()
 
 
-class StateRoot(ClientRoot):
+class StateRoot(MirrorRoot):
     """Base class for handling the state of entries.
 
     This is separate from the RunnerRoot hierarchy because the latter may
