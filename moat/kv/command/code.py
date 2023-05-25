@@ -12,7 +12,7 @@ from moat.util import NotGiven, P, Path, PathLongener, attr_args, process_args, 
 async def cli(ctx, path):
     """Manage code stored in MoaT-KV."""
     obj = ctx.obj
-    obj.path = obj.cfg["codes"]["prefix"] + path
+    obj.path = obj.cfg["kv"]["codes"]["prefix"] + path
     obj.codepath = path
 
     if ctx.invoked_subcommand is None:
@@ -133,7 +133,7 @@ async def get_mod(obj, path, script):
     if not len(path):
         raise click.UsageError("You need a non-empty path.")
     res = await obj.client._request(
-        action="get_value", path=obj.cfg["modules"]["prefix"] + path, iter=False, nchain=obj.meta
+        action="get_value", path=obj.cfg["kv"]["modules"]["prefix"] + path, iter=False, nchain=obj.meta
     )
     if not obj.meta:
         res = res.value
@@ -178,7 +178,7 @@ async def set_mod(obj, path, script, data):
         msg["code"] = script.read()
 
     res = await obj.client.set(
-        *obj.cfg["modules"]["prefix"], *path, value=msg, iter=False, nchain=obj.meta, chain=chain
+        *obj.cfg["kv"]["modules"]["prefix"], *path, value=msg, iter=False, nchain=obj.meta, chain=chain
     )
     if obj.meta:
         yprint(res, stream=obj.stdout)

@@ -48,9 +48,10 @@ async def cli(ctx, node, group):
         obj.runner_root = SingleRunnerRoot
         subpath = (node, group)
 
-    obj.subpath = Path(obj.cfg["runner"]["sub"][obj.runner_root.SUB]) + subpath
-    obj.path = obj.cfg["runner"]["prefix"] + obj.subpath
-    obj.statepath = obj.cfg["runner"]["state"] + obj.subpath
+    cfg = obj.cfg["kv"]["runner"]
+    obj.subpath = Path(cfg["sub"][obj.runner_root.SUB]) + subpath
+    obj.path = cfg["prefix"] + obj.subpath
+    obj.statepath = cfg["state"] + obj.subpath
 
 
 @cli.group("at", short_help="path of the job to operate on", invoke_without_command=True)
