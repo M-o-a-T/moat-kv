@@ -19,69 +19,6 @@ async def cli():
     pass
 
 
-@cli.command("cfg")
-@click.argument("path", nargs=1)
-@click.pass_obj
-async def cfg_dump(obj, path):
-    """Emit the current configuration as a YAML file.
-
-    You can limit the output by path elements.
-    E.g., "cfg connect.host" will print "localhost".
-
-    Single values are printed with a trailing line feed.
-
-    Dump the whole config with "… dump cfg :".
-    """
-    cfg = obj.cfg
-    for p in P(path):
-        try:
-            cfg = cfg[p]
-        except KeyError:
-            if obj.debug:
-                print("Unknown:", p)
-            sys.exit(1)
-    if isinstance(cfg, str):
-        print(cfg, file=obj.stdout)
-    else:
-        yprint(cfg, stream=obj.stdout)
-
-
-@cli.command("file")
-@click.option("-p", "--path", is_flag=True, default=False, help="Unwrap paths")
-@click.option("-f", "--filter", "filter_", multiple=True, help="Only emit entries with this path")
-@click.argument("file", nargs=1)
-@click.pass_obj
-async def file_(obj, file, path, filter_):
-    """Read a MsgPack file and dump as YAML."""
-    if path or filter_:
-        pl = PathLongener()
-    else:
-        pl = lambda _: None
-    filter_ = [P(x) for x in filter_]
-    async with MsgReader(path=file) as f:
-        async for msg in f:
-            pl(msg)
-            if filter_:
-                if "path" not in msg:
-                    continue
-                for f in filter_:
-                    if msg.path[: len(f)] == f:
-                        break
-                else:
-                    continue
-            yprint(msg, stream=obj.stdout)
-            print("---", file=obj.stdout)
-
-
-@cli.command("yaml")
-@click.argument("msgpack", nargs=1)
-async def yaml_(msgpack):
-    """Read a multi-part YAML file from stdin and dump as msgpack stream."""
-    async with MsgWriter(path=msgpack) as f:
-        for d in yload(sys.stdin, multi=True):
-            await f(d)
-
-
 @cli.command()
 @click.argument("node", nargs=1)
 @click.argument("file", type=click.Path(), nargs=1)
