@@ -110,7 +110,7 @@ async def client_scope(_name=None, **cfg):
     """
 
     if _name is None:
-        _name = cfg["conn"].get("name", "conn")
+        _name = cfg.get("conn",{}).get("name", "conn")
         if _name is None:
             global _cid
             _cid += 1
