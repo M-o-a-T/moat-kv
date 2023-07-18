@@ -66,7 +66,7 @@ async def at_cli(ctx, path):
 
     if ctx.invoked_subcommand is None:
         res = await obj.client.get(obj.path + path, nchain=obj.meta)
-        yprint(res, stream=obj.stdout)
+        yprint(res if obj.meta else res.value, stream=obj.stdout)
 
 
 @cli.command("info")
