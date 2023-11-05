@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -7,16 +8,17 @@ from moat.util import yload
 
 
 def load_cfg(cfg):  # pylint: disable=redefined-outer-name
-    if os.path.exists(cfg):
+    cfg = Path(cfg).absolute()
+    if cfg.exists():
         pass
-    elif os.path.exists(os.path.join("tests", cfg)):  # pragma: no cover
-        cfg = os.path.join("tests", cfg)
-    elif os.path.exists(os.path.join(os.pardir, cfg)):  # pragma: no cover
-        cfg = os.path.join(os.pardir, cfg)
+    elif (ct := cfg.parent/"tests"/cfg.name).exists():  # pragma: no cover
+        cfg = ct
+    elif (ct := cfg.parent.parent/cfg.name).exists():  # pragma: no cover
+        cfg = ct
     else:  # pragma: no cover
         raise RuntimeError(f"Config file {cfg!r} not found")
 
-    with open(cfg, "r", encoding="utf-8") as f:
+    with cfg.open("r", encoding="utf-8") as f:
         cfg = yload(f)
 
     from logging.config import dictConfig
