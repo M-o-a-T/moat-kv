@@ -5,6 +5,7 @@ import pytest
 import trio
 from asyncscope import scope
 from moat.util import P, PathLongener
+from moat.src.test import raises
 
 from moat.kv.client import ServerError
 from moat.kv.mock.mqtt import stdtest
@@ -157,10 +158,10 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             assert r.chain.tick == 4
 
             # does not yet exist
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=8)
             # has been superseded
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=1)
             # works
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
@@ -307,9 +308,9 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                 assert r.chain.prev.prev is None
                 await trio.sleep(1)
 
-                with pytest.raises(ServerError):
+                with raises(ServerError):
                     await c._request("get_value", node="test_1", tick=1)
-                with pytest.raises(ServerError):
+                with raises(ServerError):
                     await ci._request("get_value", node="test_1", tick=1)
 
                 # Now test that the internal states match.

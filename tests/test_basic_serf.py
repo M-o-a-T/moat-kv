@@ -5,6 +5,7 @@ import asyncclick as click
 import pytest
 import trio
 from moat.util import P, PathLongener
+from moat.src.test import raises
 
 from moat.kv.client import ServerError
 from moat.kv.mock import run
@@ -32,7 +33,7 @@ async def test_00_trio_clock(autojump_clock):  # pylint: disable=unused-argument
 
 @pytest.mark.trio
 async def test_00_runner(autojump_clock):  # pylint: disable=unused-argument
-    with pytest.raises(click.exceptions.NoSuchOption):
+    with raises(click.exceptions.NoSuchOption):
         await run("--doesnotexist")
     # await run("--doesnotexist", expect_exit=2)
     # await run('pdb','pdb')  # used for verifying that debugging works
@@ -134,10 +135,10 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
             assert r.chain.tick == 5
 
             # does not yet exist
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=8)
             # has been superseded
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=1)
             # works
             assert (await c._request("get_value", node="test_0", tick=5)).value == 1234
@@ -223,10 +224,10 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             assert r.chain.tick == 4
 
             # does not yet exist
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=8)
             # has been superseded
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=1)
             # works
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234
@@ -372,9 +373,9 @@ async def test_03_three(autojump_clock):  # pylint: disable=unused-argument
                 assert r.chain.prev.tick == 1
                 assert r.chain.prev.prev is None
 
-                with pytest.raises(ServerError):
+                with raises(ServerError):
                     await c._request("get_value", node="test_1", tick=1)
-                with pytest.raises(ServerError):
+                with raises(ServerError):
                     await ci._request("get_value", node="test_1", tick=1)
 
                 # Now test that the internal states match.

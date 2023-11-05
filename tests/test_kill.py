@@ -3,6 +3,7 @@ import logging
 import pytest
 import trio
 from moat.util import P
+from moat.src.test import raises
 
 from moat.kv.client import ServerError
 from moat.kv.mock.mqtt import stdtest
@@ -41,7 +42,7 @@ async def test_11_kill(autojump_clock):  # pylint: disable=unused-argument
             assert res.result == (1, 2)
 
             # error
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 res = await c._request("kill_node", node="test_2", iter=False)
 
             # works
