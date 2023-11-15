@@ -2,6 +2,7 @@ import logging
 
 import pytest
 from moat.util import P, PathLongener
+from moat.src.test import raises
 
 from moat.kv.auth import loader
 from moat.kv.client import ServerError
@@ -50,11 +51,11 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
         async with st.client(auth=um.build({"name": "aclix"})) as c:
             await c.set(P("one"), value=10)
             await c.set(P("one.two"), value=11)
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c.set(P("one.two.three"), value=12)
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c.set(P("one.two"), value=22)
 
 
-#           with pytest.raises(ServerError):
+#           with raises(ServerError):
 #               await c.set("foo", value=23)

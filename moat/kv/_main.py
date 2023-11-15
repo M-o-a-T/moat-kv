@@ -35,7 +35,7 @@ class NullObj:
         raise self._exc
 
     def __getattr__(self, k):
-        if k[0] == "_" and k != "_request":
+        if k[0] == "_" and k not in ("_request","_cfg"):
             return object.__getattribute__(self, k)
         raise self._exc
 

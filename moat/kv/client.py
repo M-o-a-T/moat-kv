@@ -744,15 +744,12 @@ class Client:
                 else:
                     yield self
                 finally:
-                    with anyio.fail_after(2, shield=True):
-                        # Clean up our hacked config
-                        try:
-                            del self._config
-                        except AttributeError:
-                            pass
-                        self.config = ClientConfig(self)
-
-                    # await self.tg.cancel_scope.cancel()
+                    # Clean up our hacked config
+                    try:
+                        del self._config
+                    except AttributeError:
+                        pass
+                    self.config = ClientConfig(self)
         finally:
             self._socket = None
             self.tg = None

@@ -4,6 +4,7 @@ from functools import partial
 import jsonschema
 import pytest
 from moat.util import P
+from moat.src.test import raises
 
 from moat.kv.auth import gen_auth
 from moat.kv.client import ServerError
@@ -38,9 +39,9 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
 
         r = await run_c("auth", "-m", "root", "init")
 
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             await run_c("data", ":", "get")
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             async with st.client() as c:
                 assert (await c.get(P(":"))).value == 123
 
@@ -96,11 +97,11 @@ typ: _test
         )
         await run_c("-a", "root", "auth", "-m", "_test", "init", "-s")
 
-        with pytest.raises(ClientAuthMethodError):
+        with raises(ClientAuthMethodError):
             await run_c("-a", "root", "data", "hello")
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             await run_c("data", "hello")
-        with pytest.raises(jsonschema.ValidationError):
+        with raises(jsonschema.ValidationError):
             await run_c("-a", "_test", "data", "hello")
 
         run_t = partial(run_c, "-a", "_test name=fubar")
@@ -139,13 +140,13 @@ typ: password
         )
         run_u = partial(run_c, "-a", "password name=joe password=test123")
         await run_c("-a", "root", "data", "answers.life etc:.", "set", "-e", ":", 42)
-        with pytest.raises(ClientAuthMethodError):
+        with raises(ClientAuthMethodError):
             res = await run_u("data", "answers.life etc:.")
         await run_c("-a", "root", "auth", "-m", "password", "init", "-s")
         res = await run_u("data", "answers.life etc:.")
         assert res.stdout == "42\n"
         run_u = partial(run_c, "-a", "password name=joe password=test1234")
-        with pytest.raises(ServerError) as se:
+        with raises(ServerError) as se:
             res = await run_u("data", "answers.life etc:.")
         assert str(se.value).startswith("AuthFailedError(")
         assert "hashes do not match" in str(se.value)
