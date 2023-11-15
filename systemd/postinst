@@ -1,7 +1,7 @@
 #!/bin/sh
 
 set -ex
-/usr/lib/moat.kv/init
+/usr/lib/moat/kv/init
 systemd-sysusers --no-pager /usr/lib/sysusers.d/moat-kv.conf
-systemctl enable moat.kv.service
-systemctl enable moat.kv-rotate.timer || true  # may be masked
+systemctl enable moat-kv.service
+systemctl enable moat-kv-rotate.timer || true  # may be masked
