@@ -1,137 +1,17 @@
-==================
-The DistKV command
-==================
+===================
+The MoaT-KV command
+===================
 
-DistKV uses one command line tool, appropriately named ``distkv``. It
-provides various sub- and sub-sub-commands to run and control your server.
-
-Each command and sub-command accepts a distinct set of options which must
-be used directly after the (sub)command affected by them.
-
-distkv
-======
-
-.. program:: distkv
-
-The main entry point for all commands.
-
-Use the option ``--help`` to show that (sub)command's detailed information.
-
-Options used only for testing are not shown in the commands' help text.
-
-.. option:: -v, --verbose
-
-   Increase debugging verbosity. Broadly speaking, the default is
-   ``ERROR``; this option selects ``WARNING``, ``INFO`` or ``DEBUG``
-   depending on how often you use it.
-
-.. option:: -q, --quiet
-
-   Decrease debugging verbosity: the opposite of :option:`distkv -v`,
-   reducing the verbosity to ``FATAL``.
-
-.. option:: -l, --log <source=LEVEL>
-
-   You can selectively adjust debugging verbosity if you need to print, or
-   ignore, some types of messages. Example: ``distkv -vvv --log
-   asyncactor=ERROR server NAME`` would suppress most chattiness of the
-   Actor that's responsible for inter-server synchronization.
-
-.. option:: -D, --debug
-
-   Some DistKV methods, in particular cryptographic operations, are not
-   noted for their speed. This option reduces the bit count of these
-   options in order to speed them up significantly.
-
-   It also reduces their security unacceptably. Thus, this option should
-   only used while debugging.
-
-.. option:: -c, --cfg <FILE>
-
-   Specify a YAML configuration file.
-
-   Data in this file override the corresponding entries in the
-   ``distkv.defaults.CFG`` directory.
-
-   The config will be loaded from the first of these files, assuming it's
-   readable:
-
-   * ~/config/distkv.cfg
-   * ~/.config/distkv.cfg
-   * ~/.distkv.cfg
-   * /etc/distkv/distkv.cfg
-   * /etc/distkv.cfg
-
-   If you don't want to read any config file, use ``/dev/null``.
-
-.. option:: -C, --conf <location=value>
-   
-   Set a specific configuration value.
-   This option takes precedence over :option:`distkv -c`.
-
-
-.. program:: distkv server
-
-Run the DistKV server.
-
-A DistKV server holds all data and syncs with all other DistKV servers.
-You can't run :program:`distkv client` unless you have at least one running
+MoaT-KV extends the MoaT command line tool with the ``moat kv`` subcommand
+which provides various sub- and sub-sub-commands to run and control your
 server.
 
-There is no separate option to set the address for clients to connect to;
-use ``server.bind_default.port=57589`` (or your own port number) to change
-it from the default of ``27589``, or use a configuration file.
+moat.kv
+=======
 
-.. option:: -l, --load <file>
+.. program:: moat kv
 
-   Pre-load the saved data from this file into the server before starting it.
-
-   **Do not use this option with an out-of-date savefile.**
-
-.. option:: -s, --save <file>
-
-   Log all changes to this file. This includes the initial data.
-
-   This option is only used for testing. Use ``distkv client log dest`` in
-   production use.
-
-.. option:: -i, --incremental
-
-   Don't write the complete state to the save file.
-
-   This option is of limited usefulness and only used for testing.
-   Use ``distkv client log dest -i`` in production.
-
-A network of servers needs to contain some data before it becomes
-operational. When starting the first server, you can use an initial 
-
-.. option:: -I, --init <value>
-
-   Initialize the server by storing this value in the root entry.
-
-   This option is only used for testing. Create initial content with
-   ``distkv dump init`` for production use.
-
-.. option:: -e, --eval
-
-   Evaluate the initial value, as a standard Python expression.
-
-   This option is only used for testing.
-
-You can also use :program:`distkv client data set` to update this value
-later.
-
-.. option:: name
-
-Each DistKV server requires a unique name. If you recycle a name, the old
-server using it will die (unless your network is segmented – in that case,
-one or both will terminate some random time after the networks are
-reconnecting, and you'll get inconsistent data). So don't do that.
-
-
-.. program:: distkv client
-
-This subcommand collects all sub-subcommand which talk to a DistKV server.
+The main entry point for all commands.
 
 .. option:: -h, --host <address>
 
@@ -160,7 +40,66 @@ This subcommand collects all sub-subcommand which talk to a DistKV server.
    entry or entries in question. This allows you to safely modify a value.
 
 
-.. program:: distkv client data
+.. program:: moat kv server
+
+Run the MoaT-KV server.
+
+A MoaT-KV server holds all data and syncs with all other MoaT-KV servers.
+You can't run :program:`moat kv` unless you have at least one running
+server (except for the "server" and "dump" subcommands).
+
+There is no separate option to set the address for clients to connect to;
+use ``server.bind_default.port=57589`` (or your own port number) to change
+it from the default of ``27589``, or use a configuration file.
+
+.. option:: -l, --load <file>
+
+   Pre-load the saved data from this file into the server before starting it.
+
+   **Do not use this option with an out-of-date savefile.**
+
+.. option:: -s, --save <file>
+
+   Log all changes to this file. This includes the initial data.
+
+   This option is only used for testing. Use ``moat kv log dest`` in
+   production use.
+
+.. option:: -i, --incremental
+
+   Don't write the complete state to the save file.
+
+   This option is of limited usefulness and only used for testing.
+   Use ``moat kv log dest -i`` in production.
+
+A network of servers needs to contain some data before it becomes
+operational. When starting the first server, you can use an initial 
+
+.. option:: -I, --init <value>
+
+   Initialize the server by storing this value in the root entry.
+
+   This option is only used for testing. Create initial content with
+   ``moat kv dump init`` for production use.
+
+.. option:: -e, --eval
+
+   Evaluate the initial value, as a standard Python expression.
+
+   This option is only used for testing.
+
+You can also use :program:`moat kv data set` to update this value
+later.
+
+.. option:: name
+
+Each MoaT-KV server requires a unique name. If you recycle a name, the old
+server using it will die (unless your network is segmented – in that case,
+one or both will terminate some random time after the networks are
+reconnecting, and you'll get inconsistent data). So don't do that.
+
+
+.. program:: moat kv data
 
 Basic data access.
 
@@ -169,9 +108,9 @@ Basic data access.
    Access the entry at this location.
 
 
-.. program:: distkv client data get
+.. program:: moat kv data get
 
-Read a DistKV value.
+Read a MoaT-KV value.
 
 If you read a sub-tree recursively, be aware that the whole subtree may
 be read before anything is printed. Use the ``monitor --state`` subcommand
@@ -212,11 +151,11 @@ for incremental output.
    and its immediate children.
 
 
-.. program:: distkv client data list
+.. program:: moat kv data list
 
-List DistKV values.
+List MoaT-KV values.
 
-This command is basically like ``distkv client data ‹path› get``, except that
+This command is basically like ``moat kv data ‹path› get``, except that
 ``--recursive`` and ``empty`` are always set. ``mindepth`` and ``maxdepth``
 default to 1.
 
@@ -251,9 +190,9 @@ default to 1.
    and its immediate children.
 
 
-.. program:: distkv client data set
+.. program:: moat kv data set
 
-Store a value at some DistKV position.
+Store a value at some MoaT-KV position.
 
 If you update a value, you should use :option:`--last` (preferred) or
 :option:`--prev` (if you must), to ensure that no other change collides
@@ -289,9 +228,9 @@ accidentally overwrite something.
    This value is also affected by ``--eval``.
 
 
-.. program:: distkv client data delete
+.. program:: moat kv data delete
 
-Delete the value at some DistKV position.
+Delete the value at some MoaT-KV position.
 
 If you delete a value, you should use :option:`--last` (preferred) or
 :option:`--prev` (if you must), to ensure that no other change collides
@@ -317,7 +256,7 @@ Recursive changes only check the entry you mention on the command line.
    This value is also affected by ``--eval``.
 
 
-.. program:: distkv client data monitor
+.. program:: moat kv data monitor
 
 Monitor changes to the state of an entry, or rather its subtree.
 
@@ -338,7 +277,7 @@ Monitor changes to the state of an entry, or rather its subtree.
 
 .. note::
 
-   The current state may already include updates, due to DistKV's
+   The current state may already include updates, due to MoaT-KV's
    asynchonous nature. You should simply replace existing values.
 
 .. option:: -m, --msgpack
@@ -348,9 +287,9 @@ Monitor changes to the state of an entry, or rather its subtree.
    The default is to use YAML.
 
 
-.. program:: distkv client data update
+.. program:: moat kv data update
 
-Stream a list of changes from standard input to DistKV. Paths in the data
+Stream a list of changes from standard input to MoaT-KV. Paths in the data
 set are interpreted relative to the path given.
 
 .. option:: -m, --msgpack
@@ -360,18 +299,18 @@ set are interpreted relative to the path given.
    The default is to use YAML. XXX TODO
 
 
-.. program:: distkv client control
+.. program:: moat kv control
 
 Control your server.  XXX TODO
 
 
-.. program:: distkv client log
+.. program:: moat kv log
 
 
 Control logging of changes on the server.
 
 
-.. program:: distkv client log dest
+.. program:: moat kv log dest
 
 Set the file to log to. The old file is closed as soon as the new file is
 ready (i.e. the current state is saved).
@@ -385,7 +324,7 @@ ready (i.e. the current state is saved).
    The file to write to. Note that this file is on the server.
 
 
-.. program:: distkv client log save
+.. program:: moat kv log save
 
 Save the current state of the server to this file.
 
@@ -394,12 +333,12 @@ Save the current state of the server to this file.
    The file to write to. Note that this file is on the server.
 
 
-.. program:: distkv client log stop
+.. program:: moat kv log stop
 
 Stop logging.
 
 
-.. program:: distkv client auth
+.. program:: moat kv auth
 
 Set up and change client authorization.
 
@@ -410,8 +349,8 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
 
    Affect the named method.
 
-   DistKV supports multiple authorization methods. The default is the one
-   that has been changed to with ``distkv client auth init``.
+   MoaT-KV supports multiple authorization methods. The default is the one
+   that has been changed to with ``moat kv auth init``.
    
    If you want to do anything with authorization, you'll need to use this
    flag to set up the initial users.
@@ -419,7 +358,7 @@ options may not work. Use ``-m root`` as a workaround.  XXX TODO
    See `Auth`.
 
 
-.. program:: distkv client auth init
+.. program:: moat kv auth init
 
 Set up this method.
 
@@ -429,25 +368,25 @@ Set up this method.
    set-up.
 
 
-.. program:: distkv client auth list
+.. program:: moat kv auth list
 
 List configured auth methods.
 
 XXX TODO
 
 
-.. program:: distkv client auth user
+.. program:: moat kv auth user
 
-Manage DistKV users.
+Manage MoaT-KV users.
 
 Each authorization method has its own schema for validating users.
 
 
-.. program:: distkv client auth user add <key>=<value>…
+.. program:: moat kv auth user add <key>=<value>…
 
 Add a new user.
 
-Example: ``distkv client -a root auth -m password user add name=foo password=barbaz``
+Example: ``moat kv -a root auth -m password user add name=foo password=barbaz``
 
 The identifier which you'd use to subsequently refer to that user is
 printed when this command completes.
@@ -455,29 +394,29 @@ printed when this command completes.
 .. option:: <key>=<value>
 
    Set an auth-specific parameter. If you write ``password?`` instead of
-   ``password=SomeSecret``, you tell DistKV to read the actual data from the
+   ``password=SomeSecret``, you tell MoaT-KV to read the actual data from the
    terminal (without echo) so that it won't show up in your history.
 
 
-.. program:: distkv client auth user mod <ident> <key>=<value>…
+.. program:: moat kv auth user mod <ident> <key>=<value>…
 
 Modify a user.
 
 .. option:: <ident>
 
-   The identifier DistKV has assigned to the user.
+   The identifier MoaT-KV has assigned to the user.
 
 .. option:: <key>=<value>
    Set an auth-specific parameter.
 
 
-.. program:: distkv client auth user param <ident> <type> <key>
+.. program:: moat kv auth user param <ident> <type> <key>
 
 Modify a user's setting.
 
 .. option:: <ident>
 
-   The identifier DistKV has assigned to the user.
+   The identifier MoaT-KV has assigned to the user.
 
 .. option:: <type>
 
@@ -485,12 +424,12 @@ Modify a user's setting.
 
 .. option:: <key>
 
-   The type-dependent setting to use as stored in DistKV. For ACLs the
-   relevant record is added with ``distkv client acl set <key> …``, for data
-   conversion ``distkv client codec convert <key> …``.
+   The type-dependent setting to use as stored in MoaT-KV. For ACLs the
+   relevant record is added with ``moat kv acl set <key> …``, for data
+   conversion ``moat kv codec convert <key> …``.
 
 
-.. program:: distkv client auth user auth
+.. program:: moat kv auth user auth
 
 Check that authorizing a user works.
 
@@ -498,10 +437,10 @@ XXX TODO seems broken
 
 .. option:: options…
 
-   Whichever auth options you'd normally use in ``distkv client -a TYPE …``.
+   Whichever auth options you'd normally use in ``moat kv -a TYPE …``.
 
 
-.. program:: distkv client auth user get
+.. program:: moat kv auth user get
 
 Dump data of a user.
 
@@ -514,21 +453,21 @@ The chain length to return, for subsequent modification.
    The user identifier, as reported by ``add``.
 
 
-.. program:: distkv client auth user list
+.. program:: moat kv auth user list
 
 List users.
 
 XXX TODO add verbosity
 
 
-.. program:: distkv client type
+.. program:: moat kv type
 
-Set up DistKV's type control: verify the data that clients write.
+Set up MoaT-KV's type control: verify the data that clients write.
 
 See :doc:`translator` for details.
 
 
-.. program:: distkv client type get
+.. program:: moat kv type get
 
 Retrieve a type entry.
 
@@ -549,7 +488,7 @@ Retrieve a type entry.
    The type data to retrieve.
 
 
-.. program:: distkv client type set
+.. program:: moat kv type set
 
 Add or modify a type entry.
 
@@ -563,8 +502,8 @@ percent" must be accepted by "int".
 Tests can use Python code, a JSON schema, or both. In the latter case the
 schema is tested first.
 
-To modify a record, use ``distkv client type get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``distkv client type set -d <tempfile> <path>…``.
+To modify a record, use ``moat kv type get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv type set -d <tempfile> <path>…``.
 
 .. option:: -y, --yaml
 
@@ -595,9 +534,9 @@ the tempfile, then restore with ``distkv client type set -d <tempfile> <path>…
    The type data to set.
 
 
-.. program:: distkv client type match
+.. program:: moat kv type match
 
-Read, set or delete type matches, i.e. which part of your DistKV tree is
+Read, set or delete type matches, i.e. which part of your MoaT-KV tree is
 constricted by which type.
 
 .. option:: -t, type <name>
@@ -611,11 +550,11 @@ constricted by which type.
 
 .. option:: path…
 
-   The DistKV entry to affect. Path elements '+' and '#' match exactly-one and
+   The MoaT-KV entry to affect. Path elements '+' and '#' match exactly-one and
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: distkv client codec
+.. program:: moat kv codec
 
 Set up codecs: manipulate the data that clients see, sort of like a
 database view.
@@ -630,7 +569,7 @@ assembling an entry's new value).
 Unlike types, the codec hierarchy is strictly for convenience.
 
 
-.. program:: distkv client codec get
+.. program:: moat kv codec get
 
 Retrieve information about a codec, including its scripts.
 
@@ -658,16 +597,16 @@ Retrieve information about a codec, including its scripts.
 
 .. option:: <path>
 
-   The DistKV entry that would be affected. Path elements '+' and '#' match
+   The MoaT-KV entry that would be affected. Path elements '+' and '#' match
    exactly-one and one-or-more subpaths. The most specific path wins.
    
 
-.. program:: distkv client codec set
+.. program:: moat kv codec set
 
 Add or modify a codec.
 
-To modify a codec, use ``distkv client codec get <path>… > <tempfile>``, edit the
-tempfile, then restore with ``distkv client codec set -d <tempfile> <path>…``.
+To modify a codec, use ``moat kv codec get <path>… > <tempfile>``, edit the
+tempfile, then restore with ``moat kv codec set -d <tempfile> <path>…``.
 
 .. option:: -e, --encode <file>
 
@@ -703,13 +642,13 @@ tempfile, then restore with ``distkv client codec set -d <tempfile> <path>…``.
 
 .. option:: <path>
 
-   The DistKV entry to affect. Path elements '+' and '#' match exactly-one and
+   The MoaT-KV entry to affect. Path elements '+' and '#' match exactly-one and
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: distkv client codec convert
+.. program:: moat kv codec convert
 
-Read, set or delete codec matches, i.e. which part of your DistKV tree is
+Read, set or delete codec matches, i.e. which part of your MoaT-KV tree is
 managed by which codec. To this effect, matches are tagged by a group name.
 
 Which codec group to apply to a given user is stored in that user's
@@ -728,21 +667,21 @@ data are not converted.
 
 .. option:: <path>
 
-   The DistKV entry to affect. Path elements '+' and '#' match exactly-one and
+   The MoaT-KV entry to affect. Path elements '+' and '#' match exactly-one and
    one-or-more subpaths. The most specific path wins.
 
 
-.. program:: distkv client acl
+.. program:: moat kv acl
 
-Manipulate access control lists stored in DistKV.
+Manipulate access control lists stored in MoaT-KV.
 
 
-.. program:: distkv client acl list
+.. program:: moat kv acl list
 
 Generate a list of known ACLs.
 
 
-.. program:: distkv client acl get
+.. program:: moat kv acl get
 
 Retrieve the flags at a specific ACL path.
 
@@ -757,7 +696,7 @@ If the path does not contain any flags, print ``-``.
    The ACL path from which to retrieve the flags.
 
 
-.. program:: distkv client acl set
+.. program:: moat kv acl set
 
 Set the flags at a specific ACL path.
 
@@ -776,7 +715,7 @@ Set the flags at a specific ACL path.
    The ACL path to add or modify.
 
 
-.. program:: distkv client acl test
+.. program:: moat kv acl test
 
 Check whether an ACL allows access.
 
@@ -795,7 +734,7 @@ Check whether an ACL allows access.
    The path to check.
 
 
-.. program:: distkv client acl dump
+.. program:: moat kv acl dump
 
 Dump an ACL's content.
 
@@ -817,14 +756,14 @@ Dump an ACL's content.
    The path to start dumping at. Default: the root.
 
 
-.. program:: distkv client code
+.. program:: moat kv code
 
-Manipulate code stored in DistKV.
+Manipulate code stored in MoaT-KV.
 
 
-.. program:: distkv client code list
+.. program:: moat kv code list
 
-List code snippets stored in DistKV.
+List code snippets stored in MoaT-KV.
 
 .. option:: -d, --as-dict <text>
 
@@ -870,7 +809,7 @@ List code snippets stored in DistKV.
    List the code below this location.
 
 
-.. program:: distkv client code get
+.. program:: moat kv code get
 
 Retrieve Python code stored in the server.
 
@@ -883,15 +822,15 @@ Retrieve Python code stored in the server.
    Path to the code in question.
 
 
-.. program:: distkv client code set
+.. program:: moat kv code set
 
 Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client runners.
 
-To modify some code, use ``distkv client code get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``distkv client code set -d <tempfile> <path>…``.
+To modify some code, use ``moat kv code get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv code set -d <tempfile> <path>…``.
 
 .. option:: -d, --data <filename>
 
@@ -917,12 +856,12 @@ the tempfile, then restore with ``distkv client code set -d <tempfile> <path>…
 
    The path to the code to write.
 
-TODO: Old versions of the code continue to run; DistKV does not yet restart users.
+TODO: Old versions of the code continue to run; MoaT-KV does not yet restart users.
 
 
-.. program:: distkv client code module
+.. program:: moat kv code module
 
-Manipulate modules stored in DistKV.
+Manipulate modules stored in MoaT-KV.
 
 Modules are replaced immediately, but code using them is **not**
 auto-restarted.
@@ -932,7 +871,7 @@ not deferred until "import" time. This code needs sever refactoring. For now, pl
 in the file system.
 
 
-.. program:: distkv client code module get
+.. program:: moat kv code module get
 
 Retrieve Python module stored in the server.
 
@@ -945,15 +884,15 @@ Retrieve Python module stored in the server.
    Path to the code in question.
 
 
-.. program:: distkv client code module set
+.. program:: moat kv code module set
 
 Store or replace Python code stored in the server.
 
 This code will not run in the server; the purpose of these calls is to
 upload code for use by client-side runners.
 
-To modify a module, use ``distkv client code module get <path>… > <tempfile>``, edit
-the tempfile, then restore with ``distkv client code module set -d <tempfile> <path>…``.
+To modify a module, use ``moat kv code module get <path>… > <tempfile>``, edit
+the tempfile, then restore with ``moat kv code module set -d <tempfile> <path>…``.
 
 .. option:: -d, --data <filename>
 
@@ -965,16 +904,16 @@ the tempfile, then restore with ``distkv client code module set -d <tempfile> <p
 
 .. option:: name…
 
-   The path to the code to set, below ``.distkv code proc`` or whatever
+   The path to the code to set, below ``.moat kv code proc`` or whatever
    else is configured under ``codes``.
 
-TODO: Old versions of the code continue to run; DistKV does not yet restart users.
+TODO: Old versions of the code continue to run; MoaT-KV does not yet restart users.
 
 
 
-.. program:: distkv client job
+.. program:: moat kv job
 
-Subcommand for controlling and executing code stored in DistKV.
+Subcommand for controlling and executing code stored in MoaT-KV.
 
 .. option:: -n, --node <node>
 
@@ -990,19 +929,19 @@ Subcommand for controlling and executing code stored in DistKV.
    The default group is "all".
 
 
-.. program:: distkv client job run
+.. program:: moat kv job run
 
 This is the actual runner, i.e. the program that runs stored tasks.
 
 This program does not terminate.
 
 
-.. program:: distkv client job info
+.. program:: moat kv job info
 
 List available groups (or nodes, if ``-g -`` is used).
 
 
-.. program:: distkv client job list
+.. program:: moat kv job list
 
 List available run entries.
 
@@ -1030,12 +969,12 @@ The output is YAML-formatted unless ``-t`` is used.
    Limit listing to this prefix.
 
 
-.. program:: distkv client run get
+.. program:: moat kv run get
 
 Read a runner entry.
 
 
-.. program:: distkv client run set
+.. program:: moat kv run set
 
 Create or change a runner entry.
 
@@ -1072,26 +1011,26 @@ Create or change a runner entry.
    To retry a failure immediately, simply use ``--time now``.
 
 
-.. program:: distkv client internal
+.. program:: moat kv internal
 
-Subcommand for viewing and modifying the internal state of a DistKV server.
+Subcommand for viewing and modifying the internal state of a MoaT-KV server.
 
 
-.. program:: distkv client internal dump
+.. program:: moat kv internal dump
 
-This command emits DistKV's internal state.
+This command emits MoaT-KV's internal state.
 
-The output is comparable to ``distkv client data dump -rd_``, but for internal
+The output is comparable to ``moat kv data dump -rd_``, but for internal
 data.
 
 .. option:: <path> …
 
-   Path prefix for DistKV's internal data structure.
+   Path prefix for MoaT-KV's internal data structure.
 
 
-.. program:: distkv client internal state
+.. program:: moat kv internal state
 
-This command queries the internal state of a DistKV server.
+This command queries the internal state of a MoaT-KV server.
 
 All lists of ``tick`` values are sorted and consist of either single
 entries, or ``[begin,end)`` tuples, i.e. the starting value is part of the
@@ -1133,7 +1072,7 @@ range but the end is not.
 See `Server protocol <server_protocol>` for details.
 
 
-.. program:: distkv client internal mark
+.. program:: moat kv internal mark
 
 Mark ticks as known or deleted. This is used to clean up the ``missing``
 range(s) when there's a consistency problem.
@@ -1160,10 +1099,10 @@ range(s) when there's a consistency problem.
    take the whole list, not just the ones for ``node``.
 
 
-.. program:: distkv client internal deleter
+.. program:: moat kv internal deleter
 
 Manage the list of nodes that collectively manage cleaning deleted entries from
-the DistKV tree.
+the MoaT-KV tree.
 
 All of these nodes must be online for clean-up to work.
 
@@ -1180,35 +1119,35 @@ All of these nodes must be online for clean-up to work.
    nonexistent node to the list.
 
 
-.. program:: distkv client error
+.. program:: moat kv error
 
 Manage errors.
 
 
-.. program:: distkv clent error dump
+.. program:: moat kv error dump
 
 Show currently-logged errors.
 
 
-.. program:: distkv clent error resolve
+.. program:: moat kv error resolve
 
 Mark an error as handled.
 
-DistKV does this itself, usually, but not if the node which caused the
+MoaT-KV does this itself, usually, but not if the node which caused the
 problem is deleted.
 
 
-.. program:: distkv dump
+.. program:: moat kv dump
 
 Various low-level data handling commands.
 
 
-.. program:: distkv dump cfg
+.. program:: moat kv dump cfg
 
 Display the current configuration data.
 
 
-.. program:: distkv dump file
+.. program:: moat kv dump file
 
 Unpack a file and show its contents as YAML.
 
@@ -1217,22 +1156,22 @@ Unpack a file and show its contents as YAML.
    The name of the file to decode.
 
 
-.. program:: distkv dump init
+.. program:: moat kv dump init
 
 Create an initial data file.
 
 .. option:: <node>
 
-   The node name of the DistKV server that should load the initial file.
+   The node name of the MoaT-KV server that should load the initial file.
 
 .. option:: <file>
 
-   The file to write. Typically ``/var/lib/distkv/%Y-%m-%d/0.dkv``.
+   The file to write. Typically ``/var/lib/moat/kv/%Y-%m-%d/0.dkv``.
 
 
-.. program:: distkv dump msg NAME…
+.. program:: moat kv dump msg NAME…
 
-Monitor all back-end messages. (I.e. not just those from DistKV.)
+Monitor all back-end messages. (I.e. not just those from MoaT-KV.)
 Decodes MsgPack messages. Display as YAML.
 
 .. option:: NAME
@@ -1245,18 +1184,4 @@ Decodes MsgPack messages. Display as YAML.
    * ``+NAME``, to monitor this sub-stream instead
    * ``+`` to monitor all sub-streams (recursively; does not work with the
      Serf backend)
-
-
-.. program:: distkv pdb
-
-This subcommand imports the debugger and then continues to process arguments.
-
-This can be used to drop into the debugger when an exception occurs, set
-breakpoints, or whatever.
-
-.. note::
-
-   Stepping over async function calls may or may not work. If not, your
-   best bet is to set a breakpoint on the next line.
-
 

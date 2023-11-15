@@ -5,7 +5,7 @@
 # view/edit the yaml export).
 
 import anyio
-from distkv.client import open_client
+from moat.kv.client import open_client
 from moat.util import P, yload, Path
 import asyncclick as click
 
@@ -28,7 +28,7 @@ def conv(m,s: str) -> bool:
 async def main(path, keys):
     if not keys:
         keys = "src dest dst state".split()
-    with open("/etc/distkv.cfg") as cff:
+    with open("/etc/moat.kv.cfg") as cff:
         cfg = yload(cff)
     async with open_client(**cfg) as client:
         async for m in client.get_tree(path, nchain=2):

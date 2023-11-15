@@ -1,1 +1,3 @@
-u   distkv   -  "DistKV owner"   /var/lib/distkv
+g   MoaT   -  "The MoaT"
+u   MoaT-KV   -  "MoaT-KV"   /var/lib/moat/kv
+m   MoaT-KV   MoaT

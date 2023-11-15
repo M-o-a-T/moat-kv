@@ -6,10 +6,10 @@ import pytest
 import trio
 from moat.util import P
 
-from distkv.code import CodeRoot
-from distkv.errors import ErrorRoot
-from distkv.mock.mqtt import stdtest
-from distkv.runner import AnyRunnerRoot
+from moat.kv.code import CodeRoot
+from moat.kv.errors import ErrorRoot
+from moat.kv.mock.mqtt import stdtest
+from moat.kv.runner import AnyRunnerRoot
 
 logger = logging.getLogger(__name__)
 

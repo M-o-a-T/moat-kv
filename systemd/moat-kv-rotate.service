@@ -1,0 +1,20 @@
+[Unit]
+Description=MoaT-KV log rotate
+Requires=moat-kv.service
+After=moat-kv.service
+Conflicts=distkv-rotate.service
+
+ConditionFileNotEmpty=/etc/moat/moat.cfg
+ConditionPathIsDirectory=/var/lib/moat/kv
+
+[Install]
+
+[Service]
+ExecStart=/usr/lib/moat/kv/rotate
+
+EnvironmentFile=/usr/lib/moat/kv/env
+EnvironmentFile=-/etc/moat/kv.env
+
+User=MoaT-KV
+Group=MoaT
+

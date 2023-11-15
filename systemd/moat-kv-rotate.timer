@@ -1,0 +1,10 @@
+[Unit]
+Description=The MoaT-KV server state save timer
+Requires=moat.kv.service
+
+[Timer]
+OnUnitActiveSec=900
+OnActiveSec=100
+
+[Install]
+WantedBy=moat.kv.service

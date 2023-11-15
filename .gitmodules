@@ -1,0 +1,9 @@
+[submodule "ext/inv"]
+	path = ext/inv
+	url = git://git.smurf.noris.de/moat-kv-inv.git
+[submodule "ext/ow"]
+	path = ext/ow
+	url = git://git.smurf.noris.de/moat-kv-ow.git
+[submodule "ext/ha"]
+	path = ext/ha
+	url = git://git.smurf.noris.de/moat-kv-ha.git

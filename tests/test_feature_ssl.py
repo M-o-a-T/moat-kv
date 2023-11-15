@@ -2,9 +2,10 @@ import logging
 
 import pytest
 from moat.util import P, PathLongener
+from moat.src.test import raises
 
-from distkv.client import ServerError
-from distkv.mock.mqtt import stdtest
+from moat.kv.client import ServerError
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +88,10 @@ async def test_41_ssl_basic(autojump_clock):  # pylint: disable=unused-argument
             assert r.chain.tick == 4
 
             # does not yet exist
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=8)
             # has been superseded
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c._request("get_value", node="test_0", tick=1)
             # works
             assert (await c._request("get_value", node="test_0", tick=4)).value == 1234

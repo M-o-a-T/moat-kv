@@ -4,10 +4,11 @@ import pytest
 import trio
 from asyncscope import scope
 from moat.util import P, PathLongener
+from moat.src.test import raises
 
-from distkv.auth import loader
-from distkv.client import ServerError
-from distkv.mock.mqtt import stdtest
+from moat.kv.auth import loader
+from moat.kv.client import ServerError
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +72,10 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
         await evt.wait()
         async with st.client(auth=um.build({"name": "con"})) as c:
             await c.set(P("inty.ten"), value="10")
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c.set(P("inty.nope"), value=11)
             await c.set(P("inty.yep.yepyepyep"), value="13")
-            with pytest.raises(ServerError):
+            with raises(ServerError):
                 await c.set(P("inty.nope.nopenope"), value=12)
             await c.set(P("inty.yep.yepyepyep.yep"), value="99")
             await c.set(P("inty"), value="hello")
@@ -86,7 +87,7 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             r = await c.get(P("inty.yep.yepyepyep"))
             assert r.value == "13"
 
-            # run_c = partial(run, "-D", "client", "-h", s.ports[0][0], "-p", s.ports[0][1])
+            # run_c = partial(run, "-D", "kv", "-h", s.ports[0][0], "-p", s.ports[0][1])
             # await run_c("-a","_test name=std", "get", "-rd_", do_stdout=False)
 
         assert recv == [

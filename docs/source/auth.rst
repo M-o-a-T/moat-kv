@@ -1,8 +1,8 @@
 =========================
-DistKV and authentication
+MoaT-KV and authentication
 =========================
 
-DistKV ships with a couple of rudimentary auth modules.
+MoaT-KV ships with a couple of rudimentary auth modules.
 
 The server's initial message lists the accepted authentication methods
 (``auth`` entry).
@@ -56,18 +56,18 @@ Users do not have a password.
 API
 ===
 
-The authorization code is modular. DistKV allows loading multiple auth
+The authorization code is modular. MoaT-KV allows loading multiple auth
 methods, one of which is active. A method may use more than one record type
 (think "user" or "group"). Each of those records has a name.
 
 The "user" type is only special because server and client use that to
 process login requests.
 
-Multiple distinct DistKV domains or subdomains are possible, by adding an
+Multiple distinct MoaT-KV domains or subdomains are possible, by adding an
 additional meta-root record anywhere in the entry hierarchy.
 
 
-.. module:: distkv.auth
+.. module:: moat.kv.auth
 
 .. autofunction:: loader
 

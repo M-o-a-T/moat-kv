@@ -1,0 +1,26 @@
+[Unit]
+Description=MoaT-KV default any-nodes runner
+After=moat-kv.service
+Requires=moat-kv.service
+Conflicts=distkv-run-any.service
+
+ConditionFileNotEmpty=/etc/moat/moat.cfg
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=notify
+ExecStart=/usr/lib/moat/kv/run-any
+
+User=MoaT-KV
+Group=MoaT
+
+EnvironmentFile=/usr/lib/moat/kv/env
+EnvironmentFile=-/etc/moat/kv.env
+
+TimeoutSec=300
+WatchdogSec=10
+
+Restart=always
+RestartSec=10

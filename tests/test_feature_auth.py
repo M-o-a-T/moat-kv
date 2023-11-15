@@ -4,12 +4,13 @@ from functools import partial
 import jsonschema
 import pytest
 from moat.util import P
+from moat.src.test import raises
 
-from distkv.auth import gen_auth
-from distkv.client import ServerError
-from distkv.exceptions import ClientAuthMethodError, ClientAuthRequiredError
-from distkv.mock import run
-from distkv.mock.mqtt import stdtest
+from moat.kv.auth import gen_auth
+from moat.kv.client import ServerError
+from moat.kv.exceptions import ClientAuthMethodError, ClientAuthRequiredError
+from moat.kv.mock import run
+from moat.kv.mock.mqtt import stdtest
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
 
         async with st.client() as c:
             assert (await c.get(P(":"))).value == 123
@@ -38,9 +39,9 @@ async def test_22_auth_basic(autojump_clock):  # pylint: disable=unused-argument
 
         r = await run_c("auth", "-m", "root", "init")
 
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             await run_c("data", ":", "get")
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             async with st.client() as c:
                 assert (await c.get(P(":"))).value == 123
 
@@ -74,7 +75,7 @@ async def test_23_auth_test(autojump_clock):  # pylint: disable=unused-argument
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
         await run_c("data", "hello", "set", "-v", ":", "there")
 
         await run_c("auth", "-m", "root", "user", "add")
@@ -96,11 +97,11 @@ typ: _test
         )
         await run_c("-a", "root", "auth", "-m", "_test", "init", "-s")
 
-        with pytest.raises(ClientAuthMethodError):
+        with raises(ClientAuthMethodError):
             await run_c("-a", "root", "data", "hello")
-        with pytest.raises(ClientAuthRequiredError):
+        with raises(ClientAuthRequiredError):
             await run_c("data", "hello")
-        with pytest.raises(jsonschema.ValidationError):
+        with raises(jsonschema.ValidationError):
             await run_c("-a", "_test", "data", "hello")
 
         run_t = partial(run_c, "-a", "_test name=fubar")
@@ -118,7 +119,7 @@ async def test_24_auth_password(autojump_clock):
         for h, p, *_ in s.ports:
             if h[0] != ":":
                 break
-        run_c = partial(run, "-D", "client", "-h", h, "-p", p)
+        run_c = partial(run, "-D", "kv", "-h", h, "-p", p)
         await run_c("data", "answers.life etc:.", "set", "-e", ":", "42")
 
         await run_c("auth", "-m", "root", "user", "add")
@@ -139,13 +140,13 @@ typ: password
         )
         run_u = partial(run_c, "-a", "password name=joe password=test123")
         await run_c("-a", "root", "data", "answers.life etc:.", "set", "-e", ":", 42)
-        with pytest.raises(ClientAuthMethodError):
+        with raises(ClientAuthMethodError):
             res = await run_u("data", "answers.life etc:.")
         await run_c("-a", "root", "auth", "-m", "password", "init", "-s")
         res = await run_u("data", "answers.life etc:.")
         assert res.stdout == "42\n"
         run_u = partial(run_c, "-a", "password name=joe password=test1234")
-        with pytest.raises(ServerError) as se:
+        with raises(ServerError) as se:
             res = await run_u("data", "answers.life etc:.")
         assert str(se.value).startswith("AuthFailedError(")
         assert "hashes do not match" in str(se.value)

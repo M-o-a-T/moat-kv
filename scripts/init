@@ -1,16 +1,16 @@
 #!/bin/sh
 set -ex
 
-# This script sets up an initial DistKV master.
-systemd-sysusers --no-pager /usr/lib/sysusers.d/distkv.conf
+# This script sets up an initial MoaT-KV master.
+systemd-sysusers --no-pager /usr/lib/sysusers.d/moat.kv.conf
 
-. /usr/lib/distkv/env
+. /usr/lib/moat.kv/env
 
-grep -qs '^MODE=' /etc/distkv.env || echo MODE=master >>/etc/distkv.env
-grep -qs '^NAME=' /etc/distkv.env || echo NAME=$(hostname) >>/etc/distkv.env
-grep -qs '^LOCAL=' /etc/distkv.env || echo LOCAL=no >>/etc/distkv.env
+grep -qs '^MODE=' /etc/moat.kv.env || echo MODE=master >>/etc/moat.kv.env
+grep -qs '^NAME=' /etc/moat.kv.env || echo NAME=$(hostname) >>/etc/moat.kv.env
+grep -qs '^LOCAL=' /etc/moat.kv.env || echo LOCAL=no >>/etc/moat.kv.env
 
-. /etc/distkv.env
+. /etc/moat.kv.env
 
 if test "$MODE" != "slave" ; then
     mkdir -p "$DEST"
@@ -25,13 +25,13 @@ if test "$MODE" != "slave" ; then
     cd $d
 
     if test ! -s "0.dkv" ; then
-        distkv dump init $NAME 0.dkv
-        chown -R distkv:distkv "$DEST"
+        moat.kv dump init $NAME 0.dkv
+        chown -R moat.kv:moat.kv "$DEST"
     fi
 fi
 
-if test "$(distkv dump cfg connect.host)" = "127.0.0.1" ; then
-    systemctl enable distkv.service
-    systemctl enable distkv-rotate.timer || true  # may be masked
-    systemctl restart distkv.service &
+if test "$(moat.kv dump cfg connect.host)" = "127.0.0.1" ; then
+    systemctl enable moat.kv.service
+    systemctl enable moat.kv-rotate.timer || true  # may be masked
+    systemctl restart moat.kv.service &
 fi

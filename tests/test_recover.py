@@ -7,8 +7,8 @@ import trio
 from asyncactor.actor import Actor
 from moat.util import P, Path
 
-from distkv.mock.mqtt import stdtest
-from distkv.server import Server
+from moat.kv.mock.mqtt import stdtest
+from moat.kv.server import Server
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +83,9 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
         assert st is not None
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg))
         st.ex.enter_context(mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg))
-        st.ex.enter_context(mock.patch("distkv.server.Server._send_event", new=send_evt))
+        st.ex.enter_context(mock.patch("moat.kv.server.Server._send_event", new=send_evt))
         st.ex.enter_context(
-            mock.patch("distkv.server.Server._unpack_multiple", new=unpack_multiple)
+            mock.patch("moat.kv.server.Server._unpack_multiple", new=unpack_multiple)
         )
 
         for x in range(NX):

@@ -1,6 +1,6 @@
 [run]
 branch=True
-source=distkv
+source=moat.kv
 
 [report]
 precision = 1

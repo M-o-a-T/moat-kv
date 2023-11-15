@@ -6,7 +6,7 @@ import trio
 from moat.util import P, Path, attrdict
 
 # doesn't work with MQTT because we can't split
-from distkv.mock.serf import stdtest
+from moat.kv.mock.serf import stdtest
 
 N = 10
 
