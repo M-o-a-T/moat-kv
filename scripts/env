@@ -1,7 +1,7 @@
 # shell
 
 PATH=/usr/bin:/bin
-DEST=/var/lib/moat.kv/
+DEST=/var/lib/moat/kv/
 DATE="%Y-%m-%d-%H"
 MODE=hybrid
 TEMP=/tmp/moat.kv.current.dkv

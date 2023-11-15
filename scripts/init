@@ -4,13 +4,13 @@ set -ex
 # This script sets up an initial MoaT-KV master.
 systemd-sysusers --no-pager /usr/lib/sysusers.d/moat-kv.conf
 
-. /usr/lib/moat.kv/env
+. /usr/lib/moat/kv/env
 
-grep -qs '^MODE=' /etc/moat.kv.env || echo MODE=master >>/etc/moat.kv.env
-grep -qs '^NAME=' /etc/moat.kv.env || echo NAME=$(hostname) >>/etc/moat.kv.env
-grep -qs '^LOCAL=' /etc/moat.kv.env || echo LOCAL=no >>/etc/moat.kv.env
+grep -qs '^MODE=' /etc/moat/kv.env || echo MODE=master >>/etc/moat/kv.env
+grep -qs '^NAME=' /etc/moat/kv.env || echo NAME=$(hostname) >>/etc/moat/kv.env
+grep -qs '^LOCAL=' /etc/moat/kv.env || echo LOCAL=no >>/etc/moat/kv.env
 
-. /etc/moat.kv.env
+. /etc/moat/kv.env
 
 if test "$MODE" != "slave" ; then
     mkdir -p "$DEST"
@@ -25,13 +25,13 @@ if test "$MODE" != "slave" ; then
     cd $d
 
     if test ! -s "0.dkv" ; then
-        moat.kv dump init $NAME 0.dkv
-        chown -R moat.kv:moat.kv "$DEST"
+        moat kv dump init $NAME 0.dkv
+        chown -R moat-kv:moat "$DEST"
     fi
 fi
 
 if test "$(moat.kv dump cfg connect.host)" = "127.0.0.1" ; then
-    systemctl enable moat.kv.service
-    systemctl enable moat.kv-rotate.timer || true  # may be masked
-    systemctl restart moat.kv.service &
+    systemctl enable moat-kv.service
+    systemctl enable moat-kv-rotate.timer || true  # may be masked
+    systemctl restart moat-kv.service &
 fi
