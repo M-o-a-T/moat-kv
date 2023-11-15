@@ -9,7 +9,6 @@ install:
 	cp systemd/*.timer $(PREFIX)/lib/systemd/system/
 	cp systemd/sysusers $(PREFIX)/usr/lib/sysusers.d/moat-kv.conf
 	cp scripts/* $(PREFIX)/usr/lib/moat/kv/
-	cp bin/* $(PREFIX)/usr/bin/
 
 ifneq ($(wildcard $(MAKEINCL)),)
 include $(MAKEINCL)
