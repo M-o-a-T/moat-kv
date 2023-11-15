@@ -8,7 +8,7 @@ set -ex
 # you need to use a specific address. So set LOCAL=yes to force starting
 # anyway.
 
-if test "$LOCAL" != "yes" && test "$(moat util cfg kv.connect.host)" != "127.0.0.1"; then
+if test "$LOCAL" != "yes" && test "$(moat util cfg kv.conn.host)" != "127.0.0.1"; then
     echo "Server is not localhost: not starting."
     exit 42  # mark as succeeded
 fi
