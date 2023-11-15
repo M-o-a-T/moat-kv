@@ -2,7 +2,7 @@
 set -ex
 
 # This script sets up an initial MoaT-KV master.
-systemd-sysusers --no-pager /usr/lib/sysusers.d/moat.kv.conf
+systemd-sysusers --no-pager /usr/lib/sysusers.d/moat-kv.conf
 
 . /usr/lib/moat.kv/env
 
