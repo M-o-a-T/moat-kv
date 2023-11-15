@@ -3,7 +3,7 @@ Description=MoaT-KV any-nodes runner for %i
 After=moat-kv.service
 Requires=moat-kv.service
 
-ConditionFileNotEmpty=/etc/moat/kv.cfg
+ConditionFileNotEmpty=/etc/moat/moat.cfg
 
 [Install]
 WantedBy=multi-user.target

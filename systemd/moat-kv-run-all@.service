@@ -1,7 +1,7 @@
 [Unit]
 Description=MoaT-KV all-nodes runner for %i
-After=moat.kv.service
-Requires=moat.kv.service
+After=moat-kv.service
+Requires=moat-kv.service
 
 ConditionFileNotEmpty=/etc/moat/moat.cfg
 
