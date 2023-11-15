@@ -1535,7 +1535,7 @@ class Server:
                     continue
                 if self.node.tick is None:
                     continue
-                p = msg.serialize(nchain=self.cfg.server.change.length)
+                p = msg.serialize(nchain=self.cfg.server.change["length"])
                 await self._send_event("update", p)
 
     async def resync_deleted(self, nodelist):
