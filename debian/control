@@ -1,4 +1,4 @@
-Source: distkv
+Source: moat-kv
 Maintainer: Matthias Urlichs <matthias@urlichs.de>
 Section: python
 Priority: optional
@@ -20,9 +20,9 @@ Build-Depends: dh-python, python3-setuptools, python3-all, debhelper (>= 9),
   python3-asyncserf (>= 0.16),
   serf,
 Standards-Version: 3.9.6
-Homepage: https://github.com/smurfix/distkv
+Homepage: https://github.com/smurfix/moat
 
-Package: distkv
+Package: moat-kv
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
   moat-mqtt (>= 0.38) | python3-asyncserf (>= 0.16),
@@ -44,13 +44,13 @@ Recommends:
 Replaces: python3-distkv
 Conflicts: python3-distkv
 Description: A distributed no-master key-value store
- DistKV is a master-less distributed key-value storage system. It
+ MoaT-KV is a master-less distributed key-value storage system. It
  circumvents the CAP theorem by assuming that keys are usually only changed
  by one node. It is resistant to partitioning and intended to be always-on;
  while it might delay – but will not lose – any updates.
  .
- DistKV does not support data partitioning. Every node stores the whole
+ MoaT-KV does not support data partitioning. Every node stores the whole
  data set and can instantly deliver mostly-uptodate data.
  .
- DistKV does not have a disk-based storage backend; periodic snapshots and/or
+ MoaT-KV does not have a disk-based storage backend; periodic snapshots and/or
  its event log are used to restore a system, if necessary.
