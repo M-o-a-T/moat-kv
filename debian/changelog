@@ -1,3 +1,9 @@
+moat-kv (0.70.8-1) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Wed, 15 Nov 2023 16:15:47 +0100
+
 moat-kv (0.70.7-1) unstable; urgency=medium
 
   * Merge
