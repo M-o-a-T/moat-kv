@@ -30,7 +30,7 @@ if test "$MODE" != "slave" ; then
     fi
 fi
 
-if test "$(moat.kv dump cfg connect.host)" = "127.0.0.1" ; then
+if test "$(moat util cfg kv.connect.host)" = "127.0.0.1" ; then
     systemctl enable moat-kv.service
     systemctl enable moat-kv-rotate.timer || true  # may be masked
     systemctl restart moat-kv.service &
