@@ -4,7 +4,7 @@ set -ex
 # This script file starts up a MoaT-KV any-node runner.
 
 if test $# = 1 ; then
-    exec moat.kv -c /etc/moat.kv.cfg client job -n - -g "$1" run
+    exec moat -c /etc/moat/moat.cfg kv job -n - -g "$1" run
 else
-    exec moat.kv -c /etc/moat.kv.cfg client job -n - run
+    exec moat -c /etc/moat/moat.cfg kv job -n - run
 fi

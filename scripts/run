@@ -14,7 +14,7 @@ if test "$LOCAL" != "yes" && test "$(moat.kv dump cfg connect.host)" != "127.0.0
 fi
 
 if test "$MODE" = "master" ; then
-    /usr/lib/moat.kv/current "$TEMP"
+    /usr/lib/moat/kv/current "$TEMP"
 fi
 
 if test ! -v NAME ; then
@@ -23,7 +23,7 @@ if test ! -v NAME ; then
 fi
 
 if test -v TEMP && test -s "$TEMP" ; then
-    exec moat.kv -c /etc/moat.kv.cfg server -a -l "$TEMP" "$NAME"
+    exec moat -c /etc/moat/moat.cfg kv server -a -l "$TEMP" "$NAME"
 else
-    exec moat.kv -c /etc/moat.kv.cfg server "$NAME"
+    exec moat -c /etc/moat/moat.cfg kv server "$NAME"
 fi

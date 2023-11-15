@@ -19,7 +19,7 @@ else
 fi
 
 export PYTHONPATH
-moat.kv -c /etc/moat.kv.cfg client log dest $I "$DEST/$D/$x.dkv"
+moat -c /etc/moat/moat.cfg kv client log dest $I "$DEST/$D/$x.dkv"
 if test $x -eq 0 ; then
 	# Now, delete some old backups
 	cd "$DEST"
