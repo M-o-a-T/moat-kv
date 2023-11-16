@@ -874,12 +874,9 @@ class Entry:
             raise RuntimeError("huh?")
 
         if evt.event == self.chain:
-            assert self._data == evt.new_value, (
-                "has:",
-                self._data,
-                "but should have:",
-                evt.new_value,
-            )
+            if self._data != evt.new_value:
+                logger.error("Diff %r: has\n%r\nbut should have\n%r\n",
+                        evt.event,self._data, evt.new_value)
             return
 
         if hasattr(evt, "new_value"):

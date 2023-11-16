@@ -292,7 +292,7 @@ class StreamedRequest:
                 # self._client.logger.debug("SendC %s", msg)
                 try:
                     await self._client._request(**msg, _async=True)
-                except ServerClosedError:
+                except (ServerClosedError, anyio.BrokenResourceError):
                     pass
                 # ignore the reply
         finally:
