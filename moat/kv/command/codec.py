@@ -108,25 +108,25 @@ async def set_(obj, path, encode, decode, data, in_, out):
 
 
 @cli.command()
-@click.option("-c", "--codec", help="Codec to link to. Multiple for hierarchical.")
+@click.option("-c", "--codec", type=P, help="Codec to link to.")
 @click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
 @click.option(
-    "-l", "--list", "list_this", is_flag=True, help="Use to list this converter; '-' to list all."
+    "-l", "--list", "list_", is_flag=True, help="Use to list this converter; '-' to list all."
 )
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=1)
+@click.argument("path", type=P, nargs=1)
 @click.pass_obj
-async def convert(obj, path, codec, name, delete, list_this):
+async def convert(obj, path, codec, name, delete, list_):
     """Match a codec to a path (read, if no codec given)"""
     path = P(path)
-    if delete and list_this:
+    if delete and list_:
         raise click.UsageError("You can't both list and delete a path.")
-    if not len(path) and not list_this:
+    if not len(path) and not list_:
         raise click.UsageError("You need a non-empty path.")
     if codec and delete:
         raise click.UsageError("You can't both set and delete a path.")
 
-    if list_this:
+    if list_:
         if name == "-":
             if len(path):
                 raise click.UsageError("You can't use a path here.")
@@ -155,7 +155,7 @@ async def convert(obj, path, codec, name, delete, list_this):
     if delete:
         res = await obj.client._request(action="delete_internal", path=Path("conv", name) + path)
     else:
-        msg = {"codec": P(codec)}
+        msg = {"codec": codec}
         res = await obj.client._request(
             action="set_internal",
             value=msg,
