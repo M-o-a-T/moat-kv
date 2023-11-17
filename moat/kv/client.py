@@ -581,7 +581,10 @@ class Client:
         if _async:
             return res
 
-        res = await res.get()
+        try:
+            res = await res.get()
+        except (ServerError,ValueError) as err:
+            self.logger.error("Result %r (%r)", res, err)
         if isinstance(res, dict):
             self.logger.debug("Result %s", res)
 
