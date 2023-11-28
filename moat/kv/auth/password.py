@@ -168,9 +168,7 @@ class ClientUserMaker(BaseClientAuthMaker):
             pass
         return self
 
-    async def send(
-        self, client: Client, _kind="user", **msg
-    ):  # pylint: disable=unused-argument,arguments-differ
+    async def send(self, client: Client, _kind="user", **msg):  # pylint: disable=unused-argument,arguments-differ
         """Send a record representing this user to the server."""
         if self._pass is not None:
             msg["password"] = await pack_pwd(client, self._pass, self._length)

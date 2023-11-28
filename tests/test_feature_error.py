@@ -55,7 +55,10 @@ async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
             async def err(e):
                 with trio.CancelScope(shield=True):
                     await e.record_error(
-                        "tester", P("dup"), message="Owchie at {node}", data={"node": e.name}
+                        "tester",
+                        P("dup"),
+                        message="Owchie at {node}",
+                        data={"node": e.name},
                     )
 
             async with trio.open_nursery() as tg:

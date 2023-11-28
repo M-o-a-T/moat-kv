@@ -94,10 +94,15 @@ async def set_(obj, acl, name, path):
     acl = set(acl)
 
     if acl - ACL:
-        raise click.UsageError(f"You're trying to set an unknown ACL flag: {acl - ACL !r}")
+        raise click.UsageError(
+            f"You're trying to set an unknown ACL flag: {acl - ACL !r}"
+        )
 
     res = await obj.client._request(
-        action="get_internal", path=("acl", name) + path, iter=False, nchain=3 if obj.meta else 1
+        action="get_internal",
+        path=("acl", name) + path,
+        iter=False,
+        nchain=3 if obj.meta else 1,
     )
     ov = set(res.get("value", ""))
     if ov - ACL:
@@ -105,7 +110,10 @@ async def set_(obj, acl, name, path):
 
     if mode == "-" and not acl:
         res = await obj.client._request(
-            action="delete_internal", path=("acl", name) + path, iter=False, chain=res.chain
+            action="delete_internal",
+            path=("acl", name) + path,
+            iter=False,
+            chain=res.chain,
         )
         v = "-"
 
@@ -125,7 +133,12 @@ async def set_(obj, acl, name, path):
         )
 
     if obj.meta:
-        res = {"old": "".join(ov), "new": "".join(v), "chain": res.chain, "tock": res.tock}
+        res = {
+            "old": "".join(ov),
+            "new": "".join(v),
+            "chain": res.chain,
+            "tock": res.tock,
+        }
         yprint(res, stream=obj.stdout)
     else:
         res = {"old": "".join(ov), "new": "".join(v)}

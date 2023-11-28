@@ -121,10 +121,14 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 )
                 s = Server(name, **args)
                 ex.enter_context(
-                    mock.patch.object(s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock))
+                    mock.patch.object(
+                        s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock)
+                    )
                 )
                 ex.enter_context(
-                    mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port, st))
+                    mock.patch.object(
+                        s, "_get_host_port", new=partial(mock_get_host_port, st)
+                    )
                 )
                 st.s.append(s)
 

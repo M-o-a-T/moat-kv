@@ -81,7 +81,9 @@ async def data_get(
             kw.setdefault("nchain", obj.meta)
         y = {}
         if internal:
-            res = await obj.client._request(action="get_tree_internal", path=path, iter=True, **kw)
+            res = await obj.client._request(
+                action="get_tree_internal", path=path, iter=True, **kw
+            )
         else:
             res = obj.client.get_tree(path, **kw)
         async for r in res:

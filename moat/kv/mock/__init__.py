@@ -60,7 +60,8 @@ class S:
                 continue
             try:
                 cfg = combine_dict(
-                    dict(conn=dict(host=host, port=port, ssl=self.client_ctx, **kv)), CFG
+                    dict(conn=dict(host=host, port=port, ssl=self.client_ctx, **kv)),
+                    CFG,
                 )
 
                 async def scc(s, **cfg):
@@ -91,4 +92,6 @@ class S:
             if isinstance(args, str):
                 args = args.split(" ")
         async with scope.using_scope():
-            return await run("-v", "-v", "kv", "-h", h, "-p", p, *args, do_stdout=do_stdout)
+            return await run(
+                "-v", "-v", "kv", "-h", h, "-p", p, *args, do_stdout=do_stdout
+            )

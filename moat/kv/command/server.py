@@ -37,7 +37,12 @@ from moat.kv.server import Server
     hidden=True,
 )
 @click.option(
-    "-e", "--eval", "eval_", is_flag=True, help="The 'init' value shall be evaluated.", hidden=True
+    "-e",
+    "--eval",
+    "eval_",
+    is_flag=True,
+    help="The 'init' value shall be evaluated.",
+    hidden=True,
 )
 @click.option(
     "-a",
@@ -47,7 +52,10 @@ from moat.kv.server import Server
     help="Data in this file is complete: mark anything missing as known even if not.",
 )
 @click.option(
-    "-f", "--force", is_flag=True, help="Force 'successful' startup even if data are missing."
+    "-f",
+    "--force",
+    is_flag=True,
+    help="Force 'successful' startup even if data are missing.",
 )
 @click.argument("name", nargs=1)
 @click.argument("nodes", nargs=-1)
@@ -91,7 +99,9 @@ async def cli(obj, name, load, save, init, incremental, eval_, auth, force, node
     from moat.util import as_service
 
     if load and nodes:
-        raise click.UsageError("Either read from a file or fetch from a node. Not both.")
+        raise click.UsageError(
+            "Either read from a file or fetch from a node. Not both."
+        )
     if auth and force:
         raise click.UsageError("Using both '-a' and '-f' is redundant. Choose one.")
 

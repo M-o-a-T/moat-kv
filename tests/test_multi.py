@@ -105,7 +105,10 @@ async def test_11_split1(autojump_clock, tocky):  # pylint: disable=unused-argum
                     task_status.started()
                     async for r in sr:
                         msg = msgpack.unpackb(
-                            r.data, object_pairs_hook=attrdict, raw=False, use_list=False
+                            r.data,
+                            object_pairs_hook=attrdict,
+                            raw=False,
+                            use_list=False,
                         )
                         if msg.get("value", "") == "two":
                             n_two += 1

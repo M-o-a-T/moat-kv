@@ -3,8 +3,8 @@ from functools import partial
 
 import jsonschema
 import pytest
-from moat.util import P
 from moat.src.test import raises
+from moat.util import P
 
 from moat.kv.auth import gen_auth
 from moat.kv.client import ServerError

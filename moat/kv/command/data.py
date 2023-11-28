@@ -10,9 +10,7 @@ from moat.kv.client import StreamedRequest
 from moat.kv.data import add_dates, data_get, node_attr
 
 
-@click.group(
-    short_help="Manage data.", invoke_without_command=True
-)  # pylint: disable=undefined-variable
+@click.group(short_help="Manage data.", invoke_without_command=True)  # pylint: disable=undefined-variable
 @click.argument("path", type=P, nargs=1)
 @click.pass_context
 async def cli(ctx, path):
@@ -34,14 +32,24 @@ async def cli(ctx, path):
     "for values. Default: return as list",
 )
 @click.option(
-    "-m", "--maxdepth", type=int, default=None, help="Limit recursion depth. Default: whole tree"
+    "-m",
+    "--maxdepth",
+    type=int,
+    default=None,
+    help="Limit recursion depth. Default: whole tree",
 )
 @click.option(
-    "-M", "--mindepth", type=int, default=None, help="Starting depth. Default: whole tree"
+    "-M",
+    "--mindepth",
+    type=int,
+    default=None,
+    help="Starting depth. Default: whole tree",
 )
 @click.option("-r", "--recursive", is_flag=True, help="Read a complete subtree")
 @click.option("-e", "--empty", is_flag=True, help="Include empty nodes")
-@click.option("-R", "--raw", is_flag=True, help="Print string values without quotes etc.")
+@click.option(
+    "-R", "--raw", is_flag=True, help="Print string values without quotes etc."
+)
 @click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
 @click.pass_obj
 async def get(obj, **k):
@@ -72,7 +80,11 @@ async def get(obj, **k):
     help="Limit recursion depth. Default: 1 (single layer).",
 )
 @click.option(
-    "-M", "--mindepth", type=int, default=1, help="Starting depth. Default: 1 (single layer)."
+    "-M",
+    "--mindepth",
+    type=int,
+    default=1,
+    help="Starting depth. Default: 1 (single layer).",
 )
 @click.pass_obj
 async def list_(obj, **k):
@@ -135,12 +147,18 @@ class nstr:
 
 @cli.command(short_help="Delete an entry / subtree")
 @click.option(
-    "-p", "--prev", type=nstr, default=NotGiven, help="Previous value. Deprecated; use 'last'"
+    "-p",
+    "--prev",
+    type=nstr,
+    default=NotGiven,
+    help="Previous value. Deprecated; use 'last'",
 )
 @click.option("-l", "--last", nargs=2, help="Previous change entry (node serial)")
 @click.option("-r", "--recursive", is_flag=True, help="Delete a complete subtree")
 @click.option("--internal", is_flag=True, help="Affect the internal tree. DANGER.")
-@click.option("-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated.")
+@click.option(
+    "-e", "--eval", "eval_", is_flag=True, help="The previous value shall be evaluated."
+)
 @click.pass_obj
 async def delete(obj, prev, last, recursive, eval_, internal):
     """
@@ -160,7 +178,9 @@ async def delete(obj, prev, last, recursive, eval_, internal):
         raise click.UsageError("You need to add a value that can be evaluated")
     if recursive:
         if prev is not NotGiven or last:
-            raise click.UsageError("You can't use a prev value when deleting recursively.")
+            raise click.UsageError(
+                "You can't use a prev value when deleting recursively."
+            )
         if internal:
             raise click.UsageError("'internal' and 'recursive' are mutually exclusive")
     else:
@@ -171,7 +191,9 @@ async def delete(obj, prev, last, recursive, eval_, internal):
         if last:
             args["chain"] = {"node": last[0], "tick": int(last[1])}
 
-    res = await obj.client.delete(path=obj.path, nchain=obj.meta, recursive=recursive, **args)
+    res = await obj.client.delete(
+        path=obj.path, nchain=obj.meta, recursive=recursive, **args
+    )
     if isinstance(res, StreamedRequest):
         pl = PathLongener(obj.path)
         async for r in res:
@@ -219,7 +241,9 @@ async def monitor(obj, state, only, add_date, ignore):
                         continue
             if flushing:
                 r["time"] = time.time()
-                r["_time"] = datetime.datetime.now().isoformat(sep=" ", timespec="milliseconds")
+                r["_time"] = datetime.datetime.now().isoformat(
+                    sep=" ", timespec="milliseconds"
+                )
             yprint(r, stream=obj.stdout)
             print("---", file=obj.stdout)
             if flushing:

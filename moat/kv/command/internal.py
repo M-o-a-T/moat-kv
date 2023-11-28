@@ -30,7 +30,9 @@ async def cli():
 @click.option("-s", "--superseded", is_flag=True, help="Get superseded-data status.")
 @click.option("-D", "--debug", is_flag=True, help="Get internal verbosity.")
 @click.option("--debugger", is_flag=True, help="Start a remote debugger. DO NOT USE.")
-@click.option("-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status.")
+@click.option(
+    "-k", "--known", hidden=True, is_flag=True, help="Get superseded-data status."
+)
 @click.option("-a", "--all", is_flag=True, help="All available data.")
 @click.pass_obj
 async def state(obj, **flags):
@@ -54,9 +56,15 @@ async def state(obj, **flags):
 
 
 @cli.command()
-@click.option("-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded")
 @click.option(
-    "-n", "--node", "source", default="?", help="The node this message is faked as being from."
+    "-d", "--deleted", is_flag=True, help="Mark as deleted. Default: superseded"
+)
+@click.option(
+    "-n",
+    "--node",
+    "source",
+    default="?",
+    help="The node this message is faked as being from.",
 )
 @click.option("-b", "--broadcast", is_flag=True, help="Send to all servers")
 @click.argument("node", nargs=1)
@@ -139,7 +147,11 @@ async def deleter(obj, delete, nodes):
 
     val = {"nodes": list(val)}
     res = await obj.client._request(
-        action="set_internal", path=("actor", "del"), iter=False, chain=res.chain, value=val
+        action="set_internal",
+        path=("actor", "del"),
+        iter=False,
+        chain=res.chain,
+        value=val,
     )
     res.value = val
     yprint(res, stream=obj.stdout)
@@ -158,7 +170,9 @@ async def dump(obj, path):
     path = P(path)
     y = {}
     pl = PathLongener()
-    async for r in await obj.client._request("get_tree_internal", path=path, iter=True, nchain=0):
+    async for r in await obj.client._request(
+        "get_tree_internal", path=path, iter=True, nchain=0
+    ):
         pl(r)
         path = r["path"]
         yy = y
@@ -213,13 +227,17 @@ async def enum(obj, node, num, current, copy):
     else:
         for k in res.result:
             if copy or obj.debug > 1:
-                res = await obj.client._request("get_value", node=node, tick=k, nchain=3)
+                res = await obj.client._request(
+                    "get_value", node=node, tick=k, nchain=3
+                )
                 if obj.debug > 1:
                     print(k, res.path)
                 else:
                     print(k)
                 if copy and res.chain.node == node:
-                    res = await obj.client.set(res.path, value=res.value, chain=res.chain)
+                    res = await obj.client.set(
+                        res.path, value=res.value, chain=res.chain
+                    )
             else:
                 print(k)
 

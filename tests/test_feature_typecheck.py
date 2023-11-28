@@ -3,8 +3,8 @@ import logging
 from functools import partial
 
 import pytest
-from moat.util import P, PathLongener
 from moat.src.test import raises
+from moat.util import P, PathLongener
 
 from moat.kv.client import ServerError
 from moat.kv.mock import run
@@ -120,10 +120,14 @@ async def test_71_basic(autojump_clock):  # pylint: disable=unused-argument
             )
             with raises(ServerError):
                 await c._request(
-                    "set_internal", path=P("match.one.+.two"), value={"tope": P("int.percent")}
+                    "set_internal",
+                    path=P("match.one.+.two"),
+                    value={"tope": P("int.percent")},
                 )
             await c._request(
-                "set_internal", path=P("match.one.+.two"), value={"type": P("int.percent")}
+                "set_internal",
+                path=P("match.one.+.two"),
+                value={"type": P("int.percent")},
             )
 
             await c.set(P("one.x.two"), value=99)

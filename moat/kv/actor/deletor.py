@@ -117,7 +117,10 @@ class DeleteActor:
                             continue
                         self.n_pings += 1
                         if self.n_pings > self.n_nodes:
-                            mx, self.max_seen = (self.max_seen, max(self.max_seen, val[1]))
+                            mx, self.max_seen = (
+                                self.max_seen,
+                                max(self.max_seen, val[1]),
+                            )
                             if val[0] > mx > 0:
                                 await self.server.resync_deleted(evt.msg.history)
                                 continue
