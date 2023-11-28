@@ -1,6 +1,10 @@
 Open issues
 ===========
 
+* Exchange a version code on startup
+
+* CBOR
+
 * Ping: ignore messages with decreasing tock (per node)
 
 * chroot operation: add and test proper sub-roots, including auth and
@@ -22,13 +26,8 @@ Open issues
 
 * Rather than mangling split messages, use a MsgPack extension type.
 
-* Rate limiting. Currently the server can flood the client with data and no
-  other call can get a word in edgewise.
-
 * AnyRunner: Do proper load balancing; the leader should be able to tell
   some other node to run a job if it's busy.
-
-* Add an EveryRunner (with per-node status of course).
 
 * Keep an error index on the server?  Something more general?
 
@@ -38,8 +37,6 @@ Open issues
   Diffie-Hellman to send passwords to the server.
 
 * Implement a shared secret to sign server-to-server messages.
-
-* Re-implement Serf (or something like it) in Python, it's large and adds latency
 
 * Runner: switch to monotonic time (except for target time!)
 
