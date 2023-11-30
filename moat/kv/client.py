@@ -585,10 +585,7 @@ class Client:
         if _async:
             return res
 
-        try:
-            res = await res.get()
-        except (ServerError, ValueError) as err:
-            self.logger.error("Result %r (%r)", res, err)
+        res = await res.get()
         if isinstance(res, dict):
             self.logger.debug("Result %s", res)
 
@@ -883,7 +880,10 @@ class Client:
         res = await self._request(
             action="enum", path=path, with_data=with_data, empty=empty, **kw
         )
-        return res.result
+        try:
+            return res.result
+        except AttributeError:
+            raise res.q.value.error from None  # XXX fix this
 
     async def get_tree(self, path, *, long_path=True, **kw):
         """
