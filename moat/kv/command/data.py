@@ -234,7 +234,10 @@ async def monitor(obj, state, only, add_date, ignore):
                 del r["seq"]
                 if only:
                     try:
-                        print(r.value, file=obj.stdout)
+                        if len(p):
+                            print(f"{path} {r.value}", file=obj.stdout)
+                        else:
+                            print(r.value, file=obj.stdout)
                         continue
                     except AttributeError:
                         # value has been deleted
