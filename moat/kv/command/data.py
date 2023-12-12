@@ -208,34 +208,42 @@ async def delete(obj, prev, last, recursive, eval_, internal):
 @cli.command()
 @click.option("-s", "--state", is_flag=True, help="Also get the current state.")
 @click.option("-o", "--only", is_flag=True, help="Value only, nothing fancy.")
+@click.option("-p", "--path-only", is_flag=True, help="Value only, nothing fancy.")
 @click.option("-D", "--add-date", is_flag=True, help="Add *_date entries")
 @click.option("-i", "--ignore", multiple=True, type=P, help="Skip this (sub)tree")
 @click.pass_obj
-async def monitor(obj, state, only, add_date, ignore):
+async def monitor(obj, state, only, path_only, add_date, ignore):
     """Monitor a MoaT-KV subtree"""
 
     flushing = not state
     seen = False
 
     async with obj.client.watch(
-        obj.path, nchain=obj.meta, fetch=state, max_depth=0 if only else -1
+        obj.path,
+        nchain=obj.meta,
+        fetch=state, max_depth=0 if only else -1, 
+        long_path=False,
     ) as res:
+        pl = PathLongener(() if path_only else obj.path)
         async for r in res:
             if add_date and "value" in r:
                 add_dates(r.value)
             if any(p == r.path[: len(p)] for p in ignore):
                 continue
+            pl(r)
             if r.get("state", "") == "uptodate":
                 if only and not seen:
                     # value doesn't exist
                     return
                 flushing = True
+                if only or path_only:
+                    continue
             else:
                 del r["seq"]
-                if only:
+                if only or path_only:
                     try:
-                        if len(p):
-                            print(f"{path} {r.value}", file=obj.stdout)
+                        if path_only:
+                            print(f"{r.path} {r.value}", file=obj.stdout)
                         else:
                             print(r.value, file=obj.stdout)
                         continue
