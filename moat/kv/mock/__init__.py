@@ -61,7 +61,7 @@ class S:
             try:
                 cfg = combine_dict(
                     dict(conn=dict(host=host, port=port, ssl=self.client_ctx, **kv)),
-                    CFG,
+                    CFG["kv"],
                 )
 
                 async def scc(s, **cfg):
