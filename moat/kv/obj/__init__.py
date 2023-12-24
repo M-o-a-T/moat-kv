@@ -16,7 +16,7 @@ try:
 except ImportError:
     from async_generator import asynccontextmanager
 
-from moat.util import NoLock, NotGiven, Path, PathLongener, combine_dict
+from moat.util import NoLock, NotGiven, Path, PathLongener, combine_dict, yload
 
 __all__ = ["ClientEntry", "AttrClientEntry", "ClientRoot"]
 
@@ -434,6 +434,19 @@ class MirrorRoot(ClientEntry):
             d.append(cfg)
 
         defcfg = client._cfg.get(cls.CFG)
+        if not defcfg:
+            # seems we didn't load the class' default config yet.
+            import inspect
+            from pathlib import Path as _Path
+
+            md = inspect.getmodule(cls)
+            try:
+                f = (_Path(md.__file__).parent / "_config.yaml").open("r")
+            except EnvironmentError:
+                pass
+            else:
+                with f:
+                    defcfg = yload(f, attr=True).get("kv",{}).get(cls.CFG)
         if cfg:
             if defcfg:
                 cfg = combine_dict(cfg, defcfg)
