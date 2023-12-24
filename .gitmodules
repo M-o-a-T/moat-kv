@@ -12,4 +12,7 @@
 	url = git://git.smurf.noris.de/moat-kv-knx.git
 [submodule "ext/gpio"]
 	path = ext/gpio
-	url = https://git.smurf.noris.de/moat-kv-gpio.git
+	url = git://git.smurf.noris.de/moat-kv-gpio.git
+[submodule "moat-kv-akumuli"]
+	path = ext/akumuli
+	url = git://git.smurf.noris.de/moat-kv-akumuli.git
