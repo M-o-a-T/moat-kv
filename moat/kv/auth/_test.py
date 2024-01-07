@@ -62,7 +62,9 @@ class ServerUserMaker(BaseServerAuthMaker):
         await cmd.send(step="SendWant")
         msg = await cmd.recv()
         assert msg.step == "WantName"
-        await cmd.send(step="SendName", name=self.name, chain=self._chain.serialize(nchain=3))
+        await cmd.send(
+            step="SendName", name=self.name, chain=self._chain.serialize(nchain=3)
+        )
         msg = await cmd.recv()
 
     # Annoying methods to read+save the user name from/to KV
@@ -82,13 +84,17 @@ class ClientUserMaker(BaseClientAuthMaker):
     gen_schema = dict(
         type="object",
         additionalProperties=False,
-        properties=dict(name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")),
+        properties=dict(
+            name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
+        ),
         required=["name"],
     )
     mod_schema = dict(
         type="object",
         additionalProperties=False,
-        properties=dict(name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")),
+        properties=dict(
+            name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
+        ),
         # required=[],
     )
     name = None
@@ -148,7 +154,9 @@ class ClientUser(BaseClientAuth):
     schema = dict(
         type="object",
         additionalProperties=False,
-        properties=dict(name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")),
+        properties=dict(
+            name=dict(type="string", minLength=1, pattern="^[a-zA-Z][a-zA-Z0-9_]*$")
+        ),
         required=["name"],
     )
     _name = None

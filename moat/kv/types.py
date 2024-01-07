@@ -306,7 +306,9 @@ class CodecEntry(Entry):
                     ) from exc
                 else:
                     if r != w:
-                        raise ValueError(f"Decoding at {self.path}: {v!r} got {r!r}, not {w!r}")
+                        raise ValueError(
+                            f"Decoding at {self.path}: {v!r} got {r!r}, not {w!r}"
+                        )
 
         if value is not None and value.encode is not None:
             if not value["out"]:
@@ -321,7 +323,9 @@ class CodecEntry(Entry):
                     ) from exc
                 else:
                     if r != w:
-                        raise ValueError(f"Encoding at {self.path}: {v!r} got {r!r}, not {w!r}")
+                        raise ValueError(
+                            f"Encoding at {self.path}: {v!r} got {r!r}, not {w!r}"
+                        )
 
         await super().set(value)
         self._enc = enc

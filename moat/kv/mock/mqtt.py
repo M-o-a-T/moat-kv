@@ -129,10 +129,14 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                 args_def.pop("init", None)
                 s = Server(name, **args)
                 ex.enter_context(
-                    mock.patch.object(s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock))
+                    mock.patch.object(
+                        s, "_set_tock", new=partial(mock_set_tock, s, s._set_tock)
+                    )
                 )
                 ex.enter_context(
-                    mock.patch.object(s, "_get_host_port", new=partial(mock_get_host_port, st))
+                    mock.patch.object(
+                        s, "_get_host_port", new=partial(mock_get_host_port, st)
+                    )
                 )
                 st.s.append(s)
 
@@ -143,7 +147,9 @@ async def stdtest(n=1, run=True, ssl=False, tocks=20, **kw):
                     await scp.spawn_service(with_broker, st.s[i], ready_evt=evt)
                     evts.append(evt)
                 else:
-                    setattr(st, f"run_{i}", partial(scp.spawn_service, with_broker, st.s[i]))
+                    setattr(
+                        st, f"run_{i}", partial(scp.spawn_service, with_broker, st.s[i])
+                    )
 
             for e in evts:
                 await e.wait()

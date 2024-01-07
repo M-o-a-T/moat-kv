@@ -4,8 +4,8 @@ import anyio
 import pytest
 import trio
 from asyncscope import scope
-from moat.util import P, PathLongener
 from moat.src.test import raises
+from moat.util import P, PathLongener
 
 from moat.kv.client import ServerError
 from moat.kv.mock.mqtt import stdtest
@@ -56,14 +56,26 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         m.pop("tock", None)
         m.pop("seq", None)
     assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
-        {"chain": {"node": "test_0", "prev": None, "tick": 1}, "path": P(":"), "value": 234},
-        {"chain": {"node": "test_0", "prev": None, "tick": 2}, "path": P("foo"), "value": "hello"},
+        {
+            "chain": {"node": "test_0", "prev": None, "tick": 1},
+            "path": P(":"),
+            "value": 234,
+        },
+        {
+            "chain": {"node": "test_0", "prev": None, "tick": 2},
+            "path": P("foo"),
+            "value": "hello",
+        },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 3},
             "path": P("foo.bar"),
             "value": "baz",
         },
-        {"chain": {"node": "test_0", "prev": None, "tick": 4}, "path": P(":"), "value": 2345},
+        {
+            "chain": {"node": "test_0", "prev": None, "tick": 4},
+            "path": P(":"),
+            "value": 2345,
+        },
     ]
 
     msgs = []
@@ -96,13 +108,21 @@ async def test_21_load_save(autojump_clock, tmpdir):  # pylint: disable=unused-a
         m.pop("tock", None)
         m.pop("seq", None)
     assert sorted(msgs, key=lambda x: x.chain.tick if "chain" in x else 0) == [
-        {"chain": {"node": "test_0", "prev": None, "tick": 2}, "path": P("foo"), "value": "hello"},
+        {
+            "chain": {"node": "test_0", "prev": None, "tick": 2},
+            "path": P("foo"),
+            "value": "hello",
+        },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 3},
             "path": P("foo.bar"),
             "value": "baz",
         },
-        {"chain": {"node": "test_0", "prev": None, "tick": 4}, "path": P(":"), "value": 2345},
+        {
+            "chain": {"node": "test_0", "prev": None, "tick": 4},
+            "path": P(":"),
+            "value": 2345,
+        },
         {
             "chain": {"node": "test_0", "prev": None, "tick": 5},
             "path": P("foof"),
@@ -150,7 +170,9 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             }
 
             assert (await c._request("get_value", node="test_0", tick=1)).value == 123
-            assert (await c._request("get_value", node="test_0", tick=2)).value == "hello"
+            assert (
+                await c._request("get_value", node="test_0", tick=2)
+            ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
             r = await c.set(P(":"), value=1234, nchain=3)

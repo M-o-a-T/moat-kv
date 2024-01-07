@@ -2,8 +2,8 @@ import logging
 
 import pytest
 import trio
-from moat.util import P
 from moat.src.test import raises
+from moat.util import P
 
 from moat.kv.client import ServerError
 from moat.kv.mock.mqtt import stdtest

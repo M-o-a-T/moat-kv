@@ -11,9 +11,9 @@ def load_cfg(cfg):  # pylint: disable=redefined-outer-name
     cfg = Path(cfg).absolute()
     if cfg.exists():
         pass
-    elif (ct := cfg.parent/"tests"/cfg.name).exists():  # pragma: no cover
+    elif (ct := cfg.parent / "tests" / cfg.name).exists():  # pragma: no cover
         cfg = ct
-    elif (ct := cfg.parent.parent/cfg.name).exists():  # pragma: no cover
+    elif (ct := cfg.parent.parent / cfg.name).exists():  # pragma: no cover
         cfg = ct
     else:  # pragma: no cover
         raise RuntimeError(f"Config file {cfg!r} not found")

@@ -81,9 +81,15 @@ async def test_10_recover(autojump_clock):  # pylint: disable=unused-argument
     """
     async with stdtest(test_1={"init": 420}, n=N, tocks=15000) as st:
         assert st is not None
-        st.ex.enter_context(mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg))
-        st.ex.enter_context(mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg))
-        st.ex.enter_context(mock.patch("moat.kv.server.Server._send_event", new=send_evt))
+        st.ex.enter_context(
+            mock.patch("asyncactor.actor.Actor._send_msg", new=send_msg)
+        )
+        st.ex.enter_context(
+            mock.patch("asyncactor.actor.Actor.queue_msg", new=queue_msg)
+        )
+        st.ex.enter_context(
+            mock.patch("moat.kv.server.Server._send_event", new=send_evt)
+        )
         st.ex.enter_context(
             mock.patch("moat.kv.server.Server._unpack_multiple", new=unpack_multiple)
         )

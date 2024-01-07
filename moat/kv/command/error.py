@@ -37,11 +37,17 @@ async def resolve(obj, path, subsys):
 
 @cli.command()
 @click.option("-n", "--node", help="add details from this node")
-@click.option("-s", "--subsystem", "subsys", help="only show errors from this subsystem")
+@click.option(
+    "-s", "--subsystem", "subsys", help="only show errors from this subsystem"
+)
 @click.option("-r", "--resolved", is_flag=True, help="only resolved errors")
-@click.option("-v", "--verbose", count=True, help="add per-node details (-vv for traces)")
+@click.option(
+    "-v", "--verbose", count=True, help="add per-node details (-vv for traces)"
+)
 @click.option("-a", "--all-errors", is_flag=True, help="add details from all nodes")
-@click.option("-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error.")
+@click.option(
+    "-d", "--as-dict", default=None, help="Dump a list of all open (or resolved) error."
+)
 @click.option("-p", "--path", default=":", help="only show errors below this subpath")
 @click.pass_obj
 async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
@@ -140,7 +146,9 @@ async def dump(obj, as_dict, path, node, all_errors, verbose, resolved, subsys):
         path = ()
 
     if res is None:
-        res = obj.client.get_tree(path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0)
+        res = obj.client.get_tree(
+            path_, min_depth=d, max_depth=d, nchain=3 if obj.meta else 0
+        )
     async for r in res:
         await one(r)
 

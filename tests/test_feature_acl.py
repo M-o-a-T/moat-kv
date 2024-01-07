@@ -1,8 +1,8 @@
 import logging
 
 import pytest
-from moat.util import P, PathLongener
 from moat.src.test import raises
+from moat.util import P, PathLongener
 
 from moat.kv.auth import loader
 from moat.kv.client import ServerError

@@ -1,8 +1,8 @@
 import logging
 
 import pytest
-from moat.util import P, PathLongener
 from moat.src.test import raises
+from moat.util import P, PathLongener
 
 from moat.kv.client import ServerError
 from moat.kv.mock.mqtt import stdtest
@@ -80,7 +80,9 @@ async def test_41_ssl_basic(autojump_clock):  # pylint: disable=unused-argument
             }
 
             assert (await c._request("get_value", node="test_0", tick=1)).value == 123
-            assert (await c._request("get_value", node="test_0", tick=2)).value == "hello"
+            assert (
+                await c._request("get_value", node="test_0", tick=2)
+            ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
             r = await c.set(value=1234, nchain=3)

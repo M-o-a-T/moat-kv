@@ -34,7 +34,9 @@ class Tracer(trio.abc.Instrument):
         pass
 
     def before_task_step(self, task):
-        if isinstance(task._next_send, Error) and isinstance(task._next_send.error, Exception):
+        if isinstance(task._next_send, Error) and isinstance(
+            task._next_send.error, Exception
+        ):
             self._print_with_task("*** step resume ERROR", task, task._next_send.error)
             self.etasks.add(task)
         elif moat.kill:  # pylint: disable=c-extension-no-member  # OH COME ON

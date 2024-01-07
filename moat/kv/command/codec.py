@@ -11,9 +11,15 @@ async def cli():
 
 
 @cli.command()
-@click.option("-e", "--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here")
-@click.option("-d", "--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here")
-@click.option("-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here")
+@click.option(
+    "-e", "--encode", type=click.File(mode="w", lazy=True), help="Save the encoder here"
+)
+@click.option(
+    "-d", "--decode", type=click.File(mode="w", lazy=True), help="Save the decoder here"
+)
+@click.option(
+    "-s", "--script", type=click.File(mode="w", lazy=True), help="Save the data here"
+)
 @click.argument("path", nargs=1)
 @click.pass_obj
 async def get(obj, path, script, encode, decode):
@@ -40,7 +46,10 @@ async def get(obj, path, script, encode, decode):
 async def list_(obj, path):
     """List type information entries"""
     res = await obj.client._request(
-        action="get_tree_internal", path=Path("codec") + P(path), iter=True, nchain=obj.meta
+        action="get_tree_internal",
+        path=Path("codec") + P(path),
+        iter=True,
+        nchain=obj.meta,
     )
     pl = PathLongener(())
     async for r in res:
@@ -108,30 +117,38 @@ async def set_(obj, path, encode, decode, data, in_, out):
 
 
 @cli.command()
-@click.option("-c", "--codec", help="Codec to link to. Multiple for hierarchical.")
+@click.option("-c", "--codec", type=P, help="Codec to link to.")
 @click.option("-d", "--delete", is_flag=True, help="Use to delete this converter.")
 @click.option(
-    "-l", "--list", "list_this", is_flag=True, help="Use to list this converter; '-' to list all."
+    "-l",
+    "--list",
+    "list_",
+    is_flag=True,
+    help="Use to list this converter; '-' to list all.",
 )
 @click.argument("name", nargs=1)
-@click.argument("path", nargs=1)
+@click.argument("path", type=P, nargs=1)
 @click.pass_obj
-async def convert(obj, path, codec, name, delete, list_this):
+async def convert(obj, path, codec, name, delete, list_):
     """Match a codec to a path (read, if no codec given)"""
     path = P(path)
-    if delete and list_this:
+    if delete and list_:
         raise click.UsageError("You can't both list and delete a path.")
-    if not len(path) and not list_this:
+    if not len(path) and not list_:
         raise click.UsageError("You need a non-empty path.")
     if codec and delete:
         raise click.UsageError("You can't both set and delete a path.")
 
-    if list_this:
+    if list_:
         if name == "-":
             if len(path):
                 raise click.UsageError("You can't use a path here.")
             res = await obj.client._request(
-                action="enum_internal", path=Path("conv"), iter=False, nchain=0, empty=True
+                action="enum_internal",
+                path=Path("conv"),
+                iter=False,
+                nchain=0,
+                empty=True,
             )
             for r in res.result:
                 print(r, file=obj.stdout)
@@ -153,9 +170,11 @@ async def convert(obj, path, codec, name, delete, list_this):
 
         return
     if delete:
-        res = await obj.client._request(action="delete_internal", path=Path("conv", name) + path)
+        res = await obj.client._request(
+            action="delete_internal", path=Path("conv", name) + path
+        )
     else:
-        msg = {"codec": P(codec)}
+        msg = {"codec": codec}
         res = await obj.client._request(
             action="set_internal",
             value=msg,

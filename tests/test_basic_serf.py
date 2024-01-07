@@ -4,8 +4,8 @@ from time import time
 import asyncclick as click
 import pytest
 import trio
-from moat.util import P, PathLongener
 from moat.src.test import raises
+from moat.util import P, PathLongener
 
 from moat.kv.client import ServerError
 from moat.kv.mock import run
@@ -127,7 +127,9 @@ async def test_01_basic(autojump_clock):  # pylint: disable=unused-argument
             }
 
             assert (await c._request("get_value", node="test_0", tick=1)).value == 123
-            assert (await c._request("get_value", node="test_0", tick=2)).value == "hello"
+            assert (
+                await c._request("get_value", node="test_0", tick=2)
+            ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
             r = await c.set(P(":"), value=1234, nchain=3)
@@ -216,7 +218,9 @@ async def test_02_cmd(autojump_clock):  # pylint: disable=unused-argument
             }
 
             assert (await c._request("get_value", node="test_0", tick=1)).value == 123
-            assert (await c._request("get_value", node="test_0", tick=2)).value == "hello"
+            assert (
+                await c._request("get_value", node="test_0", tick=2)
+            ).value == "hello"
             assert (await c._request("get_value", node="test_0", tick=3)).value == "baz"
 
             r = await c.set(P(":"), value=1234, nchain=3)

@@ -159,7 +159,9 @@ class CodeRoot(ClientRoot):
         make_proc(code, variables, path, use_async=is_async)
 
         r = await self.client.set(
-            self._path + path, value=dict(code=code, is_async=is_async, vars=variables), nchain=2
+            self._path + path,
+            value=dict(code=code, is_async=is_async, vars=variables),
+            nchain=2,
         )
         await self.wait_chain(r.chain)
 

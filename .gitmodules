@@ -7,3 +7,12 @@
 [submodule "ext/ha"]
 	path = ext/ha
 	url = git://git.smurf.noris.de/moat-kv-ha.git
+[submodule "ext/moat-knx"]
+	path = ext/knx
+	url = git://git.smurf.noris.de/moat-kv-knx.git
+[submodule "ext/gpio"]
+	path = ext/gpio
+	url = git://git.smurf.noris.de/moat-kv-gpio.git
+[submodule "moat-kv-akumuli"]
+	path = ext/akumuli
+	url = git://git.smurf.noris.de/moat-kv-akumuli.git

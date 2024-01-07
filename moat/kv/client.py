@@ -110,14 +110,16 @@ async def client_scope(_name=None, **cfg):
     """
 
     if _name is None:
-        _name = cfg.get("conn",{}).get("name", "conn")
+        _name = cfg.get("conn", {}).get("name", "conn")
         if _name is None:
             global _cid
             _cid += 1
             _name = f"_{_cid}"
             # uniqueness required for testing.
             # TODO replace with a dependency on the test server.
-    return await scope.service(f"moat.kv.client.{_name}", _scoped_client, _name=_name, **cfg)
+    return await scope.service(
+        f"moat.kv.client.{_name}", _scoped_client, _name=_name, **cfg
+    )
 
 
 class StreamedRequest:
@@ -153,7 +155,9 @@ class StreamedRequest:
         self._path_long = lambda x: x
         if client.qlen > 0:
             self.dw = DelayedWrite(client.qlen)
-            self.qr = DelayedRead(client.qlen, get_seq=self._get_seq, send_ack=self._send_ack)
+            self.qr = DelayedRead(
+                client.qlen, get_seq=self._get_seq, send_ack=self._send_ack
+            )
         else:
             self.qr = create_queue(client.config.server.buffer)
 
@@ -480,7 +484,9 @@ class Client:
             res = await self._request(
                 "diffie_hellman", pubkey=num2byte(k.public_key), length=length
             )  # length=k.key_length
-            await anyio.to_thread.run_sync(k.generate_shared_secret, byte2num(res.pubkey))
+            await anyio.to_thread.run_sync(
+                k.generate_shared_secret, byte2num(res.pubkey)
+            )
             self._dh_key = num2byte(k.shared_secret)[0:32]
         return self._dh_key
 
@@ -540,9 +546,7 @@ class Client:
                         except ClosedResourceError:
                             pass
 
-    async def _request(
-        self, action, iter=None, seq=None, _async=False, **params
-    ):  # pylint: disable=redefined-builtin  # iter
+    async def _request(self, action, iter=None, seq=None, _async=False, **params):  # pylint: disable=redefined-builtin  # iter
         """Send a request. Wait for a reply.
 
         Args:
@@ -676,12 +680,16 @@ class Client:
         if not sa or not sa[0]:
             # no auth required
             if auth:
-                logger.info("Tried to use auth=%s, but not required.", auth._auth_method)
+                logger.info(
+                    "Tried to use auth=%s, but not required.", auth._auth_method
+                )
             return
         if not auth:
             raise ClientAuthRequiredError("You need to log in using:", sa[0])
         if auth._auth_method != sa[0]:
-            raise ClientAuthMethodError(f"You cannot use {auth._auth_method!r} auth", sa)
+            raise ClientAuthMethodError(
+                f"You cannot use {auth._auth_method!r} auth", sa
+            )
         if getattr(auth, "_DEBUG", False):
             auth._length = 16
         await auth.auth(self)
@@ -727,7 +735,9 @@ class Client:
                         self._server_init = msg = await hello.get()
                         self.logger.debug("Hello %s", msg)
                         self.server_name = msg.node
-                        self.client_name = cfg["name"] or socket.gethostname() or self.server_name
+                        self.client_name = (
+                            cfg["name"] or socket.gethostname() or self.server_name
+                        )
                         if "qlen" in msg:
                             self.qlen = min(msg.qlen, 99)  # self.config.server.buffer
                             await self._send(seq=0, qlen=self.qlen)
@@ -735,7 +745,9 @@ class Client:
 
                     from .config import ConfigRoot
 
-                    self._config = await ConfigRoot.as_handler(self, require_client=False)
+                    self._config = await ConfigRoot.as_handler(
+                        self, require_client=False
+                    )
 
                 except TimeoutError:
                     raise
@@ -779,7 +791,16 @@ class Client:
             raise RuntimeError("You need a path, not a string")
         return self._request(action="get_value", path=path, iter=False, nchain=nchain)
 
-    def set(self, path, value=NotGiven, *, chain=NotGiven, prev=NotGiven, nchain=0, idem=None):
+    def set(
+        self,
+        path,
+        value=NotGiven,
+        *,
+        chain=NotGiven,
+        prev=NotGiven,
+        nchain=0,
+        idem=None,
+    ):
         """
         Set or update a value.
 
@@ -856,8 +877,13 @@ class Client:
             raise RuntimeError("You need a path, not a string")
         if empty is None:
             empty = not with_data
-        res = await self._request(action="enum", path=path, with_data=with_data, empty=empty, **kw)
-        return res.result
+        res = await self._request(
+            action="enum", path=path, with_data=with_data, empty=empty, **kw
+        )
+        try:
+            return res.result
+        except AttributeError:
+            raise res.q.value.error from None  # XXX fix this
 
     async def get_tree(self, path, *, long_path=True, **kw):
         """
@@ -936,7 +962,9 @@ class Client:
         """
         if isinstance(path, str):
             raise RuntimeError("You need a path, not a string")
-        return self._stream(action="watch", path=path, iter=True, long_path=long_path, **kw)
+        return self._stream(
+            action="watch", path=path, iter=True, long_path=long_path, **kw
+        )
 
     def mirror(self, path, *, root_type=None, **kw):
         """An async context manager that affords an update-able mirror
