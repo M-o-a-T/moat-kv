@@ -6,7 +6,9 @@ systemd-sysusers --no-pager /usr/lib/sysusers.d/moat-kv.conf
 
 . /usr/lib/moat/kv/env
 
-grep -qs '^MODE=' /etc/moat/kv.env || echo MODE=master >>/etc/moat/kv.env
+mkdir -p /etc/moat
+test -f /etc/moat/kv.env || touch /etc/moat/kv.env
+grep -qs '^MODE=' /etc/moat/kv.env || echo MODE=hybrid >>/etc/moat/kv.env
 grep -qs '^NAME=' /etc/moat/kv.env || echo NAME=$(hostname) >>/etc/moat/kv.env
 grep -qs '^LOCAL=' /etc/moat/kv.env || echo LOCAL=no >>/etc/moat/kv.env
 
