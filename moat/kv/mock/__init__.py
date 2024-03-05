@@ -93,5 +93,5 @@ class S:
                 args = args.split(" ")
         async with scope.using_scope():
             return await run(
-                "-v", "-v", "kv", "-h", h, "-p", p, *args, do_stdout=do_stdout
+                "-VV", "kv", "-h", h, "-p", p, *args, do_stdout=do_stdout
             )

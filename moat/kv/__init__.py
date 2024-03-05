@@ -3,6 +3,7 @@
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 try:
+    import warning
     import pkg_resources  # part of setuptools
     import warnings
 
