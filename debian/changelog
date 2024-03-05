@@ -1,3 +1,9 @@
+moat-kv (0.70.16-1) unstable; urgency=medium
+
+  * Merge
+
+ -- Matthias Urlichs <matthias@urlichs.de>  Tue, 05 Mar 2024 14:21:09 +0100
+
 moat-kv (0.70.15-2) unstable; urgency=medium
 
   * Tighten deps
