@@ -793,7 +793,10 @@ class StateEntry(AttrClientEntry):
             await self.delete()
             return
 
-        if self.node is None or self.node != self.root.name:
+        if self.node is None:
+            return
+        if self.node != self.root.name:
+            self.root.runner.get_node(self.node)
             return
 
         self.stopped = time.time()
