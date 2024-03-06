@@ -1176,7 +1176,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         self._stale_times.append(cur)
         if self._stale_times[0] > cur - self.max_age:
             return
-        if len(self._stale_times) < 5:
+        if len(self._stale_times) <= 2*self._cfg["actor"]["n_hosts"]+1:
             return
         cut = self._stale_times.pop(0)
 
