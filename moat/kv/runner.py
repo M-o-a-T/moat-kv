@@ -556,7 +556,7 @@ class RunnerEntry(AttrClientEntry):
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
                 data = combine_dict(
-                    self.data or {}, code.value.get("default", {}), deep=True
+                    self.data or {}, {} if code.value is NotGiven else code.value.get("default", {}), deep=True
                 )
 
                 if code.is_async:
