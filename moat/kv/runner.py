@@ -556,7 +556,7 @@ class RunnerEntry(AttrClientEntry):
                     raise RuntimeError(f"already running on {state.node}")
                 code = self.root.code.follow(self.code, create=False)
                 data = combine_dict(
-                    self.data or {}, code.value.get("default", {}), deep=True
+                    self.data or {}, {} if code.value is NotGiven else code.value.get("default", {}), deep=True
                 )
 
                 if code.is_async:
@@ -793,7 +793,10 @@ class StateEntry(AttrClientEntry):
             await self.delete()
             return
 
-        if self.node is None or self.node != self.root.name:
+        if self.node is None:
+            return
+        if self.node != self.root.name:
+            self.root.runner.get_node(self.node)
             return
 
         self.stopped = time.time()
@@ -1173,7 +1176,7 @@ class AnyRunnerRoot(_BaseRunnerRoot):
         self._stale_times.append(cur)
         if self._stale_times[0] > cur - self.max_age:
             return
-        if len(self._stale_times) < 5:
+        if len(self._stale_times) <= 2*self._cfg["actor"]["n_hosts"]+1:
             return
         cut = self._stale_times.pop(0)
 

@@ -535,6 +535,7 @@ class Client:
 
             except BaseException as exc:
                 logger.warning("Reader died: %r", exc, exc_info=exc)
+                raise
             finally:
                 with anyio.fail_after(2, shield=True):
                     hdl, self._handlers = self._handlers, None
