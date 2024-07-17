@@ -168,33 +168,33 @@ class CallAdmin:
     async def _run2(self, code, data):
         """Called by the runner to actually execute the code."""
         self._logger.debug("Start %s with %s", self._runner._path, self._runner.code)
-        async with anyio.create_task_group() as tg:
+        async with (
+                anyio.create_task_group() as tg,
+                AsyncExitStack() as stack,
+                ):
+            self._stack = stack
             self._taskgroup = tg
-            async with AsyncExitStack() as stack:
-                self._stack = stack
-                sc = tg.cancel_scope
+            self._runner.scope = sc = tg.cancel_scope
 
-                self._taskgroup = tg
-                self._runner.scope = sc
-                data["_self"] = self
+            data["_self"] = self
 
-                oka = getattr(self._runner, "ok_after", 0)
-                if oka > 0:
+            oka = getattr(self._runner, "ok_after", 0)
+            if oka > 0:
 
-                    async def is_ok(oka):
-                        await anyio.sleep(oka)
-                        await self.setup_done()
+                async def is_ok(oka):
+                    await anyio.sleep(oka)
+                    await self.setup_done()
 
-                    tg.start_soon(is_ok, oka)
-                tg.start_soon(self._changed_code, code)
+                tg.start_soon(is_ok, oka)
+            tg.start_soon(self._changed_code, code)
 
-                await self._runner.send_event(ReadyMsg(0))
-                res = code(**data)
-                if code.is_async is not None:
-                    res = await res
+            await self._runner.send_event(ReadyMsg(0))
+            res = code(**data)
+            if code.is_async is not None:
+                res = await res
 
-                sc.cancel()
-                return res
+            sc.cancel()
+            return res
 
     async def _pinger(self):
         t = self._runner.ok_after or 10

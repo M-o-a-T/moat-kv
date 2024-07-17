@@ -28,7 +28,7 @@ if test "$MODE" != "slave" ; then
 
     if test ! -s "0.dkv" ; then
         moat kv dump init $NAME 0.dkv
-        chown -R moat-kv:moat "$DEST"
+        chown -R MoaT-KV:MoaT "$DEST"
     fi
 fi
 
