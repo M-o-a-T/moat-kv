@@ -1,0 +1,168 @@
+=================
+MoaT-KV Version 3
+=================
+
++++++++++
+Rationale
++++++++++
+
+The V2 servers worked, for the most part, but they had a couple of problems.
+
+* sometimes there are strange deadlocks
+
+* msgpack isn't that widely supported compared to CBOR
+
+* the initial client/server negotiation isn't versioned
+
+* the sync protocol is somewhat overengineered
+
+* speed of updates is limited by the client>server>MQTT>server>client
+  chain; two possibly-high-load servers in between cause too much delay
+
+* Messages tended to be more verbose than necessary
+
+++++++++++++++++++
+V3 design overview
+++++++++++++++++++
+
+Server start
+++++++++++++
+
+* connect to MQTT, listen to all MoaT messages,
+  update internal state as messages come in
+
+* ask for a server link on the Join/Actor topic
+
+* load the local backup if present
+
+* fetch full tree from designated server is replied
+
+* merge data
+
+* Join actor topic
+
+
+Client connection setup A
++++++++++++++++++++++++++
+
+* Client connects to MQTT and sends Query message
+* Designated server replies with connection data
+* Client connects to server
+
+* Server greets client
+* Client authenticates
+* Server sends MQTT connection information
+* Client connects to MQTT and sends Birth message
+* Server sees the client's message and sends ACK to the client
+
+Client connection setup B
++++++++++++++++++++++++++
+
+This method is slower; it can be used when the configured server doesn't work.
+
+* Client connects to MQTT and sends Query message
+* Designated server sends connection data
+
+Reading initial data
+++++++++++++++++++++
+
+* Client subscribes to MQTT topic
+* Client requests initial data from server
+* Server sends data, advises client that no data exist, or tells the client
+  that MQTT uses retaining (if so, which codec to use)
+
+Updates
++++++++
+
+The most notable pain point of the old design is the speed of updates.
+Thus in V3 all updates will be MQTT messages.
+
+This section does not apply if the MQTT server retains the data.
+
+MoaT update messages are CBOR maps. Keys are small integers for message brevity and
+decode speed.
+
+* 0: tock
+
+  The system-wide update counter. May be missing.
+
+* 1: value
+
+  Contents: Whatever is CBOR-encodeable. A missing value means that the
+  object shall be deleted.
+
+* 2: tick.
+
+  Update tracker. This is a ``((name, seq, counter), …)`` list of tuples.
+
+  * name
+    The server's name
+
+  * seq
+    Client connection. Zero is reserved for server-generated content.
+
+  * counter
+    A per-client update counter, managed by the client. Must start at 1 and
+    increment in steps of 1, in order to detect skipped updates.
+
+
+The server sees the update and sends an ACK message to the client, assuming
+that there was no conflict.
+
+
+Skipped updates
++++++++++++++++
+
+Servers listen to all messages. If there's a gap in a client's sequence
+numbers, the server will ask it to repeat the message.
+
+
+Update conflict resolution
+++++++++++++++++++++++++++
+
+If a client sends a message which the server determines
+
+
+MQTT topics
++++++++++++
+
+All are under a common configured prefix, the default is "moat/main".
+
+svc/act
+-------
+
+The Actor topic for server identification.
+
+The transmitted value contains the server's name, host and port.
+
+
+svc/query
+---------
+
+Connect requests from clients.
+
+svc/server
+----------
+
+Reply queue for messages to ``svc/query``. Contains the server value as
+above.
+
+
+d/*
+---
+
+Update messages.
+
+Topic translation
++++++++++++++++++
+
+Topics are encoded like MoaT paths, except for these differences:
+
+* The path separator is ``/``  instead of ``.``
+* Slashes are escaped as ``:_``.
+* Spaces in paths are never escaped: that would collide with the previous rule
+* Dots are not escaped, obviously.
+* `None` is encoded as "$NULL" when it's a top-level element.
+* The sequence ``:.`` is used to shield both wildcards and strings with a
+  leading ``$`` character. It translates back to an empty string, not a
+  dot, and may be treated as an illegal sequence otherwise.

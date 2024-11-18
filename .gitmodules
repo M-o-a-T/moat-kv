@@ -19,3 +19,6 @@
 [submodule "ext/wago"]
 	path = ext/wago
 	url = git://git.smurf.noris.de/moat-kv-wago.git
+[submodule "ext/cal"]
+	path = ext/cal
+	url = git://git.smurf.noris.de/moat-kv-cal.git

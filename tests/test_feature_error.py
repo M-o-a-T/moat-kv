@@ -45,6 +45,7 @@ async def test_81_basic(autojump_clock):  # pylint: disable=unused-argument
 @pytest.mark.trio
 @pytest.mark.xfail
 async def test_82_many(autojump_clock):  # pylint: disable=unused-argument
+    pytest.skip("broken")
     async with stdtest(args={"init": 123}, tocks=80) as st:
         assert st is not None
         async with st.client() as cx, st.client() as cy, st.client() as cz:

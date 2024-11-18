@@ -120,7 +120,6 @@ for _c in (
     CompleteState,
     ActorState,
     BrokenState,
-    NotGiven,
     TimerMsg,
     ReadyMsg,
     ChangeMsg,
@@ -130,6 +129,7 @@ for _c in (
 ):
     _CLASSES[_c.__name__] = _c
 
+_CLASSES["NotGiven"] = NotGiven  # ellipsis
 
 class CallAdmin:
     """
